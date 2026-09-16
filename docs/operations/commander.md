@@ -7,6 +7,14 @@ scripts/release_ptw_fast.sh --release-tag RELEASE \
   --confirm 'DEPLOY PTW PRESERVING'
 ```
 
+Hosted GOD-mode development branches can be published without deploying. An
+explicit owner chat instruction or **Push branch** action asks the credentialed
+host publisher to push the clean, committed current branch with a normal
+non-force update. It never runs the production release workflow, promotes
+`main`, or stages uncommitted files. Protected `main`, `master`,
+`god-candidate/*`, and `god-deploy/*` branches remain release-only. The coding
+runner never receives the GitHub key.
+
 Hosted GOD-mode changes enter the preserving path from an explicit chat deploy
 instruction or one click on Deploy in the Commander workspace. No second
 confirmation is required. The controller freezes one exact candidate commit in

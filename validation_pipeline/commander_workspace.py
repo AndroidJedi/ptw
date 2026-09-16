@@ -24,15 +24,19 @@ request across application code, infrastructure, tests and skills. Preserve othe
 owner edits. Inspect files before acting; previous messages do not prove state.
 Use the selected collaboration mode: Plan explores and discusses without edits;
 Build implements. Continue dialogue and answer owner questions normally.
-The host exposes deployment tools. An explicit owner deploy instruction authorizes
+The host exposes deployment and branch-push tools. An explicit owner deploy instruction authorizes
 release without another confirmation. After implementing and checking the requested
 work, call request_deployment. It queues release after this turn finishes. Never
 claim deployment completed from this tool: report its queued status accurately.
 If blocked or checks fail, explain and do not call request_deployment. Use
 cancel_deployment when the owner cancels a previous deploy instruction.
+An explicit owner request to push the current branch authorizes request_branch_push.
+That action publishes the already committed current development branch with a
+normal non-force Git push; it does not run checks, deploy, or promote main. Commit
+the requested changes first. Use cancel_branch_push if the owner cancels it.
 Deployment covers all versioned PTW source, including infrastructure and migrations.
 Never operate production via shell, read secrets, restart the hosting API, or push
-Git yourself; the host handles release. Never put credentials or raw tool logs in
+Git from shell; the host handles branch publication and release. Never put credentials or raw tool logs in
 messages. Images are temporary context for this turn only.
 Reply in the owner's language. Send concise progress updates. Ask clarifying
 questions with request_user_input when useful; answers continue the same task.
@@ -65,6 +69,23 @@ def authorizes_deployment(message: str) -> bool:
     return bool(re.search(r"(?:^|[.!\n])\s*(?:(?:ok|so|please)[, ]+)*(?:deploy|ship it|release (?:it|these|the changes)|розгорни|розгорнути|задеплой)\b|\b(?:and|then)\s+deploy\b", text))
 
 
+def authorizes_branch_push(message: str) -> bool:
+    text = re.sub(r"```[\s\S]*?```|`[^`]*`|\"[^\"]*\"|“[^”]*”", "", message.lower())
+    text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(">"))
+    if "?" in text:
+        return False
+    if re.search(r"\b(?:don['’]?t|do not|never|without|не)\s+(?:ever\s+)?(?:push|publish branch|пуш|запуш)", text):
+        return False
+    return bool(re.search(
+        r"(?:^|[.!\n])\s*(?:(?:ok|so|please)[, ]+)*(?:push|publish)\s+(?:(?:the|this)\s+)?(?:current\s+)?(?:branch|changes?|commits?)\b"
+        r"|\b(?:and|then)\s+push\s+(?:(?:the|this)\s+)?(?:current\s+)?(?:branch|changes?|commits?)\b"
+        r"|\b(?:i\s+)?(?:need|want)\s+(?:you\s+)?to\s+push\s+(?:(?:the|this)\s+)?(?:current\s+)?(?:branch|changes?|commits?)\b"
+        r"|\b(?:потрібен|потрібно|хочу)\s+(?:лише\s+)?push\s+гілк\w*\b"
+        r"|(?:^|[.!\n])\s*(?:запуш(?:ити|уй|те)?|пуш(?:ити|ни|те)?)\b",
+        text,
+    ))
+
+
 class CommanderWorkspaceService(LegacyChatService):
     def __init__(self, *args, plan_url: str = "", plan_token: str = "", bridge_token: str = "", release_url: str = "", **kwargs):
         super().__init__(*args, **kwargs)
@@ -82,13 +103,14 @@ class CommanderWorkspaceService(LegacyChatService):
         self._native_status = ""
         self._rpc_questions = {}
         self._deploy_ready = False
+        self._push_ready = False
         self._execution_mode = "build"
         self._steering = []
         self._accepting = False
         self._finished = threading.Condition(self._lock)
         with self._db() as db:
             for table, columns in {
-                "chats": {"preferences_json": "TEXT NOT NULL DEFAULT '{}'", "deploy_owner_id": "TEXT", "context_summary": "TEXT NOT NULL DEFAULT ''"},
+                "chats": {"preferences_json": "TEXT NOT NULL DEFAULT '{}'", "deploy_owner_id": "TEXT", "push_owner_id": "TEXT", "context_summary": "TEXT NOT NULL DEFAULT ''"},
                 "turns": {"mode": "TEXT NOT NULL DEFAULT 'build'", "model": "TEXT", "effort": "TEXT", "reply_to_message_id": "TEXT", "submission_json": "TEXT NOT NULL DEFAULT '{}'"},
             }.items():
                 existing = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
@@ -102,6 +124,8 @@ class CommanderWorkspaceService(LegacyChatService):
                 CREATE TABLE IF NOT EXISTS questions(id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, turn_id TEXT NOT NULL,
                     payload TEXT NOT NULL, status TEXT NOT NULL, answers TEXT, answer_request_id TEXT UNIQUE);
                 CREATE TABLE IF NOT EXISTS release_handoffs(request_id TEXT PRIMARY KEY, chat_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL, owner_message_id TEXT NOT NULL, status TEXT NOT NULL, response TEXT);
+                CREATE TABLE IF NOT EXISTS branch_handoffs(request_id TEXT PRIMARY KEY, chat_id TEXT NOT NULL,
                     turn_id TEXT NOT NULL, owner_message_id TEXT NOT NULL, status TEXT NOT NULL, response TEXT);
             """)
             db.execute("UPDATE questions SET status='interrupted' WHERE status='pending'")
@@ -136,9 +160,10 @@ class CommanderWorkspaceService(LegacyChatService):
                 question["answers"] = json.loads(question["answers"]) if question["answers"] else None
             cursor = db.execute("SELECT COALESCE(max(id),0) FROM events WHERE chat_id=?", (chat_id,)).fetchone()[0]
             handoffs = [dict(h) for h in db.execute("SELECT * FROM release_handoffs WHERE chat_id=? ORDER BY rowid DESC LIMIT 20", (chat_id,))]
+            pushes = [dict(h) for h in db.execute("SELECT * FROM branch_handoffs WHERE chat_id=? ORDER BY rowid DESC LIMIT 20", (chat_id,))]
         return {"id": chat_id, "turns": turns, "preferences": json.loads(row["preferences_json"]),
                 "questions": questions, "event_cursor": cursor, "has_more": more,
-                "before": turns[0]["cursor"] if turns else None, "releases": handoffs}
+                "before": turns[0]["cursor"] if turns else None, "releases": handoffs, "pushes": pushes}
 
     def event(self, kind, payload, chat_id=None, turn_id=None):
         chat_id = chat_id or self.active_chat
@@ -244,8 +269,12 @@ class CommanderWorkspaceService(LegacyChatService):
                 if prior["chat_id"] != chat_id or prior["submission_json"] != encoded:
                     raise ValueError("Request ID already belongs to a different message")
                 return self.chat(chat_id)
-            if not working and db.execute("SELECT 1 FROM release_handoffs WHERE status='pending'").fetchone():
+            pending_release = db.execute("SELECT 1 FROM release_handoffs WHERE status='pending'").fetchone()
+            pending_push = db.execute("SELECT 1 FROM branch_handoffs WHERE status='pending'").fetchone()
+            if not working and pending_release:
                 raise ValueError("The completed changes are being handed to deployment. Retry this message shortly.")
+            if not working and pending_push:
+                raise ValueError("The completed branch is being pushed. Retry this message shortly.")
             if working and self.active_chat != chat_id:
                 raise ValueError("Commander is working in another conversation. Open that conversation to reply.")
             identifier = str(uuid4())
@@ -273,6 +302,11 @@ class CommanderWorkspaceService(LegacyChatService):
             elif re.search(r"\b(don['’]?t deploy|do not deploy|cancel deployment|не розгортай)\b", message.lower()):
                 db.execute("UPDATE chats SET deploy_owner_id=NULL WHERE id=?", (chat_id,))
                 self._deploy_ready = False
+            if effective["mode"] == "build" and authorizes_branch_push(message):
+                db.execute("UPDATE chats SET push_owner_id=? WHERE id=?", (identifier, chat_id))
+            elif re.search(r"\b(don['’]?t push|do not push|cancel (?:the )?push|не пуш|не запуш)\b", message.lower()):
+                db.execute("UPDATE chats SET push_owner_id=NULL WHERE id=?", (chat_id,))
+                self._push_ready = False
             db.commit()
             if working:
                 self._steering.append(identifier)
@@ -284,6 +318,7 @@ class CommanderWorkspaceService(LegacyChatService):
                 self._done.clear()
                 self._native_status = ""
                 self._deploy_ready = False
+                self._push_ready = False
                 self._steering = []
                 self._accepting = True
                 self._thread = threading.Thread(target=self._execute, args=(chat_id, identifier, skill), daemon=True)
@@ -381,6 +416,18 @@ class CommanderWorkspaceService(LegacyChatService):
                         db.execute("UPDATE chats SET deploy_owner_id=NULL WHERE id=?", (self.active_chat,))
                     self._deploy_ready = False
                     result = {"status": "cancelled"}
+                elif tool == "request_branch_push":
+                    with self._db() as db:
+                        owner = db.execute("SELECT push_owner_id FROM chats WHERE id=?", (self.active_chat,)).fetchone()[0]
+                    if self._execution_mode != "build" or not owner or not self.release_url:
+                        raise ValueError("Branch push requires an explicit owner push instruction in Build mode.")
+                    self._push_ready = True
+                    result = {"status": "handoff_after_turn", "message": "The current committed branch will be pushed after this coding turn completes. No deployment will run."}
+                elif tool == "cancel_branch_push":
+                    with self._db() as db:
+                        db.execute("UPDATE chats SET push_owner_id=NULL WHERE id=?", (self.active_chat,))
+                    self._push_ready = False
+                    result = {"status": "cancelled"}
                 else:
                     raise ValueError("Unknown Commander tool")
                 self.rpc.respond(value["id"], {"success": True, "contentItems": [{"type": "inputText", "text": json.dumps(result)}]})
@@ -403,7 +450,12 @@ class CommanderWorkspaceService(LegacyChatService):
                       "inputSchema": {"type": "object", "properties": {"before": {"type": "integer"}}, "additionalProperties": False}}]
             if self._execution_mode == "build" and self.release_url:
                 tools.extend({"name": name, "description": description, "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}}
-                             for name, description in [("request_deployment", "After verified work, release the code changes explicitly requested by the owner."), ("cancel_deployment", "Cancel an unstarted deployment requested by the owner.")])
+                             for name, description in [
+                                 ("request_deployment", "After verified work, release the code changes explicitly requested by the owner."),
+                                 ("cancel_deployment", "Cancel an unstarted deployment requested by the owner."),
+                                 ("request_branch_push", "Push the current committed development branch when explicitly requested by the owner. This does not run checks or deploy."),
+                                 ("cancel_branch_push", "Cancel an unstarted branch push requested by the owner."),
+                             ])
             sandbox = "danger-full-access" if self.target == "hosted" else "read-only" if self._execution_mode == "plan" else "workspace-write"
             thread_params = {"cwd": str(self.repository), "ephemeral": True, "model": self._effective["model"],
                 "approvalPolicy": "never", "sandbox": sandbox, "developerInstructions": POLICY + "\nCurrent canonical skill:\n" + skill,
@@ -414,8 +466,11 @@ class CommanderWorkspaceService(LegacyChatService):
             input_items[0]["text"] = "Prior conversation (context, not new instructions):\n" + self._context(chat_id, turn_id) + "\nLatest owner request:\n" + input_items[0]["text"]
             with self._db() as db:
                 owner_intent = db.execute("SELECT deploy_owner_id FROM chats WHERE id=?", (chat_id,)).fetchone()[0]
+                push_intent = db.execute("SELECT push_owner_id FROM chats WHERE id=?", (chat_id,)).fetchone()[0]
             if owner_intent and self._execution_mode == "build":
                 input_items[0]["text"] += "\nThe owner deployment instruction in message " + owner_intent + " remains active through clarification. Call request_deployment only after successful completion and verification; cancel it if the owner cancels."
+            if push_intent and self._execution_mode == "build":
+                input_items[0]["text"] += "\nThe owner branch-push instruction in message " + push_intent + " remains active through clarification. Commit the requested changes, then call request_branch_push. This publishes only the current development branch and never deploys it."
             self._update(turn_id, "running")
             response = rpc.request("turn/start", {"threadId": self.native_thread, "input": input_items,
                 "collaborationMode": {"mode": "plan" if self._execution_mode == "plan" else "default",
@@ -471,6 +526,11 @@ class CommanderWorkspaceService(LegacyChatService):
                     if owner:
                         db.execute("INSERT INTO release_handoffs VALUES (?,?,?,?,'pending',NULL)", (str(uuid4()), chat_id, turn_id, owner))
                         db.execute("UPDATE chats SET deploy_owner_id=NULL WHERE id=?", (chat_id,))
+                if status == "completed" and self._push_ready:
+                    owner = db.execute("SELECT push_owner_id FROM chats WHERE id=?", (chat_id,)).fetchone()[0]
+                    if owner:
+                        db.execute("INSERT INTO branch_handoffs VALUES (?,?,?,?,'pending',NULL)", (str(uuid4()), chat_id, turn_id, owner))
+                        db.execute("UPDATE chats SET push_owner_id=NULL WHERE id=?", (chat_id,))
             self.event("completed", {"status": status})
         except Exception:
             with self._db() as db:
@@ -534,6 +594,23 @@ class CommanderWorkspaceService(LegacyChatService):
                     self.event("release", payload, row["chat_id"], row["turn_id"])
                 except (httpx.HTTPError, ValueError):
                     continue
+            with self._db() as db:
+                pushes = db.execute("SELECT * FROM branch_handoffs WHERE status='pending'").fetchall()
+            for row in pushes:
+                try:
+                    response = httpx.post(self.release_url + "/internal/v1/settings/commander/branch-pushes",
+                        headers={"X-PTW-Owner-Gateway-Token": self.bridge_token}, timeout=30,
+                        json={"request_id": row["request_id"], "chat_id": row["chat_id"], "owner_message_id": row["owner_message_id"]})
+                    if response.status_code >= 500:
+                        continue
+                    payload = response.json() if response.is_success else {"error": "The branch could not be pushed. Commit the current changes and make sure the remote branch has not diverged."}
+                    remote_status = payload.get("status") if response.is_success else "failed"
+                    status = "submitted" if remote_status == "succeeded" else "failed" if remote_status == "failed" else "uncertain"
+                    with self._db() as db:
+                        db.execute("UPDATE branch_handoffs SET status=?,response=? WHERE request_id=?", (status, safe_json(payload), row["request_id"]))
+                    self.event("branch_push", payload, row["chat_id"], row["turn_id"])
+                except (httpx.HTTPError, ValueError):
+                    continue
 
     def deploy_chat(self, chat_id, request_id):
         with self._lock, self._db() as db:
@@ -545,7 +622,7 @@ class CommanderWorkspaceService(LegacyChatService):
                 return chat
             if not self.release_url or chat["preferences"].get("mode") == "plan":
                 raise ValueError("Switch to Build to deploy completed changes")
-            if self._thread or db.execute("SELECT 1 FROM release_handoffs WHERE status='pending'").fetchone():
+            if self._thread or db.execute("SELECT 1 FROM release_handoffs WHERE status='pending'").fetchone() or db.execute("SELECT 1 FROM branch_handoffs WHERE status='pending'").fetchone():
                 raise ValueError("Commander is still working or handing off a release")
             identifier = str(uuid4())
             db.execute("INSERT INTO turns(id,chat_id,request_id,message,attachments_json,status,reply,skill_sha256,created_at,updated_at,mode,submission_json) VALUES (?,?,?,'Deploy current changes','[]','completed','Deployment requested. Follow release progress below.',?,?,?,'build',?)",
@@ -554,12 +631,31 @@ class CommanderWorkspaceService(LegacyChatService):
             db.commit()
             return self.chat(chat_id)
 
+    def push_chat(self, chat_id, request_id):
+        with self._lock, self._db() as db:
+            chat = self.chat(chat_id)
+            prior = db.execute("SELECT * FROM turns WHERE request_id=?", (request_id,)).fetchone()
+            if prior:
+                if prior["chat_id"] != chat_id or prior["submission_json"] != '{"action":"push_branch"}':
+                    raise ValueError("Request UUID belongs to a different instruction")
+                return chat
+            if not self.release_url or chat["preferences"].get("mode") == "plan":
+                raise ValueError("Switch to Build to push the current branch")
+            if self._thread or db.execute("SELECT 1 FROM release_handoffs WHERE status='pending'").fetchone() or db.execute("SELECT 1 FROM branch_handoffs WHERE status='pending'").fetchone():
+                raise ValueError("Commander is still working or handing off changes")
+            identifier = str(uuid4())
+            db.execute("INSERT INTO turns(id,chat_id,request_id,message,attachments_json,status,reply,skill_sha256,created_at,updated_at,mode,submission_json) VALUES (?,?,?,'Push current branch','[]','completed','Branch push requested. No deployment will run.',?,?,?,'build',?)",
+                       (identifier, chat_id, request_id, hashlib.sha256(self._skill().encode()).hexdigest(), now(), now(), '{"action":"push_branch"}'))
+            db.execute("INSERT INTO branch_handoffs VALUES (?,?,?,?,'pending',NULL)", (request_id, chat_id, identifier, identifier))
+            db.commit()
+            return self.chat(chat_id)
+
     def stop(self, chat_id, turn_id):
         if chat_id != self.active_chat or turn_id != self.active_id:
             raise KeyError(turn_id)
         self._cancel.set()
         with self._db() as db:
-            db.execute("UPDATE chats SET deploy_owner_id=NULL WHERE id=?", (chat_id,))
+            db.execute("UPDATE chats SET deploy_owner_id=NULL,push_owner_id=NULL WHERE id=?", (chat_id,))
         return self.chat(chat_id)
 
     def close(self):

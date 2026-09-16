@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from validation_pipeline.commander_chat import ChatMessage, commander_chat_router
-from validation_pipeline.commander_workspace import CommanderWorkspaceService, Preferences, QuestionAnswer, authorizes_deployment
+from validation_pipeline.commander_workspace import CommanderWorkspaceService, Preferences, QuestionAnswer, authorizes_branch_push, authorizes_deployment
 
 
 CAPABILITIES = {"models": [
@@ -137,6 +137,24 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "handed to deployment"):
             self.service.send(self.chat_id, ChatMessage(request_id=uuid4(), message="Edit again"))
 
+    def test_branch_push_requires_explicit_owner_and_never_queues_deployment(self):
+        self.send("Push the current branch")
+        tool_names = [tool["name"] for tool in self.service.rpc.calls[0][1]["dynamicTools"]]
+        self.assertIn("request_branch_push", tool_names)
+        self.service.rpc.emit("item/tool/call", {"tool": "request_branch_push", "arguments": {}}, "push-tool")
+        self.assertTrue(self.service.rpc.responses[-1][1]["success"])
+        self.finish()
+        chat = self.service.chat(self.chat_id)
+        self.assertEqual("pending", chat["pushes"][0]["status"])
+        self.assertEqual([], chat["releases"])
+
+    def test_branch_push_tool_rejects_unrequested_push(self):
+        self.send("Build feature")
+        self.service.rpc.emit("item/tool/call", {"tool": "request_branch_push", "arguments": {}}, "push-tool")
+        self.assertFalse(self.service.rpc.responses[-1][1]["success"])
+        self.finish()
+        self.assertEqual([], self.service.chat(self.chat_id)["pushes"])
+
     def test_plan_deployment_tool_cannot_authorize(self):
         self.send("Deploy it", mode="plan")
         rpc = self.service.rpc
@@ -152,6 +170,14 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(1, len(duplicate["turns"]))
         self.assertEqual(request, first["releases"][0]["request_id"])
         self.assertEqual(first["turns"][0]["id"], first["releases"][0]["owner_message_id"])
+
+    def test_one_click_branch_push_uses_separate_handoff(self):
+        request = str(uuid4())
+        first = self.service.push_chat(self.chat_id, request)
+        duplicate = self.service.push_chat(self.chat_id, request)
+        self.assertEqual(1, len(duplicate["turns"]))
+        self.assertEqual(request, first["pushes"][0]["request_id"])
+        self.assertEqual([], first["releases"])
 
     def test_cancellation_retains_edits_without_release(self):
         first, _ = self.send("Implement and deploy")
@@ -195,3 +221,9 @@ class WorkspaceTests(unittest.TestCase):
             self.assertTrue(authorizes_deployment(message), message)
         for message in ['Explain "deploy"', "Why didn't you deploy?", "Do not deploy", "> deploy\nDiscuss this", "`deploy`", "How do I deploy?"]:
             self.assertFalse(authorizes_deployment(message), message)
+
+    def test_branch_push_intent_classification(self):
+        for message in ["Push the current branch", "Please, push this branch", "Implement then push branch", "Запуш гілку", "Потрібен лише push гілки"]:
+            self.assertTrue(authorizes_branch_push(message), message)
+        for message in ['Explain "push branch"', "Why can't you push the branch?", "Do not push", "> push branch\nDiscuss this", "`push branch`", "Add a push branch button", "Implement request_branch_push"]:
+            self.assertFalse(authorizes_branch_push(message), message)

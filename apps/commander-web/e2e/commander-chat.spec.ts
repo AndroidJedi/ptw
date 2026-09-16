@@ -72,14 +72,16 @@ test('Settings keeps authorization and persists the language selected there', as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
 
-test('Commander deploys in one click without page overflow', async ({ page }) => {
+test('Commander pushes a branch separately and deploys in one click without page overflow', async ({ page }) => {
   const base = '/api/v1/settings/commander'
   let deployment: Record<string, unknown> | null = null
+  let branchPushed = false
   await page.route('**/api/v1/**', route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/capabilities')) return route.fulfill({ json: capabilities })
     if (path.endsWith('/events')) return route.fulfill({ json: { cursor: 0, events: [] } })
     if (path.endsWith('/chatgpt-authorization')) return route.fulfill({ json: { status: 'authorized', test_status: 'passed' } })
+    if (path.endsWith('/push')) branchPushed = true
     if (path.endsWith('/deploy')) deployment = { id: 'deployment-1', status: 'queued', revision: 'b'.repeat(40) }
     if (path === `${base}/deployments`) {
       if (route.request().method() === 'POST') deployment = {
@@ -88,7 +90,7 @@ test('Commander deploys in one click without page overflow', async ({ page }) =>
         workflow_url: null, updated_at: new Date().toISOString(),
       }
       return route.fulfill({ json: {
-        candidate: { available: true, deployable: deployment === null, changed_files: ['apps/commander-web/src/change.tsx'], protected_files: [] },
+        candidate: { available: true, deployable: deployment === null, pushable: true, branch: 'feature/test-branch', changed_files: ['apps/commander-web/src/change.tsx'], protected_files: [] },
         deployment,
       } })
     }
@@ -97,6 +99,9 @@ test('Commander deploys in one click without page overflow', async ({ page }) =>
   })
   await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.goto('/?e2e=1&page=commander')
+  await page.getByRole('button', { name: 'Push branch', exact: true }).click()
+  await expect.poll(() => branchPushed).toBeTruthy()
+  expect(deployment).toBeNull()
   await page.getByRole('button', { name: 'Deploy', exact: true }).click()
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
   await expect(page.getByText('Building, checking and deploying…')).toBeVisible()

@@ -255,6 +255,11 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         response.headers["Cache-Control"] = "private, no-store"
         return await commander_bridge("POST", f"/chats/{chat_id}/deploy", body=request)
 
+    @app.post("/api/v1/settings/commander/chats/{chat_id}/push", status_code=202)
+    async def commander_push_action(chat_id: UUID, request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/push", body=request)
+
     @app.post("/api/v1/settings/commander/chats/{chat_id}/questions/{question_id}/answers")
     async def commander_answer(chat_id: UUID, question_id: UUID, request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner)):
         response.headers["Cache-Control"] = "private, no-store"

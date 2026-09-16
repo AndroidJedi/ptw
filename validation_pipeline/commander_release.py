@@ -33,6 +33,8 @@ GITHUB_REPOSITORY = "AndroidJedi/ptw"
 BRANCH_PREFIX = "god-deploy/"
 MAX_CHANGED_FILES = 500
 REQUEST_PATH = ".ptw-release-request.json"
+PROTECTED_PUSH_BRANCHES = {"main", "master"}
+PROTECTED_PUSH_PREFIXES = ("god-deploy/", "god-candidate/")
 
 
 def now() -> str:
@@ -47,6 +49,13 @@ class DeploymentRequest(BaseModel):
     confirmation: str | None = None
     chat_id: UUID | None = None
     owner_message_id: UUID | None = None
+
+
+class BranchPushRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: UUID
+    chat_id: UUID
+    owner_message_id: UUID
 
 
 class CommanderReleaseService:
@@ -88,6 +97,12 @@ class CommanderReleaseService:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_deployment ON deployments((1))
                     WHERE status IN ('preparing','queued','running');
+                CREATE TABLE IF NOT EXISTS branch_pushes(
+                    request_id TEXT PRIMARY KEY, chat_id TEXT NOT NULL,
+                    owner_message_id TEXT NOT NULL, branch TEXT NOT NULL,
+                    revision TEXT NOT NULL, status TEXT NOT NULL,
+                    error_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
             """)
             columns = {r[1] for r in db.execute("PRAGMA table_info(deployments)")}
             for column in ("request_revision", "chat_id", "owner_message_id"):
@@ -135,6 +150,29 @@ class CommanderReleaseService:
             raise RuntimeError("The deployed PTW revision does not match the hosted checkout")
         return revision
 
+    def _branch_candidate(self) -> dict[str, Any]:
+        try:
+            branch = self._git("symbolic-ref", "--quiet", "--short", "HEAD")
+            revision = self._git("rev-parse", "HEAD")
+            dirty = bool(self._git("status", "--porcelain"))
+            self._git("check-ref-format", "--branch", branch)
+        except subprocess.CalledProcessError:
+            return {
+                "branch": None, "revision": None, "pushable": False,
+                "push_unavailable_reason": "The hosted checkout is not on a named Git branch",
+            }
+        reason = None
+        if branch in PROTECTED_PUSH_BRANCHES or branch.startswith(PROTECTED_PUSH_PREFIXES):
+            reason = "Protected branches can only change through the release workflow"
+        elif dirty:
+            reason = "Commit the current changes before pushing the branch"
+        elif not self.deploy_key.is_file() or not self.known_hosts.is_file():
+            reason = "publisher_unconfigured"
+        return {
+            "branch": branch, "revision": revision, "pushable": reason is None,
+            "push_unavailable_reason": reason,
+        }
+
     def _changed_files(self, base_revision: str) -> list[str]:
         try:
             self._git("merge-base", "--is-ancestor", base_revision, "HEAD")
@@ -172,13 +210,14 @@ class CommanderReleaseService:
                              "commit-tree", tree, "-p", base, "-m", f"Deploy PTW candidate {identifier}")
 
     def _candidate(self) -> dict[str, Any]:
+        branch = self._branch_candidate()
         try:
             base = self._deployed_revision()
             files = self._changed_files(base)
             protected = self._protected(files)
             reason = None if self.deploy_key.is_file() and self.known_hosts.is_file() else "publisher_unconfigured"
         except RuntimeError as error:
-            return {"available": False, "unavailable_reason": str(error), "changed_files": [], "protected_files": []}
+            return {"available": False, "unavailable_reason": str(error), "changed_files": [], "protected_files": [], **branch}
         return {
             "available": reason is None,
             "unavailable_reason": reason,
@@ -186,7 +225,87 @@ class CommanderReleaseService:
             "changed_files": files,
             "protected_files": protected,
             "deployable": bool(files) and not protected and reason is None,
+            **branch,
         }
+
+    @staticmethod
+    def _branch_push(row: sqlite3.Row) -> dict[str, Any]:
+        return dict(row)
+
+    def _publisher_environment(self) -> dict[str, str]:
+        return {**os.environ, "GIT_SSH_COMMAND": (
+            f"ssh -i {self.deploy_key} -o IdentitiesOnly=yes "
+            f"-o UserKnownHostsFile={self.known_hosts} -o StrictHostKeyChecking=yes"
+        )}
+
+    def _remote_branch_revision(self, branch: str) -> str | None:
+        value = self._git(
+            "ls-remote", "https://github.com/" + self.github_repository + ".git",
+            "refs/heads/" + branch,
+        )
+        return value.split("\t", 1)[0] if value else None
+
+    def push_branch(self, body: BranchPushRequest) -> dict[str, Any]:
+        """Push the current committed development branch without deploying it."""
+        request_id = str(body.request_id)
+        with self._create_lock, self._db() as db:
+            prior = db.execute("SELECT * FROM branch_pushes WHERE request_id=?", (request_id,)).fetchone()
+            if prior:
+                if prior["chat_id"] != str(body.chat_id) or prior["owner_message_id"] != str(body.owner_message_id):
+                    raise ValueError("Request UUID belongs to another branch push")
+                if prior["status"] == "uncertain":
+                    try:
+                        remote_revision = self._remote_branch_revision(prior["branch"])
+                    except subprocess.CalledProcessError:
+                        remote_revision = None
+                    if remote_revision == prior["revision"]:
+                        db.execute(
+                            "UPDATE branch_pushes SET status='succeeded',error_code=NULL,updated_at=? WHERE request_id=?",
+                            (now(), request_id),
+                        )
+                        prior = db.execute("SELECT * FROM branch_pushes WHERE request_id=?", (request_id,)).fetchone()
+                return self._branch_push(prior)
+
+            lock_path = self.repository / ".git" / "ptw-commander-operation.lock"
+            with lock_path.open("a") as operation_lock:
+                try:
+                    fcntl.flock(operation_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as error:
+                    raise ValueError("Commander is still changing the checkout") from error
+                candidate = self._branch_candidate()
+                if not candidate["pushable"]:
+                    raise ValueError(candidate["push_unavailable_reason"] or "The current branch cannot be pushed")
+                branch, revision = candidate["branch"], candidate["revision"]
+                stamp = now()
+                db.execute(
+                    "INSERT INTO branch_pushes VALUES (?,?,?,?,?,'preparing',NULL,?,?)",
+                    (request_id, str(body.chat_id), str(body.owner_message_id), branch, revision, stamp, stamp),
+                )
+                db.commit()
+                try:
+                    self._git(
+                        "push", "--porcelain", "git@github.com:" + self.github_repository + ".git",
+                        f"HEAD:refs/heads/{branch}", environment=self._publisher_environment(),
+                    )
+                    status, error_code = "succeeded", None
+                except subprocess.CalledProcessError:
+                    try:
+                        remote_revision = self._remote_branch_revision(branch)
+                    except subprocess.CalledProcessError:
+                        status, error_code = "uncertain", "branch_push_needs_reconciliation"
+                    else:
+                        if remote_revision == revision:
+                            status, error_code = "succeeded", None
+                        elif remote_revision:
+                            status, error_code = "failed", "branch_push_rejected"
+                        else:
+                            status, error_code = "uncertain", "branch_push_needs_reconciliation"
+                db.execute(
+                    "UPDATE branch_pushes SET status=?,error_code=?,updated_at=? WHERE request_id=?",
+                    (status, error_code, now(), request_id),
+                )
+                row = db.execute("SELECT * FROM branch_pushes WHERE request_id=?", (request_id,)).fetchone()
+                return self._branch_push(row)
 
     def _deployment(self, row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
@@ -375,14 +494,10 @@ class CommanderReleaseService:
                 request_revision = self._request_commit(candidate["base_revision"], revision, deployment_id)
                 with self._db() as db:
                     db.execute("UPDATE deployments SET revision=?,request_revision=? WHERE id=?", (revision, request_revision, deployment_id))
-                environment = {**os.environ, "GIT_SSH_COMMAND": (
-                    f"ssh -i {self.deploy_key} -o IdentitiesOnly=yes "
-                    f"-o UserKnownHostsFile={self.known_hosts} -o StrictHostKeyChecking=yes"
-                )}
                 self._git(
                     "push", "--atomic", "git@github.com:" + self.github_repository + ".git",
                     f"{revision}:refs/heads/god-candidate/{deployment_id}",
-                    f"{request_revision}:refs/heads/{branch}", environment=environment,
+                    f"{request_revision}:refs/heads/{branch}", environment=self._publisher_environment(),
                 )
             with self._db() as db:
                 db.execute(
@@ -455,4 +570,20 @@ def create_app_from_env() -> FastAPI:
             raise HTTPException(503, str(error)) from None
 
     app.include_router(router)
+
+    branch_router = APIRouter(
+        prefix="/internal/v1/settings/commander/branch-pushes",
+        dependencies=[Depends(authorize)],
+    )
+
+    @branch_router.post("", status_code=202)
+    def push_branch(body: BranchPushRequest):
+        try:
+            return service.push_branch(body)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+        except RuntimeError as error:
+            raise HTTPException(503, str(error)) from None
+
+    app.include_router(branch_router)
     return app

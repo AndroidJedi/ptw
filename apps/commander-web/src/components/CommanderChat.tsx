@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, History, ImagePlus, LoaderCircle, Plus, Reply, Rocket, Send, Square, X } from 'lucide-react'
+import { Bot, GitBranch, History, ImagePlus, LoaderCircle, Plus, Reply, Rocket, Send, Square, X } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ApiClient } from '../api'
@@ -11,10 +11,10 @@ type Options = { mode: 'plan' | 'build'; model: string; effort: string }
 type Model = { id: string; name: string; default_effort: string; efforts: string[]; default: boolean }
 type Turn = { id: string; message: string; reply: string; status: string; mode?: string; model?: string; effort?: string; reply_to_message_id?: string; error_code?: string; attachments?: { id: string; name: string }[] }
 type Question = { id: string; status: string; answers?: Record<string, string[]>; payload: { questions: { id: string; question: string; options?: { label: string; description: string }[] }[] } }
-type Chat = { id: string; turns: Turn[]; preferences?: Options; questions?: Question[]; event_cursor?: number; before?: number; has_more?: boolean; releases?: { request_id: string; status: string }[] }
+type Chat = { id: string; turns: Turn[]; preferences?: Options; questions?: Question[]; event_cursor?: number; before?: number; has_more?: boolean; releases?: { request_id: string; status: string }[]; pushes?: { request_id: string; status: string }[] }
 type Runtime = { target: string; available: boolean; chats: { id: string; title: string }[]; active_turn?: { id: string; chat_id: string } }
 type Deployment = { id: string; revision?: string; status: string; phase?: string; workflow_url?: string; chat_id?: string }
-type Release = { candidate: { available: boolean; deployable?: boolean; changed_files: string[]; unavailable_reason?: string }; deployment?: Deployment; history?: Deployment[] }
+type Release = { candidate: { available: boolean; deployable?: boolean; pushable?: boolean; branch?: string; changed_files: string[]; unavailable_reason?: string; push_unavailable_reason?: string }; deployment?: Deployment; history?: Deployment[] }
 const base = '/api/v1/settings/commander'
 const active = (turn: Turn) => ['queued', 'running', 'stopping'].includes(turn.status)
 const storage = {
@@ -198,8 +198,23 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
+  const pushBranch = async () => {
+    setBusy(true); setError('')
+    try {
+      const current = chat || await create()
+      const key = 'branch-push-request-' + current.id
+      const id = storage.get(key) || crypto.randomUUID()
+      storage.set(key, id)
+      setChat(await api.post<Chat>(`${base}/chats/${current.id}/push`, { request_id: id }, { deadlineMs: 30_000 }))
+      storage.set(key, '')
+      await load()
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
   const deployment = release?.deployment
   const releaseActive = !!deployment && ['preparing', 'queued', 'running'].includes(deployment.status)
+  const branchPush = chat?.pushes?.[0]
+  const branchPushActive = branchPush?.status === 'pending'
   const releaseLabel = deployment?.status === 'succeeded' ? tr('Deployment completed', 'Розгортання завершено')
     : deployment?.status === 'failed' ? tr('Deployment failed — open details', 'Помилка розгортання — відкрити деталі')
       : deployment?.status === 'bookkeeping_required' ? tr('Live — source synchronization needs attention', 'Опубліковано — потрібна синхронізація коду')
@@ -234,7 +249,8 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       {releasePhase && <p className="commander-changes" role="status">{releasePhase}</p>}
       {chat?.releases?.filter(item => item.status !== 'submitted').map(item => <p key={item.request_id} className="commander-changes" role={item.status === 'failed' ? 'alert' : 'status'}>{item.status === 'failed' ? tr('Deployment could not start. Review the current changes, then retry Deploy.', 'Не вдалося почати розгортання. Перегляньте зміни й повторіть спробу.') : tr('Sending completed changes to deployment…', 'Передаю завершені зміни на розгортання…')}</p>)}
       {release?.history?.filter(item => item.id !== deployment?.id).map(item => <details className="commander-release-message" key={item.id}><summary>{tr('Previous release', 'Попередній реліз')} · {item.status}</summary><small>{item.revision?.slice(0, 12)}</small>{item.workflow_url && <a href={item.workflow_url} target="_blank" rel="noreferrer">{tr('Release details', 'Деталі релізу')}</a>}</details>)}
-      {release?.candidate.changed_files.length ? <div className="commander-changes"><span>{tr('New changes ready', 'Нові зміни готові')} · {release.candidate.changed_files.length} {tr('files', 'файлів')}</span><details><summary>{tr('View changes', 'Переглянути зміни')}</summary>{release.candidate.changed_files.map(path => <code key={path}>{path}</code>)}</details></div> : null}
+      {branchPush && <p className="commander-changes" role={branchPush.status === 'failed' || branchPush.status === 'uncertain' ? 'alert' : 'status'}>{branchPush.status === 'pending' ? tr('Pushing the committed branch…', 'Публікую закомічену гілку…') : branchPush.status === 'submitted' ? tr('Branch pushed to GitHub. No deployment ran.', 'Гілку запушено в GitHub. Розгортання не запускалось.') : branchPush.status === 'uncertain' ? tr('Branch push needs reconciliation.', 'Результат push потребує звірки.') : tr('Branch push failed. Commit changes and check that the remote branch has not diverged.', 'Push гілки не вдався. Закомітьте зміни й перевірте, що віддалена гілка не розійшлася.')}</p>}
+      {release?.candidate.changed_files.length ? <div className="commander-changes"><span>{tr('New changes ready', 'Нові зміни готові')} · {release.candidate.changed_files.length} {tr('files', 'файлів')}{release.candidate.branch ? ` · ${release.candidate.branch}` : ''}</span><details><summary>{tr('View changes', 'Переглянути зміни')}</summary>{release.candidate.changed_files.map(path => <code key={path}>{path}</code>)}</details></div> : null}
     </div>
     <form className="commander-composer" onSubmit={event => { event.preventDefault(); void send() }}>
       {error && <div className="commander-error" role="alert"><span>{error}</span><button type="button" aria-label={tr('Dismiss error', 'Закрити помилку')} onClick={() => setError('')}><X /></button></div>}
@@ -251,7 +267,8 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
           if (next.length > 4 || next.some(f => !['image/png', 'image/jpeg', 'image/webp'].includes(f.type) || f.size > 8 * 1024 * 1024) || next.reduce((total, f) => total + f.size, 0) > 20 * 1024 * 1024) setError(tr('Use up to four PNG, JPEG or WebP images, 8 MB each and 20 MB total.', 'До чотирьох PNG, JPEG або WebP, по 8 МБ і 20 МБ загалом.'))
           else setImages(next)
         }} /></label>
-        {runtime?.target === 'hosted' && <button type="button" className="secondary" disabled={busy || !!runtime.active_turn || releaseActive || !release?.candidate.deployable || options.mode === 'plan'} onClick={() => void deploy()}><Rocket />{tr('Deploy', 'Розгорнути')}</button>}
+        {runtime?.target === 'hosted' && <button type="button" className="secondary" title={release?.candidate.push_unavailable_reason || ''} disabled={busy || !!runtime.active_turn || releaseActive || branchPushActive || !release?.candidate.pushable || options.mode === 'plan'} onClick={() => void pushBranch()}><GitBranch />{tr('Push branch', 'Push гілки')}</button>}
+        {runtime?.target === 'hosted' && <button type="button" className="secondary" disabled={busy || !!runtime.active_turn || releaseActive || branchPushActive || !release?.candidate.deployable || options.mode === 'plan'} onClick={() => void deploy()}><Rocket />{tr('Deploy', 'Розгорнути')}</button>}
         {running && <button type="button" className="secondary" aria-label={tr('Stop', 'Зупинити')} onClick={() => void api.post(`${base}/chats/${chat!.id}/turns/${running.id}/stop`, {}).then(load).catch(cause => setError(cause.message))}><Square /></button>}
         <button className="primary" disabled={busy || !runtime?.available || !options.model || (!draft.trim() && !images.length)} aria-label={tr('Send', 'Надіслати')}><Send /></button>
       </div></div>

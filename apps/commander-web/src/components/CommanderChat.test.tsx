@@ -16,19 +16,20 @@ beforeEach(() => {
 })
 
 function fixture(turns: Record<string, unknown>[] = [], hosted = false) {
-  let chat = { id: 'chat-1', turns, preferences, questions: [] as Record<string, unknown>[] }
+  let chat = { id: 'chat-1', turns, preferences, questions: [] as Record<string, unknown>[], pushes: [] as Record<string, unknown>[] }
   let deployment: Record<string, unknown> | null = null
   const get = vi.fn(async (path: string) => {
     if (path === base) return { target: hosted ? 'hosted' : 'local', available: true, chats: [{ id: chat.id, title: 'Build a carousel' }], active_turn: chat.turns.some(t => t.status === 'running') ? { id: 'turn-1', chat_id: chat.id } : null }
     if (path.endsWith('/capabilities')) return capabilities
     if (path.includes('/events?')) return { cursor: 0, events: [] }
-    if (path.includes('/deployments')) return { candidate: { available: true, deployable: !deployment, changed_files: ['Dockerfile'] }, deployment }
+    if (path.includes('/deployments')) return { candidate: { available: true, deployable: !deployment, pushable: true, branch: 'feature/test-branch', changed_files: ['Dockerfile'] }, deployment }
     return chat
   })
   const post = vi.fn(async (path: string, body: Record<string, unknown>) => {
     if (path.endsWith('/messages')) chat = { ...chat, turns: [...chat.turns, { id: `turn-${chat.turns.length + 1}`, message: body.message, reply: '', status: chat.turns.some(t => t.status === 'running') ? 'steered' : 'running', mode: body.mode }] }
     if (path.endsWith('/stop')) chat = { ...chat, turns: chat.turns.map(t => ({ ...t, status: 'cancelled' })) }
     if (path.endsWith('/deploy')) deployment = { id: 'release-1', status: 'queued', chat_id: chat.id }
+    if (path.endsWith('/push')) chat = { ...chat, pushes: [{ request_id: body.request_id, status: 'pending' }] }
     return chat
   })
   return { api: { get, post } as never, get, post, question: (value: Record<string, unknown>) => { chat.questions = [value] } }
@@ -110,6 +111,17 @@ it('starts hosted deployment with one click and no extra confirmation', async ()
   await screen.findByText('Building, checking and deploying…')
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   expect(post).toHaveBeenCalledWith(base + '/chats/chat-1/deploy', { request_id: expect.any(String) }, expect.anything())
+})
+
+it('pushes the committed hosted branch without starting deployment', async () => {
+  const { api, post } = fixture([], true)
+  render(<CommanderChat api={api} language="en" />)
+  await ready()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Push branch' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Push branch' }))
+  await screen.findByText('Pushing the committed branch…')
+  expect(post).toHaveBeenCalledWith(base + '/chats/chat-1/push', { request_id: expect.any(String) }, expect.anything())
+  expect(screen.queryByText('Building, checking and deploying…')).not.toBeInTheDocument()
 })
 
 it('submits suggested question answers and supports free text', async () => {

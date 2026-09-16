@@ -109,6 +109,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/settings/commander/chats",
             "/api/v1/settings/commander/chats/{chat_id}",
             "/api/v1/settings/commander/chats/{chat_id}/messages",
+            "/api/v1/settings/commander/chats/{chat_id}/push",
             "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/attachments/{attachment_id}",
             "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",
             "/api/v1/settings/commander/deployments",

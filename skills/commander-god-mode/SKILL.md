@@ -24,6 +24,11 @@ the host-handled `request_deployment` tool without another confirmation. Complet
 implementation and checks first; the host durably hands off the result, then the
 separate release controller freezes and deploys the candidate. Never use shell
 commands to bypass that bounded interface or claim a queued release is live.
+An explicit owner instruction to push the current development branch authorizes
+the host-handled `request_branch_push` tool. Commit the requested changes first.
+This performs one normal non-force push of the named current branch, without
+running release checks, deploying, or promoting `main`. Never use Deploy merely
+to make completed source available in GitHub.
 
 Plan uses native collaboration mode in a separate read-only worker without
 deployment tools. Build uses native Default mode. Use interactive questions for
@@ -87,6 +92,12 @@ Post, or Landing learning entities or cross their lesson namespaces.
   is an uncertain outcome, not proof of failure: reconcile the immutable request
   branch before allowing another release. Test a push that succeeds remotely
   while its local transport reports failure.
+- Development branch publication is separate from deployment. It accepts only a
+  clean, committed, named, non-protected current branch; rejects `main`, `master`,
+  `god-deploy/*`, `god-candidate/*`, force updates, tags, and divergent history;
+  and reconciles response loss against the exact remote branch revision. It does
+  not run tests or release workflows. Keep the GitHub key in the host publisher,
+  never in the coding runner.
 - Stop and timeout terminate the worker process group. A parent-liveness pipe
   also stops it when the API crashes; marking a database row interrupted alone
   does not stop an orphaned coding process. Restart never replays mutations.

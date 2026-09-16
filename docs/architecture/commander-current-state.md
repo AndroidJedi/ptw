@@ -1,11 +1,29 @@
 # Commander current state
 
-Updated: 2026-09-15
+Updated: 2026-09-16
 Branch: `feature/instagram-manual-validation`
 Deployment: live and accepted from this branch. Application and companion
 platform services run the exact Linux/amd64 artifacts tagged
 `instagram-manual-retry-20260915-d455ac4`; production source and its atomic
 deployed-revision marker were advanced through the final preserving release.
+
+## Commander development branch publication — implemented locally, not deployed
+
+Commander now has a branch-publication path independent from production Deploy.
+An explicit owner chat instruction or **Push branch** action publishes the clean,
+committed current hosted branch through the credentialed host controller. The
+push is normal and non-force, runs no release checks, never promotes `main`, and
+does not deploy. The coding runner still receives no GitHub key. Protected and
+divergent branches fail closed, and ambiguous transport outcomes reconcile the
+exact remote revision. The Owner Console shows the current branch and distinct
+push progress. This candidate still requires the normal preserving release before
+the hosted Commander can use it.
+
+The accompanying restriction audit found no other source-development handoff
+that incorrectly depends on production deployment. Plan remains read-only; the
+coding shell still cannot access production data, secrets, Docker, publishing,
+or external messaging; and protected/force Git updates remain unavailable.
+Those are retained production and credential boundaries, not development gates.
 
 ## Instagram-first manual validation — live and accepted
 

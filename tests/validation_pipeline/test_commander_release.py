@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from validation_pipeline.commander_release import (
-    CONFIRMATION, CommanderReleaseService, DeploymentRequest, create_app_from_env,
+    BranchPushRequest, CONFIRMATION, CommanderReleaseService, DeploymentRequest, create_app_from_env,
 )
 
 
@@ -43,6 +43,7 @@ class CommanderReleaseTests(unittest.TestCase):
             "git", "-C", self.repo, "-c", "user.name=Test", "-c", "user.email=test@example.test",
             "commit", "-qm", "baseline",
         ], check=True)
+        subprocess.run(["git", "-C", self.repo, "branch", "-m", "feature/test-branch"], check=True)
         self.base = subprocess.check_output(["git", "-C", self.repo, "rev-parse", "HEAD"], text=True).strip()
         self.deployed = self.root / "deployed-revision"
         self.deployed.write_text(self.base + "\n")
@@ -179,6 +180,57 @@ class CommanderReleaseTests(unittest.TestCase):
         self.assertFalse((self.repo / "hook-ran").exists())
         self.assertFalse((self.repo / "filter-ran").exists())
 
+    def test_pushes_current_committed_branch_without_deployment_or_new_commit(self):
+        request = BranchPushRequest(request_id=uuid4(), chat_id=uuid4(), owner_message_id=uuid4())
+        original = self.service._git
+        calls = []
+
+        def git(*args, environment=None):
+            if args[0] == "push":
+                calls.append(args)
+                return ""
+            return original(*args, environment=environment)
+
+        before = original("rev-parse", "HEAD")
+        with patch.object(self.service, "_git", side_effect=git):
+            result = self.service.push_branch(request)
+            duplicate = self.service.push_branch(request)
+        self.assertEqual("succeeded", result["status"])
+        self.assertEqual("feature/test-branch", result["branch"])
+        self.assertEqual(before, result["revision"])
+        self.assertEqual(result, duplicate)
+        self.assertEqual(1, len(calls))
+        self.assertIn("HEAD:refs/heads/feature/test-branch", calls[0])
+        self.assertEqual(before, original("rev-parse", "HEAD"))
+        with self.service._db() as db:
+            self.assertEqual(0, db.execute("SELECT count(*) FROM deployments").fetchone()[0])
+
+    def test_branch_push_requires_clean_non_protected_branch(self):
+        request = BranchPushRequest(request_id=uuid4(), chat_id=uuid4(), owner_message_id=uuid4())
+        (self.repo / "README.md").write_text("dirty\n")
+        with self.assertRaisesRegex(ValueError, "Commit the current changes"):
+            self.service.push_branch(request)
+        subprocess.run(["git", "-C", self.repo, "restore", "README.md"], check=True)
+        subprocess.run(["git", "-C", self.repo, "branch", "-m", "main"], check=True)
+        with self.assertRaisesRegex(ValueError, "Protected branches"):
+            self.service.push_branch(request)
+
+    def test_disconnected_branch_push_reconciles_exact_remote_revision(self):
+        request = BranchPushRequest(request_id=uuid4(), chat_id=uuid4(), owner_message_id=uuid4())
+        original = self.service._git
+        revision = original("rev-parse", "HEAD")
+
+        def disconnected(*args, environment=None):
+            if args[0] == "push":
+                raise subprocess.CalledProcessError(128, "git push")
+            if args[0] == "ls-remote":
+                return revision + "\trefs/heads/feature/test-branch"
+            return original(*args, environment=environment)
+
+        with patch.object(self.service, "_git", side_effect=disconnected):
+            result = self.service.push_branch(request)
+        self.assertEqual("succeeded", result["status"])
+
     def test_private_api_requires_gateway_token(self):
         with patch.dict("os.environ", {
             "OWNER_GATEWAY_BRIDGE_TOKEN": "bridge",
@@ -194,6 +246,7 @@ class CommanderReleaseTests(unittest.TestCase):
                 response = client.get(path, headers={"X-PTW-Owner-Gateway-Token": "bridge"})
                 self.assertEqual(200, response.status_code)
                 self.assertEqual("no-store", response.headers["cache-control"])
+                self.assertEqual(401, client.post("/internal/v1/settings/commander/branch-pushes", json={}).status_code)
 
 
 if __name__ == "__main__":

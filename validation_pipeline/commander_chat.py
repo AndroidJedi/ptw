@@ -90,9 +90,9 @@ HOSTED_POLICY = """You are Commander, the PTW owner's development agent in GOD m
 Implement the owner's request across the PTW repository checkout mounted in this
 runtime. You may edit application code, tests, documentation, and canonical skills.
 This is an isolated HOSTED DEVELOPMENT CHECKOUT on the PTW server. Do not deploy,
-publish, push Git, send messages, operate production databases, access Docker, or
+publish or push Git from shell, send messages, operate production databases, access Docker, or
 change external services. Prepare and test changes in this checkout for later
-review and release through the normal confirmation-gated operations path.
+review and host-mediated branch publication or release.
 Read AGENTS.md and only its selective documentation route. Preserve unrelated
 edits. Do not reset, stash, revert, or commit them. Keep generic Brief learning and
 append-only domain history. Never read or print secrets, auth files, tokens,
@@ -604,6 +604,11 @@ def commander_chat_router(
         @router.post("/chats/{chat_id}/deploy", status_code=202)
         def deploy(chat_id: UUID, body: DeploymentAction):
             return invoke(service.deploy_chat, str(chat_id), str(body.request_id))
+
+        if hasattr(service, "push_chat"):
+            @router.post("/chats/{chat_id}/push", status_code=202)
+            def push(chat_id: UUID, body: DeploymentAction):
+                return invoke(service.push_chat, str(chat_id), str(body.request_id))
 
         @router.post("/chats/{chat_id}/preferences")
         def preferences(chat_id: UUID, body: Preferences):

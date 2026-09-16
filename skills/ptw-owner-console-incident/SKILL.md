@@ -162,6 +162,18 @@ before changing code or runtime state.
   between every shared Studio Gateway and Validation route, a forwarding test
   for the exact body/service token/actor, and a live unauthenticated probe that
   returns 401 rather than 404 without mutating state.
+- When the first Brief POST for an existing empty Project returns HTTP 500 and
+  Validation logs `immutable Validation Project fields cannot change`, inspect
+  the Project row before retrying. If it retains `owner_idea_source_id=NULL`
+  and has zero Briefs, the transaction rolled back at the Project source
+  attachment; this is neither a bridge outage nor partial Brief persistence.
+  The Project trigger must permit exactly one `NULL -> source UUID` assignment
+  while permanently rejecting a replacement, removal, or any other immutable
+  field update. Repair the trigger with one additive migration, never modify
+  the applied baseline migration or manually update the production Project.
+  Prove both the allowed first assignment and rejected replacement in a
+  disposable PostgreSQL check, then reconcile the same Project after rollout
+  before its owner retries.
 - Do not describe a Playwright suite that intercepts all `/api/v1/**` traffic
   as a complete end-to-end system test. Report it as browser/UI E2E. Full flow
   acceptance must additionally traverse real HTTP route handlers and domain

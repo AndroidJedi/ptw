@@ -2,6 +2,30 @@
 
 Updated: 2026-09-16
 
+## 2026-09-16 — First Brief creation on an empty Project returned HTTP 500
+
+Creating the first Product Brief for an already-created empty Project returned
+HTTP 500. Read-only production checks showed every application and provider
+service healthy, no OOM event, no active mutable operation, and the Project
+still had no source and no Briefs. Validation logs identified the PostgreSQL
+trigger rejection: `immutable Validation Project fields cannot change`.
+
+The baseline Project trigger incorrectly treated `owner_idea_source_id` as
+immutable even for the required first attachment performed atomically with the
+first Brief. The transaction rolled back before creating any source, Brief,
+relationship, or generation job, so this was not a bridge/provider incident and
+there is no authority repair or cleanup to perform.
+
+The pending additive migration replaces only that trigger function. It permits
+the single `NULL -> source UUID` transition needed by first-Brief creation and
+continues to reject source replacement/removal and every other protected Project
+field. The disposable PostgreSQL schema check proves both cases, the migration
+runner proves idempotency and checksum enforcement, and an isolated real
+ValidationRepository flow creates the first source and queued Brief correctly.
+The canonical Owner Console incident skill now routes this symptom to trigger
+diagnosis rather than provider recovery. A backup-preserving in-place release
+is required before the owner retries the unchanged Project.
+
 ## 2026-09-16 — Mobile release exhausted disk while ingesting a candidate image
 
 The first release of PTW revision

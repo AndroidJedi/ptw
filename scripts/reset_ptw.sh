@@ -190,7 +190,8 @@ BEGIN
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql'
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql'
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql'
-     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql') THEN
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql'
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='011_project_first_brief_source_guard.sql') THEN
     RAISE EXCEPTION 'Product Brief, Studio, Landing, manual Instagram validation, preserved social history, and Analytics migrations are incomplete';
   END IF;
 END $$;

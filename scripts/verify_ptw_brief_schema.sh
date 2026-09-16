@@ -178,6 +178,8 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='011_project_first_brief_source_guard.sql'
      ) THEN
     RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Instagram validation, and Analytics migrations';
   END IF;
@@ -217,11 +219,32 @@ INSERT INTO commander_entities(id,kind) VALUES
   ('44444444-4444-4444-8444-444444444444','validation_project');
 INSERT INTO validation_projects(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by)
 VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555',NULL,'Empty Project','owner','migration-test');
+INSERT INTO commander_entities(id,kind) VALUES
+  ('66666666-6666-4666-8666-666666666666','source'),
+  ('77777777-7777-4777-8777-777777777777','source');
+INSERT INTO commander_sources(entity_id,source_type,title,provider,external_id,content,content_sha256)
+VALUES
+  ('66666666-6666-4666-8666-666666666666','owner_idea','First idea','owner','first-source','First idea',repeat('b',64)),
+  ('77777777-7777-4777-8777-777777777777','owner_idea','Replacement idea','owner','replacement-source','Replacement idea',repeat('c',64));
+UPDATE validation_projects
+SET owner_idea_source_id='66666666-6666-4666-8666-666666666666',updated_at=clock_timestamp()
+WHERE entity_id='44444444-4444-4444-8444-444444444444';
 DO $$
 BEGIN
-  IF (SELECT owner_idea_source_id FROM validation_projects WHERE entity_id='44444444-4444-4444-8444-444444444444') IS NOT NULL THEN
-    RAISE EXCEPTION 'empty Project did not remain empty';
+  IF (SELECT owner_idea_source_id FROM validation_projects WHERE entity_id='44444444-4444-4444-8444-444444444444')
+       <> '66666666-6666-4666-8666-666666666666'::uuid THEN
+    RAISE EXCEPTION 'empty Project did not accept its immutable first source';
   END IF;
+  BEGIN
+    UPDATE validation_projects
+    SET owner_idea_source_id='77777777-7777-4777-8777-777777777777',updated_at=clock_timestamp()
+    WHERE entity_id='44444444-4444-4444-8444-444444444444';
+    RAISE EXCEPTION 'Validation Project accepted a source replacement';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'immutable Validation Project fields cannot change' THEN
+      RAISE;
+    END IF;
+  END;
 END $$;
 SQL
 

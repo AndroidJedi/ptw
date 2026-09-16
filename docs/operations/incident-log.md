@@ -1,6 +1,36 @@
 # PTW incident log
 
-Updated: 2026-09-14
+Updated: 2026-09-16
+
+## 2026-09-16 — Mobile release exhausted disk while ingesting a candidate image
+
+The first release of PTW revision
+`57332cbb949a28c0a95bfff2ee14e2356d674137` passed every CI, migration,
+browser, and isolated recovery gate, then failed while containerd ingested a
+verified image archive. The 24 GB VPS had accumulated 478 tagged image
+references; ordinary dangling-image and builder-cache pruning reclaimed nothing.
+The receiver reported `no space left on device`, restored accepted PTW source,
+all prior service images, skills, and both Hosting sites, and left the deployed
+revision at `816e9bf8c5f3743bdb54eac4b9003b4cb1bd8b67`. Migration `010` had not
+started and the database ledger remained at nine migrations.
+
+Under the maintenance lock, `docker image prune -a --force` removed only images
+unreferenced by any running or stopped container. It reduced the inventory from
+478 references to the nine container-retained images, reclaimed 3.578 GB of
+unique layers, and left roughly 11 GB free. No volume, database data, current
+accepted image, or container was removed. The failed publish job was then rerun
+against the same immutable CI artifacts. Its backup-preserving migration
+rehearsal and live application installed migration `010`, preserved all prior
+business rows, retained the root-only backup, passed the real provider, Pexels,
+approved-Post, resource, bot-identity, Hosting, and public audits, and accepted
+the revision with about 8.5 GB free.
+
+Post-release checks matched production source, the deployed marker, GitHub
+`main`, and the feature branch to the accepted SHA. All application and companion
+services were healthy, the new Project-default table existed with zero rows, and
+the live Owner Console audit passed. A real private GOD chat performed a harmless
+Git read, persisted across a locked restart of only `commander-god`, and a live
+branch-publication smoke test succeeded without deploying.
 
 ## 2026-09-14 — Website deployment reached image upload and stopped at Creative
 

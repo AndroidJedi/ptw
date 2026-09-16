@@ -213,6 +213,18 @@ persisted per-component image references on any incomplete exit. The destructive
 serial reset remains a separate, explicit owner-confirmed workflow. The fast
 path must refuse when any repository migration is unapplied; do not use it to
 bypass the backup-bearing in-place confirmation.
+Before publishing off-host image archives, check filesystem headroom as well as
+memory and swap. Dangling-image and builder-cache pruning does not remove old
+tagged releases. If tagged images are the pressure source, enumerate the images
+referenced by every running and stopped container first; only under the
+maintenance lock may `docker image prune -a --force` remove the remainder.
+Never prune volumes or a container-referenced accepted/rollback image. Recheck
+free space against the compressed artifact plus containerd ingestion headroom.
+If image ingestion still reports `no space left on device`, require the receiver
+to restore accepted source, services, skills, and Hosting and prove that the
+deployed marker and migration ledger did not advance. After reclaiming only
+unreferenced images, rerun the same verified publish job/artifacts instead of
+creating a new candidate or bypassing any gate.
 Exercise that migration preflight through the exact production Compose and
 PostgreSQL transport before the first service is replaced. Static assertions
 cannot validate `psql -c`/stdin interpolation. A preflight defect is a rejected

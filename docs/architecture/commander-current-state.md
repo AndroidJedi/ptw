@@ -3,11 +3,13 @@
 Updated: 2026-09-16
 Branch: `feature/instagram-manual-validation`
 Deployment: live and accepted from this branch. Application and companion
-platform services run the exact Linux/amd64 artifacts tagged
-`instagram-manual-retry-20260915-d455ac4`; production source and its atomic
-deployed-revision marker were advanced through the final preserving release.
+platform services run the exact accepted revisions; PTW application services
+are tagged `god-mobile-20260916-57332cbb949a`, while the unchanged companion
+platform retains `instagram-manual-retry-20260915-d455ac4`. Production source,
+GitHub `main`, the feature branch, and the atomic deployed-revision marker all
+resolve to `57332cbb949a28c0a95bfff2ee14e2356d674137`.
 
-## Commander development branch publication — implemented locally, not deployed
+## Commander development branch publication — live and accepted
 
 Commander now has a branch-publication path independent from production Deploy.
 An explicit owner chat instruction or **Push branch** action publishes the clean,
@@ -16,8 +18,11 @@ push is normal and non-force, runs no release checks, never promotes `main`, and
 does not deploy. The coding runner still receives no GitHub key. Protected and
 divergent branches fail closed, and ambiguous transport outcomes reconcile the
 exact remote revision. The Owner Console shows the current branch and distinct
-push progress. This candidate still requires the normal preserving release before
-the hosted Commander can use it.
+push progress. A post-release private GOD chat read the exact Git revision and
+clean status, survived a locked `commander-god`-only restart with its completed
+reply intact, and the live no-op publication smoke test pushed
+`feature/instagram-manual-validation` at the accepted revision without starting
+another deployment.
 
 The accompanying restriction audit found no other source-development handoff
 that incorrectly depends on production deployment. Plan remains read-only; the
@@ -25,7 +30,7 @@ coding shell still cannot access production data, secrets, Docker, publishing,
 or external messaging; and protected/force Git updates remain unavailable.
 Those are retained production and credential boundaries, not development gates.
 
-## Project-default Natal logo colors — local candidate, not deployed
+## Project-default Natal logo colors — live and accepted
 
 Post Studio now exposes one symbol color and one `NATAL` name color in both
 templates. The shared pair recolors every visible lock-up, including the full
@@ -39,8 +44,19 @@ with lineage to that edit checkpoint through migration
 `010_studio_project_logo_defaults.sql`. Future AI-created Posts and explicit
 template replacements inherit locked colors; existing drafts remain unchanged,
 and approved clones keep their source-version colors. Preview, Landing, and
-Creative Skill learning do not mutate this authority. This milestone remains a
-local candidate until an explicit deployment request.
+Creative Skill learning do not mutate this authority.
+
+Production applied migration `010` from a retained root-only checksummed backup,
+proved every pre-existing business row unchanged, and started with zero Project
+logo-default rows. The accepted release passed 303 Validation tests, 43 Commander
+tests, 14 Owner Gateway tests, 98 Owner Console tests and its production build,
+all 84 desktop/360px/WebKit browser flows, both disposable PostgreSQL migration
+checks, the deterministic Studio visual audit, live provider/Pexels checks, and
+the authenticated Owner Console audit. The first artifact transfer exhausted
+the VPS while containerd ingested a candidate image; accepted source, migration
+state, images, and Hosting were restored. Pruning 478 obsolete, unreferenced image
+tags reclaimed 3.578 GB while retaining all container-referenced images. The
+same immutable verified artifacts then completed with about 8.5 GB free.
 
 ## Instagram-first manual validation — live and accepted
 

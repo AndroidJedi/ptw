@@ -190,8 +190,8 @@ describe('Phone & metrics Studio', () => {
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('CTA label'), { target: { value: 'BOOK A FREE CONSULTATION' } })
-    fireEvent.change(screen.getByLabelText('CTA background color'), { target: { value: '#e2385a' } })
-    fireEvent.change(screen.getByLabelText('CTA text color'), { target: { value: '#f9f4ea' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'CTA · HEX · background color hex' }), { target: { value: '#e2385a' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'CTA · HEX · text color hex' }), { target: { value: '#f9f4ea' } })
     fireEvent.click(screen.getByLabelText('Show bottom CTA'))
     expect(screen.queryByLabelText('CTA label')).not.toBeInTheDocument()
     expect(screen.getByText('Bottom CTA removed')).toBeInTheDocument()
@@ -205,6 +205,20 @@ describe('Phone & metrics Studio', () => {
       }),
       content: expect.objectContaining({ cta: 'BOOK A FREE CONSULTATION' }),
     }), expect.anything()))
+  })
+
+  it('makes every component settings section collapsible without hiding it initially', async () => {
+    const { api } = studioApi()
+    const view = render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
+
+    const sections = Array.from(view.container.querySelectorAll<HTMLDetailsElement>('.phone-metrics-controls > details.universal-disclosure'))
+    expect(sections).toHaveLength(8)
+    expect(sections.every(section => section.open)).toBe(true)
+    const actions = screen.getByText('Three bottom buttons').closest('details') as HTMLDetailsElement
+    fireEvent.click(actions.querySelector('summary')!)
+    await waitFor(() => expect(actions.open).toBe(false))
+    fireEvent.click(actions.querySelector('summary')!)
+    await waitFor(() => expect(actions.open).toBe(true))
   })
 
   it('previews and saves image mode while preserving phone content for switching back', async () => {

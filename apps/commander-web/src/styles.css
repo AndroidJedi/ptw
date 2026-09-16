@@ -246,7 +246,7 @@ button svg { width: 17px; height: 17px; }
 .universal-studio-workspace { margin-bottom: 12px; display: grid; grid-template-columns: minmax(520px, 1.55fr) minmax(340px, .8fr); gap: 10px; align-items: start; }
 .universal-canvas-panel { position: sticky; top: 16px; min-height: min(760px, 88vh); border: 1px solid var(--line); border-radius: 15px; overflow: hidden; }
 .universal-canvas-panel .studio-preview-grid { min-height: 620px; }
-.universal-controls { min-width: 0; display: grid; gap: 10px; }
+.universal-controls { min-width: 0; display: grid; gap: 10px; container: studio-controls / inline-size; }
 .universal-section { width: 100%; display: grid; gap: 11px; }
 .universal-section h2, .universal-assets-panel h2 { margin: 2px 0 4px; }
 .universal-section > small, .universal-assets-panel > small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
@@ -260,14 +260,16 @@ button svg { width: 17px; height: 17px; }
 .universal-disclosure[open] > summary { border-bottom: 1px solid var(--line); }
 .universal-disclosure > summary span { min-width: 0; display: grid; gap: 5px; }
 .universal-disclosure > summary small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
-.universal-disclosure > summary strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.universal-disclosure > summary h2 { margin: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .universal-disclosure > summary em { color: var(--muted); font-size: 8px; font-style: normal; font-weight: 900; letter-spacing: .1em; }
 .universal-section-body { padding: 14px; display: grid; gap: 10px; }
 .universal-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 .universal-field-span { grid-column: 1 / -1; }
-.universal-color-field > span, .universal-range-field > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.universal-color-field code, .universal-range-field code { color: var(--muted); font: 9px ui-monospace, monospace; }
-.universal-color-field input[type='color'] { min-height: 44px; padding: 5px; cursor: pointer; }
+.universal-color-field > span:first-child, .universal-range-field > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.universal-range-field code { color: var(--muted); font: 9px ui-monospace, monospace; }
+.editable-color-controls { min-width: 0; display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 7px; }
+.editable-color-field input[type='color'] { width: 58px; min-height: 44px; padding: 5px; cursor: pointer; }
+.editable-color-field .editable-color-hex { min-width: 0; min-height: 44px; padding-right: 8px; padding-left: 8px; font: 12px ui-monospace, monospace; text-transform: uppercase; }
 .universal-range-field input[type='range'] { min-height: 44px; padding: 0; cursor: pointer; accent-color: var(--white); }
 .universal-inline-upload { padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px dashed var(--line); border-radius: 11px; background: #0d0d0d; }
 .universal-inline-upload > div { min-width: 0; display: grid; gap: 4px; }
@@ -302,7 +304,7 @@ button svg { width: 17px; height: 17px; }
 .phone-markup-toolbar button svg { width: 15px; height: 15px; }
 .phone-markup-toolbar small { color: var(--muted); font-size: 8px; line-height: 1.35; }
 .phone-rich-settings { padding: 9px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(112px, .6fr); gap: 9px; border: 1px solid var(--line); border-radius: 9px; background: #0d0d0d; }
-.phone-metrics-stat-input { padding: 9px; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 9px; align-items: start; border: 1px solid var(--line); border-radius: 11px; background: #0d0d0d; }
+.phone-metrics-stat-input { padding: 9px; display: grid; grid-template-columns: 1fr; gap: 9px; align-items: start; border: 1px solid var(--line); border-radius: 11px; background: #0d0d0d; }
 .phone-metrics-stat-input > strong { min-height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--soft); font: 11px ui-monospace, monospace; }
 .phone-typography-list { display: grid; gap: 8px; }
 .phone-typography-role { grid-template-columns: minmax(112px, .42fr) minmax(0, 1.58fr); }
@@ -358,6 +360,13 @@ button svg { width: 17px; height: 17px; }
 .phone-screen-enhance small { color: var(--muted); font-size: 8px; line-height: 1.4; }
 .phone-screen-enhance.is-disabled { cursor: default; opacity: .58; }
 .phone-screen-generate { width: 100%; }
+
+@container studio-controls (max-width: 520px) {
+  .universal-field-grid, .phone-rich-settings, .phone-typography-role { grid-template-columns: 1fr; }
+  .universal-field-span { grid-column: auto; }
+  .universal-disclosure > summary { align-items: flex-start; }
+  .universal-disclosure > summary h2 { white-space: normal; }
+}
 .studio-tune-trigger { border-color: var(--white); }
 .studio-tune-backdrop {
   position: fixed; z-index: 80; inset: 0; padding: clamp(12px, 3vw, 36px); display: grid; place-items: center;
@@ -743,6 +752,9 @@ button svg { width: 17px; height: 17px; }
   .analytics-actions, .analytics-actions button { width: 100%; }
   .analytics-rule footer { align-items: stretch; flex-direction: column; }
 }
+
+html.commander-keyboard-open #main-content { padding-bottom: 8px; }
+html.commander-keyboard-open .bottom-nav { display: none; }
 
 @media (min-width: 761px) and (max-width: 1180px) {
   .studio-commandbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }

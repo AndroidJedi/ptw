@@ -85,6 +85,11 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Commander has its own navigation destination and no Project selector. Settings
   retains authorization and language. Use a timeline, history drawer and sticky
   composer, with Plan/Build, runtime model/effort choices, Reply, Send and Stop.
+  On mobile, size the workspace from the visual viewport bottom minus the
+  workspace's measured top position; a fixed viewport subtraction can leave the
+  composer behind Safari's keyboard. Hide the bottom navigation while the
+  keyboard is open, bound the composer's own overflow, and exercise the resize
+  path in addition to ordinary 360px/WebKit screenshots.
 
 - An uncertain message POST must retain its request UUID. Reconcile that UUID
   before resubmitting; a new UUID can execute the same code mutation twice.

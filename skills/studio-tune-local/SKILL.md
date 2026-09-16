@@ -31,6 +31,14 @@ directly in the local checkout. Keep the fixed semantic Studio structure and
 generic renderer architecture, with Instagram-specific behavior behind its
 adapter.
 
+Keep main Post component-setting panels expandable/collapsible in both templates.
+Every owner-editable color uses the shared native swatch plus an editable,
+copy/pasteable `#RRGGBB` field; do not expose its value as read-only decoration.
+Responsive subforms must follow the inspector container width, not only the page
+viewport, because a desktop two-column workspace can still produce a phone-width
+control rail. Verify that repeated action/metric controls stack before labels or
+values collide.
+
 Before implementing a Tune request, read
 [`references/owner-approved-rules.md`](references/owner-approved-rules.md).
 Apply every relevant owner-approved rule unless the owner's latest explicit

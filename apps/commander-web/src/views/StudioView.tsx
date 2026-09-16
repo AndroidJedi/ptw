@@ -6,6 +6,8 @@ import type { ApiClient } from '../api'
 import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../studio-checkpoints'
 import { StudioActionFeedback } from '../components/studio/StudioActionFeedback'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
+import { StudioSection } from '../components/studio/StudioSection'
+import { EditableColorField } from '../components/EditableColorField'
 import { PostPublishing } from '../components/PostPublishing'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
@@ -93,17 +95,6 @@ function NumberField({ label, value, min, max, step = 1, onChange }: {
     onBlur={finishEditing}
     onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
   /></label>
-}
-
-function ColorField({ label, value, onChange }: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return <label className="universal-color-field">
-    <span>{label}<code>{value.toUpperCase()}</code></span>
-    <input aria-label={label} type="color" value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} />
-  </label>
 }
 
 function RangeField({ label, value, min, max, step, onChange }: {
@@ -710,8 +701,11 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       </main>
 
       <aside className="universal-controls">
-        <section className="panel universal-section">
-          <small>{tr('SEMANTIC CONTENT', 'СЕМАНТИЧНИЙ ВМІСТ')}</small><h2>{tr('Compact ad message', 'Компактне рекламне повідомлення')}</h2>
+        <StudioSection
+          eyebrow={tr('SEMANTIC CONTENT', 'СЕМАНТИЧНИЙ ВМІСТ')}
+          title={tr('Compact ad message', 'Компактне рекламне повідомлення')}
+          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+        >
           {configuration.hero_title?.enabled !== false && <label><span>{tr('Hero Title', 'Головний заголовок')}</span><textarea aria-label="Hero Title" rows={3} value={content.hero_title} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>}
           {configuration.supporting_text?.enabled !== false && <label><span>{tr('Supporting Text', 'Пояснювальний текст')}</span><textarea aria-label="Supporting Text" rows={3} value={content.supporting_text} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>}
           {configuration.offer?.enabled !== false && <label><span>{tr('Offer', 'Пропозиція')}</span><textarea aria-label="Offer" rows={2} maxLength={160} value={content.offer} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>}
@@ -728,24 +722,27 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             {[0, 1, 2].map((index) => <label key={index}><span><input type="checkbox" aria-label={`Enable bullet ${index + 1}`} checked={configuration.bullets.items_enabled?.[index] !== false} onChange={(event) => { const next = [...(configuration.bullets.items_enabled || [true, true, true])] as [boolean, boolean, boolean]; next[index] = event.target.checked; patchConfig('bullets', { items_enabled: next }) }} /> {tr('Visible', 'Видимий')}</span>{configuration.bullets.items_enabled?.[index] !== false && <input aria-label={`Bullet ${index + 1}`} placeholder={`${tr('Bullet', 'Пункт')} ${index + 1}`} value={content.bullets[index] || ''} onChange={(event) => setBullet(index, event.target.value)} />}</label>)}
           </div>}
           {!configuration.bullets.enabled && <p className="universal-section-note">{tr('Benefits are hidden. Enable that component above when the message needs scannable proof points.', 'Переваги приховані. Увімкніть цей компонент вище, коли повідомленню потрібні короткі докази.')}</p>}
-        </section>
+        </StudioSection>
 
-        <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('NATAL LOGO', 'ЛОГОТИП NATAL')}</small><strong>{tr('Brand colors', 'Кольори бренду')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
-          <div className="universal-section-body">
+        <StudioSection
+          eyebrow={tr('NATAL LOGO', 'ЛОГОТИП NATAL')} title={tr('Brand colors', 'Кольори бренду')}
+          defaultOpen={false}
+          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+        >
             <div className="universal-field-grid">
-              <ColorField label={tr('Logo symbol color', 'Колір знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => patchConfig('logo', { symbol_color: value })} />
-              <ColorField label={tr('Natal name color', 'Колір назви Natal')} value={configuration.logo.name_color} onChange={(value) => patchConfig('logo', { name_color: value })} />
+              <EditableColorField className="universal-color-field" label={tr('Logo symbol color', 'Колір знака логотипа')} hexLabel={tr('Logo symbol color hex', 'HEX кольору знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => patchConfig('logo', { symbol_color: value })} />
+              <EditableColorField className="universal-color-field" label={tr('Natal name color', 'Колір назви Natal')} hexLabel={tr('Natal name color hex', 'HEX кольору назви Natal')} value={configuration.logo.name_color} onChange={(value) => patchConfig('logo', { name_color: value })} />
             </div>
             <p className="universal-section-note">{tr('The full symbol uses one color, including its inner stroke. Save or Approve makes this pair the default for future Posts in this Project. The canonical artwork cannot be replaced.', 'Увесь знак, включно з внутрішнім штрихом, використовує один колір. Після «Зберегти» або «Схвалити» ця пара стане типовою для майбутніх дописів у проєкті. Канонічне зображення не можна замінити.')}</p>
-          </div>
-        </details>
+        </StudioSection>
 
-        <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('BACKGROUND', 'ФОН')}</small><strong>{tr('Mood and contrast', 'Настрій і контраст')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
-          <div className="universal-section-body"><div className="universal-field-grid">
+        <StudioSection
+          eyebrow={tr('BACKGROUND', 'ФОН')} title={tr('Mood and contrast', 'Настрій і контраст')}
+          defaultOpen={false}
+          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+        ><div className="universal-field-grid">
             <label><span>{tr('Mode', 'Режим')}</span><select aria-label="Background mode" value={configuration.background.mode} onChange={(event) => patchConfig('background', { mode: event.target.value as StudioUniversalConfiguration['background']['mode'] })}><option value="solid">solid</option><option value="texture">texture</option><option value="image">image</option></select></label>
-            <ColorField label={tr('Background color', 'Базовий колір')} value={configuration.background.color} onChange={(value) => patchConfig('background', { color: value })} />
+            <EditableColorField className="universal-color-field" label={tr('Background color', 'Базовий колір')} hexLabel={tr('Background color hex', 'HEX базового кольору')} value={configuration.background.color} onChange={(value) => patchConfig('background', { color: value })} />
             {configuration.background.mode === 'texture' && <>
               <label><span>{tr('Texture', 'Текстура')}</span><select aria-label="Texture" value={configuration.background.texture} onChange={(event) => patchConfig('background', { texture: event.target.value as StudioUniversalConfiguration['background']['texture'] })}>
                 {detail.catalog.variation.texture_presets.map((texture) => <option key={texture} value={texture}>{texture}</option>)}
@@ -770,14 +767,16 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
                 /></label>
               </div>
             </>}
-            <ColorField label={tr('Overlay color', 'Колір накладення')} value={configuration.background.overlay_color} onChange={(value) => patchConfig('background', { overlay_color: value })} />
+            <EditableColorField className="universal-color-field" label={tr('Overlay color', 'Колір накладення')} hexLabel={tr('Overlay color hex', 'HEX кольору накладення')} value={configuration.background.overlay_color} onChange={(value) => patchConfig('background', { overlay_color: value })} />
             <RangeField label={tr('Overlay opacity', 'Прозорість накладення')} value={configuration.background.overlay_opacity} min={0} max={0.85} step={0.05} onChange={(value) => patchConfig('background', { overlay_opacity: value })} />
-          </div></div>
-        </details>
+          </div>
+        </StudioSection>
 
-        <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('HIERARCHY & CTA', 'ІЄРАРХІЯ ТА CTA')}</small><strong>{tr('Type, layout and action', 'Типографіка, макет і дія')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
-          <div className="universal-section-body"><div className="universal-field-grid">
+        <StudioSection
+          eyebrow={tr('HIERARCHY & CTA', 'ІЄРАРХІЯ ТА CTA')} title={tr('Type, layout and action', 'Типографіка, макет і дія')}
+          defaultOpen={false}
+          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+        ><div className="universal-field-grid">
             <label><span>{tr('Headline font', 'Шрифт заголовка')}</span><select aria-label="Headline font family" value={configuration.typography.font_family} onChange={(event) => patchConfig('typography', { font_family: event.target.value as StudioUniversalFontFamily })}>
               {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
             </select></label>
@@ -796,7 +795,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             <NumberField label="Supporting size" value={configuration.typography.supporting_size} min={22} max={52} onChange={(value) => patchConfig('typography', { supporting_size: value })} />
             <NumberField label="Offer size" value={configuration.typography.offer_size} min={18} max={52} onChange={(value) => patchConfig('typography', { offer_size: value })} />
             <NumberField label="Benefits size" value={configuration.typography.benefits_size} min={16} max={48} onChange={(value) => patchConfig('typography', { benefits_size: value })} />
-            <ColorField label={tr('Text color', 'Колір тексту')} value={configuration.typography.text_color} onChange={(value) => patchConfig('typography', { text_color: value })} />
+            <EditableColorField className="universal-color-field" label={tr('Text color', 'Колір тексту')} hexLabel={tr('Text color hex', 'HEX кольору тексту')} value={configuration.typography.text_color} onChange={(value) => patchConfig('typography', { text_color: value })} />
             <NumberField label="Content X" value={configuration.layout.content_x} min={48} max={520} onChange={(value) => patchConfig('layout', { content_x: value })} />
             <NumberField label="Content Y" value={configuration.layout.content_y} min={72} max={360} onChange={(value) => patchConfig('layout', { content_y: value })} />
             <NumberField label="Content width" value={configuration.layout.content_width} min={420} max={936} onChange={(value) => patchConfig('layout', { content_width: value })} />
@@ -809,19 +808,21 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
               <option value="bottom_left">{tr('Bottom left', 'Знизу ліворуч')}</option>
               <option value="bottom_right">{tr('Bottom right', 'Знизу праворуч')}</option>
             </select></label>
-            <ColorField label={tr('CTA background color', 'Колір фону CTA')} value={configuration.cta.background_color} onChange={(value) => patchConfig('cta', { background_color: value })} />
-            <ColorField label={tr('CTA text color', 'Колір тексту CTA')} value={configuration.cta.text_color} onChange={(value) => patchConfig('cta', { text_color: value })} />
+            <EditableColorField className="universal-color-field" label={tr('CTA background color', 'Колір фону CTA')} hexLabel={tr('CTA background color hex', 'HEX кольору фону CTA')} value={configuration.cta.background_color} onChange={(value) => patchConfig('cta', { background_color: value })} />
+            <EditableColorField className="universal-color-field" label={tr('CTA text color', 'Колір тексту CTA')} hexLabel={tr('CTA text color hex', 'HEX кольору тексту CTA')} value={configuration.cta.text_color} onChange={(value) => patchConfig('cta', { text_color: value })} />
             <label><span>{tr('CTA font', 'Шрифт CTA')}</span><select aria-label="CTA font family" value={configuration.cta.font_family} onChange={(event) => patchConfig('cta', { font_family: event.target.value as StudioUniversalFontFamily })}>
               {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
             </select></label>
             <NumberField label={tr('CTA font size', 'Розмір шрифту CTA')} value={configuration.cta.font_size} min={18} max={42} onChange={(value) => patchConfig('cta', { font_size: value })} />
             <NumberField label="CTA radius" value={configuration.cta.radius} min={0} max={40} onChange={(value) => patchConfig('cta', { radius: value })} />
-          </div></div>
-        </details>
+          </div>
+        </StudioSection>
 
-        <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('OPTIONAL SETTINGS', 'НАЛАШТУВАННЯ ОПЦІЙ')}</small><strong>{tr('Sticker placement', 'Розміщення стікера')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
-          <div className="universal-section-body">
+        <StudioSection
+          eyebrow={tr('OPTIONAL SETTINGS', 'НАЛАШТУВАННЯ ОПЦІЙ')} title={tr('Sticker placement', 'Розміщення стікера')}
+          defaultOpen={false}
+          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+        >
           {configuration.sticker.enabled && <div className="universal-field-grid">
             <label><span>{tr('Position', 'Позиція')}</span><select aria-label="Sticker position" value={configuration.sticker.position} onChange={(event) => patchConfig('sticker', { position: event.target.value as StudioUniversalConfiguration['sticker']['position'] })}>
               <option value="top_left">{tr('Top left', 'Зверху ліворуч')}</option><option value="top_right">{tr('Top right', 'Зверху праворуч')}</option>
@@ -837,8 +838,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             <NumberField label="Adjust from bottom" value={configuration.sticker.offset_bottom} min={-720} max={720} onChange={(value) => patchConfig('sticker', { offset_bottom: value })} />
           </div>}
           {!configuration.sticker.enabled && <p className="universal-section-note">{tr('Enable Sticker in the component dock to reveal its placement controls.', 'Увімкніть «Стікер» у панелі компонентів, щоб побачити налаштування розміщення.')}</p>}
-          </div>
-        </details>
+        </StudioSection>
       </aside>
     </section>
 

@@ -30,9 +30,10 @@
 .landing-field input, .landing-field textarea, .landing-field select { width: 100%; min-height: 44px; background: var(--panel-strong); padding: 10px; font: inherit; }
 .landing-field textarea { min-height: 100px; line-height: 1.6; }
 .landing-field input[type=range] { padding: 0; accent-color: var(--white); }
-.landing-color-field { grid-template-columns: 1fr 44px 60px; align-items: center; }
-.landing-color-field input[type=color] { width: 44px; padding: 4px; }
-.landing-color-field code { font-size: 10px; color: var(--muted); }
+.landing-color-field { grid-template-columns: 1fr; align-items: stretch; }
+.landing-color-field .editable-color-controls { grid-template-columns: 52px minmax(0, 1fr); }
+.landing-color-field input[type=color] { width: 52px; padding: 4px; }
+.landing-color-field .editable-color-hex { font: 11px ui-monospace, monospace; }
 .landing-field-error { margin: 0; font-size: 11px; color: var(--white); line-height: 1.5; border-left: 2px solid var(--white); padding-left: 8px; }
 .landing-field-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .landing-field [aria-invalid=true] { border-style: dashed; border-color: var(--muted); }

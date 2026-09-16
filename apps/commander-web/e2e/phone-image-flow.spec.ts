@@ -236,7 +236,22 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Generate or enhance hero artwork' })).toBeVisible()
+  const heroSectionHeading = page.getByRole('heading', { name: 'Generate or enhance hero artwork' })
+  await expect(heroSectionHeading).toBeVisible()
+  const heroSection = heroSectionHeading.locator('xpath=ancestor::details')
+  await expect(heroSection).toHaveAttribute('open', '')
+  await heroSectionHeading.click()
+  await expect(heroSection).not.toHaveAttribute('open', '')
+  await heroSectionHeading.click()
+  await expect(heroSection).toHaveAttribute('open', '')
+  const inspectorGeometry = await page.locator('.phone-metrics-controls').evaluate(root => ({
+    width: root.clientWidth,
+    scrollWidth: root.scrollWidth,
+    actionColumns: Array.from(root.querySelectorAll<HTMLElement>('.phone-action-button-input .universal-field-grid'))
+      .map(grid => getComputedStyle(grid).gridTemplateColumns.split(' ').length),
+  }))
+  expect(inspectorGeometry.scrollWidth).toBeLessThanOrEqual(inspectorGeometry.width)
+  if (inspectorGeometry.width <= 520) expect(inspectorGeometry.actionColumns.every(columns => columns === 1)).toBe(true)
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const updatePreview = page.getByRole('button', { name: 'Update preview' })
@@ -305,7 +320,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   })
   await bottomCta.check()
   await page.getByLabel('CTA label').fill('BOOK A FREE CONSULTATION')
-  await page.getByLabel('CTA background color').fill('#e2385a')
+  await page.getByRole('textbox', { name: 'CTA · HEX · background color hex', exact: true }).fill('#e2385a')
   await page.getByLabel('CTA text color').fill('#f9f4ea')
   await updatePreview.click()
   await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({

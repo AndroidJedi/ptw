@@ -1,4 +1,5 @@
 import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
+import { EditableColorField } from '../components/EditableColorField'
 import { ImageReferenceInput } from '../components/ImageReferenceInput'
 import { VisualModeSelect } from '../components/VisualModeSelect'
 import { useId, type CSSProperties } from 'react'
@@ -35,7 +36,10 @@ export function LandingInspector({ section, configuration: c, content: v, detail
     <h3>{tr('Button appearance', 'Вигляд кнопки')}</h3>
     {componentSelect('button_style', tr('Button style', 'Стиль кнопки'), [['filled', tr('Filled', 'Заливка')], ['outlined', tr('Outlined', 'Контур')], ['elevated', tr('Elevated', 'Тінь')], ['text', tr('Text only', 'Лише текст')]])}
     {componentSelect('button_shape', tr('Button shape', 'Форма кнопки'), [['square', tr('Square', 'Прямокутна')], ['rounded', tr('Rounded', 'Заокруглена')], ['pill', tr('Pill', 'Капсула')]])}
-    {(['button_color', 'button_text_color'] as const).map(key => <label className="landing-field landing-color-field" key={key}><span>{key === 'button_color' ? tr('Button color', 'Колір кнопки') : tr('Button text color', 'Колір тексту кнопки')}</span><input aria-label={key === 'button_color' ? tr('Button color', 'Колір кнопки') : tr('Button text color', 'Колір тексту кнопки')} type="color" value={components[key]} onChange={event => setComponent(key, event.target.value)} /><code>{components[key]}</code></label>)}
+    {(['button_color', 'button_text_color'] as const).map(key => {
+      const label = key === 'button_color' ? tr('Button color', 'Колір кнопки') : tr('Button text color', 'Колір тексту кнопки')
+      return <EditableColorField key={key} className="landing-field landing-color-field" label={label} hexLabel={`${label} HEX`} value={components[key]} onChange={value => setComponent(key, value)} />
+    })}
     <p className="landing-field-hint">{tr('Outlined and text buttons use the button color for their text.', 'Контурна й текстова кнопки використовують колір кнопки для тексту.')}</p>
   </div>
   const cardControls = () => componentSelect('card_style', tr('Card style', 'Стиль карток'), [['filled', tr('Filled', 'Заливка')], ['outlined', tr('Outlined', 'Контур')], ['elevated', tr('Elevated', 'Тінь')], ['minimal', tr('Minimal', 'Мінімальний')]])
@@ -76,7 +80,11 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       <p className="landing-field-hint">{tr('A theme sets colors, fonts, buttons, cards, icons and FAQ styling. Fine-tune each section below.', 'Тема задає кольори, шрифти, кнопки, картки, іконки та FAQ. Кожну секцію можна налаштувати окремо.')}</p>
       {select(tr('Page language', 'Мова сторінки'), presentation.language, [['uk', 'Українська'], ['en', 'English']], value => setP('language', value as 'uk' | 'en'))}
       <p className="landing-field-hint">{tr('Changes navigation and section labels. Your copy stays as written.', 'Змінює навігацію та назви секцій. Ваш текст зберігається.')}</p>
-      {(['background_color', 'surface_color', 'text_color', 'accent_color'] as const).map((key, index) => <label className="landing-field landing-color-field" key={key}><span>{[tr('Background', 'Тло'), tr('Surface', 'Поверхня'), tr('Text', 'Текст'), tr('Accent', 'Акцент')][index]}</span><input aria-label={['Background color', 'Surface color', 'Text color', 'Accent color'][index]} type="color" value={c.theme[key]} onChange={event => onConfiguration({ ...c, theme: { ...c.theme, [key]: event.target.value } })} /><code>{c.theme[key]}</code></label>)}
+      {(['background_color', 'surface_color', 'text_color', 'accent_color'] as const).map((key, index) => {
+        const label = [tr('Background', 'Тло'), tr('Surface', 'Поверхня'), tr('Text', 'Текст'), tr('Accent', 'Акцент')][index]
+        const pickerLabel = [tr('Background color', 'Колір тла'), tr('Surface color', 'Колір поверхні'), tr('Text color', 'Колір тексту'), tr('Accent color', 'Акцентний колір')][index]
+        return <EditableColorField key={key} className="landing-field landing-color-field" label={label} hexLabel={`${pickerLabel} HEX`} value={c.theme[key]} onChange={value => onConfiguration({ ...c, theme: { ...c.theme, [key]: value } })} />
+      })}
       {(['heading_font_family', 'font_family'] as const).map((key, index) => <div key={key}>{select(index === 0 ? tr('Heading font', 'Шрифт заголовків') : tr('Body font', 'Шрифт тексту'), c.theme[key], detail.catalog.font_families.map(font => [font, font]), value => onConfiguration({ ...c, theme: { ...c.theme, [key]: value } }))}</div>)}
       {range(tr('Heading scale', 'Масштаб заголовків'), presentation.heading_scale, .85, 1.15, .05, value => setP('heading_scale', value))}
       {range(tr('Corner radius', 'Радіус кутів'), c.theme.corner_radius, 0, 48, 1, value => onConfiguration({ ...c, theme: { ...c.theme, corner_radius: value } }))}

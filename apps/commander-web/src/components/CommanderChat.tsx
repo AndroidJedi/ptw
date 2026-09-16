@@ -80,6 +80,7 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const eventCursor = useRef(0)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
+  const workspace = useRef<HTMLElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
   const follow = useRef(true)
   const running = chat?.turns.find(active)
@@ -142,9 +143,31 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   useEffect(() => { if (follow.current && timeline.current) timeline.current.scrollTop = timeline.current.scrollHeight }, [chat?.turns.map(t => t.reply + t.status).join('|'), chat?.questions?.length])
   useEffect(() => {
     const viewport = window.visualViewport
-    const resize = () => document.documentElement.style.setProperty('--commander-viewport', `${viewport?.height || window.innerHeight}px`)
-    resize(); viewport?.addEventListener('resize', resize)
-    return () => { viewport?.removeEventListener('resize', resize); document.documentElement.style.removeProperty('--commander-viewport') }
+    let frame = 0
+    const resize = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        const height = viewport?.height || window.innerHeight
+        const visualBottom = (viewport?.offsetTop || 0) + height
+        const top = workspace.current?.getBoundingClientRect().top || 0
+        const keyboardOpen = Boolean(viewport && height < window.innerHeight - 120)
+        const mobileNavigation = window.matchMedia?.('(max-width: 760px)').matches && !keyboardOpen ? 84 : 8
+        const available = Math.max(180, Math.floor(visualBottom - top - mobileNavigation))
+        workspace.current?.style.setProperty('--commander-workspace-height', `${available}px`)
+        document.documentElement.classList.toggle('commander-keyboard-open', keyboardOpen)
+      })
+    }
+    resize()
+    viewport?.addEventListener('resize', resize)
+    viewport?.addEventListener('scroll', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      viewport?.removeEventListener('resize', resize)
+      viewport?.removeEventListener('scroll', resize)
+      window.removeEventListener('resize', resize)
+      document.documentElement.classList.remove('commander-keyboard-open')
+    }
   }, [])
   const changeDraft = (text: string) => { setDraft(text); if (chat) storage.set('draft-' + chat.id, text) }
   const choose = async (id: string) => {
@@ -221,7 +244,7 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
         : tr('Building, checking and deploying…', 'Збірка, перевірка та розгортання…')
   const releasePhase = deployment?.phase && ({ application: tr('Updating services', 'Оновлення сервісів'), hosting: tr('Publishing website', 'Публікація сайту'), infrastructure: tr('Applying configuration', 'Застосування конфігурації'), rolled_back: tr('Previous release restored', 'Попередній реліз відновлено'), recovery_failed: tr('Recovery needs operator attention', 'Відновлення потребує уваги оператора') } as Record<string, string>)[deployment.phase]
 
-  return <section className="commander-workspace" aria-label="Commander">
+  return <section ref={workspace} className="commander-workspace" aria-label="Commander">
     <header className="commander-header"><div><Bot /><h1>Commander <small>GOD mode</small></h1></div><div>
       <button className="secondary" aria-label={tr('Conversation history', 'Історія розмов')} aria-expanded={drawer} onClick={() => setDrawer(!drawer)}><History /></button>
       <button className="secondary" aria-label={tr('New chat', 'Новий чат')} disabled={busy} onClick={() => void create().catch(cause => setError(cause.message))}><Plus /></button>

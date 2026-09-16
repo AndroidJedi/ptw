@@ -145,3 +145,23 @@ it('restores per-conversation draft after navigation', async () => {
   await ready()
   expect(screen.getByLabelText('Message Commander')).toHaveValue('My unfinished question')
 })
+
+it('keeps the composer inside the visual viewport when the mobile keyboard opens', async () => {
+  const originalViewport = window.visualViewport
+  const listeners = new Map<string, EventListener>()
+  const visualViewport = {
+    height: 420, offsetTop: 0,
+    addEventListener: (name: string, listener: EventListener) => listeners.set(name, listener),
+    removeEventListener: (name: string) => listeners.delete(name),
+  } as unknown as VisualViewport
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: visualViewport })
+  const { api } = fixture()
+  const view = render(<CommanderChat api={api} language="en" />)
+  await ready()
+  const workspace = screen.getByLabelText('Commander')
+  await waitFor(() => expect(workspace.style.getPropertyValue('--commander-workspace-height')).toBe('412px'))
+  expect(document.documentElement).toHaveClass('commander-keyboard-open')
+  view.unmount()
+  expect(document.documentElement).not.toHaveClass('commander-keyboard-open')
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: originalViewport })
+})

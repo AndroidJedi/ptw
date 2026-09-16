@@ -9,6 +9,23 @@ platform retains `instagram-manual-retry-20260915-d455ac4`. Production source,
 GitHub `main`, the feature branch, and the atomic deployed-revision marker all
 resolve to `57332cbb949a28c0a95bfff2ee14e2356d674137`.
 
+## Owner editor responsiveness and Commander keyboard layout — local verification complete
+
+Owner Console color controls now pair the native swatch with one editable,
+copy/pasteable `#RRGGBB` field across both Post templates and Landing. Universal
+and Phone Metrics component-setting panels use one semantic expandable/collapsible
+section control. Phone subforms respond to the inspector's actual width rather
+than only the browser viewport, so button, metric, typography, and color controls
+stack before labels or values collide in a narrow sidebar.
+
+Commander now derives its workspace height from the visual viewport's bottom and
+the workspace's real top position. When a mobile keyboard is open, the mobile
+navigation yields that space and the bounded composer remains visible and
+independently scrollable. Local checks cover pasteable HEX values, all Phone
+section disclosures, narrow-container geometry, simulated keyboard resizing,
+desktop/360px/iPhone WebKit flows, and the deterministic Studio visual audit.
+These changes are local only and have not been deployed.
+
 ## Commander development branch publication — live and accepted
 
 Commander now has a branch-publication path independent from production Deploy.

@@ -3,11 +3,28 @@
 Updated: 2026-09-16
 Branch: `feature/instagram-manual-validation`
 Deployment: live and accepted from code revision
-`67e7b8919927fa285c52e0d584be37312a1cb0ea`. Owner Hosting version
-`851b5707e0309f29` serves the responsive Studio and mobile Commander fixes.
-The Hosting-only release reused every runtime image; PTW application services
-remain tagged `god-mobile-20260916-57332cbb949a`, while the unchanged companion
-platform retains `instagram-manual-retry-20260915-d455ac4`.
+`84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
+`851b5707e0309f29` remains current. Commander and Validation run
+`god-mobile-20260916-84f4db7b5e8a`; unchanged Owner Gateway retains
+`god-mobile-20260916-57332cbb949a`, and the companion platform retains
+`instagram-manual-retry-20260915-d455ac4`.
+
+## First Brief source attachment guard — live and accepted
+
+An existing empty Project could not receive its first Product Brief because the
+immutable Project trigger also rejected the one required `NULL` to source-UUID
+attachment. The initial request rolled back before any Source, Brief, graph
+edge, provider invocation, or generation job persisted.
+
+Migration `011_project_first_brief_source_guard.sql` allows exactly that first
+assignment and still rejects source replacement, source removal, and every
+other protected Project-field change. The accepted release passed the complete
+GitHub verification/build pipeline, disposable migration and real repository
+flow tests, live dependency/auth/schema-bound provider checks, root-only
+backup/rehearsal and pre-existing-row preservation proof, serial cutover, Owner
+Console audit, and post-release health/resource checks. The affected Project
+remains empty and is ready for one normal owner retry; no data cleanup, reset,
+or provider recovery was needed.
 
 ## Owner editor responsiveness and Commander keyboard layout — live and accepted
 

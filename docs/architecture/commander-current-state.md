@@ -2,14 +2,14 @@
 
 Updated: 2026-09-16
 Branch: `feature/instagram-manual-validation`
-Deployment: live and accepted from this branch. Application and companion
-platform services run the exact accepted revisions; PTW application services
-are tagged `god-mobile-20260916-57332cbb949a`, while the unchanged companion
-platform retains `instagram-manual-retry-20260915-d455ac4`. Production source,
-GitHub `main`, the feature branch, and the atomic deployed-revision marker all
-resolve to `57332cbb949a28c0a95bfff2ee14e2356d674137`.
+Deployment: live and accepted from code revision
+`67e7b8919927fa285c52e0d584be37312a1cb0ea`. Owner Hosting version
+`851b5707e0309f29` serves the responsive Studio and mobile Commander fixes.
+The Hosting-only release reused every runtime image; PTW application services
+remain tagged `god-mobile-20260916-57332cbb949a`, while the unchanged companion
+platform retains `instagram-manual-retry-20260915-d455ac4`.
 
-## Owner editor responsiveness and Commander keyboard layout — local verification complete
+## Owner editor responsiveness and Commander keyboard layout — live and accepted
 
 Owner Console color controls now pair the native swatch with one editable,
 copy/pasteable `#RRGGBB` field across both Post templates and Landing. Universal
@@ -24,7 +24,14 @@ navigation yields that space and the bounded composer remains visible and
 independently scrollable. Local checks cover pasteable HEX values, all Phone
 section disclosures, narrow-container geometry, simulated keyboard resizing,
 desktop/360px/iPhone WebKit flows, and the deterministic Studio visual audit.
-These changes are local only and have not been deployed.
+
+The preserving release passed 102 Owner Console tests and its production build,
+all 84 desktop/360px/WebKit browser flows, schema/skill/dependency/resource
+audits, and the read-only Telegram identity canary. It advanced the deployed
+revision without restarting a runtime container, published the Owner Console,
+and verified the live entry and application bundles, Gateway health, private
+route rejection, and CORS. No migration, production-data mutation, provider
+execution, reset, or outbound Telegram message occurred.
 
 ## Commander development branch publication — live and accepted
 

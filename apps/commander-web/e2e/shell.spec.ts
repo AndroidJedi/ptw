@@ -48,14 +48,14 @@ const studioDetail = {
   },
   state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v6',
+    schema: 'ptw.studio.universal-ad-config.v8',
     background: { mode: 'solid', color: '#F0E653', texture: 'stone', texture_intensity: 0.7, image_layout: 'full', image_percent: 75, image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
     typography: { font_family: 'Inter', supporting_font_family: 'Inter', offer_font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, offer_size: 28, benefits_size: 26, text_color: '#111111', alignment: 'left' },
     layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
     bullets: { enabled: false, style: 'circle' },
     cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24, font_family: 'Inter', font_size: 27 },
     sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
-    logo: { enabled: true, position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
+    logo: { enabled: true, symbol_color: '#87D0DD', name_color: '#383840', position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
   },
   content: {
     schema: 'ptw.studio.universal-ad-content.v2', hero_title: 'PROVE THE IDEA',
@@ -64,7 +64,7 @@ const studioDetail = {
   },
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v3', template_id: 'universal_ad',
-    template_version: 12, configuration_schema: 'ptw.studio.universal-ad-config.v6',
+    template_version: 12, configuration_schema: 'ptw.studio.universal-ad-config.v8',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
@@ -205,6 +205,10 @@ test.beforeEach(async ({ page }) => {
     }
     if (url.pathname === `${studioBasePath}/save` && method === 'POST') {
       const body = route.request().postDataJSON()
+      const projectLogoDefaultUpdated = (
+        body.configuration.logo.symbol_color !== currentStudio.configuration.logo.symbol_color
+        || body.configuration.logo.name_color !== currentStudio.configuration.logo.name_color
+      )
       currentStudio = { ...currentStudio, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content }
       return json({
         creative: currentStudio, checkpoint_created: true, version_created: false,
@@ -215,6 +219,7 @@ test.beforeEach(async ({ page }) => {
           changed_paths: ['content.hero_title'], status: 'saved',
         },
         learning_proposal: null,
+        project_logo_default_updated: projectLogoDefaultUpdated,
       })
     }
     if (url.pathname === `${studioBasePath}/approve` && method === 'POST') {
@@ -237,6 +242,10 @@ test.beforeEach(async ({ page }) => {
           changed_paths: ['content.hero_title'], status: 'saved',
         },
         learning_proposal: null,
+        project_logo_default_updated: (
+          body.configuration.logo.symbol_color !== currentStudio.configuration.logo.symbol_color
+          || body.configuration.logo.name_color !== currentStudio.configuration.logo.name_color
+        ),
       })
     }
     if (url.pathname === `/api/v1/briefs/${briefId}/approve` && method === 'POST') return json({
@@ -431,6 +440,8 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
       && body?.configuration?.cta?.position === 'bottom_right'
       && body?.configuration?.typography?.font_family === 'Oswald'
       && body?.configuration?.typography?.benefits_font_family === 'Cormorant Garamond'
+      && body?.configuration?.logo?.symbol_color === '#123456'
+      && body?.configuration?.logo?.name_color === '#ABCDEF'
       && body?.content?.hero_title === 'TEST A CLEAR PROMISE'
   })
   await page.getByLabel('Hero Title').fill('TEST A CLEAR PROMISE')
@@ -445,6 +456,9 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   await page.getByLabel('CTA placement').selectOption('bottom_right')
   await expect(page.getByLabel('CTA background color')).toHaveValue('#111111')
   await expect(page.getByLabel('CTA text color')).toHaveValue('#ffffff')
+  await page.getByText('Brand colors').click()
+  await page.getByLabel('Logo symbol color').fill('#123456')
+  await page.getByLabel('Natal name color').fill('#abcdef')
   await page.getByRole('button', { name: 'Update preview' }).click()
   const editedPreview = await editedPreviewRequest
   expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
@@ -457,8 +471,12 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   expect(request.postDataJSON().configuration.cta.position).toBe('bottom_right')
   expect(request.postDataJSON().configuration.typography.font_family).toBe('Oswald')
   expect(request.postDataJSON().configuration.typography.benefits_font_family).toBe('Cormorant Garamond')
+  expect(request.postDataJSON().configuration.logo).toMatchObject({
+    symbol_color: '#123456', name_color: '#ABCDEF',
+  })
   expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
   await expect(page.getByRole('status')).toContainText('Creative saved with an edit checkpoint.')
+  await expect(page.getByRole('status')).toContainText('These Natal colors are now the Project default.')
   await expect(page.getByRole('alertdialog', { name: 'Project skill updated' })).toHaveCount(0)
   const metadataRequest = page.waitForRequest((candidate) =>
     candidate.url().endsWith('/component-settings'),

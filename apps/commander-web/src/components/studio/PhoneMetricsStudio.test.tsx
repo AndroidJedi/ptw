@@ -58,10 +58,10 @@ const detail = {
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.phone-metrics-config.v11',
+    schema: 'ptw.studio.phone-metrics-config.v13',
     background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
     copy_background: { texture: 'none' },
-    logo: { enabled: true },
+    logo: { enabled: true, symbol_color: '#87D0DD', name_color: '#383840' },
     offer: { enabled: true },
     cta: { enabled: true, background_color: '#316CFF', text_color: '#FFFFFF' },
     hero_title: { highlight_color: '#FF30E8' },
@@ -158,6 +158,10 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
       configuration: StudioPhoneMetricsDetail['configuration']
       content: StudioPhoneMetricsDetail['content']
     }
+    const projectLogoDefaultUpdated = (
+      request.configuration.logo.symbol_color !== savedDetail.configuration.logo.symbol_color
+      || request.configuration.logo.name_color !== savedDetail.configuration.logo.name_color
+    )
     savedDetail = {
       ...savedDetail, state_sha256: 'e'.repeat(64),
       configuration: structuredClone(request.configuration),
@@ -166,6 +170,7 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
     if (path === `${basePath}/save` || path === `${basePath}/approve`) return {
       creative: structuredClone(savedDetail), checkpoint_created: true,
       version_created: path.endsWith('/approve'), checkpoint: null, learning_proposal: null,
+      project_logo_default_updated: projectLogoDefaultUpdated,
     }
     return structuredClone(savedDetail)
   })
@@ -220,6 +225,41 @@ describe('Phone & metrics Studio', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save creative' })).toBeEnabled())
     fireEvent.change(mode, { target: { value: 'phone' } })
     expect(screen.getByLabelText('Phone button 1 text')).toHaveValue(detail.content.phone_buttons[0])
+  })
+
+  it('shares edited Natal colors across both lock-ups and saves the Project default', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
+
+    await screen.findByText('Preview up to date')
+    fireEvent.change(screen.getByLabelText('Logo symbol color'), { target: { value: '#123456' } })
+    fireEvent.change(screen.getByLabelText('Natal name color'), { target: { value: '#abcdef' } })
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
+    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
+      `${basePath}/preview`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: { enabled: true, symbol_color: '#123456', name_color: '#ABCDEF' },
+          phone_screen: expect.objectContaining({ logo_enabled: true }),
+        }),
+      }),
+      'image/png',
+      expect.anything(),
+    ))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `${basePath}/save`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: { enabled: true, symbol_color: '#123456', name_color: '#ABCDEF' },
+        }),
+      }),
+      expect.anything(),
+    ))
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'These Natal colors are now the Project default.',
+    )
   })
 
   beforeEach(() => {
@@ -398,7 +438,7 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
-          logo: { enabled: false },
+          logo: { enabled: false, symbol_color: '#87D0DD', name_color: '#383840' },
           phone_screen: { texture: 'grain', logo_enabled: true },
         }),
       }),
@@ -413,7 +453,7 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
-          logo: { enabled: false },
+          logo: { enabled: false, symbol_color: '#87D0DD', name_color: '#383840' },
           phone_screen: { texture: 'grain', logo_enabled: false },
         }),
       }),
@@ -425,7 +465,7 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/save`,
       expect.objectContaining({
         configuration: expect.objectContaining({
-          logo: { enabled: false },
+          logo: { enabled: false, symbol_color: '#87D0DD', name_color: '#383840' },
           phone_screen: { texture: 'grain', logo_enabled: false },
         }),
       }),

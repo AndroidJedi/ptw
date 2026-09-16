@@ -467,12 +467,16 @@ def audit_phone_metrics(
         detail["content"]["phone_hero_title"], detail["content"]["cta"], "none",
         list(phone_button_text), copy.deepcopy(phone_button_config),
         typography_config,
+        logo_symbol_color=detail["configuration"]["logo"]["symbol_color"],
+        logo_name_color=detail["configuration"]["logo"]["name_color"],
     ).convert("RGB")
     fade_shell = _fixed_screen_shell(
         Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8"),
         detail["content"]["phone_hero_title"], detail["content"]["cta"], "grain",
         list(phone_button_text), copy.deepcopy(phone_button_config),
         typography_config,
+        logo_symbol_color=detail["configuration"]["logo"]["symbol_color"],
+        logo_name_color=detail["configuration"]["logo"]["name_color"],
     ).convert("RGB")
     fade_pixels = [fade_shell.getpixel((20, y)) for y in range(720, 1080)]
     fade_luminance = [sum(pixel) / 3 for pixel in fade_pixels]
@@ -535,6 +539,8 @@ def audit_phone_metrics(
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
         typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
+        logo_symbol_color=detail["configuration"]["logo"]["symbol_color"],
+        logo_name_color=detail["configuration"]["logo"]["name_color"],
     )
     with Image.open(BytesIO(composed_device["bytes"])) as image:
         device_pixels = image.convert("RGBA")
@@ -563,6 +569,8 @@ def audit_phone_metrics(
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
         typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
+        logo_symbol_color=detail["configuration"]["logo"]["symbol_color"],
+        logo_name_color=detail["configuration"]["logo"]["name_color"],
     )
     with Image.open(BytesIO(full_bleed_device["bytes"])) as image:
         device_pixels = image.convert("RGB")
@@ -605,6 +613,7 @@ def audit_phone_metrics(
         "phone_buttons": copy.deepcopy(phone_button_config),
         "post_logo_enabled": post_logo_enabled,
         "phone_logo_enabled": detail["configuration"]["phone_screen"]["logo_enabled"],
+        "logo_colors": copy.deepcopy(detail["configuration"]["logo"]),
         "cta_y": cta["y"], "checks": [
             "optional_background_texture", "optional_left_copy_texture",
             "optional_post_logo", "optional_phone_logo", "left_safe_copy", "front_facing_phone",
@@ -667,7 +676,14 @@ def variants() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     logo_no_background = (
         "logo_no_background", logo_no_background_config, copy.deepcopy(DEFAULT_CONTENT),
     )
-    return [default, high_density, centered, editorial, urgent, logo_no_background]
+    custom_logo_config = copy.deepcopy(DEFAULT_CONFIG)
+    custom_logo_config["logo"].update({
+        "symbol_color": "#123456", "name_color": "#ABCDEF",
+    })
+    custom_logo = (
+        "custom_logo_colors", custom_logo_config, copy.deepcopy(DEFAULT_CONTENT),
+    )
+    return [default, high_density, centered, editorial, urgent, logo_no_background, custom_logo]
 
 
 def main() -> None:
@@ -693,6 +709,15 @@ def main() -> None:
                 content=content,
             )
             report = audit_variant(name, preview, configuration)
+            if name == "custom_logo_colors":
+                from io import BytesIO
+                from PIL import Image
+
+                with Image.open(BytesIO(preview["bytes"])) as image:
+                    pixels_rgba = set(image.convert("RGBA").getdata())
+                require((18, 52, 86, 255) in pixels_rgba, "universal: custom symbol colour is absent")
+                require((171, 205, 239, 255) in pixels_rgba, "universal: custom Natal-name colour is absent")
+                report["checks"] = ["custom_symbol_and_name_pixels"]
             if output_dir is not None:
                 preview_path = output_dir / f"{name}.png"
                 preview_path.write_bytes(preview["bytes"])
@@ -710,6 +735,9 @@ def main() -> None:
         phone_content["phone_hero_title"] = "ІНВЕСТУЙТЕ В МАЙБУТНІХ ЄДИНОРОГІВ"
         reference_phone_config = copy.deepcopy(DEFAULT_PHONE_CONFIG)
         reference_phone_config["copy_background"]["texture"] = "grain"
+        reference_phone_config["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
         phone = phone_workspace.save_configuration(
             base_sha256=phone["state_sha256"], configuration=reference_phone_config,
             content=phone_content,
@@ -718,6 +746,23 @@ def main() -> None:
         phone_report = audit_phone_metrics(
             phone_preview, phone, name="phone_metrics_reference",
         )
+        from io import BytesIO
+        from PIL import Image
+
+        with Image.open(BytesIO(phone_preview["bytes"])) as image:
+            image = image.convert("RGBA")
+            post_logo = phone_preview["resolved"]["nodes"]["logo"]["visible_bounds"]
+            post_box = (
+                int(post_logo["x"] * 1080), int(post_logo["y"] * 1350),
+                int((post_logo["x"] + post_logo["width"]) * 1080) + 1,
+                int((post_logo["y"] + post_logo["height"]) * 1350) + 1,
+            )
+            post_pixels = set(image.crop(post_box).getdata())
+            phone_pixels = set(image.crop((700, 105, 960, 230)).getdata())
+        for pixels, label in ((post_pixels, "post"), (phone_pixels, "in-phone")):
+            require((18, 52, 86, 255) in pixels, f"phone: custom symbol colour is absent from {label} logo")
+            require((171, 205, 239, 255) in pixels, f"phone: custom Natal-name colour is absent from {label} logo")
+        phone_report["checks"].append("shared_custom_logo_colors")
         if output_dir is not None:
             phone_path = output_dir / "phone_metrics_reference.png"
             phone_path.write_bytes(phone_preview["bytes"])
@@ -729,9 +774,6 @@ def main() -> None:
             content=no_cta_content,
         )
         require("cta" not in no_cta_preview["resolved"]["nodes"], "phone: empty CTA leaves a node")
-        from io import BytesIO
-        from PIL import Image
-
         with Image.open(BytesIO(phone_preview["bytes"])) as shown, Image.open(BytesIO(no_cta_preview["bytes"])) as hidden:
             require(shown.crop((0, 0, 1080, 1206)).tobytes() == hidden.crop((0, 0, 1080, 1206)).tobytes(), "phone: hiding CTA changes unrelated pixels")
             require(hidden.convert("RGB").getpixel((16, 1300)) != (49, 108, 255), "phone: empty CTA leaves a blue band")

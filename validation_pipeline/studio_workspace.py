@@ -5,6 +5,7 @@ from __future__ import annotations
 from .image_reference import generate_image
 
 import base64
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
@@ -15,7 +16,10 @@ from .images import (
     PEXELS_PHOTOGRAPHIC_OBJECT_EVIDENCE_SCHEMA, PexelsClient,
     validate_pexels_photographic_object, validate_pexels_photographic_object_query,
 )
-from .natal_brand import NATAL_LOGO_PATH, natal_logo_bytes
+from .natal_brand import (
+    NATAL_LOGO_PATH, natal_logo_bytes, natal_logo_colored_bytes,
+    normalize_natal_logo_colors,
+)
 from .openai_images import phone_screen_art_prompt
 from .studio_phone_metrics import (
     DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, IPHONE_FRAME_SOURCE,
@@ -333,6 +337,8 @@ class UniversalStudioWorkspace:
                 config["typography"],
                 bool(config["phone_screen"]["logo_enabled"]),
                 visual_mode=str(config.get("visual_mode", "phone")),
+                logo_symbol_color=str(config["logo"]["symbol_color"]),
+                logo_name_color=str(config["logo"]["name_color"]),
             )
             records = {
                 "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},
@@ -341,7 +347,13 @@ class UniversalStudioWorkspace:
                 logo = self._asset_record("logo")
                 if logo is None:
                     raise RuntimeError("Canonical Natal logo is unavailable")
-                records["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
+                records["logo"] = {
+                    "bytes": natal_logo_colored_bytes(
+                        str(config["logo"]["symbol_color"]),
+                        str(config["logo"]["name_color"]),
+                    ),
+                    "mime_type": logo["mime_type"],
+                }
             if config["background"]["texture"] != "none":
                 records["background_texture"] = texture_asset(
                     str(config["background"]["texture"]),
@@ -357,7 +369,15 @@ class UniversalStudioWorkspace:
             if slot == "sticker_object" and not _approved_sticker_photo(record):
                 continue
             if record is not None:
-                records[slot] = {"bytes": record["bytes"], "mime_type": record["mime_type"]}
+                records[slot] = {
+                    "bytes": (
+                        natal_logo_colored_bytes(
+                            str(config["logo"]["symbol_color"]),
+                            str(config["logo"]["name_color"]),
+                        ) if slot == "logo" else record["bytes"]
+                    ),
+                    "mime_type": record["mime_type"],
+                }
         if config["background"]["mode"] == "texture":
             records["background_texture"] = texture_asset(str(config["background"]["texture"]))
         return records
@@ -423,10 +443,12 @@ class UniversalStudioWorkspace:
     def state_sha256(self) -> str:
         return _canonical(self._snapshot())[1]
 
-    def _legacy_phone_state_sha256(self) -> str | None:
-        """Reproduce an untouched legacy phone draft digest during one-save uplift."""
+    def _legacy_configuration_state_sha256(
+        self, *, template_id: str, schemas: set[str],
+    ) -> str | None:
+        """Reproduce an untouched stored digest during a one-save config uplift."""
 
-        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+        if self._selected_template_id() != template_id:
             return None
         path = self.root / "configuration.json"
         if not path.is_file():
@@ -437,17 +459,33 @@ class UniversalStudioWorkspace:
             return None
         if (
             not isinstance(raw_config, Mapping)
-            or raw_config.get("schema") not in {
-                "ptw.studio.phone-metrics-config.v8",
-                "ptw.studio.phone-metrics-config.v9",
-                "ptw.studio.phone-metrics-config.v10",
-                "ptw.studio.phone-metrics-config.v11",
-            }
+            or raw_config.get("schema") not in schemas
         ):
             return None
         snapshot = self._snapshot()
         snapshot["configuration"] = raw_config
         return _canonical(snapshot)[1]
+
+    def _legacy_phone_state_sha256(self) -> str | None:
+        return self._legacy_configuration_state_sha256(
+            template_id=PHONE_METRICS_TEMPLATE_ID,
+            schemas={
+                "ptw.studio.phone-metrics-config.v8",
+                "ptw.studio.phone-metrics-config.v9",
+                "ptw.studio.phone-metrics-config.v10",
+                "ptw.studio.phone-metrics-config.v11",
+                "ptw.studio.phone-metrics-config.v12",
+            },
+        )
+
+    def _legacy_universal_state_sha256(self) -> str | None:
+        return self._legacy_configuration_state_sha256(
+            template_id=UNIVERSAL_AD_TEMPLATE_ID,
+            schemas={
+                "ptw.studio.universal-ad-config.v6",
+                "ptw.studio.universal-ad-config.v7",
+            },
+        )
 
     def _assert_state(self, base_sha256: str) -> None:
         if not re.fullmatch(r"[0-9a-f]{64}", str(base_sha256)):
@@ -455,7 +493,10 @@ class UniversalStudioWorkspace:
         current_sha256 = self.state_sha256()
         if current_sha256 == base_sha256:
             return
-        if self._legacy_phone_state_sha256() == base_sha256:
+        if base_sha256 in {
+            self._legacy_phone_state_sha256(),
+            self._legacy_universal_state_sha256(),
+        }:
             return
         raise RuntimeError("Studio state changed; reload before saving")
 
@@ -585,7 +626,13 @@ class UniversalStudioWorkspace:
             logo = self._asset_record("logo")
             if logo is None:
                 raise ValueError("Universal experiment requires the saved canonical logo identity")
-            assets["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
+            assets["logo"] = {
+                "bytes": natal_logo_colored_bytes(
+                    str(config["logo"]["symbol_color"]),
+                    str(config["logo"]["name_color"]),
+                ),
+                "mime_type": logo["mime_type"],
+            }
         if config["sticker"]["enabled"]:
             sticker = sticker_asset or self._asset_record("sticker_object")
             if not _approved_sticker_photo(sticker):
@@ -649,7 +696,10 @@ class UniversalStudioWorkspace:
         self._atomic_json(self.root / "content.json", normalized_content)
         return self.detail()
 
-    def apply_template(self, *, base_sha256: str, template_id: str) -> dict[str, Any]:
+    def apply_template(
+        self, *, base_sha256: str, template_id: str,
+        logo_colors: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Replace the entire mutable Studio draft with one preset template."""
 
         self._assert_state(base_sha256)
@@ -668,6 +718,21 @@ class UniversalStudioWorkspace:
         self._atomic_json(self.root / "template.json", {
             "schema": _TEMPLATE_SELECTION_SCHEMA, "template_id": template_id,
         })
+        if logo_colors is not None:
+            colors = normalize_natal_logo_colors(dict(logo_colors))
+            config = deepcopy(
+                DEFAULT_PHONE_CONFIG
+                if template_id == PHONE_METRICS_TEMPLATE_ID else DEFAULT_CONFIG
+            )
+            config["logo"].update(colors)
+            self._atomic_json(
+                self.root / "configuration.json",
+                (
+                    normalize_phone_metrics_config(config)
+                    if template_id == PHONE_METRICS_TEMPLATE_ID
+                    else normalize_universal_config(config)
+                ),
+            )
         return self.detail()
 
     def _store_asset(

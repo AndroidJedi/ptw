@@ -53,9 +53,9 @@ function phoneDetail() {
     },
     state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
     configuration: {
-      schema: 'ptw.studio.phone-metrics-config.v11',
+      schema: 'ptw.studio.phone-metrics-config.v13',
       background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
-      copy_background: { texture: 'none' }, logo: { enabled: true }, offer: { enabled: true },
+      copy_background: { texture: 'none' }, logo: { enabled: true, symbol_color: '#87D0DD', name_color: '#383840' }, offer: { enabled: true },
       cta: { enabled: true, background_color: '#316CFF', text_color: '#FFFFFF' },
       hero_title: { highlight_color: '#FF30E8' },
       supporting_text: { highlight_color: '#1675F8' },
@@ -271,6 +271,13 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const phoneLogo = page.getByLabel('Show in-phone logo')
   await expect(postLogo).toBeChecked()
   await expect(phoneLogo).toBeChecked()
+  await page.getByLabel('Logo symbol color').fill('#123456')
+  await page.getByLabel('Natal name color').fill('#abcdef')
+  await updatePreview.click()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
+    logo: { enabled: true, symbol_color: '#123456', name_color: '#ABCDEF' },
+    phone_screen: { logo_enabled: true },
+  })
   const headline = page.getByLabel('Headline', { exact: true })
   await headline.fill('A focused promise')
   await headline.evaluate((field: HTMLTextAreaElement) => field.setSelectionRange(0, 1))
@@ -312,7 +319,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await expect(phoneLogo).not.toBeChecked()
   await page.getByRole('button', { name: 'Update preview' }).click()
   await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
-    logo: { enabled: false },
+    logo: { enabled: false, symbol_color: '#123456', name_color: '#ABCDEF' },
     phone_screen: { logo_enabled: false },
   })
   await expect(page.getByText('Hidden from the post canvas')).toBeVisible()

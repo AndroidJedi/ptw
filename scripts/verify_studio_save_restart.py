@@ -91,17 +91,24 @@ def verify(url, root):
         detail = response.json()["creative"]
         changed = deepcopy(detail["content"])
         changed["hero_title"] = "Owner edits remain after restart"
+        changed_configuration = deepcopy(detail["configuration"])
+        changed_configuration["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
         response = client.post(path + "/save", json={"base_sha256": detail["state_sha256"],
-            "configuration": detail["configuration"], "content": changed})
+            "configuration": changed_configuration, "content": changed})
         assert response.status_code == 200, response.text
         saved = response.json()
         assert saved["checkpoint_created"] and saved["checkpoint"]["status"] == "saved", saved
+        assert saved["project_logo_default_updated"], saved
         assert saved["creative"]["content"] == changed
         assert client.post(path + "/save", json={"base_sha256": legacy,
             "configuration": detail["configuration"], "content": changed}).status_code == 409
     restored = service(root / "restarted-process")
     actual = restored.detail(project_id, cid)
     assert actual["content"] == changed
+    assert actual["configuration"]["logo"]["symbol_color"] == "#123456"
+    assert actual["configuration"]["logo"]["name_color"] == "#ABCDEF"
     assert actual["state_sha256"] == saved["creative"]["state_sha256"]
     assert restored._workspace(cid).version_render(1)["bytes"] == original_png
     before_repeat = authority.repository.load_creative(cid)
@@ -116,7 +123,22 @@ def verify(url, root):
         assert connection.execute("SELECT count(*) FROM studio_learning_runs WHERE checkpoint_id=%s", (checkpoint_id,)).fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM studio_learning_proposals WHERE checkpoint_id=%s", (checkpoint_id,)).fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM commander_relationships WHERE source_id=%s AND target_id=%s AND relation='contains'", (cid, checkpoint_id)).fetchone()[0] == 1
-    print("PASS: real HTTP/PostgreSQL legacy Save normalization, zero learning calls, fresh service/cache restore, stale rejection, immutable PNG and checkpoint lineage.")
+        logo_default = connection.execute(
+            "SELECT entity_id,source_checkpoint_id,symbol_color,name_color FROM studio_project_logo_defaults WHERE project_id=%s",
+            (project_id,),
+        ).fetchone()
+        assert logo_default is not None
+        assert str(logo_default[1]) == checkpoint_id
+        assert (logo_default[2], logo_default[3]) == ("#123456", "#ABCDEF")
+        assert connection.execute(
+            "SELECT count(*) FROM commander_relationships WHERE source_id=%s AND target_id=%s AND relation='contains'",
+            (project_id, logo_default[0]),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT count(*) FROM commander_relationships WHERE source_id=%s AND target_id=%s AND relation='derived_from'",
+            (logo_default[0], checkpoint_id),
+        ).fetchone()[0] == 1
+    print("PASS: real HTTP/PostgreSQL legacy Save normalization, Project logo default persistence, zero learning calls, fresh service/cache restore, stale rejection, immutable PNG and checkpoint lineage.")
 
 
 def main():

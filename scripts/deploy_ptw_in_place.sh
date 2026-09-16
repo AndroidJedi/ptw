@@ -195,6 +195,7 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql')
      OR to_regclass('public.instagram_publications') IS NULL
      OR to_regclass('public.instagram_publication_attempts') IS NULL
      OR to_regclass('public.tiktok_publications') IS NULL
@@ -219,6 +220,7 @@ BEGIN
      OR to_regclass('public.instagram_validation_test_events') IS NULL
      OR to_regclass('public.instagram_validation_imports') IS NULL
      OR to_regclass('public.instagram_validation_import_rows') IS NULL
+     OR to_regclass('public.studio_project_logo_defaults') IS NULL
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publications')
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publication_events')
      OR (SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='validation_projects' AND column_name='owner_idea_source_id') <> 'YES' THEN

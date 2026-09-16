@@ -13,6 +13,7 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .studio_workspace import UniversalStudioWorkspace
+from .natal_brand import normalize_natal_logo_colors
 from .phone_hero_styles import normalize_phone_hero_creative_direction
 from .studio_creatives import (
     GLOBAL_SKILL_SCOPE, PROJECT_SKILL_SCOPE, _append_lesson, _skill_document,
@@ -428,6 +429,27 @@ class DatabaseStudioAuthority:
     def brief(self, brief_id: str) -> dict[str, Any]:
         from .repository import ValidationRepository
         return ValidationRepository(self.database_url).get_brief(str(UUID(brief_id)))
+
+    def latest_project_logo_default(self, project_id: str) -> dict[str, Any] | None:
+        project_uuid = UUID(project_id)
+        self.project(str(project_uuid))
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT entity_id,project_id,source_checkpoint_id,symbol_color,
+                          name_color,created_at
+                     FROM studio_project_logo_defaults
+                    WHERE project_id=%s
+                    ORDER BY created_at DESC,entity_id DESC LIMIT 1""",
+                (project_uuid,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "logo_default_id": str(row[0]), "project_id": str(row[1]),
+            "source_checkpoint_id": str(row[2]),
+            "symbol_color": row[3], "name_color": row[4],
+            "created_at": row[5].isoformat(),
+        }
 
     @staticmethod
     def _creative_row(row: Any) -> dict[str, Any]:
@@ -870,47 +892,96 @@ class DatabaseStudioAuthority:
             )
         return {"generation_run_id": str(run_id), "attempt": attempt, "stage": stage, "status": status}
 
-    def record_checkpoint(self, value: Mapping[str, Any]) -> dict[str, Any]:
+    def _record_checkpoint_in_connection(
+        self, connection: Any, value: Mapping[str, Any],
+    ) -> UUID:
         from psycopg.types.json import Jsonb
+
         checkpoint_id = UUID(str(value["checkpoint_id"]))
+        connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+            (f"studio-checkpoint:{value['creative_id']}:{value['before_state_sha256']}:{value['after_state_sha256']}:{value['kind']}",),
+        )
+        existing = connection.execute(
+            """SELECT entity_id FROM studio_edit_checkpoints
+                WHERE workspace_id=%s AND before_state_sha256=%s
+                  AND after_state_sha256=%s AND checkpoint_kind=%s""",
+            (
+                UUID(str(value["creative_id"])), value["before_state_sha256"],
+                value["after_state_sha256"], value["kind"],
+            ),
+        ).fetchone()
+        if existing is not None:
+            return existing[0]
+        connection.execute(
+            "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_edit_checkpoint',%s)",
+            (checkpoint_id, Jsonb({"kind": value["kind"]})),
+        )
+        connection.execute(
+            """INSERT INTO studio_edit_checkpoints(
+                   entity_id,workspace_id,project_id,checkpoint_kind,before_state_sha256,
+                   after_state_sha256,changed_paths,before_snapshot,after_snapshot,version
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (
+                checkpoint_id, UUID(str(value["creative_id"])), UUID(str(value["project_id"])),
+                value["kind"], value["before_state_sha256"], value["after_state_sha256"],
+                Jsonb(value["changed_paths"]), Jsonb(value["before_snapshot"]),
+                Jsonb(value["after_snapshot"]), value.get("version"),
+            ),
+        )
+        self.repository._insert_edge(
+            connection, UUID(str(value["creative_id"])), "contains", checkpoint_id,
+            {"member": "studio_edit_checkpoint"},
+        )
+        return checkpoint_id
+
+    def record_checkpoint(self, value: Mapping[str, Any]) -> dict[str, Any]:
         with self.connection() as connection:
-            connection.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
-                (f"studio-checkpoint:{value['creative_id']}:{value['before_state_sha256']}:{value['after_state_sha256']}:{value['kind']}",),
-            )
+            checkpoint_id = self._record_checkpoint_in_connection(connection, value)
+        return self.get_checkpoint(str(checkpoint_id))
+
+    def record_checkpoint_with_project_logo_default(
+        self, value: Mapping[str, Any], logo_colors: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        """Persist the checkpoint and its Project default in one transaction."""
+
+        from psycopg.types.json import Jsonb
+
+        colors = normalize_natal_logo_colors(dict(logo_colors))
+        project_id = UUID(str(value["project_id"]))
+        with self.connection() as connection:
+            checkpoint_id = self._record_checkpoint_in_connection(connection, value)
             existing = connection.execute(
-                """SELECT entity_id FROM studio_edit_checkpoints
-                    WHERE workspace_id=%s AND before_state_sha256=%s
-                      AND after_state_sha256=%s AND checkpoint_kind=%s""",
-                (
-                    UUID(str(value["creative_id"])), value["before_state_sha256"],
-                    value["after_state_sha256"], value["kind"],
-                ),
+                "SELECT entity_id FROM studio_project_logo_defaults WHERE source_checkpoint_id=%s",
+                (checkpoint_id,),
             ).fetchone()
-            if existing is None:
+            if existing is not None:
+                updated = False
+            else:
+                identifier = UUID(new_uuid7())
                 connection.execute(
-                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_edit_checkpoint',%s)",
-                    (checkpoint_id, Jsonb({"kind": value["kind"]})),
+                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_project_logo_default',%s)",
+                    (identifier, Jsonb({"project_id": str(project_id)})),
                 )
                 connection.execute(
-                    """INSERT INTO studio_edit_checkpoints(
-                           entity_id,workspace_id,project_id,checkpoint_kind,before_state_sha256,
-                           after_state_sha256,changed_paths,before_snapshot,after_snapshot,version
-                       ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    """INSERT INTO studio_project_logo_defaults(
+                           entity_id,project_id,source_checkpoint_id,symbol_color,name_color
+                       ) VALUES(%s,%s,%s,%s,%s)""",
                     (
-                        checkpoint_id, UUID(str(value["creative_id"])), UUID(str(value["project_id"])),
-                        value["kind"], value["before_state_sha256"], value["after_state_sha256"],
-                        Jsonb(value["changed_paths"]), Jsonb(value["before_snapshot"]),
-                        Jsonb(value["after_snapshot"]), value.get("version"),
+                        identifier, project_id, checkpoint_id,
+                        colors["symbol_color"], colors["name_color"],
                     ),
                 )
                 self.repository._insert_edge(
-                    connection, UUID(str(value["creative_id"])), "contains", checkpoint_id,
-                    {"member": "studio_edit_checkpoint"},
+                    connection, project_id, "contains", identifier,
+                    {"member": "studio_project_logo_default"},
                 )
-            else:
-                checkpoint_id = existing[0]
-        return self.get_checkpoint(str(checkpoint_id))
+                self.repository._insert_edge(
+                    connection, identifier, "derived_from", checkpoint_id,
+                    {"input": "studio_edit_checkpoint"},
+                )
+                updated = True
+        return self.get_checkpoint(str(checkpoint_id)), updated
 
     def record_learning_result(
         self, checkpoint_id: str, *, status: str, edit_summary: str | None,

@@ -199,9 +199,12 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const next = result.creative
       applyDetail(next)
       onCheckpoint(result)
-      setNotice(!result.checkpoint_created
+      const savedNotice = !result.checkpoint_created
         ? tr('Creative is already saved.', 'Креатив уже збережено.')
-        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.'))
+        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.')
+      setNotice(result.project_logo_default_updated
+        ? `${savedNotice} ${tr('These Natal colors are now the Project default.', 'Ці кольори Natal тепер є типовими для проєкту.')}`
+        : savedNotice)
     } catch (cause) {
       setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
     } finally { setBusy(false) }
@@ -290,9 +293,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
       onCheckpoint(result)
-      applyDetail(next); setNotice(tr(
-        'Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.',
-      ))
+      applyDetail(next); setNotice(result.project_logo_default_updated
+        ? tr('Immutable phone creative saved. These Natal colors are now the Project default.', 'Незмінний креатив із телефоном збережено. Ці кольори Natal тепер є типовими для проєкту.')
+        : tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const setStat = (index: number, key: 'value' | 'label', value: string) => setContent((current) => ({
@@ -443,7 +446,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             aria-label={tr('Show post logo', 'Показувати логотип допису')}
             type="checkbox" checked={configuration.logo.enabled}
             onChange={(event) => setConfiguration({
-              ...configuration, logo: { enabled: event.target.checked },
+              ...configuration, logo: { ...configuration.logo, enabled: event.target.checked },
             })}
           /><span><strong>{tr('Upper-left post logo', 'Логотип угорі ліворуч')}</strong><small>{configuration.logo.enabled
             ? tr('Visible on the post canvas', 'Видимий на полотні допису')
@@ -458,7 +461,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           /><span><strong>{tr('Logo inside iPhone', 'Логотип усередині iPhone')}</strong><small>{configuration.phone_screen.logo_enabled
             ? tr('Visible in the app screen', 'Видимий на екрані застосунку')
             : tr('Hidden from the app screen', 'Прихований з екрана застосунку')}</small></span></label>
-          <p className="universal-section-note">{tr('Each logo can be shown or hidden independently. The canonical artwork itself cannot be replaced.', 'Кожен логотип можна показати або приховати незалежно. Сам канонічний знак не можна замінити.')}</p>
+          <div className="universal-field-grid">
+            <label className="universal-color-field"><span>{tr('Logo symbol color', 'Колір знака логотипа')}<code>{configuration.logo.symbol_color}</code></span><input aria-label={tr('Logo symbol color', 'Колір знака логотипа')} type="color" value={configuration.logo.symbol_color} onChange={(event) => setConfiguration({ ...configuration, logo: { ...configuration.logo, symbol_color: event.target.value.toUpperCase() } })} /></label>
+            <label className="universal-color-field"><span>{tr('Natal name color', 'Колір назви Natal')}<code>{configuration.logo.name_color}</code></span><input aria-label={tr('Natal name color', 'Колір назви Natal')} type="color" value={configuration.logo.name_color} onChange={(event) => setConfiguration({ ...configuration, logo: { ...configuration.logo, name_color: event.target.value.toUpperCase() } })} /></label>
+          </div>
+          <p className="universal-section-note">{tr('Both visible lock-ups share these colors. The full symbol, including its inner stroke, uses the symbol color. Save or Approve makes the pair the Project default; the canonical artwork cannot be replaced.', 'Обидва видимі логотипи використовують ці кольори. Увесь знак, включно з внутрішнім штрихом, має колір знака. Після «Зберегти» або «Схвалити» пара стане типовою для проєкту; канонічне зображення не можна замінити.')}</p>
         </section>
         <section className="panel universal-section"><small>{tr('TYPOGRAPHY', 'ТИПОГРАФІКА')}</small><h2>{tr('Font and size for every text role', 'Шрифт і розмір для кожної ролі')}</h2>
           <div className="phone-typography-list">

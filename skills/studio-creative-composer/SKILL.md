@@ -13,6 +13,9 @@ selected live template catalog.
 - Treat the supplied template catalog as the field and value authority. Return
   only the exact configuration and content fields in the output schema; never
   add primitives, asset slots, controls, or arbitrary template properties.
+- Preserve the supplied locked Natal symbol/name colors exactly. They are the
+  Project brand default, not Brief-derived copy or a Creative Skill preference;
+  never infer, revise, or learn them.
 - Apply the exact typed skill snapshots supplied in `INPUT_JSON` using this
   precedence: fixed catalog/brand and Brief constraints, explicit owner
   direction, active Project rules, active global spirit, then template defaults.

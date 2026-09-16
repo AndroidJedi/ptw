@@ -1,11 +1,28 @@
 # Commander current state
 
-Updated: 2026-09-15
+Updated: 2026-09-16
 Branch: `feature/instagram-manual-validation`
 Deployment: live and accepted from this branch. Application and companion
 platform services run the exact Linux/amd64 artifacts tagged
 `instagram-manual-retry-20260915-d455ac4`; production source and its atomic
 deployed-revision marker were advanced through the final preserving release.
+
+## Project-default Natal logo colors — local candidate, not deployed
+
+Post Studio now exposes one symbol color and one `NATAL` name color in both
+templates. The shared pair recolors every visible lock-up, including the full
+symbol inner stroke, while preserving the canonical PNG alpha, dimensions,
+spacing, and typography. Universal config is v8 and Phone Metrics config is v13;
+legacy mutable drafts uplift without a false checkpoint and immutable versions
+stay untouched.
+
+A changed pair becomes the append-only Project default only on Save or Approve,
+with lineage to that edit checkpoint through migration
+`010_studio_project_logo_defaults.sql`. Future AI-created Posts and explicit
+template replacements inherit locked colors; existing drafts remain unchanged,
+and approved clones keep their source-version colors. Preview, Landing, and
+Creative Skill learning do not mutate this authority. This milestone remains a
+local candidate until an explicit deployment request.
 
 ## Instagram-first manual validation — live and accepted
 

@@ -65,7 +65,7 @@ const detail: StudioUniversalDetail = {
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v7',
+    schema: 'ptw.studio.universal-ad-config.v8',
     background: {
       mode: 'image', color: '#10233F', texture: 'stone', texture_intensity: 0.7,
       image_layout: 'full', image_percent: 75, image_fit: 'cover',
@@ -93,7 +93,7 @@ const detail: StudioUniversalDetail = {
       object_scale: 0.9, offset_right: 0, offset_bottom: 0,
     },
     logo: {
-      enabled: true, position: 'top_right', width: 180,
+      enabled: true, symbol_color: '#87D0DD', name_color: '#383840', position: 'top_right', width: 180,
       background_enabled: false, background_color: '#FFFFFF',
     },
   },
@@ -108,7 +108,7 @@ const detail: StudioUniversalDetail = {
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v4',
     template_id: 'universal_ad', template_version: 13,
-    configuration_schema: 'ptw.studio.universal-ad-config.v7',
+    configuration_schema: 'ptw.studio.universal-ad-config.v8',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
       settings: setting_ids.map((setting_id) => ({ setting_id, value: true })),
@@ -156,6 +156,10 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
     }
     if (scopedPath === '/configuration' || scopedPath === '/save') {
       const request = body as { configuration: StudioUniversalDetail['configuration']; content: StudioUniversalDetail['content'] }
+      const projectLogoDefaultUpdated = (
+        request.configuration.logo.symbol_color !== current.configuration.logo.symbol_color
+        || request.configuration.logo.name_color !== current.configuration.logo.name_color
+      )
       current = {
         ...current,
         state_sha256: 'd'.repeat(64),
@@ -165,6 +169,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
       if (scopedPath === '/save') return {
         creative: structuredClone(current), checkpoint_created: true,
         version_created: false, checkpoint: null, learning_proposal: null,
+        project_logo_default_updated: projectLogoDefaultUpdated,
       }
       return structuredClone(current)
     }
@@ -676,6 +681,43 @@ describe('Universal Ad Studio', () => {
     expect(await screen.findByText('Preview matches your unsaved changes')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
       `${basePath}/configuration`, expect.anything(), expect.anything(),
+    )
+  })
+
+  it('previews and saves both Natal colors as the Project default', async () => {
+    const { api, post } = studioApi()
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+
+    await screen.findByText('Preview matches the saved setup')
+    fireEvent.click(screen.getByText('Brand colors'))
+    fireEvent.change(screen.getByLabelText('Logo symbol color'), { target: { value: '#123456' } })
+    fireEvent.change(screen.getByLabelText('Natal name color'), { target: { value: '#abcdef' } })
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
+
+    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
+      `${basePath}/preview`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: expect.objectContaining({
+            enabled: true, symbol_color: '#123456', name_color: '#ABCDEF',
+          }),
+        }),
+      }),
+      'image/png',
+      { deadlineMs: 90_000 },
+    ))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `${basePath}/save`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: expect.objectContaining({ symbol_color: '#123456', name_color: '#ABCDEF' }),
+        }),
+      }),
+      expect.anything(),
+    ))
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'These Natal colors are now the Project default.',
     )
   })
 

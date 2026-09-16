@@ -175,7 +175,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_app_shell_v19", composite["source"]["screen_composition"],
+            "front_app_shell_v20", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
@@ -731,6 +731,26 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             without_logo.crop((0, 0, 180, 90)).tobytes(),
         )
 
+        colored_config = deepcopy(DEFAULT_PHONE_CONFIG)
+        colored_config["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
+        colored_phone_logo = _fixed_screen_shell(
+            source, "", "", "none", logo_enabled=True,
+            logo_symbol_color="#123456", logo_name_color="#ABCDEF",
+        ).convert("RGBA")
+        logo_pixels = set(colored_phone_logo.crop(logo_region).getdata())
+        self.assertIn((18, 52, 86, 255), logo_pixels)
+        self.assertIn((171, 205, 239, 255), logo_pixels)
+        phone = self._phone()
+        records = self.workspace._asset_records(  # pylint: disable=protected-access
+            colored_config, DEFAULT_PHONE_CONTENT,
+        )
+        with Image.open(BytesIO(records["logo"]["bytes"])) as post_logo:
+            post_pixels = set(post_logo.convert("RGBA").getdata())
+        self.assertIn((18, 52, 86, 255), post_pixels)
+        self.assertIn((171, 205, 239, 255), post_pixels)
+
         settings = {
             setting["setting_id"]: setting["value"]
             for component in phone_metrics_component_settings(
@@ -740,6 +760,8 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         }
         self.assertFalse(settings["configuration.logo.enabled"])
         self.assertFalse(settings["configuration.phone_screen.logo_enabled"])
+        self.assertEqual("#87D0DD", settings["configuration.logo.symbol_color"])
+        self.assertEqual("#383840", settings["configuration.logo.name_color"])
         self.assertEqual(
             [
                 "offer", "hero_title", "supporting_text", "post_logo",
@@ -758,7 +780,6 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         upgraded = normalize_phone_metrics_config(legacy)
         self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
 
-        phone = self._phone()
         self.workspace._atomic_json(  # pylint: disable=protected-access
             self.workspace.root / "configuration.json", legacy,
         )
@@ -780,6 +801,11 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             invalid = deepcopy(DEFAULT_PHONE_CONFIG)
             invalid[path[0]][path[1]] = "yes"
             with self.assertRaisesRegex(ValueError, "must be boolean"):
+                normalize_phone_metrics_config(invalid)
+        for field in ("symbol_color", "name_color"):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid["logo"][field] = "blue"
+            with self.assertRaisesRegex(ValueError, field):
                 normalize_phone_metrics_config(invalid)
 
     def test_cta_is_optional_editable_and_existing_v9_drafts_stay_visible(self) -> None:

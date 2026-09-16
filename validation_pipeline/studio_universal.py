@@ -17,16 +17,20 @@ import random
 import re
 from typing import Any, Mapping
 
+from .natal_brand import NATAL_NAME_COLOR, NATAL_SYMBOL_COLOR
 from .studio import STUDIO_FONT_FAMILIES
 from .studio_primitives import PrimitiveTemplate
 
 
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
-UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v7"
+UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v8"
 UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
 UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v4"
 UNIVERSAL_AD_TEMPLATE_VERSION = 13
-_LEGACY_UNIVERSAL_CONFIG_SCHEMAS = {"ptw.studio.universal-ad-config.v6"}
+_LEGACY_UNIVERSAL_CONFIG_SCHEMAS = {
+    "ptw.studio.universal-ad-config.v6",
+    "ptw.studio.universal-ad-config.v7",
+}
 
 FONT_FAMILIES = STUDIO_FONT_FAMILIES
 TEXTURE_PRESETS = (
@@ -180,7 +184,10 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "role": "logo",
         "node_ids": ("logo",),
         "asset_slot_ids": ("logo",),
-        "setting_ids": ("configuration.logo.enabled",),
+        "setting_ids": (
+            "configuration.logo.enabled", "configuration.logo.symbol_color",
+            "configuration.logo.name_color",
+        ),
     },
 )
 
@@ -447,6 +454,16 @@ UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
     "configuration.logo.enabled": _setting(
         "universal_ad.logo", "boolean", ("logo", "логотип"),
     ),
+    "configuration.logo.symbol_color": _setting(
+        "universal_ad.logo", "color",
+        ("logo symbol color", "brand symbol color", "колір знака логотипа"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.logo.name_color": _setting(
+        "universal_ad.logo", "color",
+        ("Natal name color", "brand name color", "колір назви Natal"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
     "configuration.logo.position": _setting(
         "universal_ad.logo", "enum", ("logo position", "позиція логотипа"),
         values=("top_left", "top_right"),
@@ -524,6 +541,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "logo": {
         "enabled": True,
+        "symbol_color": NATAL_SYMBOL_COLOR,
+        "name_color": NATAL_NAME_COLOR,
         "position": "top_right",
         "width": 180,
         "background_enabled": False,
@@ -635,6 +654,10 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
         cta = dict(value.get("cta") or {})
         cta.setdefault("enabled", True)
         value["cta"] = cta
+        logo = dict(value.get("logo") or {})
+        logo.setdefault("symbol_color", NATAL_SYMBOL_COLOR)
+        logo.setdefault("name_color", NATAL_NAME_COLOR)
+        value["logo"] = logo
     root = _object(value, set(DEFAULT_CONFIG), "Studio universal configuration")
     if root["schema"] != UNIVERSAL_AD_CONFIG_SCHEMA:
         raise ValueError("Studio universal configuration schema is invalid")
@@ -687,6 +710,12 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
         },
         "logo": {
             "enabled": _boolean(logo["enabled"], "logo.enabled"),
+            "symbol_color": normalize_universal_setting(
+                "configuration.logo.symbol_color", logo["symbol_color"],
+            ),
+            "name_color": normalize_universal_setting(
+                "configuration.logo.name_color", logo["name_color"],
+            ),
             "position": normalize_universal_setting("configuration.logo.position", logo["position"]),
             "width": normalize_universal_setting("configuration.logo.width", logo["width"]),
             # The logo component has no backing-surface node.
@@ -801,10 +830,13 @@ def universal_ad_catalog() -> dict[str, Any]:
         "setting_definitions": [
             {"setting_id": setting_id, **deepcopy(definition)}
             for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items()
-            # Brand geometry remains renderer-owned; visibility is an owner
-            # choice like every other foreground component.
+            # Brand geometry remains renderer-owned. Visibility and the two
+            # bounded brand colors are the only owner controls.
             if not setting_id.startswith("configuration.logo.")
-            or setting_id == "configuration.logo.enabled"
+            or setting_id in {
+                "configuration.logo.enabled", "configuration.logo.symbol_color",
+                "configuration.logo.name_color",
+            }
         ],
         "variation": {
             "background_modes": ["solid", "texture", "image"],

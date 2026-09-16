@@ -251,7 +251,7 @@ export type StudioUniversalFontFamily =
   | 'Lora' | 'Lora Italic'
 
 export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7'
+  schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7' | 'ptw.studio.universal-ad-config.v8'
   background: {
     mode: 'solid' | 'texture' | 'image'
     color: string
@@ -311,6 +311,8 @@ export interface StudioUniversalConfiguration {
   }
   logo: {
     enabled: boolean
+    symbol_color: string
+    name_color: string
     position: 'top_left' | 'top_right'
     width: number
     background_enabled: boolean
@@ -361,7 +363,7 @@ export interface StudioUniversalComponentSettings {
   schema: 'ptw.studio.universal-ad-component-settings.v3' | 'ptw.studio.universal-ad-component-settings.v4'
   template_id: 'universal_ad'
   template_version: number
-  configuration_schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7'
+  configuration_schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7' | 'ptw.studio.universal-ad-config.v8'
   components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
     settings: Array<{ setting_id: string; value: unknown }>
   }>
@@ -487,14 +489,14 @@ export interface StudioPhoneActionButtonConfiguration {
 
 export interface StudioPhoneMetricsConfiguration {
   visual_mode?: 'phone' | 'image'
-  schema: 'ptw.studio.phone-metrics-config.v11' | 'ptw.studio.phone-metrics-config.v12'
+  schema: 'ptw.studio.phone-metrics-config.v11' | 'ptw.studio.phone-metrics-config.v12' | 'ptw.studio.phone-metrics-config.v13'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
     texture_intensity: number
   }
   copy_background: { texture: StudioPhoneBackgroundTexture }
-  logo: { enabled: boolean }
+  logo: { enabled: boolean; symbol_color: string; name_color: string }
   offer: { enabled: boolean }
   cta: { enabled: boolean; background_color: string; text_color: string }
   hero_title: { enabled?: boolean; highlight_color: string }
@@ -598,6 +600,7 @@ export interface StudioCheckpointResponse<T> {
   version_created: boolean
   checkpoint: StudioEditCheckpoint | null
   learning_proposal: null
+  project_logo_default_updated: boolean
 }
 
 export interface StudioPhoneMetricsDetail {

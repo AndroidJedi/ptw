@@ -185,6 +185,22 @@ class CreativeAnalyticsTests(unittest.TestCase):
             "evidence": {}, "confidence": {"sample_size": 3, "level": "exploratory"},
         }, scope="project", project_id=self.project_id)
         self.assertIs(phone_rule["target"]["value"], False)
+        for template_id, component_id in (
+            ("universal_ad", "universal_ad.logo"),
+            ("phone_metrics", "phone_metrics.brand"),
+        ):
+            with self.assertRaisesRegex(ValueError, "does not exist"):
+                normalize_rule({
+                    "surface": "post", "family": "ui",
+                    "instruction": "Change the Project brand color from measured output.",
+                    "target": {
+                        "template_id": template_id, "component_id": component_id,
+                        "setting_id": "configuration.logo.symbol_color",
+                        "operation": "set", "value": "#123456",
+                    },
+                    "evidence": {},
+                    "confidence": {"sample_size": 3, "level": "exploratory"},
+                }, scope="project", project_id=self.project_id)
         with self.assertRaisesRegex(ValueError, "asset_slot"):
             normalize_rule({
                 "surface": "landing", "family": "image",

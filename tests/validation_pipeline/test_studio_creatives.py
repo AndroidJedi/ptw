@@ -9,7 +9,7 @@ import unittest
 from PIL import Image
 
 from commander.ids import new_uuid7
-from validation_pipeline.local_brief_store import LocalBriefStore, utc_now
+from validation_pipeline.local_brief_store import LocalBriefStore, sha256_json, utc_now
 from validation_pipeline.studio_creatives import (
     LocalStudioAuthority, StudioCreativeService, creative_generation_schema,
 )
@@ -130,6 +130,19 @@ class StudioCreativeServiceTests(unittest.TestCase):
             "approved": True, "created_at": now, "updated_at": now,
         })
         return project_id, brief_id
+
+    def add_approved_brief(self, project_id: str, name: str) -> str:
+        source = next(
+            item for item in self.store.list("briefs")
+            if item["project_id"] == project_id
+        )
+        brief_id = new_uuid7()
+        now = utc_now()
+        self.store.append("briefs", brief_id, {
+            **deepcopy(source), "brief_id": brief_id, "request_id": new_uuid7(),
+            "project_name": name, "created_at": now, "updated_at": now,
+        })
+        return brief_id
 
     def generate_creative(self, template_id: str = "universal_ad"):
         project_id, brief_id = self.approved_brief()
@@ -378,6 +391,75 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(280, content["supporting_text"]["maxLength"])
         self.assertEqual(100, content["bullets"]["items"]["maxLength"])
 
+    def test_logo_colors_are_locked_to_the_inherited_project_default(self) -> None:
+        project_id, _brief_id, detail = self.generate_creative()
+        configuration = creative_generation_schema(detail)["properties"]["configuration"]["properties"]
+        self.assertEqual(
+            ["#87D0DD"], configuration["logo"]["properties"]["symbol_color"]["enum"],
+        )
+        self.assertEqual(
+            ["#383840"], configuration["logo"]["properties"]["name_color"]["enum"],
+        )
+
+        existing_brief = self.add_approved_brief(project_id, "Existing draft")
+        existing, created = self.service.reserve_from_brief(
+            brief_id=existing_brief, template_id="universal_ad", requested_by="test",
+        )
+        self.assertTrue(created)
+        existing_before = self.service.detail(project_id, existing["creative_id"])
+
+        custom = deepcopy(detail["configuration"])
+        custom["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
+        preview = self.service.mutate(
+            project_id, detail["creative_id"], "render_preview",
+            state_sha256=detail["state_sha256"], configuration=custom,
+            content=detail["content"],
+        )
+        self.assertTrue(preview["bytes_sha256"])
+        self.assertIsNone(self.authority.latest_project_logo_default(project_id))
+
+        result = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="save",
+            base_sha256=detail["state_sha256"], configuration=custom,
+            content=detail["content"],
+        )
+        self.assertTrue(result["checkpoint_created"])
+        self.assertTrue(result["project_logo_default_updated"])
+        self.assertEqual({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        }, {
+            key: self.authority.latest_project_logo_default(project_id)[key]
+            for key in ("symbol_color", "name_color")
+        })
+        record = self.store.list("studio_project_logo_defaults")[0]
+        self.assertEqual(
+            result["checkpoint"]["checkpoint_id"], record["source_checkpoint_id"],
+        )
+        self.assertEqual(
+            existing_before["configuration"]["logo"],
+            self.service.detail(project_id, existing["creative_id"])["configuration"]["logo"],
+        )
+
+        future_brief = self.add_approved_brief(project_id, "Future draft")
+        future, created = self.service.reserve_from_brief(
+            brief_id=future_brief, template_id="universal_ad", requested_by="test",
+        )
+        self.assertTrue(created)
+        future_detail = self.service.detail(project_id, future["creative_id"])
+        self.assertEqual("#123456", future_detail["configuration"]["logo"]["symbol_color"])
+        self.assertEqual("#ABCDEF", future_detail["configuration"]["logo"]["name_color"])
+        replaced = self.service.mutate(
+            project_id, future["creative_id"], "apply_template",
+            base_sha256=future_detail["state_sha256"], template_id="phone_metrics",
+        )
+        self.assertEqual("#123456", replaced["configuration"]["logo"]["symbol_color"])
+        self.assertEqual("#ABCDEF", replaced["configuration"]["logo"]["name_color"])
+        locked = creative_generation_schema(replaced)["properties"]["configuration"]["properties"]["logo"]["properties"]
+        self.assertEqual(["#123456"], locked["symbol_color"]["enum"])
+        self.assertEqual(["#ABCDEF"], locked["name_color"]["enum"])
+
     def test_legacy_runtime_skill_snapshot_is_not_consumed_by_generation(self) -> None:
         project_id, _brief_id = self.approved_brief()
         snapshot_id = new_uuid7()
@@ -490,6 +572,33 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual([], self.store.list("studio_learning_proposals"))
         self.assertEqual([], self.store.list("studio_learning_decisions"))
 
+    def test_legacy_logo_color_uplift_does_not_create_a_false_checkpoint(self) -> None:
+        project_id, _brief_id, detail = self.generate_creative()
+        workspace = self.service._workspace(detail["creative_id"])
+        legacy = deepcopy(detail["configuration"])
+        legacy["schema"] = "ptw.studio.universal-ad-config.v7"
+        legacy["logo"].pop("symbol_color")
+        legacy["logo"].pop("name_color")
+        workspace._atomic_json(workspace.root / "configuration.json", legacy)  # pylint: disable=protected-access
+        legacy_sha256 = workspace._legacy_universal_state_sha256()  # pylint: disable=protected-access
+        baseline = deepcopy(self.authority.get_creative(detail["creative_id"])["learning_baseline"])
+        baseline["configuration"] = legacy
+        baseline["template_sha256"] = "0" * 64
+        self.authority.update_creative(
+            detail["creative_id"], state_sha256=legacy_sha256,
+            learning_baseline=baseline,
+            learning_baseline_sha256=sha256_json(baseline),
+        )
+        normalized = self.service.detail(project_id, detail["creative_id"])
+        result = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="save",
+            base_sha256=legacy_sha256, configuration=normalized["configuration"],
+            content=normalized["content"],
+        )
+        self.assertFalse(result["checkpoint_created"])
+        self.assertFalse(result["project_logo_default_updated"])
+        self.assertEqual([], self.store.list("studio_project_logo_defaults"))
+
     def test_variant_requires_the_latest_creative_to_be_approved(self) -> None:
         project_id, brief_id, first = self.generate_creative()
         with self.assertRaisesRegex(ValueError, "approve the current creative"):
@@ -562,11 +671,17 @@ class StudioCreativeServiceTests(unittest.TestCase):
     def test_clone_inherits_the_selected_approved_post_and_frozen_raw_asset(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")
         approved_asset_sha = detail["phone_screen_history"][0]["sha256"]
-        approved = self.service.checkpoint(
+        approved_configuration = deepcopy(detail["configuration"])
+        approved_configuration["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
+        approved_result = self.service.checkpoint(
             project_id, detail["creative_id"], kind="approve",
-            base_sha256=detail["state_sha256"], configuration=detail["configuration"],
+            base_sha256=detail["state_sha256"], configuration=approved_configuration,
             content=detail["content"], change_note="Clone source",
-        )["creative"]
+        )
+        self.assertTrue(approved_result["project_logo_default_updated"])
+        approved = approved_result["creative"]
         changed = self.service.mutate(
             project_id, detail["creative_id"], "generate_phone_screen",
             base_sha256=approved["state_sha256"],
@@ -576,6 +691,16 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertNotEqual(
             approved_asset_sha, changed["phone_screen_history"][0]["sha256"],
         )
+        later_configuration = deepcopy(changed["configuration"])
+        later_configuration["logo"].update({
+            "symbol_color": "#654321", "name_color": "#FEDCBA",
+        })
+        later = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="save",
+            base_sha256=changed["state_sha256"], configuration=later_configuration,
+            content=changed["content"],
+        )
+        self.assertTrue(later["project_logo_default_updated"])
 
         request_id = new_uuid7()
         cloned, created = self.service.clone_approved_version(
@@ -587,6 +712,8 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertTrue(created)
         self.assertEqual("approved_clone", clone_detail["origin"])
         self.assertEqual(approved_version["configuration"], clone_detail["configuration"])
+        self.assertEqual("#123456", clone_detail["configuration"]["logo"]["symbol_color"])
+        self.assertEqual("#ABCDEF", clone_detail["configuration"]["logo"]["name_color"])
         self.assertEqual(approved_version["content"], clone_detail["content"])
         self.assertEqual(approved_asset_sha, clone_detail["phone_screen_history"][0]["sha256"])
         self.assertEqual(0, clone_detail["approved_version_count"])

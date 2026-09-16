@@ -25,6 +25,23 @@ coding shell still cannot access production data, secrets, Docker, publishing,
 or external messaging; and protected/force Git updates remain unavailable.
 Those are retained production and credential boundaries, not development gates.
 
+## Project-default Natal logo colors — local candidate, not deployed
+
+Post Studio now exposes one symbol color and one `NATAL` name color in both
+templates. The shared pair recolors every visible lock-up, including the full
+symbol inner stroke, while preserving the canonical PNG alpha, dimensions,
+spacing, and typography. Universal config is v8 and Phone Metrics config is v13;
+legacy mutable drafts uplift without a false checkpoint and immutable versions
+stay untouched.
+
+A changed pair becomes the append-only Project default only on Save or Approve,
+with lineage to that edit checkpoint through migration
+`010_studio_project_logo_defaults.sql`. Future AI-created Posts and explicit
+template replacements inherit locked colors; existing drafts remain unchanged,
+and approved clones keep their source-version colors. Preview, Landing, and
+Creative Skill learning do not mutate this authority. This milestone remains a
+local candidate until an explicit deployment request.
+
 ## Instagram-first manual validation — live and accepted
 
 PTW now focuses on fast business-idea tests. Active social UI/API is

@@ -20,17 +20,21 @@ import random
 import re
 from typing import Any, Mapping
 
+from .natal_brand import (
+    NATAL_NAME_COLOR, NATAL_SYMBOL_COLOR, normalize_natal_logo_colors,
+)
 from .studio import STUDIO_FONT_FAMILIES, STUDIO_PREVIEW_FONTS, SUPPORTED_FONTS
 from .studio_primitives import PrimitiveTemplate
 
 
 PHONE_METRICS_TEMPLATE_ID = "phone_metrics"
-PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v12"
+PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v13"
 _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
     "ptw.studio.phone-metrics-config.v8",
     "ptw.studio.phone-metrics-config.v9",
     "ptw.studio.phone-metrics-config.v10",
     "ptw.studio.phone-metrics-config.v11",
+    "ptw.studio.phone-metrics-config.v12",
 })
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v3"
@@ -99,7 +103,7 @@ PHONE_ASSET_SLOTS: dict[str, dict[str, Any]] = {
 
 PHONE_COMPONENTS: tuple[dict[str, Any], ...] = (
     {"component_id": "phone_metrics.background", "role": "background", "node_ids": ("canvas", "background_texture", "copy_background_texture"), "asset_slot_ids": (), "setting_ids": ("configuration.background.texture", "configuration.copy_background.texture")},
-    {"component_id": "phone_metrics.brand", "role": "brand", "node_ids": ("logo",), "asset_slot_ids": (), "setting_ids": ("configuration.logo.enabled",)},
+    {"component_id": "phone_metrics.brand", "role": "brand", "node_ids": ("logo",), "asset_slot_ids": (), "setting_ids": ("configuration.logo.enabled", "configuration.logo.symbol_color", "configuration.logo.name_color")},
     {"component_id": "phone_metrics.offer", "role": "offer", "node_ids": ("offer",), "asset_slot_ids": (), "setting_ids": ("configuration.offer.enabled", "configuration.typography.offer", "content.offer")},
     {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("configuration.hero_title.enabled", "configuration.typography.hero_title", "configuration.hero_title.highlight_color", "content.hero_title")},
     {"component_id": "phone_metrics.supporting_text", "role": "supporting_text", "node_ids": ("supporting_text",), "asset_slot_ids": (), "setting_ids": ("configuration.supporting_text.enabled", "configuration.typography.supporting_text", "configuration.supporting_text.highlight_color", "content.supporting_text")},
@@ -114,7 +118,11 @@ DEFAULT_PHONE_CONFIG: dict[str, Any] = {
         "color": "#F4F5F2", "texture": "concrete", "texture_intensity": 0.13,
     },
     "copy_background": {"texture": "none"},
-    "logo": {"enabled": True},
+    "logo": {
+        "enabled": True,
+        "symbol_color": NATAL_SYMBOL_COLOR,
+        "name_color": NATAL_NAME_COLOR,
+    },
     "offer": {"enabled": True},
     "cta": {
         "enabled": True, "background_color": "#316CFF", "text_color": "#FFFFFF",
@@ -239,7 +247,11 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         # untouched and the next owner save persists the current contract.
         value = deepcopy(dict(value))
         value["schema"] = PHONE_METRICS_CONFIG_SCHEMA
-        value.setdefault("logo", {"enabled": True})
+        logo = dict(value.get("logo") or {})
+        logo.setdefault("enabled", True)
+        logo.setdefault("symbol_color", NATAL_SYMBOL_COLOR)
+        logo.setdefault("name_color", NATAL_NAME_COLOR)
+        value["logo"] = logo
         value.setdefault("cta", deepcopy(DEFAULT_PHONE_CONFIG["cta"]))
         value.setdefault("hero_title", deepcopy(DEFAULT_PHONE_CONFIG["hero_title"]))
         for name in ("hero_title", "supporting_text"):
@@ -409,7 +421,15 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
                 "phone metrics copy_background.texture",
             ),
         },
-        "logo": {"enabled": logo["enabled"]},
+        "logo": {
+            "enabled": logo["enabled"],
+            "symbol_color": _color(
+                logo["symbol_color"], "phone metrics logo.symbol_color",
+            ),
+            "name_color": _color(
+                logo["name_color"], "phone metrics logo.name_color",
+            ),
+        },
         "offer": {"enabled": offer["enabled"]},
         "cta": {
             "enabled": cta["enabled"],
@@ -707,6 +727,8 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
         "configuration.background.texture": config["background"]["texture"],
         "configuration.copy_background.texture": config["copy_background"]["texture"],
         "configuration.logo.enabled": config["logo"]["enabled"],
+        "configuration.logo.symbol_color": config["logo"]["symbol_color"],
+        "configuration.logo.name_color": config["logo"]["name_color"],
         "configuration.offer.enabled": config["offer"]["enabled"],
         "configuration.hero_title.enabled": config["hero_title"]["enabled"],
         "configuration.supporting_text.enabled": config["supporting_text"]["enabled"],
@@ -1159,6 +1181,8 @@ def _fixed_screen_shell(
     phone_button_appearances: list[Mapping[str, Any]] | None = None,
     typography: Mapping[str, Mapping[str, Any]] | None = None,
     logo_enabled: bool = True,
+    logo_symbol_color: str = NATAL_SYMBOL_COLOR,
+    logo_name_color: str = NATAL_NAME_COLOR,
 ) -> Any:
     """Place visual-only art inside the deterministic app screen."""
 
@@ -1224,9 +1248,11 @@ def _fixed_screen_shell(
     draw.rounded_rectangle((794, 46, 800, 57), radius=2, fill="#101B31")
 
     if logo_enabled:
-        from .natal_brand import natal_logo_bytes
+        from .natal_brand import natal_logo_colored_bytes
 
-        with Image.open(BytesIO(natal_logo_bytes())) as source:
+        with Image.open(BytesIO(natal_logo_colored_bytes(
+            logo_symbol_color, logo_name_color,
+        ))) as source:
             logo = ImageOps.contain(source.convert("RGBA"), (390, 132), method=Image.Resampling.LANCZOS)
         canvas.alpha_composite(logo, ((canvas.width - logo.width) // 2, 105))
 
@@ -1268,6 +1294,8 @@ def compose_phone_device_asset(
     typography: Mapping[str, Mapping[str, Any]] | None = None,
     logo_enabled: bool = True,
     visual_mode: str = "phone",
+    logo_symbol_color: str = NATAL_SYMBOL_COLOR,
+    logo_name_color: str = NATAL_NAME_COLOR,
 ) -> dict[str, Any]:
     """Fuse the fixed front frame and its deterministic upright app screen.
 
@@ -1290,6 +1318,11 @@ def compose_phone_device_asset(
         return {"bytes": output.getvalue(), "mime_type": "image/png", "source": {
             "origin": "raw_hero_image", "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(),
         }}
+    logo_colors = normalize_natal_logo_colors({
+        "symbol_color": logo_symbol_color, "name_color": logo_name_color,
+    })
+    logo_symbol_color = logo_colors["symbol_color"]
+    logo_name_color = logo_colors["name_color"]
     frame_data = iphone_frame_bytes()
     with Image.open(BytesIO(frame_data)) as source:
         frame = source.convert("RGBA")
@@ -1299,6 +1332,7 @@ def compose_phone_device_asset(
     screen = _fixed_screen_shell(
         screen, phone_title, cta, screen_texture,
         phone_button_texts, phone_button_appearances, typography, logo_enabled,
+        logo_symbol_color, logo_name_color,
     )
     screen_size = (
         IPHONE_SCREEN_BOX[2] - IPHONE_SCREEN_BOX[0],
@@ -1326,4 +1360,4 @@ def compose_phone_device_asset(
         "paper": "deterministic_soft_paper_v1",
         "frosted": "deterministic_frosted_glass_v1",
     }[screen_texture]
-    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_app_shell_v19", "logo_enabled": logo_enabled, "hero_texture": texture_provenance}}
+    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_app_shell_v20", "logo_enabled": logo_enabled, "logo_symbol_color": logo_symbol_color, "logo_name_color": logo_name_color, "hero_texture": texture_provenance}}

@@ -267,8 +267,14 @@ def _landing_ui_catalog() -> dict[tuple[str, str], dict[str, Any]]:
 
 def _post_ui_catalog() -> dict[tuple[str, str, str], dict[str, Any]]:
     result: dict[tuple[str, str, str], dict[str, Any]] = {}
+    project_brand_defaults = {
+        "configuration.logo.symbol_color",
+        "configuration.logo.name_color",
+    }
     for component in COMPONENT_DEFINITIONS:
         for setting in component["setting_ids"]:
+            if setting in project_brand_defaults:
+                continue
             definition = dict(UNIVERSAL_SETTING_DEFINITIONS.get(setting) or {"value_type": "structured"})
             result[("universal_ad", component["component_id"], setting)] = definition
     phone_enums = {
@@ -290,6 +296,8 @@ def _post_ui_catalog() -> dict[tuple[str, str, str], dict[str, Any]]:
     }
     for component in PHONE_COMPONENTS:
         for setting in component["setting_ids"]:
+            if setting in project_brand_defaults:
+                continue
             if setting in phone_enums:
                 definition = {"value_type": "enum", "values": phone_enums[setting]}
             elif setting in phone_booleans:

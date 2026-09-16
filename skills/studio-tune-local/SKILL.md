@@ -72,6 +72,15 @@ stale. Preview must not create Save/Approve checkpoints or learning. Phone
 Metrics CTA copy is optional: empty/whitespace copy removes its whole band,
 including through Save, Approve, and reload; retain the 60-character upper bound.
 
+Natal logo tuning may expose only the shared symbol color and `NATAL` name color.
+Keep canonical alpha, dimensions, spacing, type, and placement geometry fixed;
+the symbol color covers the full mark including its inner stroke. Apply the same
+pair to every lock-up in one Post. Preview/configuration calls must not update
+Project authority; only a Save/Approve checkpoint with a real color change may
+append the Project default. New Posts/template replacements inherit and lock it,
+while existing drafts and approved clones retain their own saved colors. Keep
+these brand defaults outside Creative Skill learning and Landing.
+
 ## Apple-style sticker treatment
 
 The sticker source must be an ultra-realistic photograph of a physical object

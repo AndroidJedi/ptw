@@ -52,7 +52,8 @@ geometric, display, serif, and true editorial-italic choices; all font files
 and their OFL licenses are checked in so host and container renders use the
 same pixels. Repeated phone metrics and app actions share role-level typography,
 while their copy and visual surfaces remain independently editable. Natal
-identity and iPhone system chrome keep their fixed renderer-owned typography.
+identity keeps fixed renderer-owned geometry and typography; only its bounded
+symbol and name colors are owner-editable. iPhone system chrome stays fixed.
 
 `phone_metrics` v27 is a 1080×1350 composition with an off-white material
 background and optional Natal lock-up, eyebrow, hero, supporting copy,
@@ -81,9 +82,20 @@ text-only tertiary.
 
 The post-level and in-phone Natal lock-ups each have an independent visibility
 toggle. Both remain visible by default, use only the canonical renderer-owned
-asset, and cannot be uploaded or replaced. Existing mutable v8 drafts inherit
-that previously implicit visible state when read and persist the v9 contract on
-their next owner save; immutable approved versions remain untouched.
+asset, and cannot be uploaded or replaced. One shared pair of bounded colors
+applies to every visible lock-up in a creative: `logo.symbol_color` recolors the
+whole symbol, including its former dark inner stroke, while `logo.name_color`
+recolors only the `NATAL` word. Alpha, dimensions, typography, spacing, and
+geometry remain byte-derived from the verified canonical PNG. Canonical colors
+return the original PNG bytes unchanged.
+
+Save or Approve stores a changed color pair as an append-only Project default
+linked to that edit checkpoint. Preview and intermediate configuration requests
+never update the default. New AI-created Posts and explicit template replacements
+inherit it, and the composer schema locks both values so Brief or Creative Skill
+learning cannot override them. Existing drafts stay unchanged; an approved clone
+retains its selected immutable version's colors even when the current Project
+default is newer. Landing continues to use its separate unchanged canonical logo.
 
 Local template v24 adds **Visual mode: Phone frame & buttons / Image only**.
 The optional `configuration.visual_mode` accepts `phone` or `image`; omitted
@@ -102,13 +114,16 @@ image-derived fade into the lower background. Alpha cutouts keep their
 transparent screen surface and never stretch subject pixels upward into the
 fixed header.
 
-Current drafts use Universal config v7 and Phone Metrics config v12. Earlier
-mutable supported drafts receive a one-save visibility uplift with previously
-implicit elements kept visible; immutable approved versions are never rewritten.
+Current drafts use Universal config v8 and Phone Metrics config v13. Earlier
+mutable supported drafts receive a one-save uplift with previously implicit
+elements and canonical logo colors retained. Uplift-only schema/renderer changes
+do not manufacture an owner edit checkpoint; immutable approved versions are
+never rewritten.
 
 Template application replaces the current mutable configuration/content/assets
-inside that creative. It never rewrites an immutable approved version. Payloads
-must use the current exact schema after that bounded uplift.
+inside that creative and inherits the current Project logo colors. It never
+rewrites an immutable approved version. Payloads must use the current exact
+schema after that bounded uplift.
 
 ## Phone hero generation
 

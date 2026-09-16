@@ -101,7 +101,10 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             item["setting_id"]: item for item in detail["catalog"]["setting_definitions"]
         }
         self.assertEqual(
-            ["configuration.logo.enabled"],
+            [
+                "configuration.logo.enabled", "configuration.logo.symbol_color",
+                "configuration.logo.name_color",
+            ],
             [key for key in setting_definitions if key.startswith("configuration.logo.")],
         )
         sticker_width = setting_definitions["configuration.sticker.width"]
@@ -135,6 +138,8 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(0.56, background_settings["configuration.background.overlay_opacity"])
         self.assertNotIn("configuration.logo.background_enabled", logo_settings)
         self.assertNotIn("configuration.logo.background_color", logo_settings)
+        self.assertEqual("#87D0DD", logo_settings["configuration.logo.symbol_color"])
+        self.assertEqual("#383840", logo_settings["configuration.logo.name_color"])
         self.assertEqual(
             ["canvas", "background_media", "readability_overlay"],
             components["universal_ad.background"]["node_ids"],
@@ -157,6 +162,8 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertFalse(detail["configuration"]["sticker"]["enabled"])
         self.assertTrue(detail["configuration"]["bullets"]["enabled"])
         self.assertTrue(detail["configuration"]["logo"]["enabled"])
+        self.assertEqual("#87D0DD", detail["configuration"]["logo"]["symbol_color"])
+        self.assertEqual("#383840", detail["configuration"]["logo"]["name_color"])
         self.assertEqual("top_right", detail["configuration"]["logo"]["position"])
         self.assertEqual(180, detail["configuration"]["logo"]["width"])
         self.assertFalse(detail["configuration"]["logo"]["background_enabled"])
@@ -761,6 +768,55 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         )
         self.assertNotIn("logo_surface", hidden_render["resolved"]["nodes"])
         self.assertNotIn("logo", hidden_render["resolved"]["nodes"])
+
+    def test_logo_colors_change_only_the_canonical_lockup_pixels(self) -> None:
+        from PIL import Image
+
+        detail = self.workspace.detail()
+        custom = copy.deepcopy(detail["configuration"])
+        custom["logo"].update({
+            "symbol_color": "#123456", "name_color": "#ABCDEF",
+        })
+        rendered = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"], configuration=custom,
+            content=detail["content"],
+        )
+        self.assertNotEqual(
+            NATAL_LOGO_SHA256, rendered["resolved"]["asset_sha256"]["logo"],
+        )
+        with Image.open(BytesIO(rendered["bytes"])) as image:
+            pixels = set(image.convert("RGBA").getdata())
+        self.assertIn((18, 52, 86, 255), pixels)
+        self.assertIn((171, 205, 239, 255), pixels)
+        normalized = normalize_universal_config(custom)
+        self.assertEqual("#123456", normalized["logo"]["symbol_color"])
+        self.assertEqual("#ABCDEF", normalized["logo"]["name_color"])
+        for field in ("symbol_color", "name_color"):
+            invalid = copy.deepcopy(custom)
+            invalid["logo"][field] = "blue"
+            with self.assertRaisesRegex(ValueError, field):
+                normalize_universal_config(invalid)
+
+    def test_existing_v7_configuration_uplifts_with_canonical_logo_colors(self) -> None:
+        detail = self.workspace.detail()
+        legacy = copy.deepcopy(detail["configuration"])
+        legacy["schema"] = "ptw.studio.universal-ad-config.v7"
+        legacy["logo"].pop("symbol_color")
+        legacy["logo"].pop("name_color")
+        self.workspace._atomic_json(  # pylint: disable=protected-access
+            self.workspace.root / "configuration.json", legacy,
+        )
+        legacy_sha256 = self.workspace._legacy_universal_state_sha256()  # pylint: disable=protected-access
+        self.assertIsNotNone(legacy_sha256)
+        current = self.workspace.detail()
+        self.assertEqual("#87D0DD", current["configuration"]["logo"]["symbol_color"])
+        self.assertEqual("#383840", current["configuration"]["logo"]["name_color"])
+        saved = self.workspace.save_configuration(
+            base_sha256=legacy_sha256, configuration=current["configuration"],
+            content=current["content"],
+        )
+        self.assertEqual("ptw.studio.universal-ad-config.v8", saved["configuration"]["schema"])
+        self.assertIsNone(self.workspace._legacy_universal_state_sha256())  # pylint: disable=protected-access
 
     def test_image_sticker_logo_and_immutable_version(self) -> None:
         detail = self.workspace.detail()

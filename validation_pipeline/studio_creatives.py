@@ -16,6 +16,9 @@ from commander.ids import new_uuid7
 
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import sanitized
+from .natal_brand import (
+    NATAL_NAME_COLOR, NATAL_SYMBOL_COLOR, normalize_natal_logo_colors,
+)
 from .phone_hero_styles import (
     normalize_phone_hero_creative_direction,
     phone_hero_direction_options,
@@ -154,6 +157,11 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         configuration["supporting_text"]["properties"]["highlight_color"]["pattern"] = (
             r"^#[0-9A-Fa-f]{6}$"
         )
+        for field in ("symbol_color", "name_color"):
+            selected = detail["configuration"]["logo"][field]
+            configuration["logo"]["properties"][field].update({
+                "pattern": r"^#[0-9A-Fa-f]{6}$", "enum": [selected],
+            })
         for role, bounds in PHONE_TYPOGRAPHY_BOUNDS.items():
             appearance = configuration["typography"]["properties"][role]["properties"]
             appearance["font_family"]["enum"] = list(STUDIO_FONT_FAMILIES)
@@ -209,6 +217,10 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
                     "minimum": definition["minimum"],
                     "maximum": definition["maximum"],
                 })
+        for field in ("symbol_color", "name_color"):
+            configuration["logo"]["properties"][field]["enum"] = [
+                detail["configuration"]["logo"][field]
+            ]
         for field, maximum in (
             ("hero_title", 140), ("supporting_text", 280),
             ("offer", 160), ("cta", 60),
@@ -271,6 +283,33 @@ def _state_snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
         "assets": assets,
         "phone_screen_history": phone_history,
     }
+
+
+def _default_logo_colors() -> dict[str, str]:
+    return {
+        "symbol_color": NATAL_SYMBOL_COLOR,
+        "name_color": NATAL_NAME_COLOR,
+    }
+
+
+def _normalized_checkpoint_baseline(
+    before: Mapping[str, Any], after: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Remove renderer/config uplift noise from an owner edit comparison."""
+
+    normalized = deepcopy(dict(before))
+    if normalized.get("template_id") != after.get("template_id"):
+        return normalized
+    configuration = normalized.get("configuration")
+    if isinstance(configuration, Mapping):
+        if normalized.get("template_id") == PHONE_METRICS_TEMPLATE_ID:
+            normalized["configuration"] = normalize_phone_metrics_config(configuration)
+        elif normalized.get("template_id") == UNIVERSAL_AD_TEMPLATE_ID:
+            normalized["configuration"] = normalize_universal_config(configuration)
+    # A renderer release is provenance, not an owner edit. A real template
+    # replacement is retained above because its template_id changes.
+    normalized["template_sha256"] = after.get("template_sha256")
+    return normalized
 
 
 class LocalStudioAuthority:
@@ -353,6 +392,22 @@ class LocalStudioAuthority:
         if scope == PROJECT_SKILL_SCOPE and project_id:
             return self.ensure_project_skill(project_id)
         raise ValueError("Studio skill scope is invalid")
+
+    def latest_project_logo_default(self, project_id: str) -> dict[str, Any] | None:
+        project_id = _uuid(project_id, "project_id")
+        self.project(project_id)
+        records = [
+            item for item in self.store.list("studio_project_logo_defaults")
+            if item["project_id"] == project_id
+        ]
+        if not records:
+            return None
+        latest = max(records, key=lambda item: (str(item["created_at"]), str(item["logo_default_id"])))
+        colors = normalize_natal_logo_colors({
+            "symbol_color": latest["symbol_color"],
+            "name_color": latest["name_color"],
+        })
+        return {**deepcopy(latest), **colors}
 
     def create_creative(
         self, *, project_id: str, brief_id: str, template_id: str,
@@ -560,6 +615,40 @@ class LocalStudioAuthority:
         )
         return self.get_checkpoint(str(immutable["checkpoint_id"]))
 
+    def record_checkpoint_with_project_logo_default(
+        self, value: Mapping[str, Any], logo_colors: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        """Mirror one checkpoint-linked Project brand default in local authority."""
+
+        with self._lock:
+            checkpoint = self.record_checkpoint(value)
+            checkpoint_id = str(checkpoint["checkpoint_id"])
+            existing = next((
+                item for item in self.store.list("studio_project_logo_defaults")
+                if item["source_checkpoint_id"] == checkpoint_id
+            ), None)
+            if existing is not None:
+                return checkpoint, False
+            colors = normalize_natal_logo_colors(dict(logo_colors))
+            identifier = new_uuid7()
+            record = {
+                "logo_default_id": identifier,
+                "project_id": _uuid(str(value["project_id"]), "project_id"),
+                "source_checkpoint_id": checkpoint_id,
+                **colors,
+                "created_at": utc_now(),
+            }
+            self.store.append("studio_project_logo_defaults", identifier, record)
+            self.store.edge(
+                source_id=record["project_id"], relation="contains",
+                target_id=identifier, evidence={"member": "studio_project_logo_default"},
+            )
+            self.store.edge(
+                source_id=identifier, relation="derived_from",
+                target_id=checkpoint_id, evidence={"input": "studio_edit_checkpoint"},
+            )
+            return checkpoint, True
+
     def record_learning_result(
         self, checkpoint_id: str, *, status: str, edit_summary: str | None,
         project_lesson: str | None, project_skill_snapshot_id: str | None,
@@ -742,13 +831,41 @@ class StudioCreativeService:
     def _template_id(detail: Mapping[str, Any]) -> str:
         return str(detail.get("template_id") or detail["catalog"]["template_id"])
 
+    def _project_logo_colors(self, project_id: str) -> dict[str, str]:
+        getter = getattr(self.authority, "latest_project_logo_default", None)
+        record = getter(project_id) if callable(getter) else None
+        if record is None:
+            return _default_logo_colors()
+        return normalize_natal_logo_colors({
+            "symbol_color": record["symbol_color"],
+            "name_color": record["name_color"],
+        })
+
+    @staticmethod
+    def _apply_logo_colors_to_draft(
+        workspace: Any, detail: Mapping[str, Any], colors: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        normalized = normalize_natal_logo_colors(dict(colors))
+        if all(detail["configuration"]["logo"].get(key) == value for key, value in normalized.items()):
+            return dict(detail)
+        configuration = deepcopy(detail["configuration"])
+        configuration["logo"].update(normalized)
+        return workspace.save_configuration(
+            base_sha256=str(detail["state_sha256"]),
+            configuration=configuration, content=detail["content"],
+        )
+
     def _initialize_workspace(self, creative: Mapping[str, Any]) -> dict[str, Any]:
         workspace = self._workspace(str(creative["creative_id"]))
         detail = workspace.detail()
+        colors = self._project_logo_colors(str(creative["project_id"]))
         if self._template_id(detail) != creative["template_id"]:
             detail = workspace.apply_template(
                 base_sha256=detail["state_sha256"], template_id=str(creative["template_id"]),
+                logo_colors=colors,
             )
+        else:
+            detail = self._apply_logo_colors_to_draft(workspace, detail, colors)
         snapshot = _state_snapshot(detail)
         self.authority.update_creative(
             str(creative["creative_id"]), template_version=detail["catalog"]["template_version"],
@@ -1219,6 +1336,8 @@ class StudioCreativeService:
         self.detail(project_id, creative_id)
         workspace = self._workspace(creative_id)
         target = getattr(workspace, method)
+        if method == "apply_template":
+            kwargs["logo_colors"] = self._project_logo_colors(project_id)
         if method == "generate_phone_screen":
             creative = self.authority.get_creative(creative_id)
             direction = self._creative_direction(creative)
@@ -1282,17 +1401,21 @@ class StudioCreativeService:
             )
         after = _state_snapshot(current)
         after_sha = sha256_json(after)
-        before = creative.get("learning_baseline") or after
-        before_sha = creative.get("learning_baseline_sha256") or sha256_json(before)
+        before = _normalized_checkpoint_baseline(
+            creative.get("learning_baseline") or after, after,
+        )
+        before_sha = sha256_json(before)
         if after_sha == before_sha:
             updated = self.authority.update_creative(
                 creative_id, state_sha256=current["state_sha256"],
+                learning_baseline=after, learning_baseline_sha256=after_sha,
                 approved_version_count=len(current.get("versions", [])),
             )
             return {
                 "creative": {**{k: v for k, v in updated.items() if k != "learning_baseline"}, **current},
                 "checkpoint_created": False, "version_created": version_created,
                 "checkpoint": None, "learning_proposal": None,
+                "project_logo_default_updated": False,
             }
         paths = _diff_paths(before, after)
         checkpoint_id = new_uuid7()
@@ -1304,7 +1427,25 @@ class StudioCreativeService:
             "status": "saved", "version": len(current.get("versions", [])) if kind == "approve" else None,
             "created_at": utc_now(),
         }
-        checkpoint = self.authority.record_checkpoint(checkpoint)
+        logo_paths = {
+            "configuration.logo.symbol_color",
+            "configuration.logo.name_color",
+        }
+        logo_changed = bool(logo_paths.intersection(paths))
+        project_logo_default_updated = False
+        if logo_changed and hasattr(
+            self.authority, "record_checkpoint_with_project_logo_default",
+        ):
+            checkpoint, project_logo_default_updated = (
+                self.authority.record_checkpoint_with_project_logo_default(
+                    checkpoint, {
+                        "symbol_color": current["configuration"]["logo"]["symbol_color"],
+                        "name_color": current["configuration"]["logo"]["name_color"],
+                    },
+                )
+            )
+        else:
+            checkpoint = self.authority.record_checkpoint(checkpoint)
         checkpoint_id = str(checkpoint["checkpoint_id"])
         self.authority.update_creative(
             creative_id, state_sha256=current["state_sha256"],
@@ -1320,6 +1461,7 @@ class StudioCreativeService:
                 "status": "saved",
             },
             "learning_proposal": None,
+            "project_logo_default_updated": project_logo_default_updated,
         }
 
     def recover_interrupted(self) -> list[str]:

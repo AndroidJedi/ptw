@@ -460,6 +460,14 @@ class ReleaseStreamContractTests(unittest.TestCase):
         for script in (reset, schema, deploy):
             self.assertIn("009_instagram_manual_validation_v1.sql", script)
 
+    def test_reset_schema_and_deployment_cover_project_logo_defaults(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        schema = (ROOT / "scripts/verify_ptw_brief_schema.sh").read_text()
+        deploy = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
+        for script in (reset, schema, deploy):
+            self.assertIn("studio_project_logo_defaults", script)
+            self.assertIn("010_studio_project_logo_defaults.sql", script)
+
     def test_meta_token_is_a_validation_only_file_secret(self) -> None:
         compose = (ROOT / "docker-compose.validation.yml").read_text()
         gateway = (ROOT / "docker-compose.commander.yml").read_text()

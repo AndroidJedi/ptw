@@ -102,7 +102,7 @@ function ColorField({ label, value, onChange }: {
 }) {
   return <label className="universal-color-field">
     <span>{label}<code>{value.toUpperCase()}</code></span>
-    <input aria-label={label} type="color" value={value} onChange={(event) => onChange(event.target.value)} />
+    <input aria-label={label} type="color" value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} />
   </label>
 }
 
@@ -302,9 +302,12 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const value = result.creative
       applyDetail(value)
-      setNotice(!result.checkpoint_created
+      const savedNotice = !result.checkpoint_created
         ? tr('Creative is already saved.', 'Креатив уже збережено.')
-        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.'))
+        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.')
+      setNotice(result.project_logo_default_updated
+        ? `${savedNotice} ${tr('These Natal colors are now the Project default.', 'Ці кольори Natal тепер є типовими для проєкту.')}`
+        : savedNotice)
       try { await renderPreview(value) } catch (cause) { setPreviewError((cause as Error).message) }
     } catch (cause) {
       setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
@@ -457,7 +460,9 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       const value = result.creative
       applyDetail(value)
       setChangeNote('')
-      setNotice(tr('Immutable creative and configuration version saved.', 'Незмінну версію креативу й конфігурації збережено.'))
+      setNotice(result.project_logo_default_updated
+        ? tr('Immutable version saved. These Natal colors are now the Project default.', 'Незмінну версію збережено. Ці кольори Natal тепер є типовими для проєкту.')
+        : tr('Immutable creative and configuration version saved.', 'Незмінну версію креативу й конфігурації збережено.'))
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -724,6 +729,17 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
           </div>}
           {!configuration.bullets.enabled && <p className="universal-section-note">{tr('Benefits are hidden. Enable that component above when the message needs scannable proof points.', 'Переваги приховані. Увімкніть цей компонент вище, коли повідомленню потрібні короткі докази.')}</p>}
         </section>
+
+        <details className="panel universal-section universal-disclosure">
+          <summary><span><small>{tr('NATAL LOGO', 'ЛОГОТИП NATAL')}</small><strong>{tr('Brand colors', 'Кольори бренду')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
+          <div className="universal-section-body">
+            <div className="universal-field-grid">
+              <ColorField label={tr('Logo symbol color', 'Колір знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => patchConfig('logo', { symbol_color: value })} />
+              <ColorField label={tr('Natal name color', 'Колір назви Natal')} value={configuration.logo.name_color} onChange={(value) => patchConfig('logo', { name_color: value })} />
+            </div>
+            <p className="universal-section-note">{tr('The full symbol uses one color, including its inner stroke. Save or Approve makes this pair the default for future Posts in this Project. The canonical artwork cannot be replaced.', 'Увесь знак, включно з внутрішнім штрихом, використовує один колір. Після «Зберегти» або «Схвалити» ця пара стане типовою для майбутніх дописів у проєкті. Канонічне зображення не можна замінити.')}</p>
+          </div>
+        </details>
 
         <details className="panel universal-section universal-disclosure">
           <summary><span><small>{tr('BACKGROUND', 'ФОН')}</small><strong>{tr('Mood and contrast', 'Настрій і контраст')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>

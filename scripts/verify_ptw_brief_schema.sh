@@ -133,6 +133,7 @@ studio_generation_runs
 studio_learning_decisions
 studio_learning_proposals
 studio_learning_runs
+studio_project_logo_defaults
 studio_skill_snapshots
 universal_studio_assets
 universal_studio_versions
@@ -175,6 +176,8 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql'
      ) THEN
     RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Instagram validation, and Analytics migrations';
   END IF;
@@ -204,6 +207,9 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='instagram_validation_tests_immutable' AND NOT tgisinternal)
      OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='instagram_validation_import_rows_immutable' AND NOT tgisinternal) THEN
     RAISE EXCEPTION 'Instagram manual validation immutable triggers are incomplete';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='studio_project_logo_defaults_immutable' AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'Studio Project logo default lineage trigger is incomplete';
   END IF;
 END $$;
 

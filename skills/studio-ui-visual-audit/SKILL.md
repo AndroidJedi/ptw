@@ -68,6 +68,13 @@ left-copy finish remains clipped to its rounded safe-area surface, and that
 in-phone textures stay beneath crisp fixed UI. Inspect the representative PNG
 after automated checks pass.
 
+For Natal color controls, inspect the exact chosen RGB values in the authoritative
+Universal lock-up and in both Phone Metrics lock-ups. Verify the complete symbol,
+including its inner stroke, uses the symbol color; the word uses only the name
+color; alpha geometry and dimensions match the canonical asset; independent
+visibility remains intact; and the editor has no horizontal overflow at desktop,
+360 CSS pixels, or WebKit mobile size.
+
 For renderer or Studio component changes, also run the focused Studio Python
 tests, the Studio web unit tests when applicable, the Owner Console production
 build when applicable, and `git diff --check`. Report the exact variants and

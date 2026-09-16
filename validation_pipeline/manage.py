@@ -24,6 +24,7 @@ def main() -> None:
         "universal_studio_assets", "universal_studio_versions",
         "studio_generation_runs", "studio_edit_checkpoints", "studio_learning_runs",
         "studio_skill_snapshots", "studio_learning_proposals", "studio_learning_decisions",
+        "studio_project_logo_defaults",
         "landing_workspaces", "landing_workspace_files", "landing_assets", "landing_generation_runs", "landing_versions",
         "landing_checkpoints", "landing_skill_snapshots", "landing_learning_proposals",
         "meta_ads_preset_versions", "meta_ads_workspaces", "meta_ads_audience_versions",

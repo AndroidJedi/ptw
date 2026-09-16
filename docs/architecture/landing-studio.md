@@ -121,6 +121,8 @@ Every app uses the fixed Natal identity. The shared renderer bundles the canonic
 build checks its SHA-256. The logo sits directly on the page background without
 a white badge. Neither Brief composition nor page themes can rename
 Natal, replace its logo, or request an owner brand kit.
+Post Studio's Project-default symbol/name colors are intentionally separate and
+do not recolor Landing drafts, versions, or publications.
 
 The Page design inspector offers three coordinated presets: Studio (crisp blue),
 Editorial (warm paper and serif headings), and Soft bloom (sage and rounded surfaces).

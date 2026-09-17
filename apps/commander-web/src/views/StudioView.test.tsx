@@ -285,6 +285,16 @@ describe('Universal Ad Studio', () => {
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
   })
 
+  it('keeps all Universal component-setting panels collapsed by default', async () => {
+    const { api } = studioApi()
+    const view = render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+
+    expect(await screen.findByText('universal_ad · v13')).toBeInTheDocument()
+    const sections = Array.from(view.container.querySelectorAll<HTMLDetailsElement>('.universal-controls > details.universal-disclosure'))
+    expect(sections).toHaveLength(5)
+    expect(sections.every(section => !section.open)).toBe(true)
+  })
+
   it('shows template presets and creates from an already-approved Brief when a Project has no creative', async () => {
     const { api } = studioApi()
     vi.mocked(api.get).mockImplementation(async (path: string) => {

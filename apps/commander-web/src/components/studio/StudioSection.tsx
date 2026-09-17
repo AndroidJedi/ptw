@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
-export function StudioSection({ eyebrow, title, children, className = '', defaultOpen = true, expandLabel, collapseLabel }: {
+export function StudioSection({ eyebrow, title, children, className = '', defaultOpen = false, expandLabel, collapseLabel }: {
   eyebrow: string
   title: string
   children: ReactNode

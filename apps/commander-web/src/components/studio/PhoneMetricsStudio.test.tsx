@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../../api'
 import type { StudioPhoneHeroCreativeDirection, StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
 
 const basePath = '/api/v1/studio/projects/11111111-1111-4111-8111-111111111111/creatives/22222222-2222-4222-8222-222222222222'
+
+afterEach(() => vi.useRealTimers())
 
 const detail = {
   creative_id: '22222222-2222-4222-8222-222222222222',
@@ -207,18 +209,18 @@ describe('Phone & metrics Studio', () => {
     }), expect.anything()))
   })
 
-  it('makes every component settings section collapsible without hiding it initially', async () => {
+  it('keeps every component settings section collapsed by default and keyboard-toggleable', async () => {
     const { api } = studioApi()
     const view = render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
 
     const sections = Array.from(view.container.querySelectorAll<HTMLDetailsElement>('.phone-metrics-controls > details.universal-disclosure'))
     expect(sections).toHaveLength(8)
-    expect(sections.every(section => section.open)).toBe(true)
+    expect(sections.every(section => !section.open)).toBe(true)
     const actions = screen.getByText('Three bottom buttons').closest('details') as HTMLDetailsElement
     fireEvent.click(actions.querySelector('summary')!)
-    await waitFor(() => expect(actions.open).toBe(false))
-    fireEvent.click(actions.querySelector('summary')!)
     await waitFor(() => expect(actions.open).toBe(true))
+    fireEvent.click(actions.querySelector('summary')!)
+    await waitFor(() => expect(actions.open).toBe(false))
   })
 
   it('previews and saves image mode while preserving phone content for switching back', async () => {
@@ -808,6 +810,71 @@ describe('Phone & metrics Studio', () => {
       }, { deadlineMs: 360_000 },
     ))
     expect(await screen.findByText('Current iPhone hero visual enhanced and applied.')).toBeInTheDocument()
+  })
+
+  it('preserves an explicit fresh-generation choice and re-enables generation after failure', async () => {
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '9'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+    }]
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    const enhance = screen.getByLabelText('Enhance current image')
+    fireEvent.click(enhance)
+    expect(enhance).not.toBeChecked()
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
+      target: { value: 'Generate a new translucent object without using the current image.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+    await screen.findByText('New iPhone hero visual generated and applied.')
+    expect(enhance).toBeEnabled()
+    expect(enhance).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+
+    post.mockRejectedValueOnce(new Error('provider temporarily unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+    expect(await screen.findByText('provider temporarily unavailable')).toBeInTheDocument()
+    expect(enhance).toBeEnabled()
+    expect(enhance).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+  })
+
+  it('bounds current-image preview retries and offers a manual recovery', async () => {
+    vi.useFakeTimers()
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '9'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+    }]
+    current.phone_screen_history = [{
+      mime_type: 'image/png', sha256: '9'.repeat(64), width: 1024, height: 1024,
+      byte_count: 128, source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+      selected: true,
+    }]
+    const { api } = studioApi(current)
+    vi.mocked(api.media)
+      .mockRejectedValueOnce(new Error('not ready'))
+      .mockRejectedValueOnce(new Error('not ready'))
+      .mockRejectedValueOnce(new Error('not ready'))
+      .mockResolvedValueOnce(new Blob(['history'], { type: 'image/png' }))
+    const view = render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    await vi.runAllTimersAsync()
+    expect(api.media).toHaveBeenCalledTimes(3)
+    fireEvent.click(screen.getByRole('radio', { name: 'Retry current iPhone image preview' }))
+    await vi.waitFor(() => expect(view.container.querySelector('.phone-screen-history-option img')).toBeInTheDocument())
+    expect(api.media).toHaveBeenCalledTimes(4)
+    vi.useRealTimers()
   })
 
   it('shows the last three raw heroes and applies the selected image', async () => {

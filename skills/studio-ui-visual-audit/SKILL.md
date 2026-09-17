@@ -88,6 +88,14 @@ bounded boolean mode to the authenticated route when no uploaded reference is se
 that enhancement receives the exact raw current asset, never the composited
 phone preview, and persists its reference SHA-256 while failure preserves the
 previous asset.
+Verify every main component-setting disclosure in both Post templates starts
+collapsed and remains keyboard-toggleable. For the Phone hero workflow, also
+exercise repeated generation: the current digest-verified thumbnail must become
+visible after bounded transient media failures; an exhausted load must expose a
+manual retry; an owner-unchecked Enhance choice must remain unchecked across a
+fresh generation; and Generate & apply must become actionable again after both
+success and failure. While a generation is active, require an explicit progress
+label rather than an unexplained permanently disabled control.
 When raw-hero history changes, verify that only the three newest distinct images
 and their digest-addressed files remain, the current item is explicit, and
 selecting an older retained item neither reorders nor drops history. Thumbnail

@@ -214,7 +214,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     writeConsoleLocation('landing', projectId, null, nextLandingId, true)
   }
   return <Shell page={page} onPage={navigate} language={language}>
-    {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
+    {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Це вікно використовує production-дані. Дії можуть змінювати робочі записи та запускати реальних провайдерів.' : 'This window uses production data. Actions can change live records and invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
     {page !== 'settings' && page !== 'commander' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'settings' && page !== 'commander' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
@@ -310,6 +310,9 @@ const e2eOwner = {
 export default function App() {
   const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
   const localApp = import.meta.env.DEV && import.meta.env.VITE_LOCAL_APP === 'true'
-  const liveProduction = import.meta.env.DEV && import.meta.env.VITE_LIVE_PRODUCTION === 'true'
+  const liveProduction = import.meta.env.DEV && (
+    import.meta.env.VITE_LIVE_PRODUCTION === 'true'
+    || import.meta.env.VITE_PRODUCTION_BACKEND === 'true'
+  )
   return e2eMode ? <Console user={e2eOwner} localApp={localApp} liveProduction={liveProduction} /> : <LiveApp liveProduction={liveProduction} />
 }

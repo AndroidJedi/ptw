@@ -444,6 +444,7 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
       && body?.configuration?.logo?.name_color === '#ABCDEF'
       && body?.content?.hero_title === 'TEST A CLEAR PROMISE'
   })
+  await page.getByText('Compact ad message').click()
   await page.getByLabel('Hero Title').fill('TEST A CLEAR PROMISE')
   await page.getByLabel('Background mode').selectOption('texture')
   await page.getByLabel('Texture', { exact: true }).selectOption('stone')

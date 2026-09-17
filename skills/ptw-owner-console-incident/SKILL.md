@@ -19,6 +19,14 @@ before changing code or runtime state.
 
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
   Check, exact Owner CORS origins, and unauthenticated rejection.
+- A local frontend that proxies the production Owner Gateway must use exactly
+  one registered Firebase App Check debug token from its ignored local
+  environment. Refuse to start that mode when the token is absent or malformed,
+  and refuse to compile it as a production build. Never make local development
+  pass by adding localhost to the production reCAPTCHA allowlist, bypassing
+  Gateway App Check verification, committing the token, or printing it. Verify
+  token acquisition independently in Chromium and WebKit before diagnosing the
+  owner ID token or API proxy.
 - When Safari reports that `frame-ancestors` is ignored in a report-only policy,
   identify the response that supplied that policy before editing PTW headers.
   The owned Owner document must send an enforcing `Content-Security-Policy`

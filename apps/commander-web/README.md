@@ -19,3 +19,19 @@ Run:
 npm run check
 npm run test:e2e
 ```
+
+To inspect the local frontend against the production Owner Gateway, use a
+Firebase App Check debug token that is registered for the PTW web app and keep
+it only in the local environment:
+
+```sh
+VITE_PRODUCTION_BACKEND=true \
+VITE_APPCHECK_DEBUG_TOKEN='<registered UUIDv4>' \
+npm run dev -- --host localhost --port 5174 --strictPort
+```
+
+This mode proxies every `/api` request to production, so signed-in actions can
+change live records and invoke real providers. The dev server refuses to start
+without a validly shaped debug token and refuses to build this mode for
+deployment. Do not add `localhost` to the production reCAPTCHA allowlist, commit
+the token, or put it in a command-line argument.

@@ -18,7 +18,7 @@ import type {
 } from '../../types'
 
 function PhoneScreenHistoryOption({
-  api, basePath, item, index, busy, label, currentLabel, onSelect,
+  api, basePath, item, index, busy, label, retryLabel, currentLabel, onSelect,
 }: {
   api: ApiClient
   basePath: string
@@ -26,43 +26,63 @@ function PhoneScreenHistoryOption({
   index: number
   busy: boolean
   label: string
+  retryLabel: string
   currentLabel: string
   onSelect: () => void
 }) {
   const [url, setUrl] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   useEffect(() => {
     let disposed = false
     let objectUrl = ''
+    let retryTimer: number | undefined
     let retry = 0
-    let retryTimer = 0
+    setUrl('')
+    setLoading(true)
+    setLoadFailed(false)
     const load = () => void api.media(
-      `${basePath}/phone-screen/history/${item.sha256}`,
-      item.mime_type, item.sha256,
-    ).then((blob) => {
-      objectUrl = URL.createObjectURL(blob)
-      if (disposed) URL.revokeObjectURL(objectUrl)
-      else setUrl(objectUrl)
-    }).catch(() => {
-      if (disposed) return
-      setUrl('')
-      if (retry++ === 0) retryTimer = window.setTimeout(load, 750)
-    })
+        `${basePath}/phone-screen/history/${item.sha256}`,
+        item.mime_type, item.sha256,
+      ).then((blob) => {
+        objectUrl = URL.createObjectURL(blob)
+        if (disposed) URL.revokeObjectURL(objectUrl)
+        else {
+          setUrl(objectUrl)
+          setLoading(false)
+        }
+      }).catch(() => {
+        if (disposed) return
+        if (retry < 2) {
+          retry += 1
+          retryTimer = window.setTimeout(load, retry * 750)
+          return
+        }
+        setLoading(false)
+        setLoadFailed(true)
+      })
     load()
     return () => {
       disposed = true
-      window.clearTimeout(retryTimer)
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [api, basePath, item.mime_type, item.sha256])
+  }, [api, basePath, item.mime_type, item.sha256, loadAttempt])
 
   return <button
     className={`phone-screen-history-option ${item.selected ? 'is-selected' : ''}`}
-    type="button" role="radio" aria-checked={item.selected} aria-label={label}
-    disabled={busy} onClick={onSelect}
+    type="button" role="radio" aria-checked={item.selected}
+    aria-label={loadFailed ? retryLabel : label}
+    aria-busy={loading}
+    disabled={busy} onClick={() => {
+      if (loadFailed) setLoadAttempt((current) => current + 1)
+      else onSelect()
+    }}
   >
     <span className="phone-screen-history-image">{url
       ? <img src={url} alt="" />
-      : <ImagePlus aria-hidden="true" />}</span>
+      : loading ? <RefreshCcw className="spin" aria-hidden="true" /> : <ImagePlus aria-hidden="true" />}</span>
     <small>{item.selected ? currentLabel : `0${index + 1}`}</small>
   </button>
 }
@@ -81,6 +101,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewState, setPreviewState] = useState('')
   const [busy, setBusy] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const initialScreenAsset = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')
   const [screenDirection, setScreenDirection] = useState(() => {
@@ -104,6 +125,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const savedCreativeDirection = detail.generation?.creative_direction
   const hasCreativeDirection = Boolean(savedCreativeDirection)
   const canGenerateWithDirection = hasCreativeDirection && !editingCreativeDirection
+  const mutationBusy = busy || generating
+  const enhanceDisabled = Boolean(referenceImage) || !canGenerateWithDirection
+    || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const textureLabel = (texture: string) => ({
     none: tr('Off', 'Без текстури'),
@@ -212,8 +236,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     } finally { setBusy(false) }
   }
   const generatePhoneScreen = async () => {
-    if (!canGenerateWithDirection) return
-    setBusy(true); setError(''); setNotice('')
+    if (!canGenerateWithDirection || busy || generating) return
+    const hadCurrentPhoneScreen = hasCurrentPhoneScreen
+    setGenerating(true); setError(''); setNotice('')
     try {
       const useCurrentAsReference = !referenceImage && enhanceCurrent && hasCurrentPhoneScreen
       const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
@@ -232,11 +257,12 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         enhance_current: useCurrentAsReference,
         ...(reference ? { reference_image: reference } : {}),
       }, { deadlineMs: 360_000 })
-      applyDetail(next); setEnhanceCurrent(true)
+      applyDetail(next)
+      if (!hadCurrentPhoneScreen) setEnhanceCurrent(true)
       setNotice(useCurrentAsReference
         ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
         : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
-    } catch (cause) { setError((cause as Error).message) } finally { setReferenceImage(null); setBusy(false) }
+    } catch (cause) { setError((cause as Error).message) } finally { setReferenceImage(null); setGenerating(false) }
   }
   const saveCreativeDirection = async () => {
     const direction = creativeDirectionFromDraft(legacyDirection)
@@ -357,20 +383,20 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
       <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Start from a fixed composition', 'Почніть із фіксованої композиції')}</h2>
       <p>{tr('Changing template replaces all editable copy and assets. Saved immutable versions are preserved.', 'Зміна шаблону замінює весь редагований текст і ресурси. Збережені незмінні версії не змінюються.')}</p>
-      <div className="studio-template-grid">{detail.templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${template.template_id === detail.template_id ? 'is-active' : ''}`} disabled={busy} onClick={() => void selectTemplate(template.template_id)}>
+      <div className="studio-template-grid">{detail.templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${template.template_id === detail.template_id ? 'is-active' : ''}`} disabled={mutationBusy} onClick={() => void selectTemplate(template.template_id)}>
         <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
       </button>)}</div>
     </section>
     <section className="studio-commandbar phone-metrics-commandbar">
       <div><small>{tr('NATAL TEMPLATE', 'ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
-      <button className="secondary" disabled={busy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
-      <button className="primary" disabled={busy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
+      <button className="secondary" disabled={mutationBusy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
+      <button className="primary" disabled={mutationBusy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <StudioActionFeedback error={error} notice={notice} language={language} />
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
-        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
-        <button type="button" className="secondary" disabled={busy || previewBusy} onClick={() => void render(detail, true)}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button>
+        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || generating || previewBusy) && <RefreshCcw className="spin" />}</header>
+        <button type="button" className="secondary" disabled={busy || generating || previewBusy} onClick={() => void render(detail, true)}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button>
         <div className="studio-preview-feedback" aria-live="polite">
           {previewBusy ? tr('Rendering your changes…', 'Рендеримо ваші зміни…')
             : previewState !== currentPreviewState ? tr('Changes not previewed. Press Update preview when ready.', 'Зміни ще не показано. Натисніть «Оновити прев’ю», коли завершите редагування.')
@@ -384,7 +410,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           eyebrow={tr('VISUAL MODE', 'ВІЗУАЛЬНИЙ РЕЖИМ')} title={tr('Phone frame or image only', 'Рамка телефона або лише зображення')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >
-          <VisualModeSelect language={language} value={configuration.visual_mode} disabled={busy}
+          <VisualModeSelect language={language} value={configuration.visual_mode} disabled={mutationBusy}
             onChange={visual_mode => setConfiguration(current => ({ ...current, visual_mode }))} />
           <label className="universal-toggle"><input aria-label={tr('Show device', 'Показувати телефон')} type="checkbox" checked={configuration.device.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, device: { ...current.device, enabled: event.target.checked } }))} /><span>{configuration.device.enabled !== false ? tr('Device visible', 'Телефон видимий') : tr('Device removed', 'Телефон прибрано')}</span></label>
           <p className="universal-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
@@ -587,16 +613,16 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         >
           {savedCreativeDirection && !editingCreativeDirection
             ? <PhoneHeroDirectionPicker
-              language={language} value={savedCreativeDirection} locked disabled={busy}
+              language={language} value={savedCreativeDirection} locked disabled={mutationBusy}
               onReset={() => {
                 setLegacyDirection({ style: '', background: '' })
                 setEditingCreativeDirection(true)
                 setError(''); setNotice('')
               }} idPrefix="phone-saved-direction"
             />
-            : <><PhoneHeroDirectionPicker language={language} value={legacyDirection} onChange={setLegacyDirection} disabled={busy} idPrefix="phone-legacy-direction" /><div className="phone-hero-direction-actions"><button className="secondary phone-hero-direction-save" type="button" disabled={busy || !creativeDirectionFromDraft(legacyDirection)} onClick={() => void saveCreativeDirection()}><Check />{savedCreativeDirection
+            : <><PhoneHeroDirectionPicker language={language} value={legacyDirection} onChange={setLegacyDirection} disabled={mutationBusy} idPrefix="phone-legacy-direction" /><div className="phone-hero-direction-actions"><button className="secondary phone-hero-direction-save" type="button" disabled={mutationBusy || !creativeDirectionFromDraft(legacyDirection)} onClick={() => void saveCreativeDirection()}><Check />{savedCreativeDirection
               ? tr('Save new direction', 'Зберегти новий напрям')
-              : tr('Save direction & enable generation', 'Зберегти напрям і ввімкнути генерацію')}</button>{savedCreativeDirection && <button className="ghost" type="button" disabled={busy} onClick={() => {
+              : tr('Save direction & enable generation', 'Зберегти напрям і ввімкнути генерацію')}</button>{savedCreativeDirection && <button className="ghost" type="button" disabled={mutationBusy} onClick={() => {
                 setEditingCreativeDirection(false)
                 setLegacyDirection({ style: '', background: '' })
               }}><X />{tr('Cancel', 'Скасувати')}</button>}</div><p className="phone-hero-direction-note">{savedCreativeDirection
@@ -609,25 +635,28 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             onChange={(event) => setScreenDirection(event.target.value)}
           /></label>
           <ImageReferenceInput value={referenceImage} onChange={setReferenceImage} language={language}
-            disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
+            disabled={mutationBusy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
           {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
             <div className="phone-screen-history-options" data-recent-image-contract="firebase-token-coalescing-v1" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
               {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption
-                key={item.sha256} api={api} basePath={basePath} item={item} index={index} busy={busy}
+                key={item.sha256} api={api} basePath={basePath} item={item} index={index} busy={mutationBusy}
                 currentLabel={tr('CURRENT', 'ПОТОЧНЕ')}
                 label={item.selected
                   ? tr(`iPhone image ${index + 1}, current`, `Зображення iPhone ${index + 1}, поточне`)
                   : tr(`Select iPhone image ${index + 1}`, `Вибрати зображення iPhone ${index + 1}`)}
+                retryLabel={item.selected
+                  ? tr('Retry current iPhone image preview', 'Повторити прев’ю поточного зображення iPhone')
+                  : tr(`Retry iPhone image ${index + 1} preview`, `Повторити прев’ю зображення iPhone ${index + 1}`)}
                 onSelect={() => void selectPhoneScreen(item.sha256)}
               />)}
             </div>
           </div>}
-          <label className={`universal-toggle phone-screen-enhance ${hasCurrentPhoneScreen ? '' : 'is-disabled'}`}>
+          <label className={`universal-toggle phone-screen-enhance ${enhanceDisabled ? 'is-disabled' : ''}`}>
             <input
               aria-label={tr('Enhance current image', 'Покращити поточне зображення')}
               type="checkbox" checked={!referenceImage && enhanceCurrent && hasCurrentPhoneScreen}
-              disabled={busy || Boolean(referenceImage) || !canGenerateWithDirection || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
+              disabled={enhanceDisabled}
               onChange={(event) => setEnhanceCurrent(event.target.checked)}
             />
             <span><strong>{tr('Enhance current image', 'Покращити поточне зображення')}</strong><small>{hasCurrentPhoneScreen
@@ -635,8 +664,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               : tr('Available after the first hero image is generated.', 'Стане доступним після першої генерації герой-візуалу.')}</small></span>
           </label>
           <button className="primary phone-screen-generate" type="button"
-            disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
-            onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
+            aria-busy={generating}
+            disabled={mutationBusy || !canGenerateWithDirection || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
+            onClick={() => void generatePhoneScreen()}>{generating ? <RefreshCcw className="spin" /> : <Sparkles />}{generating
+              ? tr('Generating & applying…', 'Генеруємо й застосовуємо…')
+              : tr('Generate & apply', 'Згенерувати й застосувати')}</button>
           <p>{detail.phone_screen_generation_available
             ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The UI, title, action buttons, device, and any shown Natal logo stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Інтерфейс, заголовок, кнопки дій, пристрій і кожен показаний логотип Natal залишаються чіткими, а в разі помилки поточний візуал зберігається.')
             : tr('Codex image generation is unavailable in this local Post editor. Sign in to Codex and restart the Post editor; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному редакторі допису. Увійдіть у Codex і перезапустіть редактор; кола залишаються детермінованим резервним варіантом.')}

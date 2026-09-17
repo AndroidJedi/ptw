@@ -150,6 +150,15 @@ Manual generation supports:
 - selection among the newest three distinct digest-checked raw heroes;
 - separate retry after automatic image failure.
 
+Every main component-setting disclosure starts collapsed in both Post templates.
+The Phone hero editor loads each digest-verified history thumbnail through the
+authenticated media route, retries bounded transient failures, and exposes a
+manual retry instead of leaving an unexplained empty current tile. Enhance is
+checked when an existing raw hero first initializes the editor, but an explicit
+owner choice to generate fresh remains off across later success or failure.
+Generation has its own visible pending state and always restores the action after
+success or a handled failure.
+
 The style/background choice is saved on the creative and governs every later
 generation until replaced. Its edit icon resets the picker so the owner can
 save a replacement; existing images and history remain untouched until the
@@ -213,9 +222,10 @@ assets, or completed checkpoints. Save-era learning recovery is retired.
 templates at authoritative resolution, including copy bounds, device alignment,
 network glyphs, button variants, textures, hero top coverage/fade, and
 text-free artwork. The browser/UI E2E suite checks desktop, 360px, and iPhone
-WebKit flows, creative progress, direction replacement, fresh generation,
-enhancement/history selection, Save/Approve checkpoint behavior, and no horizontal
-overflow. It is paired with real HTTP/domain-service tests, exact
+WebKit flows, collapsed component settings, creative progress, direction
+replacement, fresh generation, authenticated thumbnail recovery,
+enhancement/history selection, post-request action recovery, Save/Approve
+checkpoint behavior, and no horizontal overflow. It is paired with real HTTP/domain-service tests, exact
 Gateway-to-Validation route parity, authenticated forwarding assertions, and a
 live route-registration probe; mocked browser traffic alone is not accepted as
 complete system E2E evidence.

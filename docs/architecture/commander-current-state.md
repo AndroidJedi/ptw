@@ -9,6 +9,38 @@ Deployment: live and accepted from code revision
 `god-mobile-20260916-57332cbb949a`, and the companion platform retains
 `instagram-manual-retry-20260915-d455ac4`.
 
+## Studio editor image-control recovery — local, not deployed
+
+Both Post templates now start every component-setting disclosure collapsed.
+Phone Metrics retries transient authenticated raw-hero thumbnail reads and offers
+a keyboard-operable retry if the bounded attempts fail, so the current tile is
+not left as a silent empty placeholder. The owner’s explicit fresh-generation
+choice is preserved instead of forcing Enhance back on after every run.
+Generation now has a distinct visible pending state, and focused regressions
+prove that success and failure both restore the Generate & apply action.
+
+For owner inspection, the dev server now has an explicit
+`VITE_PRODUCTION_BACKEND=true` mode that proxies every `/api` request through the
+local same-origin Vite server to the production Gateway. It keeps browser CORS
+and authenticated media behavior realistic, does not expose local Tune, and
+shows the live-production warning because actions in that window mutate live
+authority. Local reCAPTCHA attestation correctly fails closed, so this mode now
+requires one registered UUIDv4 Firebase App Check debug token and refuses both
+tokenless startup and production builds. The token stays only in the running
+local environment; localhost is not added to the production reCAPTCHA allowlist.
+The running canary on `localhost:5174` obtains App Check tokens in both Chromium
+and WebKit, opens the Google sign-in handoff in both engines, and retains the
+expected production `401` boundary without owner credentials while production
+health remains `200`.
+
+The Studio Tune, visual-audit, and Owner Console incident skills now require
+these invariants. Local verification passes 108 Owner Console tests and its
+production build, all 84 desktop/360px/iPhone WebKit flows, independent
+Chromium/WebKit App Check and Auth handoff probes, the deterministic Studio
+visual audit, 43 Commander tests with seven expected environment skips plus the
+demo, all applicable skill validators, the canonical skill sync check, and
+whitespace checks. This milestone has not been deployed or published.
+
 ## First Brief source attachment guard — live and accepted
 
 An existing empty Project could not receive its first Product Brief because the

@@ -31,7 +31,9 @@ directly in the local checkout. Keep the fixed semantic Studio structure and
 generic renderer architecture, with Instagram-specific behavior behind its
 adapter.
 
-Keep main Post component-setting panels expandable/collapsible in both templates.
+Keep main Post component-setting panels expandable/collapsible and collapsed by
+default in both templates. Opening one panel must remain an explicit owner action;
+do not reintroduce a template-specific initially-open exception.
 Every owner-editable color uses the shared native swatch plus an editable,
 copy/pasteable `#RRGGBB` field; do not expose its value as read-only decoration.
 Responsive subforms must follow the inspector container width, not only the page
@@ -79,6 +81,16 @@ Track the exact requested draft so edits made during an in-flight render remain
 stale. Preview must not create Save/Approve checkpoints or learning. Phone
 Metrics CTA copy is optional: empty/whitespace copy removes its whole band,
 including through Save, Approve, and reload; retain the 60-character upper bound.
+
+For Phone hero generation, treat the checked Enhance default as initialization,
+not as a value forced after every request. Once the owner explicitly turns it
+off, preserve that choice across successful fresh generations and failed
+retries. Keep generation pending state separate from other editor mutations,
+show the active operation, and prove that success, rejection, and timeout all
+restore an actionable Generate & apply control. Do not silently leave a failed
+current thumbnail as an empty placeholder: retry bounded transient authenticated
+media failures, expose a keyboard-operable manual retry after exhaustion, and
+retain digest/MIME verification on every attempt.
 
 Natal logo tuning may expose only the shared symbol color and `NATAL` name color.
 Keep canonical alpha, dimensions, spacing, type, and placement geometry fixed;

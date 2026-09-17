@@ -5,9 +5,14 @@ const projectId = '018f07ea-7f20-7000-8000-000000000101'
 const briefId = '018f07ea-7f20-7000-8000-000000000102'
 const creativeId = '018f07ea-7f20-7000-8000-000000000103'
 const creativePath = `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
-const imageBytes = [Buffer.from('phone-image-one'), Buffer.from('phone-image-two'), Buffer.from('phone-image-three'), Buffer.from('phone-image-four')]
+const imageBytes = [
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGM0zPnPgA0wYRUdtBIARPEBrHUXkNsAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGP8b/CCARtgwio6aCUApPgCJ80wUisAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGNsv3CXARtgwio6aCUAuvkCRD1g/e0AAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGM8d9eGARtgwio6aCUAgFMB9+Il6IYAAAAASUVORK5CYII=',
+].map(value => Buffer.from(value, 'base64'))
 const imageDigests = imageBytes.map((value) => createHash('sha256').update(value).digest('hex'))
-const previewBytes = Buffer.from('phone-preview')
+const previewBytes = imageBytes[0]
 const previewDigest = createHash('sha256').update(previewBytes).digest('hex')
 
 function phoneDetail() {
@@ -128,6 +133,8 @@ test('a delayed rejected Save is brought into view and keeps the owner draft', a
     return route.fulfill({ status: 404, json: { detail: 'Not found' } })
   })
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
+  await page.getByRole('heading', { name: 'Visible content' }).click()
+  await page.getByRole('heading', { name: 'Three bottom buttons' }).click()
   await page.getByRole('textbox', { name: 'Headline', exact: true }).fill('Keep this owner edit')
   await page.getByRole('button', { name: 'Save creative', exact: true }).click()
   await expect.poll(() => Boolean(releaseSave)).toBe(true)
@@ -239,11 +246,17 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const heroSectionHeading = page.getByRole('heading', { name: 'Generate or enhance hero artwork' })
   await expect(heroSectionHeading).toBeVisible()
   const heroSection = heroSectionHeading.locator('xpath=ancestor::details')
-  await expect(heroSection).toHaveAttribute('open', '')
-  await heroSectionHeading.click()
   await expect(heroSection).not.toHaveAttribute('open', '')
   await heroSectionHeading.click()
   await expect(heroSection).toHaveAttribute('open', '')
+  await expect(page.getByRole('radio', { name: 'iPhone image 1, current' }).locator('img')).toBeVisible()
+  await expect.poll(() => page.getByRole('radio', { name: 'iPhone image 1, current' }).locator('img').evaluate(
+    (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+  )).toBe(true)
+  const closedSections = page.locator('.phone-metrics-controls > details:not([open])')
+  await expect(closedSections).toHaveCount(7)
+  await page.getByRole('heading', { name: 'Visible content' }).click()
+  await page.getByRole('heading', { name: 'Natal logos' }).click()
   const inspectorGeometry = await page.locator('.phone-metrics-controls').evaluate(root => ({
     width: root.clientWidth,
     scrollWidth: root.scrollWidth,
@@ -270,6 +283,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   expect(previewRequests.at(-1).content.cta).toBe('')
   await updatePreview.screenshot({ path: `.local/manual-preview-${test.info().project.name}.png` })
 
+  await page.getByRole('heading', { name: 'Phone frame or image only' }).click()
   const visualMode = page.getByRole('combobox', { name: 'Visual mode' })
   await visualMode.focus()
   await expect(visualMode).toBeFocused()
@@ -364,13 +378,18 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await page.getByRole('button', { name: 'Generate & apply' }).click()
   await expect(page.getByRole('status')).toContainText('New iPhone hero visual generated')
   expect(generationRequests[0]).toMatchObject({ enhance_current: false })
+  await expect(page.getByLabel('Enhance current image')).not.toBeChecked()
 
   await page.getByLabel('iPhone visual direction').fill('Preserve the object and improve its material detail.')
+  await page.getByLabel('Enhance current image').check()
   await page.getByRole('button', { name: 'Generate & apply' }).click()
   await expect(page.getByRole('status')).toContainText('Current iPhone hero visual enhanced')
   expect(generationRequests[1]).toMatchObject({ enhance_current: true })
   expect(current.phone_screen_history).toHaveLength(3)
   expect(current.phone_screen_history[0].source.creative_direction.style).toBe('minimal_sculptural')
+  await expect.poll(() => page.getByRole('radio', { name: 'iPhone image 1, current' }).locator('img').evaluate(
+    (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+  )).toBe(true)
 
   await page.getByRole('radio', { name: 'Select iPhone image 3' }).click()
   await expect(page.getByRole('status')).toContainText('Selected iPhone image applied')

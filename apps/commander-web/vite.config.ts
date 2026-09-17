@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { validateProductionBackendMode } from './production-backend-mode'
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  validateProductionBackendMode(env, command)
   const liveProduction = env.VITE_LIVE_PRODUCTION === 'true'
+  const productionBackend = env.VITE_PRODUCTION_BACKEND === 'true'
   return {
     plugins: [react(), {
       name: 'landing-font-licenses',
@@ -34,7 +37,9 @@ export default defineConfig(({ mode }) => {
         fileURLToPath(new URL('../../natal/assets/inter.ttf', import.meta.url)),
         fileURLToPath(new URL('../../natal/assets/logo-natal.png', import.meta.url)),
       ] },
-      proxy: liveProduction ? {
+      proxy: productionBackend ? {
+        '/api': { target: 'https://commander.proove-them-wrong.com', changeOrigin: true, secure: true },
+      } : liveProduction ? {
         '/api/v1/studio': 'http://127.0.0.1:8088',
         '/api': { target: 'https://commander.proove-them-wrong.com', changeOrigin: true, secure: true },
       } : { '/api': 'http://127.0.0.1:8088' },

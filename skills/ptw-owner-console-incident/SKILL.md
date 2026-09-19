@@ -114,7 +114,9 @@ before changing code or runtime state.
   plus template choice → HTTP 202 creative reservation/navigation.
 - Provider structured modes are exactly `product_brief`,
   `product_brief_revision`, `studio_creative_generation`,
-  `creative_performance_learning`, and `creative_visual_analysis`. The only
+  `studio_manual_edit`, `creative_performance_learning`, and
+  `creative_visual_analysis`. Studio manual editing accepts zero to four ordered,
+  digest-bound screenshots and must pass its real multimodal canary. The only
   generation media mode is bounded non-human graphic generation. Visual
   analysis and enhancement accept at most one digest-checked PNG reference.
 - Composition must record Brief, template, global-skill, and Project-skill IDs
@@ -236,6 +238,13 @@ before changing code or runtime state.
   Worker execution timeout must remain bounded below the client deadline and
   covered by a configuration-boundary test; a timeout may be extended only
   within that verified margin, never made unbounded.
+- A synchronous Studio Agent provider timeout is not a draft-state conflict.
+  Return a sanitized 504 (or 503 for other provider unavailability), never a
+  409 or the raw Codex command/path. Keep its semantic component contract under
+  an explicit byte cap, use the bounded workflow-specific reasoning effort,
+  and retain the last two text requests per Project in browser-local storage so
+  refresh/retry does not erase owner input. Never retain screenshots, editor
+  state, contacts, evidence, or generated pixels in browser storage.
 - Pin production structured jobs to the server-owned bounded reasoning effort
   instead of inheriting an ambient CLI default. Keep the allowed effort values
   closed and test the exact CLI argument; all results still require schema and
@@ -300,6 +309,19 @@ before changing code or runtime state.
   requested state and ignore late responses from superseded requests.
 - Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
   assignment UX, and historical schema adapters must remain absent.
+- When Back navigation or a fast Project/creative switch appears to merge one
+  Project's creative picker with another Project's editor, suspect stale
+  in-flight browser responses before touching PostgreSQL. Key the Post view by
+  the exact Project/creative route, invalidate earlier list/detail generations,
+  clear route-scoped state while loading, and prove with an out-of-order response
+  regression that the older Project cannot overwrite the current editor. Read
+  the project-scoped creative list before claiming a saved Post disappeared;
+  never delete or rewrite authority to repair a client-state race.
+- `phone_metrics` is the only active Post template. Universal Ad must stay out
+  of the live template catalog, first-creative selection, variants, clones, and
+  replacement controls. Preserve existing Universal workspaces and immutable
+  versions as historical authority, and permit only idempotent reconciliation
+  of an already-reserved Universal creative.
 
 ## Release acceptance
 
@@ -323,7 +345,8 @@ tests, Commander tests/demo, skill validation, web unit/build/Playwright,
 Studio visual audit, Python compilation, and `git diff --check`. Exercise the
 complete browser workflow and cross-Project rejection before declaring the
 incident resolved. The release canary must domain-validate both Product Brief
-modes, both Post templates, Landing composition, both learning skills, fresh
+modes, the active Phone Metrics Post and its manual Agent, Landing composition,
+both learning skills, fresh
 media generation, and exact-reference enhancement; every structured canary
 must use a fresh request fingerprint and pass on attempt 1. Adding a structured
 workflow without its validator and canary is a release-blocking contract gap.

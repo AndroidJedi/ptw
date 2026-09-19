@@ -144,7 +144,6 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === `/api/v1/analytics/${projectId}/workspace`) return json(analyticsWorkspace('project', Number(url.searchParams.get('window') || 30)))
     if (url.pathname === '/api/v1/analytics/global/workspace') return json(analyticsWorkspace('global', Number(url.searchParams.get('window') || 30)))
     if (url.pathname === '/api/v1/studio/templates' && method === 'GET') return json({ items: [
-      { template_id: 'universal_ad', name: 'Universal ad', description: 'Square composition', canvas: { width: 1080, height: 1080 }, template_version: 11, template_sha256: 'a'.repeat(64) },
       { template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition', canvas: { width: 1080, height: 1350 }, template_version: 17, template_sha256: 'b'.repeat(64) },
     ] })
     if (url.pathname === `/api/v1/studio/projects/${projectId}/creatives` && method === 'GET') return json({ items: [{

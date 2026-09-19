@@ -23,11 +23,11 @@ class FakeBridge(StructuredBridge):
             return {
                 "json_modes": [
                     "product_brief", "product_brief_revision",
-                    "studio_creative_generation", "creative_performance_learning",
+                    "studio_creative_generation", "studio_manual_edit", "creative_performance_learning",
                     "creative_visual_analysis",
                 ],
                 "media_modes": ["content_non_human_graphic_generation"],
-                "multimodal_modes": ["creative_visual_analysis"],
+                "multimodal_modes": ["creative_visual_analysis", "studio_manual_edit"],
                 "max_request_bytes": 1000,
             }
         if payload is not None:
@@ -123,10 +123,10 @@ class StructuredBridgeTests(unittest.TestCase):
         self.assertEqual([
             "creative_performance_learning", "creative_visual_analysis",
             "product_brief", "product_brief_revision",
-            "studio_creative_generation",
+            "studio_creative_generation", "studio_manual_edit",
         ], value["json_modes"])
         self.assertEqual(["content_non_human_graphic_generation"], value["media_modes"])
-        self.assertEqual(["creative_visual_analysis"], value["multimodal_modes"])
+        self.assertEqual(["creative_visual_analysis", "studio_manual_edit"], value["multimodal_modes"])
 
     def test_visual_mode_requires_one_digest_bound_png(self) -> None:
         bridge = FakeBridge()
@@ -152,6 +152,40 @@ class StructuredBridgeTests(unittest.TestCase):
                 mode="creative_visual_analysis", system_prompt="Describe safe tags.",
                 input_payload={}, output_schema={}, idempotency_key="visual:missing",
                 prompt_version="visual-v1", response_validator=lambda response: response,
+            )
+
+    def test_studio_manual_mode_accepts_ordered_ephemeral_screenshots(self) -> None:
+        bridge = FakeBridge()
+        screenshots = []
+        expected = {}
+        for index in range(1, 3):
+            png = b"\x89PNG\r\n\x1a\n" + bytes([index])
+            digest = hashlib.sha256(png).hexdigest()
+            name = f"studio_screenshot_{index}"
+            expected[name] = digest
+            screenshots.append({
+                "name": name, "mime_type": "image/png", "sha256": digest,
+                "bytes_base64": base64.b64encode(png).decode(),
+            })
+
+        value = bridge.call(
+            mode="studio_manual_edit", system_prompt="Adjust bounded controls.",
+            input_payload={"screenshot_references": list(expected.values())},
+            output_schema={"type": "object"}, idempotency_key="studio-agent:example",
+            prompt_version="studio-agent-v1", response_validator=lambda response: response,
+            input_artifacts=screenshots,
+        )
+
+        self.assertEqual(expected, value["invocation"]["input_artifacts"])
+        self.assertEqual(2, len(bridge.posted["input_artifacts"]))
+
+        screenshots[1]["name"] = "studio_screenshot_9"
+        with self.assertRaisesRegex(ValueError, "name or MIME type"):
+            bridge.call(
+                mode="studio_manual_edit", system_prompt="Adjust bounded controls.",
+                input_payload={}, output_schema={}, idempotency_key="studio-agent:bad",
+                prompt_version="studio-agent-v1", response_validator=lambda response: response,
+                input_artifacts=screenshots,
             )
 
     def test_other_modes_are_rejected(self) -> None:

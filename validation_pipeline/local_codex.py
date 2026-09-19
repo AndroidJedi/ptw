@@ -240,8 +240,10 @@ class LocalCodexStructuredProvider:
         if not callable(response_validator):
             raise ValueError("local structured calls require a domain response validator")
         attempts: list[dict[str, Any]] = []
-        artifacts, artifact_digests, artifact_bytes = _input_artifacts(input_artifacts)
-        if artifacts and mode != "creative_visual_analysis":
+        artifacts, artifact_digests, artifact_bytes = _input_artifacts(
+            input_artifacts, mode=mode,
+        )
+        if artifacts and mode not in {"creative_visual_analysis", "studio_manual_edit"}:
             raise ValueError("structured input artifacts are not allowed for this mode")
         if mode == "creative_visual_analysis" and not artifacts:
             raise ValueError("structured visual analysis requires an approved PNG")
@@ -264,7 +266,7 @@ class LocalCodexStructuredProvider:
                 schema_path.write_text(canonical_json(output_schema), encoding="utf-8")
                 image_paths: list[Path] = []
                 for artifact in artifacts:
-                    image_path = root / "approved.png"
+                    image_path = root / f"{artifact['name']}.png"
                     image_path.write_bytes(base64.b64decode(artifact["bytes_base64"]))
                     image_paths.append(image_path)
                 command = self._command(

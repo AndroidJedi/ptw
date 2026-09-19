@@ -23,6 +23,10 @@ from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio_creatives import creative_generation_schema
+from .studio_manual_agent import (
+    STUDIO_MANUAL_AGENT_PROMPT_VERSION, manual_agent_payload,
+    manual_agent_schema, response_reply, screenshot_artifacts,
+)
 from .studio_workspace import UniversalStudioWorkspace
 
 
@@ -33,6 +37,9 @@ def main() -> None:
     marker = str(uuid4())
     raw_idea = "A guided decision service for people who need one clear next step."
     required_language = "en"
+    canary_png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZgL8AAAAASUVORK5CYII="
+    )
     skill_snapshot = load_product_brief_skill(settings.product_brief_skill_path)
     base_document: dict[str, object] | None = None
     invocations: list[dict[str, object]] = []
@@ -97,40 +104,6 @@ def main() -> None:
         base_document = document.to_dict()
         accept(value, mode)
     studio_skill = settings.studio_composer_skill_path.read_text(encoding="utf-8")
-    with tempfile.TemporaryDirectory(prefix="ptw-studio-canary-") as temporary:
-        workspace = UniversalStudioWorkspace(temporary)
-        detail = workspace.detail()
-
-        def validate_universal_composition(value):
-            if set(value) != {"configuration", "content"}:
-                raise ValueError("Universal Studio canary response fields are invalid")
-            workspace.component_settings(
-                state_sha256=detail["state_sha256"],
-                configuration=value["configuration"], content=value["content"],
-            )
-            return value
-
-        composed = provider.call(
-            mode="studio_creative_generation", system_prompt=(
-                studio_skill + "\n\nThe live catalog in INPUT_JSON is authoritative. "
-                "Return a complete bounded configuration and content object."
-            ),
-            input_payload={
-                "creative_id": marker, "approved_product_brief": base_document,
-                "selected_template_id": "universal_ad",
-                "live_template_catalog": detail["catalog"],
-                "template_defaults": {
-                    "configuration": detail["configuration"], "content": detail["content"],
-                },
-                "global_skill": "No accepted global Studio lessons yet.",
-                "project_skill": "No accepted Project Studio lessons yet.",
-            },
-            output_schema=creative_generation_schema(detail),
-            prompt_version="studio-creative-composer-v3",
-            idempotency_key=f"canary:{marker}:studio_creative_generation",
-            response_validator=validate_universal_composition,
-        )
-    accept(composed, "studio_creative_generation")
     with tempfile.TemporaryDirectory(prefix="ptw-phone-studio-canary-") as temporary:
         phone_workspace = UniversalStudioWorkspace(temporary)
         phone_detail = phone_workspace.apply_template(
@@ -178,7 +151,69 @@ def main() -> None:
             idempotency_key=f"canary:{marker}:studio_phone_metrics:v3",
             response_validator=validate_phone_composition,
         )
+        manual_artifacts = screenshot_artifacts([canary_png])
+        current_direction = {
+            "schema": "ptw.studio.phone-hero-direction.v1",
+            "style": "minimal_sculptural",
+            "background": "isolated_key_element",
+        }
+
+        def validate_manual_edit(value):
+            if set(value) != {
+                "configuration", "content", "creative_direction", "image_actions", "reply",
+            }:
+                raise ValueError("Phone Metrics manual Agent canary response fields are invalid")
+            if value["image_actions"] != []:
+                raise ValueError("No-change Phone Metrics canary requested an image action")
+            if value["creative_direction"] != current_direction:
+                raise ValueError("Phone Metrics canary changed the saved creative direction")
+            phone_workspace.component_settings(
+                state_sha256=phone_detail["state_sha256"],
+                configuration=value["configuration"], content=value["content"],
+            )
+            return {
+                "configuration": value["configuration"], "content": value["content"],
+                "creative_direction": value["creative_direction"], "image_actions": [],
+                "reply": response_reply(value["reply"]),
+            }
+
+        manual_properties = creative_generation_schema(phone_detail)["properties"]
+        manual_edit = provider.call(
+            mode="studio_manual_edit",
+            system_prompt=(
+                settings.studio_manual_agent_skill_path.read_text(encoding="utf-8")
+                + "\n\nPreserve values unrelated to the latest owner instruction."
+            ),
+            input_payload=manual_agent_payload(
+                surface="post:phone_metrics", entity_id=marker,
+                message="Keep the exact content and make no changes or images.", history=[],
+                configuration=phone_detail["configuration"], content=phone_detail["content"],
+                catalog=phone_detail["catalog"], screenshot_artifact_values=manual_artifacts,
+                image_slots=["phone_screen"], current_images=[],
+                creative_direction=current_direction,
+            ),
+            input_artifacts=manual_artifacts,
+            output_schema=manual_agent_schema(
+                configuration_schema=manual_properties["configuration"],
+                content_schema=manual_properties["content"],
+                image_slots=["phone_screen"], screenshot_count=1,
+                creative_direction_schema={
+                    "type": "object",
+                    "properties": {
+                        "schema": {"type": "string", "enum": [current_direction["schema"]]},
+                        "style": {"type": "string", "enum": [current_direction["style"]]},
+                        "background": {"type": "string", "enum": [current_direction["background"]]},
+                    },
+                    "required": ["schema", "style", "background"],
+                    "additionalProperties": False,
+                },
+            ),
+            prompt_version=STUDIO_MANUAL_AGENT_PROMPT_VERSION,
+            idempotency_key=f"canary:{marker}:studio_manual_edit",
+            response_validator=validate_manual_edit,
+        )
     accept(phone_composed, "studio_creative_generation_phone_metrics")
+    accept(manual_edit, "studio_manual_edit")
 
     with tempfile.TemporaryDirectory(prefix="ptw-landing-canary-") as temporary:
         landing_workspace = LandingWorkspace(temporary)
@@ -190,9 +225,9 @@ def main() -> None:
                 landing_id=marker,
                 approved_product_brief=base_document,
                 source_post_snapshot={
-                    "template_id": "universal_ad",
-                    "configuration": detail["configuration"],
-                    "content": detail["content"],
+                    "template_id": "phone_metrics",
+                    "configuration": phone_composed["response"]["configuration"],
+                    "content": phone_composed["response"]["content"],
                     "generation": {}, "assets": [], "version_sha256": "0" * 64,
                 },
                 content_defaults=landing_detail["content"],
@@ -249,9 +284,7 @@ def main() -> None:
     )
     accept(performance, "creative_performance_learning")
 
-    approved_png = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZgL8AAAAASUVORK5CYII="
-    )
+    approved_png = canary_png
     approved_digest = hashlib.sha256(approved_png).hexdigest()
     visual = provider.call(
         mode="creative_visual_analysis",

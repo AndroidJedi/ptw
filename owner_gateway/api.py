@@ -453,6 +453,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def studio_configuration(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/configuration", request, identity, timeout=60)
 
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/agent")
+    async def studio_manual_agent(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/agent", request, identity, timeout=480)
+
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/save")
     async def studio_save(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/save", request, identity, timeout=480)
@@ -604,6 +608,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/configuration")
     async def landing_configuration(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, "/configuration", request, identity)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/agent")
+    async def landing_manual_agent(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/agent", request, identity, timeout=480)
 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate")
     async def landing_visual_generate(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

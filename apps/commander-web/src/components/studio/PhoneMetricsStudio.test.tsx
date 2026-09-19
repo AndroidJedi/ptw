@@ -187,6 +187,14 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('does not expose retired template replacement controls', () => {
+    const { api } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
+
+    expect(screen.queryByRole('region', { name: 'Post template selector' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Universal ad/ })).not.toBeInTheDocument()
+  })
+
   it('edits and hides the bottom CTA while retaining its saved values', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
@@ -842,6 +850,53 @@ describe('Phone & metrics Studio', () => {
     expect(await screen.findByText('provider temporarily unavailable')).toBeInTheDocument()
     expect(enhance).toBeEnabled()
     expect(enhance).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+  })
+
+  it('saves and applies a highlighted replacement style directly from Generate & apply', async () => {
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '9'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+    }]
+    current.phone_screen_history = [{
+      mime_type: 'image/png', sha256: '9'.repeat(64), width: 1024, height: 1024,
+      byte_count: 128, source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+      selected: true,
+    }]
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset image direction' }))
+    fireEvent.click(screen.getByDisplayValue('tactile_handmade'))
+    fireEvent.click(screen.getByDisplayValue('isolated_key_element'))
+
+    expect(screen.getByDisplayValue('tactile_handmade')).toBeEnabled()
+    expect(screen.getByDisplayValue('isolated_key_element')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      1, `${basePath}/creative-direction`, {
+        base_sha256: 'a'.repeat(64),
+        creative_direction: {
+          schema: 'ptw.studio.phone-hero-direction.v1',
+          style: 'tactile_handmade', background: 'isolated_key_element',
+        },
+      }, { deadlineMs: 60_000 },
+    ))
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      2, `${basePath}/phone-screen/generate`, {
+        base_sha256: 'a'.repeat(64),
+        visual_direction: 'A colorful unicorn balloon on a soft field.',
+        enhance_current: true,
+      }, { deadlineMs: 360_000 },
+    ))
+    expect(await screen.findByText('Tactile handmade')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
   })
 

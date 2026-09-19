@@ -1,0 +1,4 @@
+interface:
+  display_name: "Studio Manual Agent"
+  short_description: "Adjust bounded Post and Landing editor controls"
+  default_prompt: "Use $studio-manual-agent to apply this instruction to the current Studio draft."

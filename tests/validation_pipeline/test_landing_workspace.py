@@ -455,6 +455,102 @@ class LandingWorkspaceTests(unittest.TestCase):
         self.assertEqual(config, normalize_configuration(config))
 
 class LandingDesignTests(unittest.TestCase):
+    @unittest.skipUnless(LocalLandingAuthority is not None and Image is not None, 'Landing runtime dependencies required')
+    def test_manual_agent_returns_bounded_unsaved_draft_and_preserves_owner_evidence(self):
+        from validation_pipeline.landing_pages import LandingService
+
+        landing_id = "01900000-0000-7000-8000-000000000011"
+        project_id = "01900000-0000-7000-8000-000000000012"
+
+        class Authority:
+            def __init__(self):
+                self.page = {
+                    "landing_id": landing_id, "project_id": project_id,
+                    "source_brief_id": "01900000-0000-7000-8000-000000000013",
+                    "status": "draft", "state_sha256": None,
+                }
+
+            def get_page(self, _landing_id):
+                return self.page
+
+        class Provider:
+            change_contact = False
+            change_optional_controls = False
+
+            def call(self, **kwargs):
+                editor = kwargs["input_payload"]["current_editor_state"]
+                configuration = deepcopy(editor["configuration"])
+                content = deepcopy(editor["content"])
+                content["hero"]["title"] = "Agent-adjusted Landing headline"
+                if self.change_optional_controls:
+                    configuration["presentation"]["spacing"] = "airy"
+                    content["app_feature"]["title"] = "Agent-adjusted app feature"
+                if self.change_contact:
+                    content["contacts"]["email"] = "invented@example.test"
+                value = {
+                    "configuration": configuration,
+                    "content": content, "image_actions": [],
+                    "reply": "Adjusted the Landing hierarchy.",
+                }
+                return {
+                    "response": kwargs["response_validator"](value),
+                    "invocation": {"provider": "fake"},
+                }
+
+        with tempfile.TemporaryDirectory() as root:
+            authority, provider = Authority(), Provider()
+            service = LandingService(
+                root=root, authority=authority,
+                workspace_factory=lambda path: LandingWorkspace(path, image_provider=FakeImages()),
+                structured_provider=provider,
+                composer_skill_path=Path("skills/landing-page-composer/SKILL.md"),
+            )
+            workspace = service._workspace(landing_id)
+            initial = workspace.detail()
+            content = complete_content()
+            content.pop("app_feature")
+            initial = workspace.save_configuration(
+                base_sha256=initial["state_sha256"],
+                configuration=initial["configuration"], content=content,
+            )
+            authority.page["state_sha256"] = initial["state_sha256"]
+
+            result = service.manual_agent_edit(
+                project_id, landing_id,
+                request_id="01900000-0000-7000-8000-000000000014",
+                base_sha256=initial["state_sha256"], message="Make the hero clearer",
+                history=[], configuration=initial["configuration"], content=initial["content"],
+                screenshots=[],
+            )
+            self.assertEqual("Agent-adjusted Landing headline", result["content"]["hero"]["title"])
+            self.assertEqual(initial["content"]["contacts"], result["content"]["contacts"])
+            self.assertEqual(initial["content"]["social_proof"], result["content"]["social_proof"])
+            self.assertNotIn("presentation", result["configuration"])
+            self.assertNotIn("app_feature", result["content"])
+            self.assertEqual(initial["state_sha256"], workspace.detail()["state_sha256"])
+            provider.change_optional_controls = True
+            expanded = service.manual_agent_edit(
+                project_id, landing_id,
+                request_id="01900000-0000-7000-8000-000000000016",
+                base_sha256=initial["state_sha256"], message="Use airy spacing and adjust the app feature",
+                history=[], configuration=initial["configuration"], content=initial["content"],
+                screenshots=[],
+            )
+            self.assertEqual("airy", expanded["configuration"]["presentation"]["spacing"])
+            self.assertEqual("Agent-adjusted app feature", expanded["content"]["app_feature"]["title"])
+            self.assertIn("configuration.presentation", expanded["changed_paths"])
+            self.assertIn("content.app_feature", expanded["changed_paths"])
+            provider.change_optional_controls = False
+            provider.change_contact = True
+            with self.assertRaisesRegex(ValueError, "contact endpoints"):
+                service.manual_agent_edit(
+                    project_id, landing_id,
+                    request_id="01900000-0000-7000-8000-000000000015",
+                    base_sha256=initial["state_sha256"], message="Invent contact details",
+                    history=[], configuration=initial["configuration"], content=initial["content"],
+                    screenshots=[],
+                )
+
     def test_natal_is_the_fixed_catalog_identity(self):
         from validation_pipeline.landing_workspace import landing_catalog
         self.assertEqual('Natal', landing_catalog()['brand'])

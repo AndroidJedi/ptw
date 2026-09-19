@@ -657,6 +657,24 @@ export interface StudioPhoneMetricsDetail {
 
 export type StudioCreativeDetail = (StudioUniversalDetail | StudioPhoneMetricsDetail) & StudioCreativeSummary
 
+export interface StudioManualAgentImageAction {
+  slot: 'phone_screen' | 'hero_visual' | 'visual_break_visual'
+  visual_direction: string
+  enhance_current: boolean
+  reference_index: number
+}
+
+export interface StudioManualAgentResult<Configuration, Content> {
+  request_id: string
+  base_sha256: string
+  configuration: Configuration
+  content: Content
+  creative_direction?: StudioPhoneHeroCreativeDirection
+  image_actions: StudioManualAgentImageAction[]
+  changed_paths: string[]
+  reply: string
+}
+
 export type StudioTuneRunStatus = 'queued' | 'running' | 'completed' | 'failed'
 export type StudioTuneRunStage =
   | 'queued'

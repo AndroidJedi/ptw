@@ -16,6 +16,7 @@ SKILLS = (
     "creative-performance-learner",
     "creative-visual-analyzer",
     "studio-phone-hero-generator",
+    "studio-manual-agent",
     "landing-page-composer",
     "studio-tune-local",
     "studio-ui-visual-audit",

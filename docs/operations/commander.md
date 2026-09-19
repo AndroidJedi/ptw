@@ -75,9 +75,11 @@ record and skips that archive upload.
 
 The unrelated bridge under `/opt/ptw/platform` must advertise exactly
 `product_brief`, `product_brief_revision`, `studio_creative_generation`,
-`creative_performance_learning`, and `creative_visual_analysis` structured JSON
-modes plus the bounded `content_non_human_graphic_generation` media mode. Visual
-analysis and enhancement accept at most one digest-checked PNG reference. The
+`studio_manual_edit`, `creative_performance_learning`, and
+`creative_visual_analysis` structured JSON modes plus the bounded
+`content_non_human_graphic_generation` media mode. Visual analysis and enhancement
+accept at most one digest-checked PNG reference; Studio manual editing accepts
+zero to four ordered digest-checked screenshots. The
 visual mode must expose only the safe descriptor schema; the performance mode
 must return inactive typed candidates. When Validation or the platform changes,
 run real canaries for every structured mode, fresh image generation,

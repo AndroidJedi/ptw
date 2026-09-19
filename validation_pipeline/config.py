@@ -16,6 +16,7 @@ class Settings:
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
     studio_composer_skill_path: Path = Path("/run/ptw-auth/skills/studio-creative-composer/SKILL.md")
     studio_phone_skill_path: Path = Path("/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md")
+    studio_manual_agent_skill_path: Path = Path("/run/ptw-auth/skills/studio-manual-agent/SKILL.md")
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
     landing_composer_skill_path: Path = Path("/run/ptw-auth/skills/landing-page-composer/SKILL.md")
     landing_workspace_path: Path = Path("/tmp/ptw-landing-workspace")
@@ -49,6 +50,9 @@ class Settings:
             )),
             studio_phone_skill_path=Path(os.environ.get(
                 "STUDIO_PHONE_SKILL_PATH", "/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md"
+            )),
+            studio_manual_agent_skill_path=Path(os.environ.get(
+                "STUDIO_MANUAL_AGENT_SKILL_PATH", "/run/ptw-auth/skills/studio-manual-agent/SKILL.md"
             )),
             studio_workspace_path=Path(os.environ.get(
                 "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
-import type { StudioTuneRun, StudioUniversalDetail } from '../types'
+import type { StudioCreativeSummary, StudioTuneRun, StudioUniversalDetail } from '../types'
 import { StudioView } from './StudioView'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
@@ -176,7 +176,6 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
     if (scopedPath === '/component-settings') {
       return structuredClone(current.component_settings)
     }
-    if (scopedPath === '/templates/apply') return structuredClone(current)
     if (scopedPath === '/assets/background_image') {
       current = {
         ...current,
@@ -344,6 +343,50 @@ describe('Universal Ad Studio', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('ignores an older Project response that finishes after Back navigation', async () => {
+    const secondProjectId = '44444444-4444-4444-8444-444444444444'
+    const secondCreativeId = '55555555-5555-4555-8555-555555555555'
+    const secondDetail = structuredClone(detail)
+    secondDetail.project_id = secondProjectId
+    secondDetail.creative_id = secondCreativeId
+    secondDetail.content.hero_title = 'CURRENT PROJECT POST'
+    let resolveOldList: ((value: { items: StudioCreativeSummary[] }) => void) | undefined
+    const oldList = new Promise<{ items: StudioCreativeSummary[] }>((resolve) => { resolveOldList = resolve })
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path === `/api/v1/studio/projects/${projectId}/creatives`) return oldList
+        if (path === `/api/v1/studio/projects/${secondProjectId}/creatives`) return { items: [{
+          creative_id: secondCreativeId, project_id: secondProjectId,
+          source_brief_id: secondDetail.source_brief_id, ordinal: 1,
+          origin: 'brief_generation', template_id: 'universal_ad', template_version: 13,
+          template_sha256: secondDetail.template_sha256, status: 'draft',
+          state_sha256: secondDetail.state_sha256, approved_version_count: 0,
+          generation: { stage: 'draft' }, created_at: '2026-09-19T00:00:00Z',
+          updated_at: '2026-09-19T00:00:00Z',
+        }] }
+        if (path === `/api/v1/studio/projects/${secondProjectId}/creatives/${secondCreativeId}`) return secondDetail
+        if (path === basePath) return detail
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      postMedia: vi.fn().mockResolvedValue(new Blob(['preview'], { type: 'image/png' })),
+    } as unknown as ApiClient
+    const view = render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(`/api/v1/studio/projects/${projectId}/creatives`))
+
+    view.rerender(<StudioView api={api} language="en" projectId={secondProjectId} creativeId={secondCreativeId} />)
+    expect(await screen.findByDisplayValue('CURRENT PROJECT POST')).toBeInTheDocument()
+
+    resolveOldList?.({ items: [{
+      creative_id: creativeId, project_id: projectId, source_brief_id: detail.source_brief_id,
+      ordinal: 4, origin: 'brief_generation', template_id: 'universal_ad', template_version: 13,
+      template_sha256: detail.template_sha256, status: 'draft', state_sha256: detail.state_sha256,
+      approved_version_count: 1, generation: { stage: 'draft' },
+      created_at: '2026-09-18T00:00:00Z', updated_at: '2026-09-18T00:00:00Z',
+    }] })
+    await waitFor(() => expect(screen.getByDisplayValue('CURRENT PROJECT POST')).toBeInTheDocument())
+    expect(screen.queryByText('#4 · universal_ad')).not.toBeInTheDocument()
+  })
+
   it('renders one fixed semantic workflow and persists bounded configuration', async () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
@@ -480,17 +523,14 @@ describe('Universal Ad Studio', () => {
     )
   })
 
-  it('offers the second template and applies it as one full draft replacement', async () => {
-    const { api, post } = studioApi()
+  it('does not expose template replacement from a historical Universal Post', async () => {
+    const { api } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
-    fireEvent.click(screen.getByRole('button', { name: /Phone & metrics/ }))
-    await waitFor(() => expect(post).toHaveBeenCalledWith(
-      `${basePath}/templates/apply`,
-      { base_sha256: 'a'.repeat(64), template_id: 'phone_metrics' },
-      { deadlineMs: 60_000 },
-    ))
+    expect(screen.queryByRole('region', { name: 'Post template selector' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Universal ad/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Phone & metrics/ })).not.toBeInTheDocument()
   })
 
   it('names the sticker placement section and previews every sticker control on request', async () => {

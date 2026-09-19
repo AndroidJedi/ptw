@@ -219,7 +219,11 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page !== 'settings' && page !== 'commander' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'settings' && page !== 'commander' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
-    {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
+    {page === 'posts' && <StudioView
+      key={`${validatedProjectId || 'no-project'}:${creativeId || 'no-creative'}`}
+      api={api} language={language} tuneMode={localApp}
+      projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative}
+    />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
     {page === 'analytics' && <AnalyticsView api={api} language={language} projectId={validatedProjectId} />}

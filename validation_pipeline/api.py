@@ -77,6 +77,7 @@ def create_studio_creative_service(
         workspace_factory=workspace_factory, structured_provider=bridge,
         composer_skill_path=settings.studio_composer_skill_path,
         phone_skill_path=settings.studio_phone_skill_path,
+        manual_agent_skill_path=settings.studio_manual_agent_skill_path,
     )
 
 
@@ -119,6 +120,7 @@ def create_app(
                 LandingWorkspace(path, image_provider=landing_images), landing_authority, path.name,
             ),
             structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
+            manual_agent_skill_path=settings.studio_manual_agent_skill_path,
         )
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url

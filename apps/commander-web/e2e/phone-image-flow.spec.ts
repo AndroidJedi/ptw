@@ -154,6 +154,7 @@ test('a delayed rejected Save is brought into view and keeps the owner draft', a
 
 test('runs the Phone Metrics browser UI direction and image workflow', async ({ page }) => {
   let current: any = phoneDetail()
+  const configurationRequests: any[] = []
   const directionRequests: any[] = []
   const generationRequests: any[] = []
   const selectionRequests: any[] = []
@@ -190,6 +191,15 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
         status: 200, contentType: 'image/png', body: imageBytes[index],
         headers: { ETag: `"${digest}"`, 'X-PTW-Content-SHA256': digest, 'Cache-Control': 'private, no-store' },
       })
+    }
+    if (url.pathname === `${creativePath}/configuration` && method === 'POST') {
+      const body = route.request().postDataJSON()
+      configurationRequests.push(body)
+      current = {
+        ...current, state_sha256: 'b'.repeat(64),
+        configuration: body.configuration, content: body.content,
+      }
+      return json(current)
     }
     if (url.pathname === `${creativePath}/creative-direction` && method === 'POST') {
       const body = route.request().postDataJSON()
@@ -363,20 +373,19 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await expect(page.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
   await page.locator('input[value="minimal_sculptural"]').check()
   await page.locator('input[value="isolated_key_element"]').check()
-  await page.getByRole('button', { name: 'Save new direction' }).click()
-  await expect(page.getByRole('status')).toContainText('Image direction saved')
+  await expect(page.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+  await page.getByLabel('Enhance current image').uncheck()
+  await page.getByLabel('iPhone visual direction').fill('A clean sculptural object in quiet blue studio light.')
+  await page.getByRole('button', { name: 'Generate & apply' }).click()
+  await expect(page.getByRole('status')).toContainText('New iPhone hero visual generated')
+  expect(configurationRequests).toHaveLength(1)
   expect(directionRequests).toEqual([{
-    base_sha256: 'a'.repeat(64),
+    base_sha256: 'b'.repeat(64),
     creative_direction: {
       schema: 'ptw.studio.phone-hero-direction.v1',
       style: 'minimal_sculptural', background: 'isolated_key_element',
     },
   }])
-
-  await page.getByLabel('Enhance current image').uncheck()
-  await page.getByLabel('iPhone visual direction').fill('A clean sculptural object in quiet blue studio light.')
-  await page.getByRole('button', { name: 'Generate & apply' }).click()
-  await expect(page.getByRole('status')).toContainText('New iPhone hero visual generated')
   expect(generationRequests[0]).toMatchObject({ enhance_current: false })
   await expect(page.getByLabel('Enhance current image')).not.toBeChecked()
 

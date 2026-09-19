@@ -111,6 +111,36 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
         self.assertEqual(len(png), result["invocation"]["attempts"][0]["input_artifact_bytes"])
         self.assertEqual(1, len(calls))
 
+    def test_studio_manual_artifacts_reach_codex_in_screenshot_order(self):
+        screenshots = [b"\x89PNG\r\n\x1a\nfirst", b"\x89PNG\r\n\x1a\nsecond"]
+
+        def executor(command, **_kwargs):
+            image_paths = [
+                Path(command[index + 1])
+                for index, value in enumerate(command) if value == "--image"
+            ]
+            self.assertEqual(
+                ["studio_screenshot_1.png", "studio_screenshot_2.png"],
+                [path.name for path in image_paths],
+            )
+            self.assertEqual(screenshots, [path.read_bytes() for path in image_paths])
+            _output_path(command).write_text(json.dumps({"value": 2}), encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        artifacts = [{
+            "name": f"studio_screenshot_{index}", "mime_type": "image/png",
+            "sha256": hashlib.sha256(png).hexdigest(),
+            "bytes_base64": base64.b64encode(png).decode(),
+        } for index, png in enumerate(screenshots, start=1)]
+        result = self._request(
+            self._provider(executor), mode="studio_manual_edit", input_artifacts=artifacts,
+        )
+
+        self.assertEqual(
+            {item["name"]: item["sha256"] for item in artifacts},
+            result["invocation"]["attempts"][0]["input_artifacts"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,11 +15,11 @@ import urllib.request
 
 JSON_MODES = (
     "product_brief", "product_brief_revision", "studio_creative_generation",
-    "creative_performance_learning", "creative_visual_analysis",
+    "studio_manual_edit", "creative_performance_learning", "creative_visual_analysis",
 )
 BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
-BRIDGE_MULTIMODAL_MODES = ("creative_visual_analysis",)
+BRIDGE_MULTIMODAL_MODES = ("creative_visual_analysis", "studio_manual_edit")
 BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 BRIDGE_CONCURRENT_SLOT_LIMIT = 1
 BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
@@ -27,38 +27,50 @@ BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES = 8_388_608
 
 
 def _input_artifacts(
-    value: Sequence[Mapping[str, Any]] | None,
+    value: Sequence[Mapping[str, Any]] | None, *, mode: str,
 ) -> tuple[list[dict[str, str]], dict[str, str], int]:
     if value is None:
         return [], {}, 0
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 1:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise ValueError("structured input artifacts are invalid")
+    if mode == "creative_visual_analysis" and len(value) != 1:
         raise ValueError("structured visual analysis requires exactly one input artifact")
-    artifact = value[0]
-    if set(artifact) != {"name", "mime_type", "sha256", "bytes_base64"}:
-        raise ValueError("structured input artifact fields are invalid")
-    name = str(artifact["name"])
-    mime_type = str(artifact["mime_type"])
-    expected_digest = str(artifact["sha256"])
-    if name != "approved_png" or mime_type != "image/png":
-        raise ValueError("structured input artifact must be the approved PNG")
-    if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
-        raise ValueError("structured input artifact digest is invalid")
-    try:
-        raw = base64.b64decode(str(artifact["bytes_base64"]), validate=True)
-    except (ValueError, TypeError) as error:
-        raise ValueError("structured input artifact is not valid base64") from error
-    if not raw or len(raw) > BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES:
-        raise ValueError("structured input artifact exceeds its bounded byte budget")
-    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise ValueError("structured input artifact is not a PNG")
-    actual_digest = hashlib.sha256(raw).hexdigest()
-    if actual_digest != expected_digest:
-        raise ValueError("structured input artifact digest does not match its bytes")
-    normalized = [{
-        "name": name, "mime_type": mime_type, "sha256": expected_digest,
-        "bytes_base64": str(artifact["bytes_base64"]),
-    }]
-    return normalized, {name: expected_digest}, len(raw)
+    if mode == "studio_manual_edit" and not 1 <= len(value) <= 4:
+        raise ValueError("Studio manual editing supports one to four screenshot artifacts")
+    normalized: list[dict[str, str]] = []
+    digests: dict[str, str] = {}
+    total_bytes = 0
+    for index, artifact in enumerate(value, start=1):
+        if set(artifact) != {"name", "mime_type", "sha256", "bytes_base64"}:
+            raise ValueError("structured input artifact fields are invalid")
+        name = str(artifact["name"])
+        mime_type = str(artifact["mime_type"])
+        expected_digest = str(artifact["sha256"])
+        expected_name = "approved_png" if mode == "creative_visual_analysis" else f"studio_screenshot_{index}"
+        if name != expected_name or mime_type != "image/png":
+            raise ValueError("structured input artifact name or MIME type is invalid")
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+            raise ValueError("structured input artifact digest is invalid")
+        try:
+            raw = base64.b64decode(str(artifact["bytes_base64"]), validate=True)
+        except (ValueError, TypeError) as error:
+            raise ValueError("structured input artifact is not valid base64") from error
+        if not raw or len(raw) > BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES:
+            raise ValueError("structured input artifact exceeds its bounded byte budget")
+        if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("structured input artifact is not a PNG")
+        actual_digest = hashlib.sha256(raw).hexdigest()
+        if actual_digest != expected_digest:
+            raise ValueError("structured input artifact digest does not match its bytes")
+        normalized.append({
+            "name": name, "mime_type": mime_type, "sha256": expected_digest,
+            "bytes_base64": str(artifact["bytes_base64"]),
+        })
+        digests[name] = expected_digest
+        total_bytes += len(raw)
+    if total_bytes > 20 * 1024 * 1024:
+        raise ValueError("structured input artifacts exceed their bounded byte budget")
+    return normalized, digests, total_bytes
 
 
 def _validation_error(error: Exception) -> str:
@@ -211,10 +223,12 @@ class StructuredBridge:
             raise ValueError("structured bridge calls require a domain response validator")
         if mode not in JSON_MODES:
             raise ValueError("unsupported structured bridge mode")
-        artifacts, artifact_digests, artifact_bytes = _input_artifacts(input_artifacts)
+        artifacts, artifact_digests, artifact_bytes = _input_artifacts(
+            input_artifacts, mode=mode,
+        )
         if artifacts and mode not in BRIDGE_MULTIMODAL_MODES:
             raise ValueError("structured input artifacts are not allowed for this mode")
-        if mode in BRIDGE_MULTIMODAL_MODES and not artifacts:
+        if mode == "creative_visual_analysis" and not artifacts:
             raise ValueError("structured visual analysis requires an approved PNG")
         if not self._slots.acquire(timeout=max(0, self.timeout_seconds)):
             raise TimeoutError(f"{mode} could not enter its bounded execution slot")

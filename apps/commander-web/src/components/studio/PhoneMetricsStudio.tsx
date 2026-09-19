@@ -7,6 +7,7 @@ import type { ApiClient } from '../../api'
 import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../../studio-checkpoints'
 import { ErrorState } from '../../components/State'
 import { StudioActionFeedback } from './StudioActionFeedback'
+import { StudioManualAgent } from './StudioManualAgent'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
 import { StudioSection } from './StudioSection'
 import { translate, type Language } from '../../i18n'
@@ -14,7 +15,7 @@ import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
   StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent,
   StudioCheckpointResponse, StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
-  StudioFontFamily, StudioPhoneTypographyRole,
+  StudioFontFamily, StudioManualAgentResult, StudioPhoneTypographyRole,
 } from '../../types'
 
 function PhoneScreenHistoryOption({
@@ -124,7 +125,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   ))
   const savedCreativeDirection = detail.generation?.creative_direction
   const hasCreativeDirection = Boolean(savedCreativeDirection)
-  const canGenerateWithDirection = hasCreativeDirection && !editingCreativeDirection
+  const pendingCreativeDirection = !hasCreativeDirection || editingCreativeDirection
+    ? creativeDirectionFromDraft(legacyDirection)
+    : null
+  const canGenerateWithDirection = (hasCreativeDirection && !editingCreativeDirection)
+    || Boolean(pendingCreativeDirection)
   const mutationBusy = busy || generating
   const enhanceDisabled = Boolean(referenceImage) || !canGenerateWithDirection
     || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen
@@ -244,13 +249,21 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
       let saved = detail
       if (
-        JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
-        || JSON.stringify(content) !== JSON.stringify(detail.content)
+        JSON.stringify(configuration) !== JSON.stringify(saved.configuration)
+        || JSON.stringify(content) !== JSON.stringify(saved.content)
       ) {
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
-          base_sha256: detail.state_sha256, configuration, content,
+          base_sha256: saved.state_sha256, configuration, content,
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
+      }
+      if (pendingCreativeDirection) {
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/creative-direction`, {
+          base_sha256: saved.state_sha256, creative_direction: pendingCreativeDirection,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+        setEditingCreativeDirection(false)
+        setLegacyDirection({ style: '', background: '' })
       }
       const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
         base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
@@ -299,17 +312,6 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const selectedDirection = selected?.source.visual_direction
       if (typeof selectedDirection === 'string') setScreenDirection(selectedDirection)
       setNotice(tr('Selected iPhone image applied.', 'Вибране зображення iPhone застосовано.'))
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
-  }
-  const selectTemplate = async (templateId: string) => {
-    if (templateId === detail.template_id) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/templates/apply`, {
-        base_sha256: detail.state_sha256, template_id: templateId,
-      }, { deadlineMs: 60_000 })
-      onDetail(next)
-      setNotice(tr('Template replaced the complete editable draft.', 'Шаблон повністю замінив редаговану чернетку.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const approve = async () => {
@@ -379,20 +381,69 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     })
   }
 
+  const applyAgentResult = async (
+    result: StudioManualAgentResult<StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent>,
+    screenshots: File[],
+  ) => {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const nextConfiguration = structuredClone(result.configuration)
+      const nextContent = structuredClone(result.content)
+      setConfiguration(nextConfiguration); setContent(nextContent)
+      const nextDirection = result.creative_direction
+      const directionChanged = Boolean(nextDirection) && JSON.stringify(nextDirection) !== JSON.stringify(detail.generation?.creative_direction || null)
+      let saved = detail
+      if (result.image_actions.length || directionChanged) {
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
+          base_sha256: saved.state_sha256,
+          configuration: nextConfiguration, content: nextContent,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+      }
+      if (directionChanged && nextDirection) {
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/creative-direction`, {
+          base_sha256: saved.state_sha256, creative_direction: nextDirection,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+      }
+      const action = result.image_actions[0]
+      if (action) {
+        const reference = action.reference_index > 0
+          ? await imageReferencePayload(screenshots[action.reference_index - 1]) : null
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
+          base_sha256: saved.state_sha256,
+          visual_direction: action.visual_direction,
+          enhance_current: action.enhance_current,
+          ...(reference ? { reference_image: reference } : {}),
+        }, { deadlineMs: 360_000 })
+        setScreenDirection(action.visual_direction)
+        setEnhanceCurrent(true)
+        applyDetail(saved)
+      } else {
+        await render(saved, true, nextConfiguration, nextContent)
+      }
+      setNotice(tr(
+        `Agent adjusted ${result.changed_paths.length} editor field${result.changed_paths.length === 1 ? '' : 's'}${action ? ' and applied a generated image' : ''}. Review before saving.`,
+        `Агент налаштував ${result.changed_paths.length} полів редактора${action ? ' і застосував згенероване зображення' : ''}. Перевірте перед збереженням.`,
+      ))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      throw cause
+    } finally { setBusy(false) }
+  }
+
   return <div className="studio-page phone-metrics-studio-page">
-    <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
-      <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Start from a fixed composition', 'Почніть із фіксованої композиції')}</h2>
-      <p>{tr('Changing template replaces all editable copy and assets. Saved immutable versions are preserved.', 'Зміна шаблону замінює весь редагований текст і ресурси. Збережені незмінні версії не змінюються.')}</p>
-      <div className="studio-template-grid">{detail.templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${template.template_id === detail.template_id ? 'is-active' : ''}`} disabled={mutationBusy} onClick={() => void selectTemplate(template.template_id)}>
-        <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
-      </button>)}</div>
-    </section>
     <section className="studio-commandbar phone-metrics-commandbar">
       <div><small>{tr('NATAL TEMPLATE', 'ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
       <button className="secondary" disabled={mutationBusy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       <button className="primary" disabled={mutationBusy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <StudioActionFeedback error={error} notice={notice} language={language} />
+    <StudioManualAgent
+      api={api} language={language} endpoint={`${basePath}/agent`}
+      stateSha256={detail.state_sha256} configuration={configuration} content={content}
+      disabled={mutationBusy || previewBusy} onApply={applyAgentResult}
+    />
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
         <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || generating || previewBusy) && <RefreshCcw className="spin" />}</header>
@@ -620,14 +671,14 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
                 setError(''); setNotice('')
               }} idPrefix="phone-saved-direction"
             />
-            : <><PhoneHeroDirectionPicker language={language} value={legacyDirection} onChange={setLegacyDirection} disabled={mutationBusy} idPrefix="phone-legacy-direction" /><div className="phone-hero-direction-actions"><button className="secondary phone-hero-direction-save" type="button" disabled={mutationBusy || !creativeDirectionFromDraft(legacyDirection)} onClick={() => void saveCreativeDirection()}><Check />{savedCreativeDirection
+            : <><PhoneHeroDirectionPicker language={language} value={legacyDirection} onChange={setLegacyDirection} disabled={mutationBusy} idPrefix="phone-legacy-direction" /><div className="phone-hero-direction-actions"><button className="secondary phone-hero-direction-save" type="button" disabled={mutationBusy || !pendingCreativeDirection} onClick={() => void saveCreativeDirection()}><Check />{savedCreativeDirection
               ? tr('Save new direction', 'Зберегти новий напрям')
               : tr('Save direction & enable generation', 'Зберегти напрям і ввімкнути генерацію')}</button>{savedCreativeDirection && <button className="ghost" type="button" disabled={mutationBusy} onClick={() => {
                 setEditingCreativeDirection(false)
                 setLegacyDirection({ style: '', background: '' })
               }}><X />{tr('Cancel', 'Скасувати')}</button>}</div><p className="phone-hero-direction-note">{savedCreativeDirection
-              ? tr('Choose and save a replacement direction. Existing images and history stay unchanged until you generate again.', 'Оберіть і збережіть новий напрям. Наявні зображення та історія не зміняться, доки ви не запустите нову генерацію.')
-              : tr('Choose and save one style plus one background treatment before generating a new image for this existing creative.', 'Виберіть і збережіть один стиль та один варіант фону перед генерацією нового зображення для цього наявного креативу.')}</p></>}
+              ? tr('Choose a replacement direction. Save it without changing the current images, or generate to save and use it now.', 'Оберіть новий напрям. Збережіть його без зміни поточних зображень або запустіть генерацію, щоб одразу зберегти й застосувати його.')
+              : tr('Choose one style and one background treatment. Save the direction, or generate to save and use it immediately.', 'Виберіть один стиль і один варіант фону. Збережіть напрям або запустіть генерацію, щоб одразу зберегти й застосувати його.')}</p></>}
           <label><span>{tr('What should be shown', 'Що має бути зображено')}</span><textarea
             aria-label={tr('iPhone visual direction', 'Опис візуалу iPhone')}
             rows={4} maxLength={600} value={screenDirection}

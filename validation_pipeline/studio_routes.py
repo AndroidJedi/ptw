@@ -9,6 +9,7 @@ from fastapi.params import Depends as DependsParameter
 from fastapi.responses import Response
 
 from .image_reference import generation_request
+from .studio_manual_agent import StudioManualAgentProviderError, manual_agent_request
 
 def studio_creative_router(
     service: Any, *, prefix: str,
@@ -150,6 +151,19 @@ def studio_creative_router(
                 base_sha256=str(request["base_sha256"]),
                 configuration=request["configuration"], content=request["content"],
             )
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/creatives/{creative_id}/agent")
+    def manual_agent(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        try:
+            return service.manual_agent_edit(
+                project_id, creative_id, **manual_agent_request(request),
+            )
+        except StudioManualAgentProviderError as error:
+            raise HTTPException(
+                status_code=504 if error.timed_out else 503, detail=str(error),
+            ) from error
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

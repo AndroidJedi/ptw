@@ -132,4 +132,15 @@ describe('actionable API errors', () => {
     expect(message).toMatch(/PTW service could not complete[\s\S]*What to do:[\s\S]*HTTP 503 · POST \/api\/v1\/projects\/project-1\/briefs/)
     expect(message).not.toContain('private internal provider path')
   })
+
+  it('classifies a Studio Agent provider timeout without calling it a state conflict', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      detail: 'Studio Agent timed out before returning a validated edit; the draft was not changed.',
+    }), { status: 504, headers: { 'Content-Type': 'application/json' } })))
+    const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any, 'uk')
+
+    await expect(client.post('/api/v1/studio/projects/project/creatives/creative/agent', {})).rejects.toThrow(
+      /Агент Студії не завершив запит[\s\S]*Чернетку Студії не змінено[\s\S]*два текстові запити[\s\S]*HTTP 504/,
+    )
+  })
 })

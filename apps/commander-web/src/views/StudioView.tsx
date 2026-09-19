@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../studio-checkpoints'
 import { StudioActionFeedback } from '../components/studio/StudioActionFeedback'
+import { StudioManualAgent } from '../components/studio/StudioManualAgent'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
 import { StudioSection } from '../components/studio/StudioSection'
 import { EditableColorField } from '../components/EditableColorField'
@@ -19,6 +20,7 @@ import type {
   StudioCheckpointResponse, StudioCreativeSummary,
   ProductBrief, StudioTemplateSummary, StudioUniversalDetail, StudioUniversalFontFamily,
   StudioPhoneHeroCreativeDirection,
+  StudioManualAgentResult,
 } from '../types'
 
 function fileAsBase64(file: File): Promise<string> {
@@ -148,6 +150,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const [variantDirectionOpen, setVariantDirectionOpen] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
   const draftPreviewGeneration = useRef(0)
+  const loadGeneration = useRef(0)
   const [previewState, setPreviewState] = useState('')
   const previewStateFor = (value: StudioUniversalDetail, config = value.configuration, copy = value.content) => JSON.stringify([value.state_sha256, config, normalizedPreviewContent(copy)])
   const currentPreviewState = detail && configuration && content ? previewStateFor(detail, configuration, content) : ''
@@ -183,7 +186,11 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   }
 
   const load = async () => {
-    if (!projectId) { setCreatives([]); setApprovedBriefs([]); setInitialTemplates([]); setDetail(null); return }
+    const generation = ++loadGeneration.current
+    if (!projectId) {
+      setCreatives([]); setApprovedBriefs([]); setInitialTemplates([]); setDetail(null)
+      return
+    }
     setBusy(true)
     setError('')
     setApprovedBriefs(null)
@@ -192,6 +199,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       const list = await api.get<{ items: StudioCreativeSummary[] }>(
         `/api/v1/studio/projects/${projectId}/creatives`,
       )
+      if (generation !== loadGeneration.current) return
       setCreatives(list.items)
       const selectedId = list.items.some((item) => item.creative_id === creativeId)
         ? creativeId
@@ -201,6 +209,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
           api.get<{ items: ProductBrief[] }>(`/api/v1/briefs?project_id=${projectId}&limit=100`),
           api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates'),
         ])
+        if (generation !== loadGeneration.current) return
         setApprovedBriefs(briefs.items.filter((brief) => (
           brief.approved && brief.status === 'completed' && Boolean(brief.document)
         )))
@@ -211,6 +220,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       if (selectedId !== creativeId) onCreative(selectedId)
       const path = `/api/v1/studio/projects/${projectId}/creatives/${selectedId}`
       const value = await api.get<StudioUniversalDetail>(path, { deadlineMs: 60_000 })
+      if (generation !== loadGeneration.current) return
       applyDetail(value)
       try {
         if (value.status === 'draft' && value.template_id === 'universal_ad') {
@@ -218,20 +228,32 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             `${path}/preview`, { state_sha256: value.state_sha256 },
             'image/png', { deadlineMs: 90_000 },
           )
+          if (generation !== loadGeneration.current) return
           setPreviewUrl(URL.createObjectURL(blob))
           setPreviewState(previewStateFor(value))
         }
       } catch (cause) {
-        setError((cause as Error).message)
+        if (generation === loadGeneration.current) setError((cause as Error).message)
       }
     } catch (cause) {
-      setError((cause as Error).message)
+      if (generation === loadGeneration.current) setError((cause as Error).message)
     } finally {
-      setBusy(false)
+      if (generation === loadGeneration.current) setBusy(false)
     }
   }
 
-  useEffect(() => { setDetail(null); void load() }, [api, projectId, creativeId])
+  useEffect(() => {
+    setCreatives(null)
+    setApprovedBriefs(null)
+    setInitialTemplates(null)
+    setDetail(null)
+    setConfiguration(null)
+    setContent(null)
+    setError('')
+    setNotice('')
+    void load()
+    return () => { loadGeneration.current += 1 }
+  }, [api, projectId, creativeId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const status = detail?.status
     if (!status || !['queued', 'composing', 'generating_image'].includes(status)) return
@@ -248,16 +270,19 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     ) ? '0' : '1')
   }, [configuration, content, detail])
 
-  const updatePreview = async () => {
-    if (!detail || !configuration || !content || previewBusy) return
+  const updatePreview = async (
+    nextConfiguration = configuration, nextContent = content,
+  ) => {
+    if (!detail || !nextConfiguration || !nextContent || previewBusy) return
     const generation = ++draftPreviewGeneration.current
-    const requestedState = currentPreviewState
+    const normalizedContent = normalizedPreviewContent(nextContent)
+    const requestedState = previewStateFor(detail, nextConfiguration, normalizedContent)
     setPreviewBusy(true)
     setPreviewError('')
     try {
       const blob = await api.postMedia(`${basePath}/preview`, {
-        state_sha256: detail.state_sha256, configuration,
-        content: normalizedPreviewContent(content),
+        state_sha256: detail.state_sha256, configuration: nextConfiguration,
+        content: normalizedContent,
       }, 'image/png', { deadlineMs: 90_000 })
       if (draftPreviewGeneration.current !== generation) return
       setPreviewUrl(URL.createObjectURL(blob))
@@ -302,24 +327,6 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       try { await renderPreview(value) } catch (cause) { setPreviewError((cause as Error).message) }
     } catch (cause) {
       setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const applyTemplate = async (templateId: 'universal_ad' | 'phone_metrics') => {
-    if (!detail || templateId === (detail as unknown as { template_id?: string }).template_id) return
-    setBusy(true)
-    setError('')
-    setNotice('')
-    try {
-      const value = await api.post<StudioUniversalDetail>(`${basePath}/templates/apply`, {
-        base_sha256: detail.state_sha256, template_id: templateId,
-      }, { deadlineMs: 60_000 })
-      applyDetail(value)
-      setNotice(tr('Template replaced the complete editable draft.', 'Шаблон повністю замінив редаговану чернетку.'))
-    } catch (cause) {
-      setError((cause as Error).message)
     } finally {
       setBusy(false)
     }
@@ -543,7 +550,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const creativePicker = creatives && creatives.length > 0 && <section className="panel studio-creative-picker" aria-label={tr('Project creatives', 'Креативи проєкту')}>
     <div><small>{tr('PROJECT CREATIVES', 'КРЕАТИВИ ПРОЄКТУ')}</small><strong>{tr('Creative history', 'Історія креативів')}</strong></div>
     <div>{creatives.map((item) => <button key={item.creative_id} className={item.creative_id === creativeId ? 'is-active' : ''} onClick={() => onCreative(item.creative_id)}><strong>#{item.ordinal} · {item.template_id}</strong><small>{item.status} · {item.approved_version_count} {tr('approved', 'схвалено')}</small></button>)}</div>
-    {detail?.source_brief_id && (detail.approved_version_count || 0) > 0 && <><button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></>}
+    {(detail as unknown as { template_id?: string } | null)?.template_id === 'phone_metrics' && detail?.source_brief_id && (detail.approved_version_count || 0) > 0 && <><button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></>}
   </section>
 
   if (!projectId) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('Every Studio creative belongs to one Project.', 'Кожен креатив Studio належить одному проєкту.')}</p></Empty>
@@ -621,15 +628,6 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
 
   return <div className="studio-page universal-studio-page">
     {creativePicker}
-
-    <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
-      <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Choose a preset composition', 'Оберіть готову композицію')}</h2>
-      <p>{tr('Changing template replaces all editable copy and assets. Immutable saved versions remain intact.', 'Зміна шаблону замінює весь редагований текст і ресурси. Незмінні збережені версії залишаються цілими.')}</p>
-      <div className="studio-template-grid">
-        <button type="button" className="studio-template-card is-active" disabled={busy} onClick={() => void applyTemplate('universal_ad')}><strong>{tr('Universal ad', 'Універсальна реклама')}</strong><small>1080×1080</small><span>{tr('Square, flexible post composition.', 'Квадратна гнучка композиція допису.')}</span></button>
-        <button type="button" className="studio-template-card" disabled={busy} onClick={() => void applyTemplate('phone_metrics')}><strong>{tr('Phone & metrics', 'Телефон і метрики')}</strong><small>1080×1350</small><span>{tr('Fixed Natal phone, three metrics, and a CTA band.', 'Фіксований телефон Natal, три метрики та CTA-смуга.')}</span></button>
-      </div>
-    </section>
     <section className="studio-commandbar universal-commandbar" aria-label={tr('Post editor controls', 'Керування редактором допису')}>
         <div><small>{tr('FIXED STRUCTURE', 'ФІКСОВАНА СТРУКТУРА')}</small><strong>universal_ad · v{detail.catalog.template_version}</strong></div>
       {tuneMode && <button className="secondary studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
@@ -643,6 +641,20 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       <button className="primary" disabled={busy} onClick={() => void saveConfiguration()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <StudioActionFeedback error={error} notice={notice} language={language} />
+    <StudioManualAgent
+      api={api} language={language} endpoint={`${basePath}/agent`}
+      stateSha256={detail.state_sha256} configuration={configuration} content={content}
+      disabled={busy || previewBusy}
+      onApply={async (result: StudioManualAgentResult<StudioUniversalConfiguration, StudioUniversalContent>) => {
+        setConfiguration(structuredClone(result.configuration))
+        setContent(structuredClone(result.content))
+        setNotice(tr(
+          `Agent adjusted ${result.changed_paths.length} editor field${result.changed_paths.length === 1 ? '' : 's'}. Review before saving.`,
+          `Агент налаштував ${result.changed_paths.length} полів редактора. Перевірте перед збереженням.`,
+        ))
+        await updatePreview(result.configuration, result.content)
+      }}
+    />
 
     <div className="studio-meta">
       <span>{detail.catalog.semantic_roles.length} {tr('stable semantic roles', 'сталих семантичних ролей')}</span>

@@ -1010,7 +1010,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 templates = client.get("/api/v1/studio/templates", headers=headers)
                 self.assertEqual(200, templates.status_code, templates.text)
                 self.assertEqual(
-                    {"universal_ad", "phone_metrics"},
+                    {"phone_metrics"},
                     {item["template_id"] for item in templates.json()["items"]},
                 )
                 phone_template = next(

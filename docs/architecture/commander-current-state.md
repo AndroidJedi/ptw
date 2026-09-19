@@ -1,13 +1,102 @@
 # Commander current state
 
-Updated: 2026-09-16
-Branch: `feature/instagram-manual-validation`
+Updated: 2026-09-19
+Branch: `main`
 Deployment: live and accepted from code revision
 `84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
 `851b5707e0309f29` remains current. Commander and Validation run
 `god-mobile-20260916-84f4db7b5e8a`; unchanged Owner Gateway retains
 `god-mobile-20260916-57332cbb949a`, and the companion platform retains
 `instagram-manual-retry-20260915-d455ac4`.
+
+## Studio route isolation and Universal Ad retirement — source only, not deployed
+
+The reported Post workspace merge is a browser-state race rather than evidence
+that saved PostgreSQL creatives were combined or deleted. Project/creative
+navigation reused the same React Studio instance, and an older asynchronous
+creative-list/detail response could finish after Back navigation and overwrite
+the newer route's editor state. The Post view is now keyed by its exact
+Project/creative scope, each load invalidates prior generations, and route
+changes clear stale list/detail/editor state. A regression resolves the previous
+Project response last and proves it cannot replace the current Project's Post.
+
+Universal Ad is retired from the active template catalog and every owner path
+that creates, clones, varies, or replaces a Post. Phone Metrics is the only
+selectable template. Existing Universal workspaces, editable drafts, renderers,
+and immutable versions remain compatible and project-scoped so retirement
+cannot make historical saved Posts disappear. An already-reserved Universal
+request may reconcile idempotently, while a new reservation fails closed. This
+source milestone has not been deployed; the production revision and Hosting
+version above remain unchanged.
+
+## Post and Landing manual Agent mode — local, not deployed
+
+Post Studio and Landing Studio now expose one owner-only **Agent mode** that
+translates a task message plus up to four temporary screenshots into the complete
+bounded configuration/content already editable in that surface. The browser
+applies the returned values through the same local editor state and preview path
+as manual control changes. Phone Metrics may additionally request its existing
+phone-screen generator; Landing may request its existing hero and visual-break
+generators. Screenshot references are normalized and metadata-stripped for that
+turn, then remain outside Project state, checkpoints, versions, and chat history.
+
+The agent is a schema-bound Studio operation, not an MCP server or coding agent.
+It cannot add components, HTML, CSS, scripts, claims, social proof, or contact
+endpoints; execute tools or shell commands; modify repository files; or Save,
+Approve, Publish, or deploy. Post and Landing remain draft/state-hash guarded,
+provider responses are domain-validated, and image work uses only the existing
+generation routes after the returned draft has been persisted where required.
+The canonical runtime policy is `skills/studio-manual-agent/SKILL.md`.
+
+The local `studio_manual_edit` v3 prompt payload now includes a fail-closed
+English `agent_control_contract` generated from the live Post/Landing component catalog.
+It explains every currently exposed component's purpose, visible result, exact
+setting paths, bounded options, dependencies, and immutable boundaries. In
+particular, it maps “hide/remove the phone device” to the Phone Metrics device
+visibility control, distinguishes that from Image only, and exposes the saved
+image-style/background choices without starting generation unless the owner
+explicitly requests it. A catalog change without matching semantic coverage
+fails before a provider call. This remains local and not deployed.
+
+A local owner trial exposed a timeout-classification and request-recovery gap:
+the 420-second Codex execution deadline was surfaced as a misleading state
+conflict and included raw subprocess context, while refresh discarded the owner
+message. Agent edits now use bounded `high` reasoning, keep the semantic layer
+under 16 KB, sanitize provider failures as 503/504 without changing the draft,
+and retain only the latest two text requests per Project in browser-local
+storage. Screenshots and editor state remain ephemeral and are never retained.
+
+A subsequent Phone Metrics trial exposed a compound-intent gap: the Agent
+correctly generated requested home-medicine-cabinet artwork but also disabled
+the device container, so the final render hid the new pixels and left a blank
+area; it also placed slogans rather than requested numerals in the lower Metric
+values. The v3 prompt now decomposes all clauses, receives request-specific
+end-state constraints, and rejects/corrects schema-valid responses whose control
+interactions hide a requested result. “Remove phone + change/show the picture”
+now means enabled artwork area plus Image only, a natural picture description
+counts as an image operation, one unspecified duplicate logo resolves to the
+in-phone mark, and lower numeric requests retain the Metric value/label roles
+without inventing evidence. The exact reported Ukrainian instruction is a
+regression fixture. Universal's zero-image-action schema is also fully closed so
+the provider accepts strict no-op edits instead of failing before inference, and
+template-inapplicable stale Phone direction provenance no longer appears as a
+false Universal changed path. This remains local and not deployed.
+
+The source contract adds the coordinated `studio_manual_edit` structured mode to
+local Codex and the production bridge client. Production remains unchanged until
+the companion bridge advertises that JSON/multimodal capability and this source is
+released with it. Local verification passes all 323 Validation tests, 14 Owner
+Gateway tests, 43 Commander tests with five expected environment skips plus the
+demo, 114 Owner Console tests and its production build, all 84
+desktop/360px/iPhone-WebKit browser flows, the deterministic Studio visual audit,
+the new skill validator and canonical skill sync, Python compilation, and
+whitespace checks. A no-write Phone Metrics Agent canary on the affected local
+creative returned HTTP 200 with no changed paths or image actions in about 19
+seconds. A second disposable no-write canary using the exact reported Ukrainian
+prompt completed in one provider attempt in about 24 seconds with Image only,
+the artwork area enabled, one outer logo, numeric 01/02/03 Metric values, and a
+text-free home-medicine-cabinet image action. This milestone has not been
+deployed.
 
 ## Studio editor image-control recovery — local, not deployed
 
@@ -18,6 +107,10 @@ not left as a silent empty placeholder. The owner’s explicit fresh-generation
 choice is preserved instead of forcing Enhance back on after every run.
 Generation now has a distinct visible pending state, and focused regressions
 prove that success and failure both restore the Generate & apply action.
+After an image exists, choosing a complete replacement style and background no
+longer strands that action in a disabled state: Generate & apply saves the new
+direction first and immediately uses it, while Save new direction remains the
+non-generating option.
 
 For owner inspection, the dev server now has an explicit
 `VITE_PRODUCTION_BACKEND=true` mode that proxies every `/api` request through the
@@ -34,7 +127,7 @@ expected production `401` boundary without owner credentials while production
 health remains `200`.
 
 The Studio Tune, visual-audit, and Owner Console incident skills now require
-these invariants. Local verification passes 108 Owner Console tests and its
+these invariants. Local verification passes 109 Owner Console tests and its
 production build, all 84 desktop/360px/iPhone WebKit flows, independent
 Chromium/WebKit App Check and Auth handoff probes, the deterministic Studio
 visual audit, 43 Commander tests with seven expected environment skips plus the
@@ -1084,10 +1177,9 @@ approved version. Cross-Project creative access fails closed.
 
 ## Studio authority
 
-The common versioned template catalog contains:
-
-- `universal_ad` at 1080×1080;
-- `phone_metrics` at 1080×1350.
+The active versioned template catalog contains `phone_metrics` at 1080×1350.
+The 1080×1080 `universal_ad` implementation remains only as compatibility for
+existing drafts and immutable versions; it cannot be selected for another Post.
 
 Phone Metrics exposes independent visibility toggles for its canonical
 upper-left and in-phone Natal lock-ups. Both are shown by default and remain
@@ -1135,8 +1227,8 @@ changed contract cannot replay a response from an older schema.
 Save and Approve now persist only changed checkpoints and immutable versions;
 they make no learner call. Performance learning starts explicitly from Analytics,
 freezes its dataset, and returns inactive typed candidates for owner review.
-Release acceptance covers both Brief modes, Universal Post, Phone Metrics,
-Landing composition, performance learning, safe visual analysis, new image
+Release acceptance covers both Brief modes, the active Phone Metrics Post and
+its manual Agent, Landing composition, performance learning, safe visual analysis, new image
 generation, and exact-reference enhancement. Every structured canary must pass
 domain validation on fresh attempt 1 and report a valid byte budget.
 

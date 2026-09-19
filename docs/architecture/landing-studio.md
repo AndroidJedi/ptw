@@ -107,6 +107,17 @@ selected raw image. Failed mutations retain editable local input.
 Font files are bundled from canonical assets and their OFL notices ship in
 `dist/font-licenses`; the dev server permits only those additional asset paths.
 
+The editable Landing also exposes the shared Post Studio **Agent mode**. A turn
+may adjust only the complete bounded configuration/content supplied from the
+current unsaved editor and may request existing generation for `hero_visual`
+and/or `visual_break_visual`. Each image action must repeat that slot's returned
+visual direction; enhancement requires an existing selected image. The browser
+persists the returned draft through the normal configuration route before calling
+the existing generation route. Contact endpoints and the full social-proof block
+are preserved exactly, while their ordinary supporting layout/copy controls stay
+editable. Up to four normalized screenshots are temporary inputs only. The agent
+cannot save, approve, publish, add sections, invent evidence, or modify code.
+
 Browser coverage includes desktop, 360px, iPhone WebKit, real font loading,
 maximum-length copy, focal points, section selection, contact actions, FAQ,
 page-language independence, and fullscreen focus restoration. Backend tests
@@ -146,7 +157,7 @@ frozen Post style; the Post snapshot remains provenance. Hero and supporting ima
 retain independent choices and crop-aware subject directions. A style change leaves
 existing pixels/history intact until Generate or Enhance is requested. Pending edits
 are persisted first, and the prompt uses that persisted configuration's digest.
-No new provider mode is introduced. Publication is a separate read authority
+Those image controls introduce no new provider mode. Publication is a separate read authority
 over approved versions and never influences Landing or Post generation.
 
 ## App feature phone

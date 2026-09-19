@@ -38,15 +38,61 @@ Post into a new same-template draft without AI; configuration, content, and the
 approved raw-asset snapshot are inherited, while identity and approval history
 start fresh.
 
-## Common bounded templates
+## Manual Agent mode
 
-`universal_ad` v13 is a 1080×1080 composition where only the background is
+Each editable Post exposes **Agent mode**. One turn receives the owner's task,
+the exact current unsaved configuration/content, the live component catalog,
+recent bounded conversation text, and zero to four optional screenshots. It
+returns a complete schema-valid editor state; the browser replaces its local
+controls with that state and runs the normal preview. Universal Posts have no
+agent image slot. Phone Metrics may also return one `phone_screen` action and a
+bounded saved creative direction, after which the browser uses the existing
+configuration, creative-direction, and phone-generation routes in order.
+
+The English component contract is outcome-aware for compound instructions. It
+first decomposes every requested result, resolves interactions, and checks that
+the completed state will keep those results visible. In particular, removing a
+phone while also describing the picture selects Image only with the visual area
+still enabled; disabling the device would also hide the requested/generated
+artwork and is rejected before the response reaches the browser. A natural
+description of what the picture should show counts as an explicit image-content
+operation even without the literal word “generate,” while a style selection by
+itself still changes direction only.
+
+The lower three Phone Metrics blocks retain their value/label semantics. A
+request for more numbers must place numeral-bearing content in each prominent
+`stats[*].value`, not replace values with slogans. When the owner supplies no
+evidence-backed quantities, the agent uses neutral workflow sequence values
+such as 01/02/03 and cannot fabricate percentages, accuracy, speed, customers,
+or other proof. An unqualified request to remove one of the two Natal marks
+keeps the outer Post identity and disables the duplicate in-phone mark.
+
+This is a `studio_manual_edit` structured provider mode, not an MCP server and
+not repository automation. Screenshots are normalized, metadata-stripped,
+digest-bound inputs for one turn and are never written to the creative,
+checkpoint, version, or retained chat. The canonical `studio-manual-agent` skill
+forbids code/file/shell access, new components, unsupported evidence or claims,
+and Save/Approve/Publish/deploy actions. The owner reviews the resulting draft
+and alone invokes those lifecycle controls.
+
+## Bounded template catalog
+
+The active catalog contains only `phone_metrics`. `universal_ad` is retired from
+Brief approval, first-creative recovery, variant/clone creation, and mutable
+template replacement. Existing Universal workspaces and immutable versions stay
+project-scoped and readable/editable so retirement cannot hide or rewrite saved
+authority. The backend may reconcile an idempotent request for an already-
+reserved Universal creative, but it cannot reserve another one.
+
+The retained `universal_ad` v13 compatibility renderer is a 1080×1080
+composition where only the background is
 required. Hero title, supporting text, offer, CTA, screened photographic sticker,
 Natal identity, and the benefits group are optional; each of the three benefits
 is optional independently. Hidden values remain editable state, disappear from
 semantic/render output, and the remaining blocks reflow deterministically.
 
-Both templates expose a separate bounded font family and size for every
+The active Phone Metrics editor and retained Universal compatibility editor
+expose a separate bounded font family and size for every
 editable text role. The common ten-family catalog includes neutral, condensed,
 geometric, display, serif, and true editorial-italic choices; all font files
 and their OFL licenses are checked in so host and container renders use the
@@ -91,8 +137,8 @@ return the original PNG bytes unchanged.
 
 Save or Approve stores a changed color pair as an append-only Project default
 linked to that edit checkpoint. Preview and intermediate configuration requests
-never update the default. New AI-created Posts and explicit template replacements
-inherit it, and the composer schema locks both values so Brief or Creative Skill
+never update the default. New AI-created Phone Metrics Posts inherit it, and the
+composer schema locks both values so Brief or Creative Skill
 learning cannot override them. Existing drafts stay unchanged; an approved clone
 retains its selected immutable version's colors even when the current Project
 default is newer. Landing continues to use its separate unchanged canonical logo.
@@ -120,10 +166,10 @@ elements and canonical logo colors retained. Uplift-only schema/renderer changes
 do not manufacture an owner edit checkpoint; immutable approved versions are
 never rewritten.
 
-Template application replaces the current mutable configuration/content/assets
-inside that creative and inherits the current Project logo colors. It never
-rewrites an immutable approved version. Payloads must use the current exact
-schema after that bounded uplift.
+The owner UI exposes no mutable template-replacement control. A stale cached
+client cannot apply retired Universal Ad; the compatibility route accepts only
+the active Phone Metrics target so an old Universal draft can be recovered
+without rewriting any immutable approved version.
 
 ## Phone hero generation
 
@@ -161,10 +207,12 @@ success or a handled failure.
 
 The style/background choice is saved on the creative and governs every later
 generation until replaced. Its edit icon resets the picker so the owner can
-save a replacement; existing images and history remain untouched until the
-owner explicitly generates again. Existing Phone Metrics drafts created before
-this capability retain their current image, but must save one direction before
-a further generation, enhancement, or image retry.
+save a replacement without generating, or choose a complete replacement and
+use **Generate & apply** to save and apply it in one action. Existing images and
+history remain untouched until the owner explicitly generates again. Existing
+Phone Metrics drafts created before this capability retain their current image,
+but must choose one complete direction before a further generation,
+enhancement, or image retry.
 
 A failed image request preserves the composed draft and deterministic fallback.
 The selected raw hero is the input to the next enhancement. A fourth successful

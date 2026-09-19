@@ -14,18 +14,27 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .landing_workspace import (
-    DEFAULT_CONFIGURATION, DEFAULT_CONTENT,
+    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION,
     LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA, LANDING_TEMPLATE_ID,
     LANDING_VISUAL_SLOTS, LandingWorkspace,
-    canonical_json, normalize_composed_content, normalize_configuration, sha256_json,
+    canonical_json, normalize_composed_content, normalize_configuration,
+    normalize_content, sha256_json,
 )
 from .landing_design import (
-    APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_IMAGE_DIRECTIONS,
+    APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_COMPONENTS,
+    DEFAULT_IMAGE_DIRECTIONS, DEFAULT_PHONE_MOCKUP,
     LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES,
 )
 from .local_brief_store import LocalBriefStore, utc_now
 from .local_codex import sanitized
 from .studio_creatives import _json_schema
+from .studio_manual_agent import (
+    STUDIO_MANUAL_AGENT_PROMPT_VERSION, STUDIO_MANUAL_AGENT_REASONING_EFFORT,
+    manual_agent_payload,
+    manual_agent_schema, response_reply, screenshot_artifacts,
+    studio_manual_agent_provider_error, validate_image_actions,
+    validate_manual_agent_semantics,
+)
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
@@ -752,7 +761,7 @@ class DatabaseLandingAuthority:
 class LandingService:
     """Coordinate a frozen Post design snapshot, bounded page AI, and page assets."""
 
-    def __init__(self, *, root: Path | str, authority: Any, workspace_factory: Callable[[Path], Any], structured_provider: Any | None, composer_skill_path: Path) -> None:
+    def __init__(self, *, root: Path | str, authority: Any, workspace_factory: Callable[[Path], Any], structured_provider: Any | None, composer_skill_path: Path, manual_agent_skill_path: Path | None = None) -> None:
         self.root = Path(root)
         self.pages_root = self.root / "pages"
         self.pages_root.mkdir(parents=True, exist_ok=True)
@@ -760,6 +769,11 @@ class LandingService:
         self.workspace_factory = workspace_factory
         self.structured_provider = structured_provider
         self.composer_skill = composer_skill_path.read_text(encoding="utf-8")
+        self.manual_agent_skill = (
+            manual_agent_skill_path.read_text(encoding="utf-8")
+            if manual_agent_skill_path is not None else
+            "Adjust only the supplied bounded Landing editor state. Never edit code, save, approve, or publish."
+        )
         self.analytics: Any | None = None
         self._workspaces: dict[str, Any] = {}
 
@@ -792,6 +806,133 @@ class LandingService:
             raise KeyError("Landing was not found in this Project")
         return {**self._workspace(landing_id).detail(), **self.summary(landing_id)}
 
+    def manual_agent_edit(
+        self, project_id: str, landing_id: str, *, request_id: str,
+        base_sha256: str, message: str, history: list[dict[str, str]],
+        configuration: Mapping[str, Any], content: Mapping[str, Any],
+        screenshots: list[bytes],
+    ) -> dict[str, Any]:
+        """Plan one bounded Landing editor turn without persisting the draft."""
+
+        detail = self.detail(project_id, landing_id)
+        if detail["status"] != "draft":
+            raise ValueError("Studio Agent requires an editable Landing draft")
+        if base_sha256 != detail["state_sha256"]:
+            raise RuntimeError("Landing changed; reload before using Agent mode")
+        editor_configuration = normalize_configuration(configuration)
+        editor_content = normalize_content(content)
+        agent_configuration = deepcopy(editor_configuration)
+        effective_configuration_defaults = {
+            "visual_mode": "phone",
+            "phone_mockup": DEFAULT_PHONE_MOCKUP,
+            "presentation": DEFAULT_PRESENTATION,
+            "components": DEFAULT_COMPONENTS,
+            "image_directions": DEFAULT_IMAGE_DIRECTIONS,
+        }
+        for field, default in effective_configuration_defaults.items():
+            agent_configuration.setdefault(field, deepcopy(default))
+        agent_content = deepcopy(editor_content)
+        if "app_feature" not in agent_content:
+            language = agent_configuration["presentation"]["language"]
+            agent_content["app_feature"] = {
+                "title": editor_content["features"][0]["title"][:APP_FEATURE_LIMITS["title"]],
+                "description": editor_content["features"][0]["description"][:APP_FEATURE_LIMITS["description"]],
+                "action_label": "Дізнатися більше" if language == "uk" else "Explore the app",
+                "items": [{
+                    "label": item["title"][:APP_FEATURE_LIMITS["label"]], "value": "",
+                } for item in editor_content["features"]],
+            }
+        artifacts = screenshot_artifacts(screenshots)
+        image_slots = list(LANDING_VISUAL_SLOTS) if detail.get("image_generation_available") else []
+        current_images = [
+            str(item["slot"]) for item in detail.get("assets", [])
+            if item.get("available") and item.get("slot") in image_slots
+        ]
+        payload = manual_agent_payload(
+            surface="landing:project_landing", entity_id=landing_id,
+            message=message, history=history,
+            configuration=agent_configuration, content=agent_content,
+            catalog=detail["catalog"], screenshot_artifact_values=artifacts,
+            image_slots=image_slots, current_images=current_images,
+        )
+
+        def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
+            if not isinstance(value, Mapping) or set(value) != {
+                "configuration", "content", "image_actions", "reply",
+            }:
+                raise ValueError("Studio Agent Landing response fields are invalid")
+            expanded_configuration = normalize_configuration(value["configuration"])
+            next_configuration = deepcopy(expanded_configuration)
+            for field, default in effective_configuration_defaults.items():
+                if field not in editor_configuration and next_configuration[field] == default:
+                    next_configuration.pop(field)
+            expanded_content = normalize_content(value["content"])
+            next_content = deepcopy(expanded_content)
+            if "app_feature" not in editor_content and next_content["app_feature"] == agent_content["app_feature"]:
+                next_content.pop("app_feature")
+            contact_fields = ("email", "phone", "url", "instagram")
+            if any(
+                next_content["contacts"].get(field, "") != editor_content["contacts"].get(field, "")
+                for field in contact_fields
+            ):
+                raise ValueError("Studio Agent cannot invent or change contact endpoints")
+            if next_content["social_proof"] != editor_content["social_proof"]:
+                raise ValueError("Studio Agent cannot invent or change social proof")
+            actions = validate_image_actions(
+                value["image_actions"], slots=image_slots,
+                screenshot_count=len(screenshots), available_slots=set(current_images),
+            )
+            directions = {
+                "hero_visual": next_content["hero"]["visual_direction"],
+                "visual_break_visual": next_content["visual_break"]["visual_direction"],
+            }
+            if any(action["visual_direction"] != directions[action["slot"]] for action in actions):
+                raise ValueError("Studio Agent image action must use the matching Landing visual direction")
+            validate_manual_agent_semantics(
+                surface="landing:project_landing",
+                constraints=payload["request_constraints"],
+                configuration=expanded_configuration, content=expanded_content,
+                image_actions=actions,
+            )
+            return {
+                "configuration": next_configuration,
+                "content": next_content,
+                "image_actions": actions,
+                "reply": response_reply(value["reply"]),
+            }
+
+        try:
+            result = self._provider_call(
+                mode="studio_manual_edit",
+                system_prompt=(
+                    self.manual_agent_skill
+                    + "\n\nThe output schema is the complete Landing editor authority. Preserve contact endpoints and social proof exactly. "
+                    "Decompose every clause, obey request_constraints as end-state invariants, resolve cross-control dependencies, "
+                    "and verify that every requested result is visible in the complete returned state."
+                ),
+                input_payload=payload,
+                output_schema=manual_agent_schema(
+                    configuration_schema=_json_schema(agent_configuration),
+                    content_schema=_json_schema(agent_content),
+                    image_slots=image_slots, screenshot_count=len(screenshots),
+                ),
+                idempotency_key=f"landing-manual:{landing_id}:{request_id}",
+                prompt_version=STUDIO_MANUAL_AGENT_PROMPT_VERSION,
+                reasoning_effort=STUDIO_MANUAL_AGENT_REASONING_EFFORT,
+                response_validator=validate_response,
+                **({"input_artifacts": artifacts} if artifacts else {}),
+            )
+        except (RuntimeError, TimeoutError) as error:
+            raise studio_manual_agent_provider_error(error) from error
+        response = dict(result["response"])
+        response["changed_paths"] = _diff_paths(
+            {"configuration": editor_configuration, "content": editor_content},
+            {"configuration": response["configuration"], "content": response["content"]},
+        )
+        response["request_id"] = request_id
+        response["base_sha256"] = base_sha256
+        return response
+
     def approved_version_detail(
         self, project_id: str, landing_id: str, version: int,
     ) -> dict[str, Any]:
@@ -812,9 +953,12 @@ class LandingService:
         if self.structured_provider is None:
             raise RuntimeError("Landing structured provider is unavailable")
         validator = kwargs.pop("response_validator", None)
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
         if not callable(validator):
             raise ValueError("Landing structured calls require a domain response validator")
         if hasattr(self.structured_provider, "call"):
+            if hasattr(self.structured_provider, "supported_reasoning_efforts"):
+                kwargs["reasoning_effort"] = reasoning_effort
             return self.structured_provider.call(**kwargs, response_validator=validator)
         value = self.structured_provider.generate(**kwargs)
         return value if validator is None else {**value, "response": dict(validator(value["response"]))}

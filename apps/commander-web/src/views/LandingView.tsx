@@ -3,9 +3,10 @@ import { Check, ExternalLink, Globe2, Maximize2, Monitor, Plus, RefreshCcw, Save
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
+import { StudioManualAgent } from '../components/studio/StudioManualAgent'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
-import type { LandingConfiguration, LandingContent, LandingDetail, LandingPublication, LandingSummary } from '../types'
+import type { LandingConfiguration, LandingContent, LandingDetail, LandingPublication, LandingSummary, StudioManualAgentResult } from '../types'
 import { LandingPage } from '../landing/LandingPage'
 import { LandingInspector, LandingField } from '../landing/LandingInspector'
 import { LandingCanvas, LandingDialog } from '../landing/LandingCanvas'
@@ -205,6 +206,45 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     setBusy(true)
     try { await api.post(`${base}/pages/${detail.landing_id}/retry`, {}); await reload() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
+  const applyAgentResult = async (
+    result: StudioManualAgentResult<LandingConfiguration, LandingContent>,
+    screenshots: File[],
+  ) => {
+    if (!detail) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const nextConfiguration = clone(result.configuration)
+      const nextContent = clone(result.content)
+      setConfiguration(nextConfiguration); setContent(nextContent)
+      let saved = detail
+      if (result.image_actions.length) {
+        saved = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/configuration`, {
+          base_sha256: saved.state_sha256,
+          configuration: nextConfiguration, content: nextContent,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+        setCheckpointPending(true)
+        for (const action of result.image_actions) {
+          const reference = action.reference_index > 0
+            ? await imageReferencePayload(screenshots[action.reference_index - 1]) : null
+          saved = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${action.slot}/generate`, {
+            base_sha256: saved.state_sha256,
+            visual_direction: action.visual_direction,
+            enhance_current: action.enhance_current,
+            ...(reference ? { reference_image: reference } : {}),
+          }, { deadlineMs: 480_000 })
+          applyDetail(saved)
+        }
+      }
+      setNotice(tr(
+        `Agent adjusted ${result.changed_paths.length} editor field${result.changed_paths.length === 1 ? '' : 's'}${result.image_actions.length ? ` and generated ${result.image_actions.length} visual${result.image_actions.length === 1 ? '' : 's'}` : ''}. Review before saving.`,
+        `Агент налаштував ${result.changed_paths.length} полів редактора${result.image_actions.length ? ` і згенерував ${result.image_actions.length} візуалів` : ''}. Перевірте перед збереженням.`,
+      ))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      throw cause
+    } finally { setBusy(false) }
+  }
   const status = detail?.status
   const dirty = Boolean(detail && configuration && content && (JSON.stringify(configuration) !== JSON.stringify(detail.configuration) || JSON.stringify(content) !== JSON.stringify(detail.content)))
   const issues = configuration && content && detail ? landingIssues(configuration, content, detail.assets) : []
@@ -273,6 +313,11 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       <button className="primary" disabled={busy || issues.length > 0 || !note.trim()} onClick={() => void save(true)}><Check />{tr('Approve Landing', 'Затвердити лендінг')}</button>
     </div></header>
     {error && <div className="landing-inline-error" role="alert">{error}<button className="ghost" onClick={() => setError('')}>{tr('Dismiss', 'Закрити')}</button></div>}
+    <StudioManualAgent
+      api={api} language={language} endpoint={`${base}/pages/${detail.landing_id}/agent`}
+      stateSha256={detail.state_sha256} configuration={configuration} content={content}
+      disabled={busy} onApply={applyAgentResult}
+    />
     {(detail.versions.length > 0 || publication) && <section className="panel landing-publication-panel" aria-labelledby="landing-publication-title">
       <header><div><small>PUBLIC NATAL PAGE</small><h2 id="landing-publication-title"><Globe2 /> {tr('Publication', 'Публікація')}</h2></div>{publication && <span className={`landing-publication-status is-${publication.status}`}>{publication.status}</span>}</header>
       {!publication ? <>

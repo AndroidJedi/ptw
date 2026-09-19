@@ -8,7 +8,9 @@ approved Brief → project creative → Studio AI draft → Save/Approve checkpo
 approved performance data → explicit Analytics run → reviewed Creative Skills
 ```
 
-The common Studio catalog provides `universal_ad` and `phone_metrics`.
+The active Studio catalog provides `phone_metrics`. Historical `universal_ad`
+workspaces and immutable versions remain readable/editable for authority
+preservation, but Universal Ad cannot be selected, cloned, or generated again.
 Creatives, edit checkpoints, typed Creative Skills, assets, and immutable versions are
 Project-scoped. The former Social Post automation, review/export/publication
 workflow, candidate/critic modes, singleton Studio, and compatibility migrations

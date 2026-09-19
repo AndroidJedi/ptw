@@ -116,6 +116,7 @@ def create_app(
         structured_provider=structured_provider,
         composer_skill_path=repository_root / "skills/studio-creative-composer/SKILL.md",
         phone_skill_path=repository_root / "skills/studio-phone-hero-generator/SKILL.md",
+        manual_agent_skill_path=repository_root / "skills/studio-manual-agent/SKILL.md",
     )
     landing_pages = LandingService(
         root=workspace_path.parent / "landing-workspace",
@@ -123,6 +124,7 @@ def create_app(
         workspace_factory=lambda path: LandingWorkspace(path, image_provider=phone_screen_images),
         structured_provider=structured_provider,
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
+        manual_agent_skill_path=repository_root / "skills/studio-manual-agent/SKILL.md",
     )
     landing_publications = LocalLandingPublicationAuthority(
         local_store, landing_pages._workspace,

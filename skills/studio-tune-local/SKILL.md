@@ -1,11 +1,11 @@
 ---
 name: studio-tune-local
-description: Implement and iterate owner-requested Universal Ad Studio component, renderer, style, test, or Tune-wizard changes. Use for Studio tuning requests. Apply updates to the local checkout by default; do not use for production incidents, deployment, publishing, or remote operations.
+description: Implement and iterate owner-requested Post Studio component, renderer, style, test, or Tune-wizard changes. Use for Studio tuning requests. Apply updates to the local checkout by default; do not use for production incidents, deployment, publishing, or remote operations.
 ---
 
 # Studio Tune Local
 
-Apply requested Universal Ad Studio experiments through the local Tune workflow.
+Apply requested Post Studio experiments through the local Tune workflow.
 For a change request, implement and verify the update; do not stop at a proposal
 or instructions for the owner to apply manually.
 
@@ -25,7 +25,7 @@ or instructions for the owner to apply manually.
 ## Local update
 
 Read `AGENTS.md`, `docs/README.md`, the current-state resume point, and the
-Universal Ad Studio route before editing. Use the loopback Tune runner when the
+Post Studio route before editing. Use the loopback Tune runner when the
 request comes through its wizard; otherwise make the requested bounded change
 directly in the local checkout. Keep the fixed semantic Studio structure and
 generic renderer architecture, with Instagram-specific behavior behind its
@@ -49,7 +49,7 @@ or add focused regression coverage so later iterations cannot silently undo it.
 Only the wizard's explicit owner approval action may add a rule; ordinary
 feedback remains scoped to its iteration.
 
-Tune only the Universal Studio renderer/configuration surface, focused tests,
+Tune only the Post Studio renderer/configuration surface, focused tests,
 styles, and Studio UI components needed by the request. The Tune runner,
 launcher, authentication, production routes, database,
 deployment, and publication boundaries remain fixed unless the owner separately

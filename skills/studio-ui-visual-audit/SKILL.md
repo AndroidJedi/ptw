@@ -1,6 +1,6 @@
 ---
 name: studio-ui-visual-audit
-description: Audit Universal Ad Studio renders and editor presentation for clipping, overlap, incorrect text alignment, overflow, unsafe bounds, or responsive preview regressions. Use for visual QA of Studio renderer, layout, typography, component, or CSS changes; do not use for deployment or non-Studio Owner Console incidents.
+description: Audit Post Studio renders and editor presentation for clipping, overlap, incorrect text alignment, overflow, unsafe bounds, or responsive preview regressions. Use for visual QA of Studio renderer, layout, typography, component, or CSS changes; do not use for deployment or non-Studio Owner Console incidents.
 ---
 
 # Studio UI Visual Audit
@@ -13,6 +13,9 @@ a specific remote target.
 ## Evidence and diagnosis
 
 - Reproduce the reported configuration, content, assets, viewport, and language.
+- Treat `phone_metrics` as the only active template. Retained `universal_ad`
+  renders are compatibility evidence for historical Posts, not a selectable,
+  cloneable, or replaceable owner workflow.
 - Inspect the authenticated raw template-native PNG at full resolution (1080×1080
   for `universal_ad`, 1080×1350 for `phone_metrics`). If the defect
   is present there or in its resolved node manifest, fix the renderer/template;

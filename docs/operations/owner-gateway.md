@@ -12,7 +12,7 @@ creating a checkpoint or performance-learning run. It returns the updated Creati
 starting image generation. Studio exposes the common template
 catalog and only Project/creative-scoped operations: list/create, detail,
 composition/image retry, configuration, Save, template apply, assets/Pexels,
-preview, phone generate/enhance/select/history, immutable creative approval,
+preview, bounded Agent edit, phone generate/enhance/select/history, immutable creative approval,
 and version retrieval. Save/Approve learning decision and retry routes are retired.
 
 The public Gateway and private Validation Studio route tables must have exact
@@ -27,6 +27,15 @@ Phone generation has a 480-second gateway deadline. Every history, preview, and
 version render is authenticated and private/no-store. Provider credentials and
 provider asset paths never cross the boundary. Cross-Project IDs fail closed.
 Bare Studio mutation routes and `/api/v1/posts` do not exist.
+
+The authenticated Post and Landing `POST .../{entity_id}/agent` proxies use the
+same 480-second deadline. Each accepts an exact current state, one task, bounded
+recent text, and up to four normalized screenshots. The provider receives
+screenshots as ordered digest-bound multimodal artifacts, not persisted Project
+data. Its response is schema/domain validated and can only return editor values
+plus allowlisted image-generation actions. The agent route itself never saves,
+approves, publishes, or executes an image action; the Owner Console applies the
+plan through existing state-hash-guarded routes.
 
 The authenticated Settings surface exposes `ChatGPT Authorization` through only
 `GET /api/v1/settings/chatgpt-authorization` and

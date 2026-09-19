@@ -117,7 +117,9 @@ before the requested database exists; that is not migration-test readiness.
 
 - Bridge structured modes are exactly `product_brief`,
   `product_brief_revision`, `studio_creative_generation`,
-  `creative_performance_learning`, and `creative_visual_analysis`.
+  `studio_manual_edit`, `creative_performance_learning`, and
+  `creative_visual_analysis`. Studio manual editing accepts zero to four ordered,
+  digest-bound screenshots and must pass its real multimodal canary before release.
 - Media mode is exactly `content_non_human_graphic_generation`; enhancement
   accepts zero or one validated square PNG reference and records its digest.
 - PostgreSQL owns Projects, Sources, Briefs, corrections, approvals,
@@ -141,7 +143,8 @@ before the requested database exists; that is not migration-test readiness.
   creative to a valid draft, preserving its ID and append-only failed runs, and
   proving restart recovery does not enqueue duplicates.
 - Apply that guard to every structured workflow, not only Phone Metrics.
-  Product Brief/revision, both Post templates, Landing composition, and both
+  Product Brief/revision, the active Phone Metrics Post and its manual Agent,
+  Landing composition, and both
   learning skills require domain validators after provider-schema validation.
   Strict schemas and normalizers must consume the same bound/enum/pattern/
   length/privacy constants. The platform idempotency key must include the
@@ -328,9 +331,9 @@ tags. Retagging preserved platform archives for a new serial release is allowed
 only when their exact revision bundle and image bytes are retained.
 
 Before a Validation or platform rollout, run real domain-validating canaries for
-both Product Brief modes, Universal Post, Phone Metrics, Landing composition,
-Studio learning, Landing learning, fresh image generation, one-image enhancement,
-and Pexels.
+both Product Brief modes, the active Phone Metrics Post and its manual Agent,
+Landing composition, Studio learning, Landing learning, fresh image generation,
+one-image enhancement, and Pexels.
 Every structured canary must carry a fresh request fingerprint and complete on
 attempt 1. It must also report valid prompt/input/schema byte budgets. The
 Landing canary must use the exact runtime content-only payload, remain below its

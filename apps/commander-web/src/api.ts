@@ -92,7 +92,15 @@ function apiFailureMessage(value: ApiFailureDetails, language: Language): string
       ? 'Оновіть екран. Якщо помилка повториться, не використовуйте файл і передайте технічні дані нижче.'
       : 'Refresh the screen. If this repeats, do not use the file and report the technical details below.'
   } else if (value.kind === 'http') {
-    if (status === 400 || status === 422) {
+    if ((status === 503 || status === 504) && /Studio Agent/i.test(detail)) {
+      title = uk ? 'Агент Студії не завершив запит.' : 'The Studio Agent did not complete the request.'
+      explanation = uk
+        ? 'Провайдер агента не повернув перевірені налаштування вчасно. Чернетку Студії не змінено.'
+        : 'The agent provider did not return validated settings in time. The Studio draft was not changed.'
+      instruction = uk
+        ? 'Останні два текстові запити збережено в цьому браузері для проєкту. Відкрийте режим агента, виберіть запит і повторіть його один раз.'
+        : 'The last two text requests are saved in this browser for the Project. Open Agent mode, select the request, and retry it once.'
+    } else if (status === 400 || status === 422) {
       title = uk ? 'API відхилив дані запиту.' : 'The API rejected the request data.'
       explanation = detail || (uk ? 'Одне або кілька полів не відповідають дозволеному формату.' : 'One or more fields did not match the accepted format.')
       instruction = uk ? 'Перевірте введені поля, виправте їх і повторіть дію.' : 'Review the entered fields, correct them, and retry.'

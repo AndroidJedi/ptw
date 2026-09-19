@@ -36,9 +36,11 @@ Updated: 2026-09-04
 ## Post Studio
 
 - Every creative belongs to the selected Project and one approved Brief.
-- Common templates are square `universal_ad` and 4:5 `phone_metrics`.
-  Template code remains common; a creative stores only bounded state and the
-  selected template version/digest.
+- The active template is 4:5 `phone_metrics`. Historical square `universal_ad`
+  workspaces remain compatible so saved Posts and immutable versions never
+  disappear, but Universal Ad is absent from selection, cloning, variants, and
+  template replacement. Template code remains common; a creative stores only
+  bounded state and the selected template version/digest.
 - Show generation progress as queued, composing, generating image when
   applicable, then editable draft. Failures expose stage-specific retry.
 - Natal is fixed. Arbitrary primitive edits, template imports, owner logo

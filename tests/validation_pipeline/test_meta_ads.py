@@ -401,7 +401,7 @@ class FakeStudio:
         if project_id != PROJECT_ID:
             raise KeyError("project not found")
         return {"items": [{
-            "creative_id": CREATIVE_ID, "ordinal": 1, "template_id": "universal_ad",
+            "creative_id": CREATIVE_ID, "ordinal": 1, "template_id": "phone_metrics",
             "approved_version_count": 2,
         }]}
 

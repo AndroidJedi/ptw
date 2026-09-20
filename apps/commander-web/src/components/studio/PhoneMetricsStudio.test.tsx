@@ -103,7 +103,7 @@ const detail = {
     phone_buttons: ['Створити новий акаунт', 'Увійти', 'Можливо пізніше'],
   },
   component_settings: { sha256: 'd'.repeat(64) }, assets: [], phone_screen_history: [],
-  pexels_available: false, phone_screen_generation_available: true, versions: [],
+  phone_screen_generation_available: true, versions: [],
 } as unknown as StudioPhoneMetricsDetail
 
 function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
@@ -192,7 +192,7 @@ describe('Phone & metrics Studio', () => {
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
 
     expect(screen.queryByRole('region', { name: 'Post template selector' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Universal ad/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /retired template/i })).not.toBeInTheDocument()
   })
 
   it('edits and hides the bottom CTA while retaining its saved values', async () => {
@@ -221,7 +221,7 @@ describe('Phone & metrics Studio', () => {
     const { api } = studioApi()
     const view = render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
 
-    const sections = Array.from(view.container.querySelectorAll<HTMLDetailsElement>('.phone-metrics-controls > details.universal-disclosure'))
+    const sections = Array.from(view.container.querySelectorAll<HTMLDetailsElement>('.phone-metrics-controls > details.studio-disclosure'))
     expect(sections).toHaveLength(8)
     expect(sections.every(section => !section.open)).toBe(true)
     const actions = screen.getByText('Three bottom buttons').closest('details') as HTMLDetailsElement

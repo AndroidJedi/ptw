@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 Branch: `main`
 Deployment: live and accepted from code revision
 `84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
@@ -9,7 +9,7 @@ Deployment: live and accepted from code revision
 `god-mobile-20260916-57332cbb949a`, and the companion platform retains
 `instagram-manual-retry-20260915-d455ac4`.
 
-## Studio route isolation and Universal Ad retirement — source only, not deployed
+## Modular Post/Landing templates and compact agents — source only, not deployed
 
 The reported Post workspace merge is a browser-state race rather than evidence
 that saved PostgreSQL creatives were combined or deleted. Project/creative
@@ -20,14 +20,31 @@ Project/creative scope, each load invalidates prior generations, and route
 changes clear stale list/detail/editor state. A regression resolves the previous
 Project response last and proves it cannot replace the current Project's Post.
 
-Universal Ad is retired from the active template catalog and every owner path
-that creates, clones, varies, or replaces a Post. Phone Metrics is the only
-selectable template. Existing Universal workspaces, editable drafts, renderers,
-and immutable versions remain compatible and project-scoped so retirement
-cannot make historical saved Posts disappear. An already-reserved Universal
-request may reconcile idempotently, while a new reservation fails closed. This
-source milestone has not been deployed; the production revision and Hosting
-version above remain unchanged.
+Post and Landing templates now use separate immutable registries over a small
+surface-neutral definition contract. Phone Metrics is the only registered Post
+definition; the unsupported square template implementation and compatibility
+paths are removed. A preservation-safe `NOT VALID` constraint migration rejects
+new unsupported Post rows while preserving every existing row and physical table
+name. Landing definitions remain independently
+creatable and may resolve a versioned Post-template definition reference without
+receiving any Project, Brief, creative, asset, or approved-version data.
+
+Manual Agent mode now sends only catalog-backed scalar values and accepts at
+most 64 scalar patch operations. PTW applies patches and validates the complete
+state server-side, preserving the browser response contract. Recent text is
+capped at four messages/4 KiB, and Post/Landing provider contracts have explicit
+component, total, and response byte budgets recorded in invocation metadata.
+Initial generation uses registry-owned compact catalogs and surface-filtered,
+byte-bounded Creative Skill views instead of unbounded authority snapshots.
+This source milestone has not been deployed; the production revision and
+Hosting version above remain unchanged. Local verification passes all 297
+Validation tests, 14 Owner Gateway tests, 43 Commander tests with seven expected
+environment skips plus the demo, 99 Owner Console tests and production build,
+all 78 desktop/360px/iPhone-WebKit flows, the Phone Metrics visual audit, skill
+validation, Python compilation, whitespace checks, migration-runner idempotency,
+the disposable full-schema guard, and the real HTTP/PostgreSQL save/restart
+canary. The migration canary proves historical unsupported rows are retained
+while new unsupported Post rows are rejected.
 
 ## Post and Landing manual Agent mode — local, not deployed
 
@@ -63,7 +80,7 @@ the 420-second Codex execution deadline was surfaced as a misleading state
 conflict and included raw subprocess context, while refresh discarded the owner
 message. Agent edits now use bounded `high` reasoning, keep the semantic layer
 under 16 KB, sanitize provider failures as 503/504 without changing the draft,
-and retain only the latest two text requests per Project in browser-local
+and retain only the latest four text requests per Project in browser-local
 storage. Screenshots and editor state remain ephemeral and are never retained.
 
 A subsequent Phone Metrics trial exposed a compound-intent gap: the Agent
@@ -77,10 +94,8 @@ now means enabled artwork area plus Image only, a natural picture description
 counts as an image operation, one unspecified duplicate logo resolves to the
 in-phone mark, and lower numeric requests retain the Metric value/label roles
 without inventing evidence. The exact reported Ukrainian instruction is a
-regression fixture. Universal's zero-image-action schema is also fully closed so
-the provider accepts strict no-op edits instead of failing before inference, and
-template-inapplicable stale Phone direction provenance no longer appears as a
-false Universal changed path. This remains local and not deployed.
+regression fixture. Template-inapplicable stale Phone direction provenance no
+longer appears as a false changed path. This remains local and not deployed.
 
 The source contract adds the coordinated `studio_manual_edit` structured mode to
 local Codex and the production bridge client. Production remains unchanged until
@@ -100,7 +115,7 @@ deployed.
 
 ## Studio editor image-control recovery — local, not deployed
 
-Both Post templates now start every component-setting disclosure collapsed.
+The Post template now starts every component-setting disclosure collapsed.
 Phone Metrics retries transient authenticated raw-hero thumbnail reads and offers
 a keyboard-operable retry if the bounded attempts fail, so the current tile is
 not left as a silent empty placeholder. The owner’s explicit fresh-generation
@@ -154,8 +169,8 @@ or provider recovery was needed.
 ## Owner editor responsiveness and Commander keyboard layout — live and accepted
 
 Owner Console color controls now pair the native swatch with one editable,
-copy/pasteable `#RRGGBB` field across both Post templates and Landing. Universal
-and Phone Metrics component-setting panels use one semantic expandable/collapsible
+copy/pasteable `#RRGGBB` field across Post Studio and Landing. Post
+component-setting panels use one semantic expandable/collapsible
 section control. Phone subforms respond to the inspector's actual width rather
 than only the browser viewport, so button, metric, typography, and color controls
 stack before labels or values collide in a narrow sidebar.
@@ -201,7 +216,7 @@ Those are retained production and credential boundaries, not development gates.
 Post Studio now exposes one symbol color and one `NATAL` name color in both
 templates. The shared pair recolors every visible lock-up, including the full
 symbol inner stroke, while preserving the canonical PNG alpha, dimensions,
-spacing, and typography. Universal config is v8 and Phone Metrics config is v13;
+spacing, and typography. Phone Metrics config is v13;
 legacy mutable drafts uplift without a false checkpoint and immutable versions
 stay untouched.
 
@@ -244,7 +259,7 @@ Studio can clone one selected approved Post into a new editable same-template
 draft without AI. Approved raw assets are digest-frozen for cloning; legacy
 versions fail closed if their exact raw asset is no longer present. In both Post
 templates, only the background is mandatory. Every foreground group, every
-Universal bullet, every Phone metric card, and every in-phone button is
+Every Phone metric card and every in-phone button is
 individually optional with deterministic reflow.
 
 Migration `009_instagram_manual_validation_v1.sql` adds clone lineage, manual
@@ -987,7 +1002,7 @@ a bounded in-memory store, and its temporary files use production tmpfs. PTW
 requires the advertised ephemeral capability before transmitting any reference.
 The repositories retain their separate histories and deploy under one matched
 versioned release tag.
-See the [shared contract](universal-ad-studio.md#shared-image-reference-input)
+See the [Post Studio contract](post-studio.md#phone-metrics)
 for limits, expiry, and release ordering.
 
 Release checks pass: the 179-test Validation suite, 9 Gateway tests, 68 web unit
@@ -1177,15 +1192,14 @@ approved version. Cross-Project creative access fails closed.
 
 ## Studio authority
 
-The active versioned template catalog contains `phone_metrics` at 1080×1350.
-The 1080×1080 `universal_ad` implementation remains only as compatibility for
-existing drafts and immutable versions; it cannot be selected for another Post.
+The Post template registry contains only `phone_metrics` at 1080×1350. Unknown
+or retired IDs fail at the registry boundary and have no compatibility renderer.
 
 Phone Metrics exposes independent visibility toggles for its canonical
 upper-left and in-phone Natal lock-ups. Both are shown by default and remain
 renderer-owned, so owners can omit either mark without replacing its artwork.
 
-Both templates expose an independent bounded font-family and font-size control
+The template exposes an independent bounded font-family and font-size control
 for every editable semantic text role. The catalog provides Inter, Roboto
 Condensed, Manrope, Montserrat, Source Sans 3, Oswald, Cormorant Garamond,
 Cormorant Garamond Italic, Lora, and Lora Italic. Renderer-owned phone chrome,

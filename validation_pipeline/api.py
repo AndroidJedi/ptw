@@ -11,7 +11,6 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 
 from .config import Settings
-from .images import PexelsClient
 from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import StructuredBridge
 from .repository import ValidationRepository
@@ -36,7 +35,7 @@ from .instagram_validation_routes import instagram_validation_router
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
-from .studio_workspace import UniversalStudioWorkspace
+from .studio_workspace import PostStudioWorkspace
 from .creative_analytics import CreativeAnalyticsService, DatabaseCreativeAnalyticsAuthority
 from .creative_analytics_routes import (
     creative_analytics_owner_router, creative_analytics_public_router,
@@ -51,7 +50,7 @@ def create_studio_creative_service(
     *,
     structured_provider: StructuredBridge | None = None,
     studio_renderer: StudioRenderer | None = None,
-    studio_workspace: UniversalStudioWorkspace | None = None,
+    studio_workspace: PostStudioWorkspace | None = None,
 ) -> StudioCreativeService:
     bridge = structured_provider or StructuredBridge(
         settings.bridge_url, settings.bridge_token, settings.model,
@@ -61,14 +60,12 @@ def create_studio_creative_service(
     image_provider = ResultBridgePhoneScreenImageProvider(
         settings.bridge_url, settings.bridge_token, settings.model,
     )
-    pexels = PexelsClient(settings.pexels_api_key)
     if studio_workspace is not None:
         workspace_factory = lambda _path: studio_workspace
     else:
         workspace_factory = lambda path: DatabaseCreativeWorkspace(
-            UniversalStudioWorkspace(
-                path, renderer=renderer, pexels=pexels,
-                image_provider=image_provider,
+            PostStudioWorkspace(
+                path, renderer=renderer, image_provider=image_provider,
             ),
             authority.repository, path.name,
         )
@@ -87,7 +84,7 @@ def create_app(
     repository: ValidationRepository | None = None,
     runner: ValidationRunner | None = None,
     studio_renderer: StudioRenderer | None = None,
-    studio_workspace: UniversalStudioWorkspace | None = None,
+    studio_workspace: PostStudioWorkspace | None = None,
     studio_creative_service: StudioCreativeService | None = None,
     landing_page_service: LandingService | None = None,
     landing_publication_service: Any | None = None,

@@ -131,9 +131,9 @@ class LandingAuthorityTests(unittest.TestCase):
             store.append("briefs", brief_id, {"brief_id": brief_id, "project_id": project_id, "created_at": "2026-01-01T00:00:00Z"})
             store.append("studio_creatives", creative_id, {
                 "creative_id": creative_id, "project_id": project_id, "source_brief_id": brief_id,
-                "template_id": "universal_ad", "created_at": "2026-01-01T00:00:00Z",
+                "template_id": "phone_metrics", "created_at": "2026-01-01T00:00:00Z",
             })
-            version_path = root / "studio" / "creatives" / creative_id / "versions" / "universal_ad_v1.json"
+            version_path = root / "studio" / "creatives" / creative_id / "versions" / "phone_metrics_v1.json"
             version_path.parent.mkdir(parents=True)
             version_path.write_text(json.dumps({
                 "version": 1, "version_sha256": "a" * 64,
@@ -206,6 +206,8 @@ class LandingAuthorityTests(unittest.TestCase):
     def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:
         from validation_pipeline.landing_pages import landing_composition_payload
         from validation_pipeline.landing_workspace import landing_catalog
+        from validation_pipeline.post_templates import POST_TEMPLATE_REGISTRY
+        identity = POST_TEMPLATE_REGISTRY.get("phone_metrics").identity
         skills = {
             "project": {"skill_snapshot_id": "project", "rules": []},
             "global": {"skill_snapshot_id": "global", "rules": []},
@@ -215,9 +217,11 @@ class LandingAuthorityTests(unittest.TestCase):
             landing_id="01900000-0000-7000-8000-000000000001",
             approved_product_brief={"language": "en"},
             source_post_snapshot={
-                "template_id": "universal_ad", "content": {"hero_title": "Hello"},
+                "template_id": "phone_metrics", "content": {"hero_title": "Hello"},
                 "configuration": {"must_not_reach_ai": True}, "assets": ["large"],
                 "version_sha256": "a" * 64,
+                "template_version": identity.template_version,
+                "template_sha256": identity.template_sha256,
             },
             content_defaults=DEFAULT_CONTENT,
             active_creative_skills=skills,
@@ -226,7 +230,16 @@ class LandingAuthorityTests(unittest.TestCase):
         self.assertEqual("ptw.landing.catalog.v2", payload["live_landing_catalog"]["schema"])
         self.assertNotIn("configuration", payload["source_post_copy"])
         self.assertNotIn("assets", payload["source_post_copy"])
-        self.assertEqual(skills, payload["active_creative_skills"])
+        self.assertEqual({
+            "template_id": identity.template_id,
+            "template_version": identity.template_version,
+            "template_sha256": identity.template_sha256,
+        }, payload["source_post_template_reference"])
+        self.assertEqual(
+            skills["precedence"], payload["active_creative_skills"]["precedence"],
+        )
+        self.assertEqual([], payload["active_creative_skills"]["project"]["rules"])
+        self.assertEqual(0, payload["active_creative_skills"]["global"]["omitted_rule_count"])
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_save_approve_learning_entrypoint_is_retired(self):
@@ -478,18 +491,21 @@ class LandingDesignTests(unittest.TestCase):
             change_optional_controls = False
 
             def call(self, **kwargs):
-                editor = kwargs["input_payload"]["current_editor_state"]
-                configuration = deepcopy(editor["configuration"])
-                content = deepcopy(editor["content"])
-                content["hero"]["title"] = "Agent-adjusted Landing headline"
+                edits = [{
+                    "path": "content.hero.title",
+                    "value": "Agent-adjusted Landing headline",
+                }]
                 if self.change_optional_controls:
-                    configuration["presentation"]["spacing"] = "airy"
-                    content["app_feature"]["title"] = "Agent-adjusted app feature"
+                    edits.extend((
+                        {"path": "configuration.presentation.spacing", "value": "airy"},
+                        {"path": "content.app_feature.title", "value": "Agent-adjusted app feature"},
+                    ))
                 if self.change_contact:
-                    content["contacts"]["email"] = "invented@example.test"
+                    edits.append({
+                        "path": "content.contacts.email", "value": "invented@example.test",
+                    })
                 value = {
-                    "configuration": configuration,
-                    "content": content, "image_actions": [],
+                    "edits": edits, "image_actions": [],
                     "reply": "Adjusted the Landing hierarchy.",
                 }
                 return {
@@ -538,11 +554,11 @@ class LandingDesignTests(unittest.TestCase):
             )
             self.assertEqual("airy", expanded["configuration"]["presentation"]["spacing"])
             self.assertEqual("Agent-adjusted app feature", expanded["content"]["app_feature"]["title"])
-            self.assertIn("configuration.presentation", expanded["changed_paths"])
-            self.assertIn("content.app_feature", expanded["changed_paths"])
+            self.assertIn("configuration.presentation.spacing", expanded["changed_paths"])
+            self.assertIn("content.app_feature.title", expanded["changed_paths"])
             provider.change_optional_controls = False
             provider.change_contact = True
-            with self.assertRaisesRegex(ValueError, "contact endpoints"):
+            with self.assertRaisesRegex(ValueError, "edit path"):
                 service.manual_agent_edit(
                     project_id, landing_id,
                     request_id="01900000-0000-7000-8000-000000000015",
@@ -608,7 +624,7 @@ class LandingDesignTests(unittest.TestCase):
                     "landing_id": landing_id, "project_id": project_id,
                     "source_brief_id": brief_id, "status": "queued",
                     "source_post_snapshot": {
-                        "template_id": "universal_ad",
+                        "template_id": "phone_metrics",
                         "configuration": {"must_not_reach_ai": True},
                         "content": {"hero_title": "Frozen source copy"},
                         "assets": ["must_not_reach_ai"], "generation": {},
@@ -674,7 +690,7 @@ class LandingDesignTests(unittest.TestCase):
         from validation_pipeline.landing_design import DEFAULT_IMAGE_DIRECTIONS, PHONE_HERO_STYLE_DIRECTIVES, LANDING_BACKGROUND_DIRECTIVES
         from validation_pipeline.landing_pages import LandingService
         service = object.__new__(LandingService)
-        page = {'source_post_snapshot': {'template_id': 'universal_ad', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+        page = {'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
         for style, directive in PHONE_HERO_STYLE_DIRECTIVES.items():
             for background, treatment in LANDING_BACKGROUND_DIRECTIVES.items():
                 config = {**deepcopy(DEFAULT_CONFIGURATION), 'image_directions': deepcopy(DEFAULT_IMAGE_DIRECTIONS)}
@@ -707,7 +723,7 @@ class LandingDesignTests(unittest.TestCase):
             service.summary = Mock(return_value={})
             service._workspace = Mock(return_value=workspace)
             service.authority = Mock()
-            service.authority.get_page.return_value = {'source_post_snapshot': {'template_id': 'universal_ad', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+            service.authority.get_page.return_value = {'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
             generated = service.mutate('project', 'page', 'generate_visual', base_sha256=workspace.detail()['state_sha256'], slot='hero_visual', visual_direction='A paper cabinet')
             self.assertIn('Handmade tactile materials', provider.generate.call_args.args[0])
             raw = (workspace.assets / f"{generated['assets'][0]['sha256']}.png").read_bytes()

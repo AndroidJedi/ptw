@@ -13,7 +13,7 @@ from validation_pipeline.local_brief_store import LocalBriefStore, sha256_json, 
 from validation_pipeline.studio_creatives import (
     LocalStudioAuthority, StudioCreativeService, creative_generation_schema,
 )
-from validation_pipeline.studio_workspace import UniversalStudioWorkspace
+from validation_pipeline.studio_workspace import PostStudioWorkspace
 
 
 PHONE_DIRECTION = {
@@ -60,31 +60,39 @@ class FakeStructuredProvider:
                 "invocation": {"provider": "fake", "model": "test-composer"},
             }
         if request["mode"] == "studio_manual_edit":
-            editor = request["input_payload"]["current_editor_state"]
-            configuration = deepcopy(editor["configuration"])
+            current = request["input_payload"]["current_editable_values"]
+            if "content.hero_title" not in current:
+                raise AssertionError("manual Agent payload omitted the editable headline")
+            edits = [{"path": "content.hero_title", "value": "Owner-directed agent headline"}]
             if self.manual_logo_colors:
-                configuration["logo"].update(self.manual_logo_colors)
+                edits.extend(
+                    {"path": f"configuration.logo.{field}", "value": value}
+                    for field, value in self.manual_logo_colors.items()
+                )
             if request["input_payload"]["surface"] == "post:phone_metrics":
                 if "device_enabled" in self.manual_phone_update:
-                    configuration["device"]["enabled"] = self.manual_phone_update["device_enabled"]
+                    edits.append({"path": "configuration.device.enabled", "value": self.manual_phone_update["device_enabled"]})
                 if "visual_mode" in self.manual_phone_update:
-                    configuration["visual_mode"] = self.manual_phone_update["visual_mode"]
+                    edits.append({"path": "configuration.visual_mode", "value": self.manual_phone_update["visual_mode"]})
                 if self.manual_phone_screen_logo is not None:
-                    configuration["phone_screen"]["logo_enabled"] = self.manual_phone_screen_logo
-            content = deepcopy(editor["content"])
-            content["hero_title"] = "Owner-directed agent headline"
+                    edits.append({"path": "configuration.phone_screen.logo_enabled", "value": self.manual_phone_screen_logo})
             if self.manual_phone_stats is not None:
-                content["stats"] = deepcopy(self.manual_phone_stats)
+                for index, stat in enumerate(self.manual_phone_stats):
+                    edits.extend((
+                        {"path": f"content.stats[{index}].value", "value": stat["value"]},
+                        {"path": f"content.stats[{index}].label", "value": stat["label"]},
+                    ))
+            direction = self.manual_creative_direction
+            if direction:
+                edits.extend((
+                    {"path": "creative_direction.style", "value": direction["style"]},
+                    {"path": "creative_direction.background", "value": direction["background"]},
+                ))
             response = {
-                "configuration": configuration,
-                "content": content,
+                "edits": edits,
                 "image_actions": deepcopy(self.manual_image_actions),
                 "reply": "Adjusted the requested editor controls.",
             }
-            if request["input_payload"]["surface"] == "post:phone_metrics":
-                response["creative_direction"] = deepcopy(
-                    self.manual_creative_direction or editor["creative_direction"]
-                )
             return {
                 "response": response,
                 "invocation": {"provider": "fake", "model": "test-agent"},
@@ -127,7 +135,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         repository = Path(__file__).resolve().parents[2]
         self.service = StudioCreativeService(
             root=self.root / "studio", authority=self.authority,
-            workspace_factory=lambda path: UniversalStudioWorkspace(
+            workspace_factory=lambda path: PostStudioWorkspace(
                 path, image_provider=self.images,
             ),
             structured_provider=self.provider,
@@ -180,19 +188,12 @@ class StudioCreativeServiceTests(unittest.TestCase):
         })
         return brief_id
 
-    def generate_creative(self, template_id: str = "universal_ad"):
+    def generate_creative(self, template_id: str = "phone_metrics"):
         project_id, brief_id = self.approved_brief()
-        if template_id == "universal_ad":
-            creative, created = self.authority.create_creative(
-                project_id=project_id, brief_id=brief_id, template_id=template_id,
-                requested_by="test", origin="brief_generation",
-            )
-            self.service._initialize_workspace(creative)
-        else:
-            creative, created = self.service.reserve_from_brief(
-                brief_id=brief_id, template_id=template_id, requested_by="test",
-                creative_direction=PHONE_DIRECTION,
-            )
+        creative, created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id=template_id, requested_by="test",
+            creative_direction=PHONE_DIRECTION,
+        )
         self.assertTrue(created)
         self.service.generate(creative["creative_id"])
         return project_id, brief_id, self.service.detail(project_id, creative["creative_id"])
@@ -210,38 +211,6 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertNotEqual(first_project, second_project)
         with self.assertRaises(KeyError):
             self.service.detail(second_project, first["creative_id"])
-
-    def test_retired_universal_template_reconciles_existing_but_cannot_create_more(self) -> None:
-        project_id, brief_id = self.approved_brief()
-        legacy, created = self.authority.create_creative(
-            project_id=project_id, brief_id=brief_id, template_id="universal_ad",
-            requested_by="test", origin="brief_generation",
-        )
-        self.assertTrue(created)
-        self.service._initialize_workspace(legacy)
-
-        existing, created = self.service.reserve_from_brief(
-            brief_id=brief_id, template_id="universal_ad", requested_by="test",
-        )
-        self.assertFalse(created)
-        self.assertEqual(legacy["creative_id"], existing["creative_id"])
-        with self.assertRaisesRegex(ValueError, "Universal Ad is retired"):
-            self.service.reserve_from_brief(
-                brief_id=brief_id, template_id="universal_ad", requested_by="test",
-                additional=True,
-            )
-        legacy_detail = self.service.detail(project_id, legacy["creative_id"])
-        with self.assertRaisesRegex(ValueError, "Universal Ad is retired"):
-            self.service.mutate(
-                project_id, legacy["creative_id"], "apply_template",
-                base_sha256=legacy_detail["state_sha256"], template_id="universal_ad",
-            )
-
-        _other_project, other_brief = self.approved_brief()
-        with self.assertRaisesRegex(ValueError, "Universal Ad is retired"):
-            self.service.reserve_from_brief(
-                brief_id=other_brief, template_id="universal_ad", requested_by="test",
-            )
 
     def test_duplicate_first_creative_reservation_is_idempotent(self) -> None:
         project_id, brief_id = self.approved_brief()
@@ -298,9 +267,11 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual("studio_manual_edit", call["mode"])
         self.assertEqual("studio_screenshot_1", call["input_artifacts"][0]["name"])
         self.assertNotIn("bytes_base64", call["input_payload"]["image_tools"]["screenshot_references"][0])
-        logo_schema = call["output_schema"]["properties"]["configuration"]["properties"]["logo"]["properties"]
-        self.assertNotIn("enum", logo_schema["symbol_color"])
-        self.assertEqual(r"^#[0-9A-Fa-f]{6}$", logo_schema["name_color"]["pattern"])
+        edit_paths = call["output_schema"]["properties"]["edits"]["items"]["properties"]["path"]["enum"]
+        self.assertIn("configuration.logo.symbol_color", edit_paths)
+        self.assertIn("configuration.logo.name_color", edit_paths)
+        self.assertNotIn("live_catalog", call["input_payload"])
+        self.assertNotIn("current_editor_state", call["input_payload"])
 
         self.provider.manual_logo_colors = {
             "symbol_color": "#112233", "name_color": "#445566",
@@ -332,25 +303,6 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertTrue(result["image_actions"][0]["enhance_current"])
         self.assertEqual(PHONE_DIRECTION, result["creative_direction"])
         self.assertEqual(detail["state_sha256"], self.service.detail(project_id, detail["creative_id"])["state_sha256"])
-
-    def test_universal_agent_ignores_stale_phone_direction_provenance_in_changed_paths(self) -> None:
-        project_id, _brief_id, detail = self.generate_creative("universal_ad")
-        creative = self.authority.get_creative(detail["creative_id"])
-        self.authority.update_creative(
-            detail["creative_id"],
-            generation={
-                **dict(creative.get("generation") or {}),
-                "creative_direction": deepcopy(PHONE_DIRECTION),
-            },
-        )
-        result = self.service.manual_agent_edit(
-            project_id, detail["creative_id"], request_id=new_uuid7(),
-            base_sha256=detail["state_sha256"], message="Make the headline clearer",
-            history=[], configuration=detail["configuration"],
-            content=detail["content"], screenshots=[],
-        )
-        self.assertIn("content.hero_title", result["changed_paths"])
-        self.assertNotIn("creative_direction", result["changed_paths"])
 
     def test_phone_agent_contract_maps_hide_restore_image_only_and_style_without_generation(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")
@@ -436,10 +388,10 @@ class StudioCreativeServiceTests(unittest.TestCase):
             item["value"] for item in result["content"]["stats"]
         ])
         self.assertEqual("phone_screen", result["image_actions"][0]["slot"])
-        self.assertEqual(
-            ["phone", "image"],
-            self.provider.calls[-1]["output_schema"]["properties"]["configuration"]
-            ["properties"]["visual_mode"]["enum"],
+        self.assertIn(
+            "configuration.visual_mode",
+            self.provider.calls[-1]["output_schema"]["properties"]["edits"]
+            ["items"]["properties"]["path"]["enum"],
         )
         self.assertEqual({
             "change_visible_artwork", "artwork_without_phone_hardware",
@@ -619,31 +571,6 @@ class StudioCreativeServiceTests(unittest.TestCase):
             configuration["metric_cards"]["items"]["properties"]["text_color"]["pattern"],
         )
 
-    def test_universal_composer_schema_mirrors_registered_renderer_bounds(self) -> None:
-        project_id, brief_id = self.approved_brief()
-        creative, _created = self.authority.create_creative(
-            project_id=project_id, brief_id=brief_id, template_id="universal_ad",
-            requested_by="test", origin="brief_generation",
-        )
-        self.service._initialize_workspace(creative)
-        detail = self.service._workspace(creative["creative_id"]).detail()
-        schema = creative_generation_schema(detail)
-        configuration = schema["properties"]["configuration"]["properties"]
-        background = configuration["background"]["properties"]
-        self.assertEqual({"minimum": 0, "maximum": 0.85}, {
-            key: background["overlay_opacity"][key]
-            for key in ("minimum", "maximum")
-        })
-        self.assertEqual(
-            ["solid", "texture", "image"], background["mode"]["enum"],
-        )
-        self.assertEqual(
-            r"^#[0-9A-Fa-f]{6}$", background["color"]["pattern"],
-        )
-        content = schema["properties"]["content"]["properties"]
-        self.assertEqual(280, content["supporting_text"]["maxLength"])
-        self.assertEqual(100, content["bullets"]["items"]["maxLength"])
-
     def test_logo_colors_are_locked_to_the_inherited_project_default(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
         configuration = creative_generation_schema(detail)["properties"]["configuration"]["properties"]
@@ -655,9 +582,9 @@ class StudioCreativeServiceTests(unittest.TestCase):
         )
 
         existing_brief = self.add_approved_brief(project_id, "Existing draft")
-        existing, created = self.authority.create_creative(
-            project_id=project_id, brief_id=existing_brief, template_id="universal_ad",
-            requested_by="test", origin="brief_generation",
+        existing, created = self.service.reserve_from_brief(
+            brief_id=existing_brief, template_id="phone_metrics",
+            requested_by="test", creative_direction=PHONE_DIRECTION,
         )
         self.assertTrue(created)
         self.service._initialize_workspace(existing)
@@ -698,9 +625,9 @@ class StudioCreativeServiceTests(unittest.TestCase):
         )
 
         future_brief = self.add_approved_brief(project_id, "Future draft")
-        future, created = self.authority.create_creative(
-            project_id=project_id, brief_id=future_brief, template_id="universal_ad",
-            requested_by="test", origin="brief_generation",
+        future, created = self.service.reserve_from_brief(
+            brief_id=future_brief, template_id="phone_metrics",
+            requested_by="test", creative_direction=PHONE_DIRECTION,
         )
         self.assertTrue(created)
         self.service._initialize_workspace(future)
@@ -728,9 +655,9 @@ class StudioCreativeServiceTests(unittest.TestCase):
             "created_at": "9999-01-01T00:00:00Z",
         })
 
-        creative, _created = self.authority.create_creative(
-            project_id=project_id, brief_id=_brief_id, template_id="universal_ad",
-            requested_by="test", origin="brief_generation",
+        creative, _created = self.service.reserve_from_brief(
+            brief_id=_brief_id, template_id="phone_metrics", requested_by="test",
+            creative_direction=PHONE_DIRECTION,
         )
         self.service._initialize_workspace(creative)
         generated = self.service.generate(creative["creative_id"])
@@ -835,11 +762,11 @@ class StudioCreativeServiceTests(unittest.TestCase):
         project_id, _brief_id, detail = self.generate_creative()
         workspace = self.service._workspace(detail["creative_id"])
         legacy = deepcopy(detail["configuration"])
-        legacy["schema"] = "ptw.studio.universal-ad-config.v7"
+        legacy["schema"] = "ptw.studio.phone-metrics-config.v12"
         legacy["logo"].pop("symbol_color")
         legacy["logo"].pop("name_color")
         workspace._atomic_json(workspace.root / "configuration.json", legacy)  # pylint: disable=protected-access
-        legacy_sha256 = workspace._legacy_universal_state_sha256()  # pylint: disable=protected-access
+        legacy_sha256 = workspace._legacy_phone_state_sha256()  # pylint: disable=protected-access
         baseline = deepcopy(self.authority.get_creative(detail["creative_id"])["learning_baseline"])
         baseline["configuration"] = legacy
         baseline["template_sha256"] = "0" * 64

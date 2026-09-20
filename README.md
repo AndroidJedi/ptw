@@ -8,12 +8,13 @@ approved Brief → project creative → Studio AI draft → Save/Approve checkpo
 approved performance data → explicit Analytics run → reviewed Creative Skills
 ```
 
-The active Studio catalog provides `phone_metrics`. Historical `universal_ad`
-workspaces and immutable versions remain readable/editable for authority
-preservation, but Universal Ad cannot be selected, cloned, or generated again.
-Creatives, edit checkpoints, typed Creative Skills, assets, and immutable versions are
-Project-scoped. The former Social Post automation, review/export/publication
-workflow, candidate/critic modes, singleton Studio, and compatibility migrations
+The Post Studio registry provides only `phone_metrics`; unsupported template IDs
+fail at the registry boundary and have no renderer or editor compatibility path.
+Creatives, edit checkpoints, typed Creative Skills, assets, and immutable versions
+are Project-scoped. A preservation-safe constraint rejects new unsupported
+template rows without rewriting historical data; physical storage names remain
+unchanged. The former Social Post automation,
+review/export/publication workflow, candidate/critic modes, and singleton Studio
 are absent.
 
 ## Run locally

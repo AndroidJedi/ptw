@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from validation_pipeline.provider import (
     BRIDGE_CONCURRENT_SLOT_LIMIT, BRIDGE_IDEMPOTENCY_KEY_LIMIT,
-    BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge,
+    BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, STRUCTURED_MODE_BUDGETS,
+    StructuredBridge, enforce_structured_response_budget,
 )
 
 
@@ -105,6 +106,7 @@ class StructuredBridgeTests(unittest.TestCase):
                 "system_prompt", "input_payload", "output_schema",
             )),
         )
+        self.assertGreater(value["invocation"]["response_bytes"], 0)
 
     def test_oversized_structured_contract_is_rejected_before_submission(self) -> None:
         bridge = FakeBridge()
@@ -117,6 +119,25 @@ class StructuredBridgeTests(unittest.TestCase):
                 response_validator=lambda response: response,
             )
         self.assertIsNone(bridge.posted)
+
+    def test_studio_modes_reject_large_queries_and_responses_before_reuse(self) -> None:
+        bridge = FakeBridge()
+        with self.assertRaisesRegex(ValueError, "input payload exceeds its compact byte budget"):
+            bridge.call(
+                mode="studio_manual_edit", system_prompt="Edit bounded controls.",
+                input_payload={
+                    "message": "x" * STRUCTURED_MODE_BUDGETS["studio_manual_edit"]["input_payload"],
+                },
+                output_schema={"type": "object"}, idempotency_key="studio-agent:large",
+                prompt_version="studio-agent-v4", response_validator=lambda response: response,
+            )
+        self.assertIsNone(bridge.posted)
+
+        with self.assertRaisesRegex(ValueError, "response exceeds its compact byte budget"):
+            enforce_structured_response_budget(
+                "studio_creative_generation",
+                {"value": "x" * STRUCTURED_MODE_BUDGETS["studio_creative_generation"]["response"]},
+            )
 
     def test_capabilities_match_the_deployed_provider_contract(self) -> None:
         value = FakeBridge().capabilities()

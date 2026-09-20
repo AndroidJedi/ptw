@@ -14,7 +14,7 @@ from PIL import Image
 from validation_pipeline.studio_repository import (
     DatabaseCreativeWorkspace, DatabaseStudioAuthority,
 )
-from validation_pipeline.studio_workspace import UniversalStudioWorkspace
+from validation_pipeline.studio_workspace import PostStudioWorkspace
 
 
 class MemoryStudioRepository:
@@ -113,7 +113,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
                     def restart():
                         restored_root = fixture.root / ("restore-" + str(len(list(fixture.root.iterdir()))))
                         fixture.service._workspaces[cid] = DatabaseCreativeWorkspace(
-                            UniversalStudioWorkspace(restored_root), repository, cid,
+                            PostStudioWorkspace(restored_root), repository, cid,
                         )
 
                     restart()
@@ -161,7 +161,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
     def test_legacy_phone_restore_is_read_only_and_preserves_approved_png(self):
         repository = MemoryStudioRepository()
         with tempfile.TemporaryDirectory() as original, tempfile.TemporaryDirectory() as restored_root:
-            workspace = UniversalStudioWorkspace(original, image_provider=Provider())
+            workspace = PostStudioWorkspace(original, image_provider=Provider())
             phone = workspace.apply_template(base_sha256=workspace.detail()["state_sha256"], template_id="phone_metrics")
             generated = workspace.generate_phone_screen(base_sha256=phone["state_sha256"], visual_direction="A glass sculpture.")
             workspace.approve_version(state_sha256=generated["state_sha256"], change_note="Historical image")
@@ -178,7 +178,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
                 state_sha256=old_digest, template_id="phone_metrics", template_version=22, template_sha256="a"*64)
             original_files = dict(repository.files)
             for _ in range(2):
-                restored = DatabaseCreativeWorkspace(UniversalStudioWorkspace(restored_root), repository, repository.workspace_id)
+                restored = DatabaseCreativeWorkspace(PostStudioWorkspace(restored_root), repository, repository.workspace_id)
                 self.assertNotEqual(old_digest, restored.detail()["state_sha256"])
                 self.assertEqual(png, restored.version_render(1)["bytes"])
                 self.assertEqual(original_files, repository.files)
@@ -186,7 +186,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
             content = json.loads(repository.files["content.json"])
             content["hero_title"] = "Unapproved changed content"
             repository.files["content.json"] = json.dumps(content).encode()
-            corrupt = DatabaseCreativeWorkspace(UniversalStudioWorkspace(restored_root), repository, repository.workspace_id)
+            corrupt = DatabaseCreativeWorkspace(PostStudioWorkspace(restored_root), repository, repository.workspace_id)
             with self.assertRaisesRegex(RuntimeError, "state digest"):
                 corrupt.detail()
 
@@ -236,7 +236,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
         repository = MemoryStudioRepository()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             studio = DatabaseCreativeWorkspace(
-                UniversalStudioWorkspace(first, image_provider=Provider()), repository,
+                PostStudioWorkspace(first, image_provider=Provider()), repository,
                 repository.workspace_id,
             )
             initial = studio.detail()
@@ -252,7 +252,7 @@ class DatabaseCreativeWorkspaceTests(unittest.TestCase):
             )
 
             restored = DatabaseCreativeWorkspace(
-                UniversalStudioWorkspace(second, image_provider=Provider()), repository,
+                PostStudioWorkspace(second, image_provider=Provider()), repository,
                 repository.workspace_id,
             ).detail()
 

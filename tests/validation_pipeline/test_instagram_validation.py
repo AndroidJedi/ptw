@@ -79,7 +79,7 @@ class Sources:
     def source(self, project_id, creative_id, version):
         self.project(project_id); index = self.creative_ids.index(creative_id)
         if version != 1: raise KeyError(version)
-        return {"creative_id": creative_id, "creative_ordinal": index + 1, "template_id": "universal_ad",
+        return {"creative_id": creative_id, "creative_ordinal": index + 1, "template_id": "phone_metrics",
                 "version": 1, "version_id": self.version_ids[index], "version_sha256": "a" * 64,
                 "render_sha256": "b" * 64, "change_note": "approved",
                 "defaults": {"headline": f"Idea {index + 1}", "primary_text": "Support\n\nOffer",

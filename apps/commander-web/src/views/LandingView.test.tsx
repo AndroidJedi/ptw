@@ -76,7 +76,7 @@ it('offers only immutable approved Post versions as Landing sources', async () =
       if (path.endsWith('/pages')) return { items: [] }
       if (path.endsWith('/source-posts')) return { items: [{
         creative_id: creativeId, version: 2, version_sha256: 'a'.repeat(64),
-        template_id: 'universal_ad', source_brief_id: '44444444-4444-4444-8444-444444444444',
+        template_id: 'phone_metrics', source_brief_id: '44444444-4444-4444-8444-444444444444',
       }] }
       throw new Error(`unexpected GET ${path}`)
     }),
@@ -86,7 +86,7 @@ it('offers only immutable approved Post versions as Landing sources', async () =
   const onLanding = vi.fn()
 
   render(<LandingView api={api} language="en" projectId={projectId} onLanding={onLanding} />)
-  const source = await screen.findByRole('button', { name: /universal_ad.*v2/i })
+  const source = await screen.findByRole('button', { name: /phone_metrics.*v2/i })
   fireEvent.click(source)
 
   await waitFor(() => expect(post).toHaveBeenCalledWith(

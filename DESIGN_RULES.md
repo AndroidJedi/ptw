@@ -36,11 +36,9 @@ Updated: 2026-09-04
 ## Post Studio
 
 - Every creative belongs to the selected Project and one approved Brief.
-- The active template is 4:5 `phone_metrics`. Historical square `universal_ad`
-  workspaces remain compatible so saved Posts and immutable versions never
-  disappear, but Universal Ad is absent from selection, cloning, variants, and
-  template replacement. Template code remains common; a creative stores only
-  bounded state and the selected template version/digest.
+- The registered Post template is 4:5 `phone_metrics`. Retired templates are not
+  compatibility targets. A creative stores only bounded state and the selected
+  template version/digest behind the Post template registry.
 - Show generation progress as queued, composing, generating image when
   applicable, then editable draft. Failures expose stage-specific retry.
 - Natal is fixed. Arbitrary primitive edits, template imports, owner logo
@@ -96,7 +94,7 @@ Updated: 2026-09-04
 - Approved Post versions support single-image Instagram publication and export.
   Website and Direct ads stay in Ads; all new Meta objects are PAUSED. Launch and
   schedule changes happen in Ads Manager. Export never implies publication.
-- Retain the promotional CTA inside both Post renderers and its editor controls.
+- Retain the promotional CTA inside the registered Post renderer and its editor controls.
   The website ad’s native Learn more CTA is separate and links to the server-resolved
   published Landing. Organic images do not gain clickable buttons.
 - Bare Studio mutations, `/api/v1/posts`, historical payload adapters, and

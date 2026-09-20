@@ -99,7 +99,7 @@ function phoneDetail() {
       byte_count: imageBytes[0].length, source: { visual_direction: 'Original translucent form.' },
       selected: true,
     }],
-    pexels_available: false, phone_screen_generation_available: true, versions: [],
+    phone_screen_generation_available: true, versions: [],
   }
 }
 
@@ -270,7 +270,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const inspectorGeometry = await page.locator('.phone-metrics-controls').evaluate(root => ({
     width: root.clientWidth,
     scrollWidth: root.scrollWidth,
-    actionColumns: Array.from(root.querySelectorAll<HTMLElement>('.phone-action-button-input .universal-field-grid'))
+    actionColumns: Array.from(root.querySelectorAll<HTMLElement>('.phone-action-button-input .studio-field-grid'))
       .map(grid => getComputedStyle(grid).gridTemplateColumns.split(' ').length),
   }))
   expect(inspectorGeometry.scrollWidth).toBeLessThanOrEqual(inspectorGeometry.width)

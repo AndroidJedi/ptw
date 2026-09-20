@@ -245,104 +245,12 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
   created_at: string
 }
 
-export type StudioUniversalFontFamily =
+export type StudioFontFamily =
   | 'Inter' | 'Roboto Condensed' | 'Manrope' | 'Montserrat' | 'Source Sans 3'
   | 'Oswald' | 'Cormorant Garamond' | 'Cormorant Garamond Italic'
   | 'Lora' | 'Lora Italic'
 
-export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7' | 'ptw.studio.universal-ad-config.v8'
-  background: {
-    mode: 'solid' | 'texture' | 'image'
-    color: string
-    texture: 'grain' | 'stone' | 'marble' | 'concrete' | 'granite' | 'slate' | 'travertine'
-    texture_intensity: number
-    image_layout: 'full' | 'left' | 'right' | 'top' | 'bottom'
-    image_percent: 25 | 75
-    image_fit: 'cover' | 'contain'
-    focal_x: number
-    focal_y: number
-    overlay_color: string
-    overlay_opacity: number
-  }
-  typography: {
-    font_family: StudioUniversalFontFamily
-    supporting_font_family: StudioUniversalFontFamily
-    offer_font_family: StudioUniversalFontFamily
-    benefits_font_family: StudioUniversalFontFamily
-    hero_size: number
-    hero_weight: number
-    supporting_size: number
-    offer_size: number
-    benefits_size: number
-    text_color: string
-    alignment: 'left' | 'center'
-  }
-  layout: {
-    content_x: number
-    content_y: number
-    content_width: number
-    gap: number
-  }
-  hero_title?: { enabled: boolean }
-  supporting_text?: { enabled: boolean }
-  offer?: { enabled: boolean }
-  bullets: { enabled: boolean; style: 'check' | 'circle' | 'circle_outline'; items_enabled?: [boolean, boolean, boolean] }
-  cta: {
-    enabled?: boolean
-    style: 'filled' | 'gradient' | 'reverse' | 'link' | 'outlined'
-    position: 'below_text' | 'bottom_left' | 'bottom_right'
-    background_color: string
-    text_color: string
-    radius: number
-    font_family: StudioUniversalFontFamily
-    font_size: number
-  }
-  sticker: {
-    enabled: boolean
-    position:
-      | 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right'
-      | 'right_edge' | 'bottom_edge' | 'bullet_list' | 'hero_title' | 'cta'
-    rotation: number
-    width: number
-    object_scale: number
-    offset_right: number
-    offset_bottom: number
-  }
-  logo: {
-    enabled: boolean
-    symbol_color: string
-    name_color: string
-    position: 'top_left' | 'top_right'
-    width: number
-    background_enabled: boolean
-    background_color: string
-  }
-}
-
-export interface StudioUniversalContent {
-  schema: 'ptw.studio.universal-ad-content.v2'
-  hero_title: string
-  supporting_text: string
-  offer: string
-  bullets: string[]
-  cta: string
-}
-
-export interface StudioUniversalAssetSummary {
-  asset_id?: string
-  slot: 'background_image' | 'sticker_object' | 'logo'
-  role: 'background' | 'sticker' | 'logo'
-  description: string
-  allowed_mime_types: string[]
-  available: boolean
-  mime_type: string | null
-  sha256: string | null
-  byte_count: number | null
-  source: Record<string, unknown> | null
-}
-
-export interface StudioUniversalVersionSummary {
+export interface StudioVersionSummary {
   version_id?: string
   version: number
   state_sha256: string
@@ -351,99 +259,31 @@ export interface StudioUniversalVersionSummary {
   change_note: string
 }
 
-export interface StudioUniversalComponentDefinition {
+export interface StudioComponentDefinition {
   component_id: string
-  role: 'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'
+  role: string
   node_ids: string[]
   asset_slot_ids: string[]
   setting_ids: string[]
 }
 
-export interface StudioUniversalComponentSettings {
-  schema: 'ptw.studio.universal-ad-component-settings.v3' | 'ptw.studio.universal-ad-component-settings.v4'
-  template_id: 'universal_ad'
+export interface StudioAgentContext {
+  schema: 'ptw.studio.agent-context.v3'
+  template_id: 'phone_metrics'
   template_version: number
-  configuration_schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7' | 'ptw.studio.universal-ad-config.v8'
-  components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
-    settings: Array<{ setting_id: string; value: unknown }>
+  state_sha256: string
+  template_sha256: string
+  component_settings: { sha256: string }
+  assets: Array<{
+    slot: string
+    available: boolean
+    mime_type: string | null
+    sha256: string | null
+    source: Record<string, unknown> | null
   }>
   sha256: string
 }
 
-export interface StudioUniversalSettingDefinition {
-  setting_id: string
-  component_id: string
-  value_type: 'boolean' | 'color' | 'enum' | 'integer' | 'number' | 'structured'
-  aliases: string[]
-  minimum?: number
-  maximum?: number
-  step?: number
-  values?: Array<string | number>
-  value_aliases?: Record<string, string[]>
-}
-
-export interface StudioUniversalAgentContext {
-  schema: 'ptw.studio.universal-ad-agent-context.v2'
-  template_id: 'universal_ad'
-  template_version: number
-  state_sha256: string
-  template_sha256: string
-  component_settings: StudioUniversalComponentSettings
-  assets: Array<Pick<StudioUniversalAssetSummary, 'slot' | 'available' | 'mime_type' | 'sha256' | 'source'>>
-  sha256: string
-}
-
-export interface StudioUniversalCatalog {
-  schema: 'ptw.studio.universal-ad-catalog.v7'
-  template_id: 'universal_ad'
-  template_version: number
-  semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'>
-  components: StudioUniversalComponentDefinition[]
-  asset_slots: Record<string, {
-    role: string
-    allowed_mime_types: string[]
-    description: string
-  }>
-  setting_definitions?: StudioUniversalSettingDefinition[]
-  variation: {
-    background_modes: string[]
-    image_layouts: string[]
-    image_percents: number[]
-    texture_presets: string[]
-    bullet_styles: string[]
-    cta_styles: string[]
-    cta_positions: string[]
-    cta_font_size: { minimum: number; maximum: number; default: number }
-    sticker_positions: string[]
-    font_families: string[]
-    optional_elements: string[]
-  }
-  sha256: string
-}
-
-export interface StudioUniversalDetail {
-  workspace_id?: string
-  creative_id: string
-  project_id: string
-  source_brief_id: string
-  ordinal: number
-  origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
-  status: StudioCreativeStatus
-  generation: StudioCreativeSummary['generation']
-  approved_version_count: number
-  template_id: 'universal_ad'
-  templates: StudioTemplateSummary[]
-  schema: 'ptw.studio.workspace.v8'
-  catalog: StudioUniversalCatalog
-  state_sha256: string
-  template_sha256: string
-  configuration: StudioUniversalConfiguration
-  content: StudioUniversalContent
-  component_settings: StudioUniversalComponentSettings
-  assets: StudioUniversalAssetSummary[]
-  pexels_available: boolean
-  versions: StudioUniversalVersionSummary[]
-}
 
 export type StudioPhoneBackgroundTexture = 'none' | 'grain' | 'concrete' | 'travertine'
 export type StudioPhoneScreenTexture = 'none' | 'grain' | 'paper' | 'frosted'
@@ -462,7 +302,6 @@ export interface StudioPhoneHeroCreativeDirection {
   style: StudioPhoneHeroStyle
   background: StudioPhoneHeroBackground
 }
-export type StudioFontFamily = StudioUniversalFontFamily
 export type StudioPhoneTypographyRole =
   | 'offer' | 'hero_title' | 'supporting_text' | 'cta'
   | 'metric_value' | 'metric_label' | 'phone_title' | 'phone_buttons'
@@ -545,12 +384,18 @@ export interface StudioPhoneScreenHistoryItem {
 }
 
 export interface StudioTemplateSummary {
-  template_id: 'universal_ad' | 'phone_metrics'
+  template_id: 'phone_metrics'
   name: string
   description: string
   canvas: { width: number; height: number }
   template_version?: number
   template_sha256?: string
+  capabilities?: {
+    image_slots: string[]
+    supports_manual_agent: boolean
+    supports_generation: boolean
+    supports_preview: boolean
+  }
   creative_direction_options?: {
     schema: 'ptw.studio.phone-hero-direction.v1'
     styles: StudioPhoneHeroStyle[]
@@ -566,7 +411,7 @@ export interface StudioCreativeSummary {
   source_brief_id: string
   ordinal: number
   origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
-  template_id: 'universal_ad' | 'phone_metrics'
+  template_id: 'phone_metrics'
   template_version: number | null
   template_sha256: string | null
   status: StudioCreativeStatus
@@ -622,7 +467,7 @@ export interface StudioPhoneMetricsDetail {
     template_version: number
     canvas: { width: 1080; height: 1350 }
     semantic_roles: string[]
-    components: StudioUniversalComponentDefinition[]
+    components: StudioComponentDefinition[]
     asset_slots: Record<string, { role: string; allowed_mime_types: string[]; description: string }>
     variation: {
       optional_elements: string[]
@@ -650,12 +495,11 @@ export interface StudioPhoneMetricsDetail {
   component_settings: { sha256: string }
   assets: StudioPhoneMetricsAssetSummary[]
   phone_screen_history: StudioPhoneScreenHistoryItem[]
-  pexels_available: boolean
   phone_screen_generation_available: boolean
-  versions: StudioUniversalVersionSummary[]
+  versions: StudioVersionSummary[]
 }
 
-export type StudioCreativeDetail = (StudioUniversalDetail | StudioPhoneMetricsDetail) & StudioCreativeSummary
+export type StudioCreativeDetail = StudioPhoneMetricsDetail & StudioCreativeSummary
 
 export interface StudioManualAgentImageAction {
   slot: 'phone_screen' | 'hero_visual' | 'visual_break_visual'
@@ -700,7 +544,7 @@ export interface StudioTuneRun {
   project_idea: string
   implementation: string
   feedback: string
-  studio_context?: StudioUniversalAgentContext | null
+  studio_context?: StudioAgentContext | null
   request_sha256: string
   changed_files: string[]
   verification: string[]
@@ -774,8 +618,8 @@ export interface LandingConfiguration {
     surface_color: string
     text_color: string
     accent_color: string
-    font_family: StudioUniversalFontFamily
-    heading_font_family: StudioUniversalFontFamily
+    font_family: StudioFontFamily
+    heading_font_family: StudioFontFamily
     corner_radius: number
   }
   hero: { alignment: 'left' | 'center'; image_position: 'left' | 'right' | 'below' }
@@ -824,7 +668,7 @@ export interface LandingSummary {
 export interface LandingDetail extends LandingSummary {
   schema: 'ptw.landing.workspace.v1'
   template_id: 'project_landing'
-  catalog: { section_order: string[]; font_families: StudioUniversalFontFamily[]; theme_presets?: LandingThemePreset[] }
+  catalog: { section_order: string[]; font_families: StudioFontFamily[]; theme_presets?: LandingThemePreset[] }
   state_sha256: string
   configuration: LandingConfiguration
   content: LandingContent

@@ -21,7 +21,7 @@ const requiredMarkers = {
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
   'Validation Project workspace': 'PROJECT WORKSPACE',
   'Product Brief workspace': 'BRIEF HISTORY',
-  'single universal Studio': 'universal_ad · v',
+  'registered Post Studio template': 'Phone Metrics',
   'private Landing Studio': 'PRIVATE LANDING',
   'Landing publication control': 'PUBLIC NATAL PAGE',
   'manual Instagram launch kit': 'FIXED LAUNCH CONTRACT',

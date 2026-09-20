@@ -7,7 +7,7 @@ const projectId = '11111111-1111-4111-8111-111111111111'
 const testId = '22222222-2222-4222-8222-222222222222'
 const sources = [1, 2].map(ordinal => ({
   creative_id: `${ordinal}1111111-1111-4111-8111-111111111111`, creative_ordinal: ordinal,
-  template_id: 'universal_ad', version: 1, version_id: `${ordinal}2222222-2222-4222-8222-222222222222`,
+  template_id: 'phone_metrics', version: 1, version_id: `${ordinal}2222222-2222-4222-8222-222222222222`,
   version_sha256: String(ordinal).repeat(64), render_sha256: String(ordinal + 2).repeat(64),
   change_note: `Approved ${ordinal}`, defaults: {
     headline: `Idea ${ordinal}`, primary_text: 'Support\n\nOffer',

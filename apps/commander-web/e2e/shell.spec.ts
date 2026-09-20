@@ -9,73 +9,95 @@ const studioBasePath = `/api/v1/studio/projects/${projectId}/creatives/${creativ
 const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
 const studioComponents = [
-  ['background', ['canvas', 'background_media', 'readability_overlay'], ['background_image']],
-  ['sticker', ['sticker_object'], ['sticker_object']],
-  ['hero_title', ['hero_title'], []],
+  ['background', ['canvas'], []], ['brand', ['logo'], []],
+  ['offer', ['offer'], []], ['hero_title', ['hero_title'], []],
   ['supporting_text', ['supporting_text'], []],
-  ['offer', ['offer'], []],
-  ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
+  ['device', ['phone_device'], ['phone_screen']],
+  ['metrics', ['metric_card_1', 'metric_card_2', 'metric_card_3'], []],
   ['cta', ['cta'], []],
-  ['logo', ['logo'], ['logo']],
 ].map(([role, nodeIds, assetSlotIds]) => ({
-  component_id: `universal_ad.${role}`, role, node_ids: nodeIds,
+  component_id: `phone_metrics.${role}`, role, node_ids: nodeIds,
   asset_slot_ids: assetSlotIds, setting_ids: [],
 }))
 
 const studioDetail = {
   creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
   ordinal: 1, origin: 'brief_generation', status: 'draft', approved_version_count: 0,
-  template_id: 'universal_ad', generation: { stage: 'draft' },
+  template_id: 'phone_metrics', generation: {
+    stage: 'draft', creative_direction: {
+      schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
+    },
+  },
   schema: 'ptw.studio.workspace.v8',
+  templates: [{
+    template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition',
+    canvas: { width: 1080, height: 1350 }, template_version: 27,
+    template_sha256: 'a'.repeat(64),
+  }],
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v7', template_id: 'universal_ad', template_version: 12,
-    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
-    components: studioComponents,
-    asset_slots: {},
+    schema: 'ptw.studio.phone-metrics-catalog.v2', template_id: 'phone_metrics', template_version: 27,
+    canvas: { width: 1080, height: 1350 }, semantic_roles: [], components: studioComponents,
+    asset_slots: { phone_screen: { role: 'device_screen', allowed_mime_types: ['image/png'], description: 'Generated artwork' } },
     variation: {
-      background_modes: ['solid', 'texture', 'image'], image_layouts: ['full', 'left', 'right', 'top', 'bottom'],
-      image_percents: [25, 75],
-      texture_presets: ['grain', 'stone', 'marble', 'concrete', 'granite', 'slate', 'travertine'],
-      bullet_styles: ['check', 'circle', 'circle_outline'],
-      cta_styles: ['filled', 'gradient', 'reverse', 'link', 'outlined'],
-      cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
-      cta_font_size: { minimum: 18, maximum: 42, default: 27 },
-      sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
+      optional_elements: ['offer', 'post_logo', 'phone_logo', 'cta'], brand: 'Natal',
+      device_pose: 'front_facing_upright', device_rotation_degrees: 0,
+      background_textures: ['none', 'grain', 'concrete', 'travertine'],
+      copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
+      phone_screen_textures: ['none', 'grain', 'paper', 'frosted'],
+      metric_card_styles: ['filled', 'outlined'], metric_card_shapes: ['square', 'rounded', 'pill'],
+      phone_button_styles: ['filled', 'elevated', 'outlined', 'text'], phone_button_shapes: ['square', 'rounded', 'pill'],
       font_families: ['Inter', 'Roboto Condensed', 'Manrope', 'Montserrat', 'Source Sans 3', 'Oswald', 'Cormorant Garamond', 'Cormorant Garamond Italic', 'Lora', 'Lora Italic'],
-      optional_elements: ['sticker', 'bullet_list', 'logo'],
+      typography: {
+        offer: { minimum: 16, maximum: 42, default: 23 }, hero_title: { minimum: 42, maximum: 110, default: 76 },
+        supporting_text: { minimum: 20, maximum: 46, default: 29 }, cta: { minimum: 20, maximum: 52, default: 34 },
+        metric_value: { minimum: 20, maximum: 56, default: 43 }, metric_label: { minimum: 14, maximum: 36, default: 22 },
+        phone_title: { minimum: 24, maximum: 72, default: 55 }, phone_buttons: { minimum: 16, maximum: 36, default: 28 },
+      },
     },
     sha256: 'e'.repeat(64),
   },
   state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v8',
-    background: { mode: 'solid', color: '#F0E653', texture: 'stone', texture_intensity: 0.7, image_layout: 'full', image_percent: 75, image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
-    typography: { font_family: 'Inter', supporting_font_family: 'Inter', offer_font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, offer_size: 28, benefits_size: 26, text_color: '#111111', alignment: 'left' },
-    layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
-    bullets: { enabled: false, style: 'circle' },
-    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24, font_family: 'Inter', font_size: 27 },
-    sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
-    logo: { enabled: true, symbol_color: '#87D0DD', name_color: '#383840', position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
+    schema: 'ptw.studio.phone-metrics-config.v13', visual_mode: 'phone',
+    background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
+    copy_background: { texture: 'none' }, logo: { enabled: true, symbol_color: '#87D0DD', name_color: '#383840' },
+    offer: { enabled: true }, cta: { enabled: true, background_color: '#316CFF', text_color: '#FFFFFF' },
+    hero_title: { enabled: true, highlight_color: '#FF30E8' }, supporting_text: { enabled: true, highlight_color: '#1675F8' },
+    typography: {
+      offer: { font_family: 'Manrope', font_size: 23 }, hero_title: { font_family: 'Manrope', font_size: 76 },
+      supporting_text: { font_family: 'Manrope', font_size: 29 }, cta: { font_family: 'Manrope', font_size: 34 },
+      metric_value: { font_family: 'Manrope', font_size: 43 }, metric_label: { font_family: 'Manrope', font_size: 22 },
+      phone_title: { font_family: 'Manrope', font_size: 55 }, phone_buttons: { font_family: 'Manrope', font_size: 28 },
+    },
+    phone_screen: { texture: 'grain', logo_enabled: true, title_enabled: true },
+    metric_cards: [1, 2, 3].map(() => ({ enabled: true, style: 'filled', text_color: '#FFFFFF', background_color: '#2457C8', shape: 'rounded' })),
+    phone_buttons: [
+      { enabled: true, style: 'filled', text_color: '#FFFFFF', background_color: '#1675F8', shape: 'pill' },
+      { enabled: true, style: 'elevated', text_color: '#1675F8', background_color: '#FFFFFF', shape: 'pill' },
+      { enabled: true, style: 'text', text_color: '#1675F8', background_color: '#FFFFFF', shape: 'pill' },
+    ],
+    device: { enabled: true, x: 610, y: 90, width: 410, rotation: 0 },
   },
   content: {
-    schema: 'ptw.studio.universal-ad-content.v2', hero_title: 'PROVE THE IDEA',
-    supporting_text: 'A focused offer.', offer: 'First consultation free',
-    bullets: [], cta: 'TEST DEMAND',
+    schema: 'ptw.studio.phone-metrics-content.v2', offer: 'NATAL', hero_title: 'PROVE THE IDEA',
+    supporting_text: 'A focused offer.', cta: 'TEST DEMAND',
+    stats: [{ value: '01', label: 'Plan' }, { value: '02', label: 'Test' }, { value: '03', label: 'Learn' }],
+    phone_hero_title: 'A calmer next step', phone_buttons: ['Create account', 'Sign in', 'Maybe later'],
   },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v3', template_id: 'universal_ad',
-    template_version: 12, configuration_schema: 'ptw.studio.universal-ad-config.v8',
+    schema: 'ptw.studio.phone-metrics-component-settings.v3', template_id: 'phone_metrics',
+    template_version: 27, configuration_schema: 'ptw.studio.phone-metrics-config.v13',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
     sha256: '9'.repeat(64),
   },
   assets: [
-    { slot: 'background_image', role: 'background', description: 'Background', allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
-    { slot: 'sticker_object', role: 'sticker', description: 'Sticker', allowed_mime_types: ['image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
-    { slot: 'logo', role: 'logo', description: 'Logo', allowed_mime_types: ['image/png', 'image/webp'], available: true, mime_type: 'image/png', sha256: 'c'.repeat(64), byte_count: 2937, source: { origin: 'canonical_natal_brand_asset', filename: 'logo-natal.png' } },
+    { slot: 'phone_screen', role: 'device_screen', description: 'Generated artwork', allowed_mime_types: ['image/png'], editable: false, available: false, mime_type: null, sha256: null, byte_count: null, source: null },
+    { slot: 'iphone_frame', role: 'device_frame', description: 'Fixed phone frame', allowed_mime_types: ['image/png'], editable: false, available: true, mime_type: 'image/png', sha256: 'b'.repeat(64), byte_count: 2937, source: { origin: 'checked_in' } },
+    { slot: 'logo', role: 'brand', description: 'Natal', allowed_mime_types: ['image/png'], editable: false, available: true, mime_type: 'image/png', sha256: 'c'.repeat(64), byte_count: 2937, source: { origin: 'canonical_natal_brand_asset', filename: 'logo-natal.png' } },
   ],
-  pexels_available: false, versions: [],
+  phone_screen_history: [], phone_screen_generation_available: true, versions: [],
 }
 
 const briefDocument = {
@@ -148,8 +170,8 @@ test.beforeEach(async ({ page }) => {
     ] })
     if (url.pathname === `/api/v1/studio/projects/${projectId}/creatives` && method === 'GET') return json({ items: [{
       creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
-      ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad',
-      template_version: 11, template_sha256: currentStudio.template_sha256,
+      ordinal: 1, origin: 'brief_generation', template_id: 'phone_metrics',
+      template_version: 27, template_sha256: currentStudio.template_sha256,
       status: 'draft', state_sha256: currentStudio.state_sha256,
       approved_version_count: currentStudio.versions.length, generation: { stage: 'draft' },
       created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z',
@@ -168,7 +190,7 @@ test.beforeEach(async ({ page }) => {
         changed_files: ['apps/commander-web/src/views/StudioView.tsx'],
         verification: ['Studio web unit tests', 'Owner Console production build'],
         summary: 'Added the requested Studio test implementation.', error: null,
-        preview: { mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080 },
+        preview: { mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1350 },
         created_at: '2026-08-29T10:00:00Z', updated_at: '2026-08-29T10:01:00Z',
         started_at: '2026-08-29T10:00:00Z', completed_at: '2026-08-29T10:01:00Z',
       }, 202)
@@ -249,7 +271,7 @@ test.beforeEach(async ({ page }) => {
     }
     if (url.pathname === `/api/v1/briefs/${briefId}/approve` && method === 'POST') return json({
       brief: { ...brief, approved: true }, approved_now: true,
-      creative: { creative_id: creativeId, project_id: projectId, source_brief_id: briefId, ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad', template_version: 11, template_sha256: 'a'.repeat(64), status: 'queued', state_sha256: 'f'.repeat(64), approved_version_count: 0, generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z' }, creative_created: true,
+      creative: { creative_id: creativeId, project_id: projectId, source_brief_id: briefId, ordinal: 1, origin: 'brief_generation', template_id: 'phone_metrics', template_version: 27, template_sha256: 'a'.repeat(64), status: 'queued', state_sha256: 'f'.repeat(64), approved_version_count: 0, generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z' }, creative_created: true,
     }, 202)
     if (url.pathname === '/api/v1/briefs') return json({ items: [brief], next_cursor: null })
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
@@ -274,8 +296,8 @@ test('approves a Brief through the required template picker and opens its creati
         brief: { ...brief, approved: true }, approved_now: true,
         creative: {
           creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
-          ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad',
-          template_version: 11, template_sha256: 'a'.repeat(64), status: 'queued',
+          ordinal: 1, origin: 'brief_generation', template_id: 'phone_metrics',
+          template_version: 27, template_sha256: 'a'.repeat(64), status: 'queued',
           state_sha256: 'f'.repeat(64), approved_version_count: 0,
           generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z',
           updated_at: '2026-08-26T08:06:00Z',
@@ -368,7 +390,7 @@ test('shows Brief, the project-scoped Post editor, Landing, and Instagram tests'
   await expect(page.getByRole('button', { name: 'Instagram tests', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Studio' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Post', exact: true }).first().click()
-  await expect(page.locator('.universal-canvas-panel')).toBeVisible()
+  await expect(page.locator('.phone-metrics-canvas-panel')).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('posts')
   await page.reload()
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
@@ -378,184 +400,6 @@ test('shows Brief, the project-scoped Post editor, Landing, and Instagram tests'
   await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('landing')
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-})
-
-test('opens the Post editor and persists its bounded configuration', async ({ page }) => {
-  await page.goto('/?e2e=1&page=posts')
-  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
-  await page.reload()
-
-  await expect(page.getByText('ONE TEMPLATE · CONFIGURATION-FIRST')).toHaveCount(0)
-  await expect(page.getByText('Universal Ad Studio')).toHaveCount(0)
-  await expect(page.locator('.universal-canvas-panel')).toBeVisible()
-  await expect(page.locator('.universal-controls')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Build the composition at a glance' })).toBeVisible()
-  await expect(page.getByText('ALWAYS ON')).toHaveCount(1)
-  await expect(page.locator('.universal-component-grid').getByText('OPTIONAL')).toHaveCount(7)
-  await expect(page.getByLabel('Enable headline')).toBeVisible()
-  await expect(page.getByLabel('Enable supporting copy')).toBeVisible()
-  await expect(page.getByLabel('Enable offer')).toBeVisible()
-  await expect(page.getByLabel('Enable CTA')).toBeVisible()
-  await expect(page.getByLabel('Enable logo')).toBeVisible()
-  await expect(page.getByLabel('Upload logo', { exact: true })).toHaveCount(0)
-  await expect(page.getByLabel('Upload sticker_object asset')).toHaveCount(0)
-  await expect(page.getByText('Pexels photograph only')).toBeVisible()
-  await expect(page.getByText('Preview matches the saved setup')).toBeVisible()
-  await expect(page.getByText('Natal', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('Show logo', { exact: true })).toHaveCount(0)
-  await expect(page.getByLabel('Show logo background')).toHaveCount(0)
-  await expect(page.getByLabel('Logo position')).toHaveCount(0)
-  await expect(page.getByLabel('Logo width')).toHaveCount(0)
-  await expect(page.getByAltText('Current universal advertising creative')).toBeVisible()
-  await expect(page.getByText('Reference image')).toHaveCount(0)
-  await expect(page.getByText('Primitive tree')).toHaveCount(0)
-  await page.getByText('Mood and contrast').click()
-  await page.getByLabel('Background mode').selectOption('image')
-  await expect(page.getByLabel('Upload sample background image')).toBeVisible()
-  await expect(page.getByLabel('Background color', { exact: true })).toHaveValue('#f0e653')
-
-  const draftPreviewRequest = page.waitForRequest((request) => {
-    if (!request.url().endsWith('/preview')) return false
-    const body = request.postDataJSON()
-    return body?.configuration?.bullets?.enabled === true
-  })
-  await page.getByLabel('Enable bullets').check()
-  await page.getByRole('button', { name: 'Update preview' }).click()
-  const draftRequest = await draftPreviewRequest
-  expect(draftRequest.postDataJSON().configuration.bullets.enabled).toBe(true)
-  await expect(page.getByText('Preview up to date')).toBeVisible()
-
-  const configurationRequest = page.waitForRequest((request) =>
-    request.url().endsWith('/save'),
-  )
-  const editedPreviewRequest = page.waitForRequest((request) => {
-    if (!request.url().endsWith('/preview')) return false
-    const body = request.postDataJSON()
-    return body?.configuration?.background?.mode === 'texture'
-      && body?.configuration?.background?.texture === 'stone'
-      && body?.configuration?.background?.texture_intensity === 0.9
-      && body?.configuration?.background?.overlay_opacity === 0.2
-      && body?.configuration?.cta?.style === 'gradient'
-      && body?.configuration?.cta?.position === 'bottom_right'
-      && body?.configuration?.typography?.font_family === 'Oswald'
-      && body?.configuration?.typography?.benefits_font_family === 'Cormorant Garamond'
-      && body?.configuration?.logo?.symbol_color === '#123456'
-      && body?.configuration?.logo?.name_color === '#ABCDEF'
-      && body?.content?.hero_title === 'TEST A CLEAR PROMISE'
-  })
-  await page.getByText('Compact ad message').click()
-  await page.getByLabel('Hero Title').fill('TEST A CLEAR PROMISE')
-  await page.getByLabel('Background mode').selectOption('texture')
-  await page.getByLabel('Texture', { exact: true }).selectOption('stone')
-  for (let index = 0; index < 4; index += 1) await page.getByLabel('Texture intensity', { exact: true }).press('ArrowRight')
-  for (let index = 0; index < 4; index += 1) await page.getByLabel('Overlay opacity').press('ArrowRight')
-  await page.getByText('Type, layout and action').click()
-  await page.getByLabel('Headline font family', { exact: true }).selectOption('Oswald')
-  await page.getByLabel('Benefits font family').selectOption('Cormorant Garamond')
-  await page.getByLabel('CTA style').selectOption('gradient')
-  await page.getByLabel('CTA placement').selectOption('bottom_right')
-  await expect(page.getByLabel('CTA background color')).toHaveValue('#111111')
-  await expect(page.getByLabel('CTA text color')).toHaveValue('#ffffff')
-  await page.getByText('Brand colors').click()
-  await page.getByLabel('Logo symbol color').fill('#123456')
-  await page.getByLabel('Natal name color').fill('#abcdef')
-  await page.getByRole('button', { name: 'Update preview' }).click()
-  const editedPreview = await editedPreviewRequest
-  expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
-  await expect(page.getByText('Preview matches your unsaved changes')).toBeVisible()
-  await page.getByRole('button', { name: 'Save creative' }).click()
-  const request = await configurationRequest
-  expect(request.postDataJSON().configuration.background.mode).toBe('texture')
-  expect(request.postDataJSON().configuration.background.texture).toBe('stone')
-  expect(request.postDataJSON().configuration.cta.style).toBe('gradient')
-  expect(request.postDataJSON().configuration.cta.position).toBe('bottom_right')
-  expect(request.postDataJSON().configuration.typography.font_family).toBe('Oswald')
-  expect(request.postDataJSON().configuration.typography.benefits_font_family).toBe('Cormorant Garamond')
-  expect(request.postDataJSON().configuration.logo).toMatchObject({
-    symbol_color: '#123456', name_color: '#ABCDEF',
-  })
-  expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
-  await expect(page.getByRole('status')).toContainText('Creative saved with an edit checkpoint.')
-  await expect(page.getByRole('status')).toContainText('These Natal colors are now the Project default.')
-  await expect(page.getByRole('alertdialog', { name: 'Project skill updated' })).toHaveCount(0)
-  const metadataRequest = page.waitForRequest((candidate) =>
-    candidate.url().endsWith('/component-settings'),
-  )
-  const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Export config + IDs' }).click()
-  expect((await metadataRequest).postDataJSON().configuration.cta.style).toBe('gradient')
-  expect((await download).suggestedFilename()).toBe('universal_ad_configuration.json')
-  await expect(page.getByRole('status')).toContainText('component ID metadata exported')
-
-  await page.getByLabel('Hero Title').fill('A SPECIFIC FINAL PROMISE')
-  await page.getByLabel('Version note').fill('Owner-approved first creative')
-  const approvalRequest = page.waitForRequest((candidate) => candidate.url().endsWith('/approve'))
-  await page.getByRole('button', { name: 'Approve creative' }).click()
-  const approval = await approvalRequest
-  expect(approval.postDataJSON()).toMatchObject({
-    content: { hero_title: 'A SPECIFIC FINAL PROMISE' },
-    change_note: 'Owner-approved first creative',
-  })
-  await expect(page.getByRole('status')).toContainText('Immutable creative and configuration version saved.')
-  await expect(page.getByRole('alertdialog', { name: 'Project skill updated' })).toHaveCount(0)
-  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
-})
-
-test('manually previews every bounded sticker placement control', async ({ page }) => {
-  await page.route(`**${studioBasePath}`, async (route) => {
-    const request = route.request()
-    if (new URL(request.url()).pathname !== studioBasePath || request.method() !== 'GET') {
-      return route.fallback()
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ...studioDetail,
-        configuration: {
-          ...studioDetail.configuration,
-          sticker: { ...studioDetail.configuration.sticker, enabled: true },
-        },
-        assets: studioDetail.assets.map((asset) => asset.slot === 'sticker_object' ? {
-          ...asset,
-          available: true,
-          mime_type: 'image/png',
-          sha256: 'd'.repeat(64),
-          byte_count: 1024,
-          source: {
-            origin: 'pexels', provider: 'pexels', media_type: 'photograph',
-            subject_type: 'physical_object', transformation: 'edge_color_soft_alpha_v1',
-          },
-        } : asset),
-      }),
-    })
-  })
-  await page.goto('/?e2e=1&page=posts')
-
-  await expect(page.getByText('Розміщення стікера', { exact: true })).toBeVisible()
-  await expect(page.getByText('Розміщення стікера й логотипа', { exact: true })).toHaveCount(0)
-  await page.getByText('Розміщення стікера', { exact: true }).click()
-
-  const changes = [
-    ['Sticker rotation', '7', 'rotation', 7],
-    ['Sticker width', '700', 'width', 700],
-    ['Object scale', '1.25', 'object_scale', 1.25],
-    ['Adjust from right', '500', 'offset_right', 500],
-    ['Adjust from bottom', '-240', 'offset_bottom', -240],
-  ] as const
-  for (const [label, inputValue, setting, expected] of changes) {
-    const previewResponse = page.waitForResponse((response) => {
-      if (!response.url().endsWith('/preview') || response.status() !== 200) return false
-      const body = response.request().postDataJSON()
-      return body?.configuration?.sticker?.[setting] === expected
-    })
-    await page.getByLabel(label).fill(inputValue)
-    await page.getByRole('button', { name: 'Оновити прев’ю' }).click()
-    const response = await previewResponse
-    expect(response.request().postDataJSON().configuration.sticker[setting]).toBe(expected)
-  }
-  await expect(page.getByText('Прев’ю відповідає незбереженим змінам')).toBeVisible()
-  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
 test('shows Project and All Projects analytics without automatic activation', async ({ page }) => {
@@ -598,7 +442,7 @@ test('opens the local Tune wizard and submits all three generation inputs', asyn
   })
   await expect(wizard.getByText('Verified changes applied')).toBeVisible()
   await expect(wizard.getByAltText('Generated creative for iteration 1')).toBeVisible()
-  await expect(wizard.getByText('GENERATED CREATIVE · 1080×1080')).toBeVisible()
+  await expect(wizard.getByText('GENERATED CREATIVE · 1080×1350')).toBeVisible()
   await expect(wizard.getByText('Iteration report')).toBeVisible()
   await expect(wizard.getByText('Added the requested Studio test implementation.')).toBeHidden()
   await wizard.getByText('Iteration report').click()

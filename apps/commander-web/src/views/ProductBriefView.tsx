@@ -41,7 +41,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [busy, setBusy] = useState(false)
   const [approvalOpen, setApprovalOpen] = useState(false)
   const [templates, setTemplates] = useState<StudioTemplateSummary[]>([])
-  const [templateId, setTemplateId] = useState<'universal_ad' | 'phone_metrics' | ''>('')
+  const [templateId, setTemplateId] = useState<'phone_metrics' | ''>('')
   const [creativeDirection, setCreativeDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const load = async (preferredId?: string, targetProjectId = projectId) => {

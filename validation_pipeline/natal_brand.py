@@ -1,4 +1,4 @@
-"""Canonical Natal identity available in Universal Studio."""
+"""Canonical Natal identity available across PTW Studio surfaces."""
 
 from __future__ import annotations
 

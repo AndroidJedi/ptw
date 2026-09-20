@@ -11,7 +11,7 @@ export function StudioSection({ eyebrow, title, children, className = '', defaul
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return <details
-    className={`panel universal-section universal-disclosure ${className}`.trim()}
+    className={`panel studio-section studio-disclosure ${className}`.trim()}
     open={open}
     onToggle={(event) => setOpen(event.currentTarget.open)}
   >
@@ -19,6 +19,6 @@ export function StudioSection({ eyebrow, title, children, className = '', defaul
       <span><small>{eyebrow}</small><h2>{title}</h2></span>
       <em>{open ? collapseLabel : expandLabel}</em>
     </summary>
-    <div className="universal-section-body">{children}</div>
+    <div className="studio-section-body">{children}</div>
   </details>
 }

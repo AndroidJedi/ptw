@@ -24,6 +24,22 @@ BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 BRIDGE_CONCURRENT_SLOT_LIMIT = 1
 BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
 BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES = 8_388_608
+STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
+    "studio_manual_edit": {
+        "system_prompt": 8 * 1024,
+        "input_payload": 20 * 1024,
+        "output_schema": 6 * 1024,
+        "total": 32 * 1024,
+        "response": 16 * 1024,
+    },
+    "studio_creative_generation": {
+        "system_prompt": 8 * 1024,
+        "input_payload": 20 * 1024,
+        "output_schema": 12 * 1024,
+        "total": 36 * 1024,
+        "response": 16 * 1024,
+    },
+}
 
 
 def _input_artifacts(
@@ -105,6 +121,38 @@ def _structured_contract_bytes(
         ).encode("utf-8")),
     }
     return {**parts, "total": sum(parts.values())}
+
+
+def enforce_structured_contract_budget(
+    *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
+    output_schema: Mapping[str, Any],
+) -> dict[str, int]:
+    """Apply small per-mode budgets before a provider job is queued."""
+
+    contract_bytes = _structured_contract_bytes(
+        system_prompt=system_prompt, input_payload=input_payload,
+        output_schema=output_schema,
+    )
+    if contract_bytes["total"] > BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES:
+        raise ValueError("structured provider contract exceeds its safe byte budget")
+    budget = STRUCTURED_MODE_BUDGETS.get(mode)
+    if budget is not None:
+        for part in ("system_prompt", "input_payload", "output_schema", "total"):
+            if contract_bytes[part] > budget[part]:
+                raise ValueError(
+                    f"{mode} {part.replace('_', ' ')} exceeds its compact byte budget"
+                )
+    return contract_bytes
+
+
+def enforce_structured_response_budget(mode: str, value: Mapping[str, Any]) -> int:
+    size = len(json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+    ).encode("utf-8"))
+    budget = STRUCTURED_MODE_BUDGETS.get(mode)
+    if budget is not None and size > budget["response"]:
+        raise ValueError(f"{mode} response exceeds its compact byte budget")
+    return size
 
 
 def bridge_request_fingerprint(
@@ -246,6 +294,7 @@ class StructuredBridge:
                     input_artifact_bytes=artifact_bytes,
                 )
                 try:
+                    response_bytes = enforce_structured_response_budget(mode, result["response"])
                     validated = dict(response_validator(result["response"]))
                 except (KeyError, TypeError, ValueError) as error:
                     correction = _validation_error(error)
@@ -269,6 +318,7 @@ class StructuredBridge:
                     "response": validated,
                     "invocation": {
                         **result["invocation"],
+                        "response_bytes": response_bytes,
                         "validation_attempts": validation_attempts,
                     },
                 }
@@ -300,12 +350,11 @@ class StructuredBridge:
                 f"was rejected by PTW validation: {correction}. Return a corrected "
                 "object that obeys that exact constraint."
             )
-        contract_bytes = _structured_contract_bytes(
+        contract_bytes = enforce_structured_contract_budget(
+            mode=mode,
             system_prompt=prompt, input_payload=input_payload,
             output_schema=output_schema,
         )
-        if contract_bytes["total"] > BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES:
-            raise ValueError("structured bridge contract exceeds its safe byte budget")
         request_document: dict[str, Any] = {
             "mode": mode,
             "system_prompt": prompt,

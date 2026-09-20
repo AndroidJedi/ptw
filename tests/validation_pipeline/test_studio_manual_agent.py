@@ -11,6 +11,7 @@ from PIL import Image
 from validation_pipeline.landing_routes import landing_page_router
 from validation_pipeline.studio_manual_agent import (
     StudioManualAgentProviderError,
+    apply_manual_agent_edits,
     manual_agent_schema,
     manual_agent_request,
     validate_image_actions,
@@ -74,14 +75,35 @@ class StudioManualAgentContractTests(unittest.TestCase):
 
     def test_surface_without_image_slots_has_a_strict_zero_item_schema(self) -> None:
         schema = manual_agent_schema(
-            configuration_schema={"type": "object", "properties": {}, "required": [], "additionalProperties": False},
-            content_schema={"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            editable_paths=["content.hero_title"],
             image_slots=[], screenshot_count=0,
         )
         actions = schema["properties"]["image_actions"]
         self.assertEqual(0, actions["maxItems"])
         self.assertEqual(False, actions["items"]["additionalProperties"])
         self.assertEqual({}, actions["items"]["properties"])
+
+    def test_scalar_edits_are_path_and_type_bounded(self) -> None:
+        current = {"configuration.logo.enabled": True, "content.hero_title": "Before"}
+        result = apply_manual_agent_edits(
+            [{"path": "content.hero_title", "value": "After"}],
+            current_values=current,
+            configuration={"logo": {"enabled": True}},
+            content={"hero_title": "Before"},
+        )
+        self.assertEqual("After", result["content"]["hero_title"])
+        with self.assertRaisesRegex(ValueError, "path"):
+            apply_manual_agent_edits(
+                [{"path": "content.unknown", "value": "After"}],
+                current_values=current, configuration={"logo": {"enabled": True}},
+                content={"hero_title": "Before"},
+            )
+        with self.assertRaisesRegex(ValueError, "type"):
+            apply_manual_agent_edits(
+                [{"path": "configuration.logo.enabled", "value": "false"}],
+                current_values=current, configuration={"logo": {"enabled": True}},
+                content={"hero_title": "Before"},
+            )
 
     def test_provider_timeout_is_504_for_post_and_landing_agent_routes(self) -> None:
         class Service:

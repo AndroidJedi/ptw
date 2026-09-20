@@ -2,7 +2,7 @@
 
 The deployed ``StudioRecipeV2`` frame renderer remains an immutable compatibility
 path. This module is reached through ``StudioRenderer.render_preview`` and is an
-internal engine beneath the bounded universal-ad configuration, not an exposed
+internal engine beneath the bounded Post-template configuration, not an exposed
 general-purpose editor.
 """
 

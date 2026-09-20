@@ -1,4 +1,4 @@
-"""Bounded Pexels real-photo search and import for Universal Studio."""
+"""Bounded Pexels real-photo search and import utilities."""
 
 from __future__ import annotations
 

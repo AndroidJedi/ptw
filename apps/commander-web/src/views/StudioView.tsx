@@ -1,122 +1,21 @@
-import {
-  Check, Download, ImagePlus, Plus, RefreshCcw, Save, Search, Sparkles, Upload, WandSparkles, X,
-} from 'lucide-react'
+import { ImagePlus, Plus, RefreshCcw, Sparkles, WandSparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
-import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../studio-checkpoints'
-import { StudioActionFeedback } from '../components/studio/StudioActionFeedback'
-import { StudioManualAgent } from '../components/studio/StudioManualAgent'
-import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
-import { StudioSection } from '../components/studio/StudioSection'
-import { EditableColorField } from '../components/EditableColorField'
-import { PostPublishing } from '../components/PostPublishing'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
+import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
+import { PostPublishing } from '../components/PostPublishing'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
 import type {
-  StudioUniversalComponentSettings, StudioUniversalConfiguration, StudioUniversalContent,
-  StudioCheckpointResponse, StudioCreativeSummary,
-  ProductBrief, StudioTemplateSummary, StudioUniversalDetail, StudioUniversalFontFamily,
-  StudioPhoneHeroCreativeDirection,
-  StudioManualAgentResult,
+  ProductBrief, StudioCreativeSummary, StudioPhoneHeroCreativeDirection,
+  StudioPhoneMetricsDetail, StudioTemplateSummary,
 } from '../types'
 
-function fileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(reader.error || new Error('File could not be read.'))
-    reader.onload = () => resolve(String(reader.result).split(',', 2)[1] || '')
-    reader.readAsDataURL(file)
-  })
-}
-
-function downloadJson(filename: string, value: unknown) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function normalizedPreviewContent(value: StudioUniversalContent): StudioUniversalContent {
-  if (!Array.isArray((value as unknown as { bullets?: unknown }).bullets)) return value
-  return {
-    ...value,
-    bullets: value.bullets.map((item) => item.trim()).filter(Boolean),
-  }
-}
-
-function NumberField({ label, value, min, max, step = 1, onChange }: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step?: number
-  onChange: (value: number) => void
-}) {
-  const [draft, setDraft] = useState(String(value))
-  const [editing, setEditing] = useState(false)
-
-  useEffect(() => {
-    if (!editing) setDraft(String(value))
-  }, [editing, value])
-
-  const parsedDraft = draft.trim() === '' ? Number.NaN : Number(draft)
-  const draftIsValid = Number.isFinite(parsedDraft)
-    && parsedDraft >= min && parsedDraft <= max
-    && (step !== 1 || Number.isInteger(parsedDraft))
-
-  const finishEditing = () => {
-    setEditing(false)
-    if (!Number.isFinite(parsedDraft)) {
-      setDraft(String(value))
-      return
-    }
-    const bounded = Math.min(max, Math.max(min, parsedDraft))
-    const normalized = step === 1 ? Math.round(bounded) : bounded
-    setDraft(String(normalized))
-    if (normalized !== value) onChange(normalized)
-  }
-
-  return <label><span>{label}</span><input
-    aria-label={label} aria-invalid={editing && !draftIsValid}
-    type="number" value={draft} min={min} max={max} step={step}
-    onFocus={() => setEditing(true)}
-    onChange={(event) => {
-      const nextDraft = event.target.value
-      setDraft(nextDraft)
-      const nextValue = nextDraft.trim() === '' ? Number.NaN : Number(nextDraft)
-      if (
-        Number.isFinite(nextValue) && nextValue >= min && nextValue <= max
-        && (step !== 1 || Number.isInteger(nextValue))
-      ) onChange(nextValue)
-    }}
-    onBlur={finishEditing}
-    onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-  /></label>
-}
-
-function RangeField({ label, value, min, max, step, onChange }: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  onChange: (value: number) => void
-}) {
-  return <label className="universal-range-field">
-    <span>{label}<code>{Math.round(value * 100)}%</code></span>
-    <input
-      aria-label={label} type="range" value={value} min={min} max={max} step={step}
-      onChange={(event) => onChange(Number(event.target.value))}
-    />
-  </label>
-}
-
-export function StudioView({ api, language, projectId = null, creativeId = null, onCreative = () => {}, tuneMode = false }: {
+export function StudioView({
+  api, language, projectId = null, creativeId = null, onCreative = () => {}, tuneMode = false,
+}: {
   api: ApiClient
   language: Language
   projectId?: string | null
@@ -124,77 +23,31 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   onCreative?: (creativeId: string) => void
   tuneMode?: boolean
 }) {
-  const [detail, setDetail] = useState<StudioUniversalDetail | null>(null)
-  const [configuration, setConfiguration] = useState<StudioUniversalConfiguration | null>(null)
-  const [content, setContent] = useState<StudioUniversalContent | null>(null)
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [backgroundQuery, setBackgroundQuery] = useState('')
-  const [stickerQuery, setStickerQuery] = useState(
-    'single light bulb photographed on a plain white background isolated object',
-  )
-  const [changeNote, setChangeNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [previewBusy, setPreviewBusy] = useState(false)
-  const [previewError, setPreviewError] = useState('')
-  const [draftPreviewed, setDraftPreviewed] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [tuneOpen, setTuneOpen] = useState(false)
+  const [detail, setDetail] = useState<StudioPhoneMetricsDetail | null>(null)
   const [creatives, setCreatives] = useState<StudioCreativeSummary[] | null>(null)
   const [approvedBriefs, setApprovedBriefs] = useState<ProductBrief[] | null>(null)
-  const [initialTemplates, setInitialTemplates] = useState<StudioTemplateSummary[] | null>(null)
-  const [firstCreativeSelection, setFirstCreativeSelection] = useState<{
-    brief: ProductBrief; templateId: 'phone_metrics'; direction: PhoneHeroDirectionDraft
+  const [templates, setTemplates] = useState<StudioTemplateSummary[] | null>(null)
+  const [firstSelection, setFirstSelection] = useState<{
+    brief: ProductBrief; direction: PhoneHeroDirectionDraft
   } | null>(null)
   const [variantDirection, setVariantDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const [variantDirectionOpen, setVariantDirectionOpen] = useState(false)
-  const importRef = useRef<HTMLInputElement>(null)
-  const draftPreviewGeneration = useRef(0)
+  const [tuneOpen, setTuneOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const loadGeneration = useRef(0)
-  const [previewState, setPreviewState] = useState('')
-  const previewStateFor = (value: StudioUniversalDetail, config = value.configuration, copy = value.content) => JSON.stringify([value.state_sha256, config, normalizedPreviewContent(copy)])
-  const currentPreviewState = detail && configuration && content ? previewStateFor(detail, configuration, content) : ''
-  const previewStale = previewState !== currentPreviewState
   const tr = (en: string, uk: string) => translate(language, en, uk)
-  const basePath = projectId && creativeId
-    ? `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
+  const basePath = projectId && detail
+    ? `/api/v1/studio/projects/${projectId}/creatives/${detail.creative_id}`
     : ''
-
-  const applyDetail = (value: StudioUniversalDetail) => {
-    setDetail(value)
-    setConfiguration(structuredClone(value.configuration))
-    setContent(structuredClone(value.content))
-  }
-
-  const renderPreview = async (value: StudioUniversalDetail) => {
-    const generation = ++draftPreviewGeneration.current
-    setPreviewBusy(true)
-    setPreviewError('')
-    try {
-      const blob = await api.postMedia(
-        `${basePath}/preview`, { state_sha256: value.state_sha256 },
-        'image/png', { deadlineMs: 90_000 },
-      )
-      if (generation !== draftPreviewGeneration.current) return
-      setPreviewUrl(URL.createObjectURL(blob))
-      setPreviewState(previewStateFor(value))
-      setPreviewError('')
-      setDraftPreviewed(false)
-    } finally {
-      if (generation === draftPreviewGeneration.current) setPreviewBusy(false)
-    }
-  }
 
   const load = async () => {
     const generation = ++loadGeneration.current
     if (!projectId) {
-      setCreatives([]); setApprovedBriefs([]); setInitialTemplates([]); setDetail(null)
+      setCreatives([]); setApprovedBriefs([]); setTemplates([]); setDetail(null)
       return
     }
-    setBusy(true)
-    setError('')
-    setApprovedBriefs(null)
-    setInitialTemplates(null)
+    setBusy(true); setError('')
     try {
       const list = await api.get<{ items: StudioCreativeSummary[] }>(
         `/api/v1/studio/projects/${projectId}/creatives`,
@@ -202,39 +55,27 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       if (generation !== loadGeneration.current) return
       setCreatives(list.items)
       const selectedId = list.items.some((item) => item.creative_id === creativeId)
-        ? creativeId
-        : list.items[0]?.creative_id || null
+        ? creativeId : list.items[0]?.creative_id || null
       if (!selectedId) {
-        const [briefs, templates] = await Promise.all([
+        const [briefResult, templateResult] = await Promise.all([
           api.get<{ items: ProductBrief[] }>(`/api/v1/briefs?project_id=${projectId}&limit=100`),
           api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates'),
         ])
         if (generation !== loadGeneration.current) return
-        setApprovedBriefs(briefs.items.filter((brief) => (
+        setApprovedBriefs(briefResult.items.filter((brief) => (
           brief.approved && brief.status === 'completed' && Boolean(brief.document)
         )))
-        setInitialTemplates(templates.items)
+        setTemplates(templateResult.items)
         setDetail(null)
         return
       }
       if (selectedId !== creativeId) onCreative(selectedId)
-      const path = `/api/v1/studio/projects/${projectId}/creatives/${selectedId}`
-      const value = await api.get<StudioUniversalDetail>(path, { deadlineMs: 60_000 })
+      const value = await api.get<StudioPhoneMetricsDetail>(
+        `/api/v1/studio/projects/${projectId}/creatives/${selectedId}`,
+        { deadlineMs: 60_000 },
+      )
       if (generation !== loadGeneration.current) return
-      applyDetail(value)
-      try {
-        if (value.status === 'draft' && value.template_id === 'universal_ad') {
-          const blob = await api.postMedia(
-            `${path}/preview`, { state_sha256: value.state_sha256 },
-            'image/png', { deadlineMs: 90_000 },
-          )
-          if (generation !== loadGeneration.current) return
-          setPreviewUrl(URL.createObjectURL(blob))
-          setPreviewState(previewStateFor(value))
-        }
-      } catch (cause) {
-        if (generation === loadGeneration.current) setError((cause as Error).message)
-      }
+      setDetail(value)
     } catch (cause) {
       if (generation === loadGeneration.current) setError((cause as Error).message)
     } finally {
@@ -243,288 +84,29 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   }
 
   useEffect(() => {
-    setCreatives(null)
-    setApprovedBriefs(null)
-    setInitialTemplates(null)
-    setDetail(null)
-    setConfiguration(null)
-    setContent(null)
-    setError('')
-    setNotice('')
+    setCreatives(null); setApprovedBriefs(null); setTemplates(null); setDetail(null); setError('')
     void load()
     return () => { loadGeneration.current += 1 }
   }, [api, projectId, creativeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const status = detail?.status
     if (!status || !['queued', 'composing', 'generating_image'].includes(status)) return
     const timer = window.setInterval(() => void load(), 1500)
     return () => window.clearInterval(timer)
-  }, [detail?.status, projectId, creativeId])
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
-  useEffect(() => () => { draftPreviewGeneration.current += 1 }, [basePath])
-  useEffect(() => {
-    if (!detail || !configuration || !content) return
-    window.sessionStorage.setItem('ptw.studio.unsaved', (
-      JSON.stringify(configuration) === JSON.stringify(detail.configuration)
-      && JSON.stringify(normalizedPreviewContent(content)) === JSON.stringify(detail.content)
-    ) ? '0' : '1')
-  }, [configuration, content, detail])
+  }, [detail?.status, projectId, creativeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updatePreview = async (
-    nextConfiguration = configuration, nextContent = content,
+  const createCreative = async (
+    brief: ProductBrief, direction: StudioPhoneHeroCreativeDirection | null,
   ) => {
-    if (!detail || !nextConfiguration || !nextContent || previewBusy) return
-    const generation = ++draftPreviewGeneration.current
-    const normalizedContent = normalizedPreviewContent(nextContent)
-    const requestedState = previewStateFor(detail, nextConfiguration, normalizedContent)
-    setPreviewBusy(true)
-    setPreviewError('')
-    try {
-      const blob = await api.postMedia(`${basePath}/preview`, {
-        state_sha256: detail.state_sha256, configuration: nextConfiguration,
-        content: normalizedContent,
-      }, 'image/png', { deadlineMs: 90_000 })
-      if (draftPreviewGeneration.current !== generation) return
-      setPreviewUrl(URL.createObjectURL(blob))
-      setPreviewState(requestedState)
-      setDraftPreviewed(requestedState !== previewStateFor(detail))
-    } catch (cause) {
-      if (draftPreviewGeneration.current === generation) setPreviewError((cause as Error).message)
-    } finally {
-      if (draftPreviewGeneration.current === generation) setPreviewBusy(false)
-    }
-  }
-
-  const patchConfig = <K extends keyof StudioUniversalConfiguration>(
-    group: K, patch: Partial<StudioUniversalConfiguration[K]>,
-  ) => setConfiguration((current) => current ? ({
-    ...current,
-    [group]: { ...(current[group] as object), ...patch },
-  }) as StudioUniversalConfiguration : current)
-
-  const saveConfiguration = async (
-    nextConfiguration = configuration, nextContent = content,
-  ) => {
-    if (!detail || !nextConfiguration || !nextContent) return
-    setBusy(true)
-    setError('')
-    setNotice('')
-    try {
-      const normalizedContent = normalizedPreviewContent(nextContent)
-      const result = await api.post<StudioCheckpointResponse<StudioUniversalDetail>>(`${basePath}/save`, {
-        base_sha256: detail.state_sha256,
-        configuration: nextConfiguration,
-        content: normalizedContent,
-      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
-      const value = result.creative
-      applyDetail(value)
-      const savedNotice = !result.checkpoint_created
-        ? tr('Creative is already saved.', 'Креатив уже збережено.')
-        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.')
-      setNotice(result.project_logo_default_updated
-        ? `${savedNotice} ${tr('These Natal colors are now the Project default.', 'Ці кольори Natal тепер є типовими для проєкту.')}`
-        : savedNotice)
-      try { await renderPreview(value) } catch (cause) { setPreviewError((cause as Error).message) }
-    } catch (cause) {
-      setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const uploadAsset = async (slot: string, file: File) => {
-    if (!detail) return
-    const draftConfiguration = configuration ? structuredClone(configuration) : null
-    const draftContent = content ? structuredClone(content) : null
-    const asset = detail.assets.find((item) => item.slot === slot)
-    if (!asset?.allowed_mime_types.includes(file.type)) {
-      setError(tr(`Unsupported file type for ${slot}.`, `Непідтримуваний тип файлу для ${slot}.`))
-      return
-    }
-    setBusy(true)
-    setError('')
-    try {
-      const value = await api.post<StudioUniversalDetail>(`${basePath}/assets/${slot}`, {
-        base_sha256: detail.state_sha256,
-        mime_type: file.type,
-        bytes_base64: await fileAsBase64(file),
-      }, { deadlineMs: 90_000 })
-      if (draftConfiguration && draftContent) {
-        const nextConfiguration = slot === 'background_image' ? {
-          ...draftConfiguration,
-          background: { ...draftConfiguration.background, mode: 'image' as const },
-        } : draftConfiguration
-        setDetail(value)
-        setConfiguration(nextConfiguration)
-        setContent(draftContent)
-      } else {
-        applyDetail(value)
-      }
-      try { await renderPreview(value) } catch { /* Disabled optional slots need no immediate render. */ }
-      setNotice(tr(`${slot} saved.`, `${slot} збережено.`))
-    } catch (cause) {
-      setError((cause as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const sourcePexels = async (slot: 'background_image' | 'sticker_object', query: string) => {
-    if (!detail) return
-    setBusy(true)
-    setError('')
-    try {
-      const value = await api.post<StudioUniversalDetail>(`${basePath}/pexels`, {
-        base_sha256: detail.state_sha256,
-        slot,
-        query,
-        isolate: slot === 'sticker_object',
-      }, { deadlineMs: 90_000 })
-      applyDetail(value)
-      await renderPreview(value)
-      setNotice(tr('Pexels asset sourced with provenance and rendered.', 'Ресурс Pexels отримано з походженням і відрендерено.'))
-    } catch (cause) {
-      setError((cause as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const importConfiguration = async (file: File) => {
-    if (!detail) return
-    setBusy(true)
-    setError('')
-    try {
-      const value = JSON.parse(await file.text()) as {
-        configuration?: StudioUniversalConfiguration
-        content?: StudioUniversalContent
-      }
-      if (!value.configuration || !value.content) throw new Error(tr(
-        'Import requires configuration and content objects.',
-        'Імпорт потребує об’єкти configuration і content.',
-      ))
-      await saveConfiguration(value.configuration, value.content)
-    } catch (cause) {
-      setError((cause as Error).message)
-      setBusy(false)
-    }
-  }
-
-  const exportConfiguration = async () => {
-    if (!detail || !configuration || !content) return
-    setBusy(true)
-    setError('')
-    try {
-      const normalizedContent = normalizedPreviewContent(content)
-      const componentSettings = await api.post<StudioUniversalComponentSettings>(
-        `${basePath}/component-settings`, {
-          state_sha256: detail.state_sha256,
-          configuration,
-          content: normalizedContent,
-        },
-      )
-      downloadJson('universal_ad_configuration.json', {
-        schema: 'ptw.studio.universal-ad-export.v4',
-        template_id: detail.catalog.template_id,
-        template_version: detail.catalog.template_version,
-        base_state_sha256: detail.state_sha256,
-        catalog_sha256: detail.catalog.sha256,
-        component_settings: componentSettings,
-        configuration,
-        content: normalizedContent,
-      })
-      setNotice(tr(
-        'Configuration and component ID metadata exported.',
-        'Конфігурацію та метадані ID компонентів експортовано.',
-      ))
-    } catch (cause) {
-      setError((cause as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const approve = async () => {
-    if (!detail || !configuration || !content || !changeNote.trim()) return
-    setBusy(true)
-    setError('')
-    try {
-      const result = await api.post<StudioCheckpointResponse<StudioUniversalDetail>>(`${basePath}/approve`, {
-        base_sha256: detail.state_sha256,
-        configuration,
-        content: normalizedPreviewContent(content),
-        change_note: changeNote.trim(),
-      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
-      const value = result.creative
-      applyDetail(value)
-      setChangeNote('')
-      setNotice(result.project_logo_default_updated
-        ? tr('Immutable version saved. These Natal colors are now the Project default.', 'Незмінну версію збережено. Ці кольори Natal тепер є типовими для проєкту.')
-        : tr('Immutable creative and configuration version saved.', 'Незмінну версію креативу й конфігурації збережено.'))
-    } catch (cause) {
-      setError((cause as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const showVersion = async (version: number, digest: string) => {
-    setBusy(true)
-    setError('')
-    try {
-      const blob = await api.media(`${basePath}/versions/${version}/render`, 'image/png', digest)
-      setPreviewUrl(URL.createObjectURL(blob))
-      setPreviewState('')
-      setNotice(tr(`Showing immutable version ${version}.`, `Показано незмінну версію ${version}.`))
-    } catch (cause) {
-      setError((cause as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const retryGeneration = async () => {
-    if (!basePath) return
+    if (!direction) return
     setBusy(true); setError('')
-    try { await api.post(`${basePath}/retry`, {}); await load() }
-    catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
-  }
-
-  const retryPhoneImage = async () => {
-    if (!basePath) return
-    setBusy(true); setError('')
-    try { await api.post(`${basePath}/phone-screen/retry`, {}); await load() }
-    catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
-  }
-
-  const createVariant = async () => {
-    if (!projectId || !detail?.source_brief_id || !detail.template_id) return
-    const variantTemplateId = (detail as unknown as { template_id: StudioTemplateSummary['template_id'] }).template_id
-    if (variantTemplateId === 'phone_metrics' && !variantDirectionOpen) {
-      setVariantDirection({ style: '', background: '' }); setVariantDirectionOpen(true); return
-    }
-    const direction = creativeDirectionFromDraft(variantDirection)
-    if (variantTemplateId === 'phone_metrics' && !direction) return
-    setBusy(true); setError('')
-    try {
-      const result = await api.post<{ creative: StudioCreativeSummary }>(`/api/v1/studio/projects/${projectId}/creatives`, {
-        source_brief_id: detail.source_brief_id, template_id: variantTemplateId,
-        ...(variantTemplateId === 'phone_metrics' ? { creative_direction: direction } : {}),
-      })
-      setVariantDirectionOpen(false)
-      onCreative(result.creative.creative_id)
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
-  }
-
-  const cloneApprovedPost = async () => {
-    if (!projectId || !detail?.versions.length) return
-    const sourceVersion = Math.max(...detail.versions.map(item => item.version))
-    setBusy(true); setError(''); setNotice('')
     try {
       const result = await api.post<{ creative: StudioCreativeSummary }>(
-        `/api/v1/studio/projects/${projectId}/creatives/clones`, {
-          request_id: crypto.randomUUID(), source_creative_id: detail.creative_id,
-          source_version: sourceVersion,
+        `/api/v1/briefs/${brief.brief_id}/approve`, {
+          honor_confirmed: true,
+          template_id: 'phone_metrics',
+          creative_direction: direction,
         },
       )
       onCreative(result.creative.creative_id)
@@ -532,25 +114,64 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     finally { setBusy(false) }
   }
 
-  const createFirstCreative = async (
-    brief: ProductBrief, templateId: StudioTemplateSummary['template_id'],
-    direction: StudioPhoneHeroCreativeDirection | null = null,
-  ) => {
-    if (templateId === 'phone_metrics' && !direction) return
+  const createVariant = async () => {
+    if (!projectId || !detail?.source_brief_id) return
+    if (!variantDirectionOpen) {
+      setVariantDirection({ style: '', background: '' }); setVariantDirectionOpen(true); return
+    }
+    const direction = creativeDirectionFromDraft(variantDirection)
+    if (!direction) return
     setBusy(true); setError('')
     try {
-      const result = await api.post<{ creative: StudioCreativeSummary }>(`/api/v1/briefs/${brief.brief_id}/approve`, {
-        honor_confirmed: true, template_id: templateId,
-        ...(templateId === 'phone_metrics' ? { creative_direction: direction } : {}),
-      })
+      const result = await api.post<{ creative: StudioCreativeSummary }>(
+        `/api/v1/studio/projects/${projectId}/creatives`, {
+          source_brief_id: detail.source_brief_id,
+          template_id: 'phone_metrics',
+          creative_direction: direction,
+        },
+      )
+      setVariantDirectionOpen(false)
       onCreative(result.creative.creative_id)
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
   }
 
-  const creativePicker = creatives && creatives.length > 0 && <section className="panel studio-creative-picker" aria-label={tr('Project creatives', 'Креативи проєкту')}>
+  const cloneApprovedPost = async () => {
+    if (!projectId || !detail?.versions.length) return
+    setBusy(true); setError('')
+    try {
+      const result = await api.post<{ creative: StudioCreativeSummary }>(
+        `/api/v1/studio/projects/${projectId}/creatives/clones`, {
+          request_id: crypto.randomUUID(),
+          source_creative_id: detail.creative_id,
+          source_version: Math.max(...detail.versions.map((item) => item.version)),
+        },
+      )
+      onCreative(result.creative.creative_id)
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const retry = async (path: string) => {
+    setBusy(true); setError('')
+    try { await api.post(path, {}); await load() }
+    catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const creativePicker = creatives && creatives.length > 0 && <section
+    className="panel studio-creative-picker"
+    aria-label={tr('Project creatives', 'Креативи проєкту')}
+  >
     <div><small>{tr('PROJECT CREATIVES', 'КРЕАТИВИ ПРОЄКТУ')}</small><strong>{tr('Creative history', 'Історія креативів')}</strong></div>
-    <div>{creatives.map((item) => <button key={item.creative_id} className={item.creative_id === creativeId ? 'is-active' : ''} onClick={() => onCreative(item.creative_id)}><strong>#{item.ordinal} · {item.template_id}</strong><small>{item.status} · {item.approved_version_count} {tr('approved', 'схвалено')}</small></button>)}</div>
-    {(detail as unknown as { template_id?: string } | null)?.template_id === 'phone_metrics' && detail?.source_brief_id && (detail.approved_version_count || 0) > 0 && <><button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></>}
+    <div>{creatives.map((item) => <button
+      key={item.creative_id} className={item.creative_id === creativeId ? 'is-active' : ''}
+      onClick={() => onCreative(item.creative_id)}
+    ><strong>#{item.ordinal} · {item.template_id}</strong><small>{item.status} · {item.approved_version_count} {tr('approved', 'схвалено')}</small></button>)}</div>
+    {detail?.source_brief_id && detail.approved_version_count > 0 && <>
+      <button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button>
+      <button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button>
+    </>}
   </section>
 
   if (!projectId) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('Every Studio creative belongs to one Project.', 'Кожен креатив Studio належить одному проєкту.')}</p></Empty>
@@ -559,320 +180,58 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     : <Loading language={language} />
   if (!creatives.length) {
     if (error) return <ErrorState message={error} retry={() => void load()} language={language} />
-    if (approvedBriefs === null || initialTemplates === null) return <Loading language={language} />
-    if (!approvedBriefs.length) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('No approved Brief to create from', 'Немає схваленого брифу для створення')}</h2><p>{tr('Complete and approve a Product Brief to unlock the Studio templates.', 'Завершіть і схваліть продуктовий бриф, щоб відкрити шаблони Studio.')}</p></Empty>
-    return <div className="studio-page"><section className="panel studio-template-selector" aria-label={tr('Create first creative', 'Створити перший креатив')}><small>{tr('APPROVED BRIEF · FIRST CREATIVE', 'СХВАЛЕНИЙ БРИФ · ПЕРШИЙ КРЕАТИВ')}</small><h2>{tr('Choose a template for your first creative', 'Оберіть шаблон для першого креативу')}</h2><p>{tr('Your Brief is already approved. Selecting a template only reserves and starts its first creative.', 'Ваш бриф уже схвалено. Вибір шаблону лише резервує та запускає його перший креатив.')}</p>{approvedBriefs.map((brief) => <section key={brief.brief_id} className="studio-initial-creative-brief"><h3>{brief.product || brief.document?.product || tr('Approved Product Brief', 'Схвалений продуктовий бриф')}</h3><div className="studio-template-grid">{initialTemplates.map((template) => <button key={template.template_id} type="button" className="studio-template-card" disabled={busy} onClick={() => {
-      if (template.template_id === 'phone_metrics') setFirstCreativeSelection({ brief, templateId: 'phone_metrics', direction: { style: '', background: '' } })
-      else void createFirstCreative(brief, template.template_id)
-    }}><strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span></button>)}</div>
-      {firstCreativeSelection?.brief.brief_id === brief.brief_id && <div className="studio-inline-direction"><PhoneHeroDirectionPicker language={language} value={firstCreativeSelection.direction} onChange={(direction) => setFirstCreativeSelection({ ...firstCreativeSelection, direction })} disabled={busy} idPrefix={`first-${brief.brief_id}`} /><button className="primary" disabled={busy || !creativeDirectionFromDraft(firstCreativeSelection.direction)} onClick={() => void createFirstCreative(brief, 'phone_metrics', creativeDirectionFromDraft(firstCreativeSelection.direction))}><Sparkles />{tr('Create Phone Metrics creative', 'Створити креатив Phone Metrics')}</button></div>}
-    </section>)}</section></div>
+    if (approvedBriefs === null || templates === null) return <Loading language={language} />
+    if (!approvedBriefs.length) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('No approved Brief to create from', 'Немає схваленого брифу для створення')}</h2><p>{tr('Complete and approve a Product Brief to unlock Post Studio.', 'Завершіть і схваліть продуктовий бриф, щоб відкрити Post Studio.')}</p></Empty>
+    const template = templates.find((item) => item.template_id === 'phone_metrics')
+    if (!template) return <ErrorState message={tr('The registered Post template is unavailable.', 'Зареєстрований шаблон допису недоступний.')} retry={() => void load()} language={language} />
+    return <div className="studio-page"><section className="panel studio-template-selector">
+      <small>{tr('APPROVED BRIEF · FIRST CREATIVE', 'СХВАЛЕНИЙ БРИФ · ПЕРШИЙ КРЕАТИВ')}</small>
+      <h2>{tr('Create your first Post', 'Створіть перший допис')}</h2>
+      {approvedBriefs.map((brief) => <section key={brief.brief_id} className="studio-initial-creative-brief">
+        <h3>{brief.product || brief.document?.product || tr('Approved Product Brief', 'Схвалений продуктовий бриф')}</h3>
+        <button type="button" className="studio-template-card" disabled={busy} onClick={() => setFirstSelection({ brief, direction: { style: '', background: '' } })}>
+          <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
+        </button>
+        {firstSelection?.brief.brief_id === brief.brief_id && <div className="studio-inline-direction">
+          <PhoneHeroDirectionPicker language={language} value={firstSelection.direction} onChange={(direction) => setFirstSelection({ brief, direction })} disabled={busy} idPrefix={`first-${brief.brief_id}`} />
+          <button className="primary" disabled={busy || !creativeDirectionFromDraft(firstSelection.direction)} onClick={() => void createCreative(brief, creativeDirectionFromDraft(firstSelection.direction))}><Sparkles />{tr('Create Phone Metrics creative', 'Створити креатив Phone Metrics')}</button>
+        </div>}
+      </section>)}
+    </section></div>
+  }
+  if (!detail) return error
+    ? <ErrorState message={error} retry={() => void load()} language={language} />
+    : <Loading language={language} />
+
+  if (['queued', 'composing', 'generating_image'].includes(detail.status)) {
+    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{tr('Building the creative', 'Створюємо креатив')}</h2></section></div>
+  }
+  if (detail.status === 'failed' && detail.generation?.creative_direction) {
+    return <div className="studio-page">{creativePicker}<ErrorState
+      message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)}
+      retry={() => void retry(`${basePath}/retry`)} language={language}
+    /></div>
   }
 
-  if (!detail || !configuration || !content) {
-    return error
-      ? <ErrorState message={error} retry={() => void load()} language={language} />
-      : <Loading language={language} />
-  }
-
-  const creativeStatus = detail.status || 'draft'
-  if (['queued', 'composing', 'generating_image'].includes(creativeStatus)) {
-    const stages = ['queued', 'composing', 'generating_image', 'draft']
-    const current = stages.indexOf(creativeStatus)
-    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{tr('Building the creative', 'Створюємо креатив')}</h2><ol>{stages.map((stage, index) => <li key={stage} className={index <= current ? 'is-active' : ''}>{({ queued: tr('Queued', 'У черзі'), composing: tr('Composing template', 'Наповнення шаблону'), generating_image: tr('Generating iPhone image', 'Генерація зображення iPhone'), draft: tr('Editable draft', 'Редагована чернетка') } as Record<string, string>)[stage]}</li>)}</ol></section></div>
-  }
-
-  if (detail.status === 'failed' && !(
-    (detail as unknown as { template_id?: string }).template_id === 'phone_metrics'
-    && !detail.generation?.creative_direction
-  )) return <div className="studio-page">{creativePicker}<ErrorState message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)} retry={() => void retryGeneration()} language={language} /></div>
-
-  if ((detail as unknown as { template_id?: string }).template_id === 'phone_metrics') {
-    const phoneFailure = detail.generation?.phone_image?.status === 'failed'
-    const hasCreativeDirection = Boolean(detail.generation?.creative_direction)
-    return <>{creativePicker}{phoneFailure && <section className="panel studio-phone-retry" role="alert">
-      <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
-      <button className="secondary" disabled={busy || !hasCreativeDirection} onClick={() => void retryPhoneImage()}><RefreshCcw />{tr('Retry iPhone image', 'Повторити зображення iPhone')}</button>
-    </section>}<PhoneMetricsStudio
-      api={api} language={language}
-      basePath={basePath}
-      detail={detail as unknown as import('../types').StudioPhoneMetricsDetail}
-      onDetail={(value) => applyDetail(value as StudioUniversalDetail)}
-      onCheckpoint={(result) => {
-        applyDetail(result.creative as unknown as StudioUniversalDetail)
-      }}
-    /><PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />{variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}><header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header><PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" /><button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button></section></div>}</>
-  }
-
-  const setBullet = (index: number, value: string) => setContent((current) => {
-    if (!current) return current
-    const bullets = [...current.bullets]
-    while (bullets.length <= index) bullets.push('')
-    bullets[index] = value
-    return { ...current, bullets }
-  })
-  const stickerAvailable = detail.assets.some((asset) => asset.slot === 'sticker_object' && asset.available)
-  const backgroundAsset = detail.assets.find((asset) => asset.slot === 'background_image')
-  const fontOptions: Array<{ value: StudioUniversalFontFamily; label: string }> = [
-    { value: 'Inter', label: tr('Inter — neutral & clear', 'Inter — нейтральний і чіткий') },
-    { value: 'Roboto Condensed', label: tr('Roboto Condensed — compact & direct', 'Roboto Condensed — компактний і прямий') },
-    { value: 'Manrope', label: tr('Manrope — friendly & modern', 'Manrope — дружній і сучасний') },
-    { value: 'Montserrat', label: tr('Montserrat — geometric & bold', 'Montserrat — геометричний і сміливий') },
-    { value: 'Source Sans 3', label: tr('Source Sans 3 — clean & readable', 'Source Sans 3 — чистий і читабельний') },
-    { value: 'Oswald', label: tr('Oswald — bold & urgent', 'Oswald — сміливий і динамічний') },
-    { value: 'Cormorant Garamond', label: tr('Cormorant Garamond — editorial & premium', 'Cormorant Garamond — редакційний і преміальний') },
-    { value: 'Cormorant Garamond Italic', label: tr('Cormorant Garamond Italic — expressive editorial', 'Cormorant Garamond Italic — виразний редакційний') },
-    { value: 'Lora', label: tr('Lora — warm editorial', 'Lora — теплий редакційний') },
-    { value: 'Lora Italic', label: tr('Lora Italic — elegant & human', 'Lora Italic — елегантний і людяний') },
-  ]
-
-  return <div className="studio-page universal-studio-page">
+  const phoneFailure = detail.generation?.phone_image?.status === 'failed'
+  return <>
     {creativePicker}
-    <section className="studio-commandbar universal-commandbar" aria-label={tr('Post editor controls', 'Керування редактором допису')}>
-        <div><small>{tr('FIXED STRUCTURE', 'ФІКСОВАНА СТРУКТУРА')}</small><strong>universal_ad · v{detail.catalog.template_version}</strong></div>
-      {tuneMode && <button className="secondary studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
-      <button className="secondary" disabled={busy} onClick={() => importRef.current?.click()}><Upload />{tr('Import config', 'Імпорт конфігурації')}</button>
-      <input ref={importRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => {
-        const file = event.target.files?.[0]
-        if (file) void importConfiguration(file)
-        event.currentTarget.value = ''
-      }} />
-      <button className="secondary" disabled={busy} onClick={() => void exportConfiguration()}><Download />{tr('Export config + IDs', 'Експорт конфігурації + ID')}</button>
-      <button className="primary" disabled={busy} onClick={() => void saveConfiguration()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
-    </section>
-    <StudioActionFeedback error={error} notice={notice} language={language} />
-    <StudioManualAgent
-      api={api} language={language} endpoint={`${basePath}/agent`}
-      stateSha256={detail.state_sha256} configuration={configuration} content={content}
-      disabled={busy || previewBusy}
-      onApply={async (result: StudioManualAgentResult<StudioUniversalConfiguration, StudioUniversalContent>) => {
-        setConfiguration(structuredClone(result.configuration))
-        setContent(structuredClone(result.content))
-        setNotice(tr(
-          `Agent adjusted ${result.changed_paths.length} editor field${result.changed_paths.length === 1 ? '' : 's'}. Review before saving.`,
-          `Агент налаштував ${result.changed_paths.length} полів редактора. Перевірте перед збереженням.`,
-        ))
-        await updatePreview(result.configuration, result.content)
-      }}
+    {tuneMode && <section className="panel studio-tune-bar"><button className="secondary studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button></section>}
+    {phoneFailure && <section className="panel studio-phone-retry" role="alert">
+      <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
+      <button className="secondary" disabled={busy || !detail.generation?.creative_direction} onClick={() => void retry(`${basePath}/phone-screen/retry`)}><RefreshCcw />{tr('Retry iPhone image', 'Повторити зображення iPhone')}</button>
+    </section>}
+    <PhoneMetricsStudio
+      api={api} language={language} basePath={basePath} detail={detail}
+      onDetail={(value) => setDetail(value as StudioPhoneMetricsDetail)}
+      onCheckpoint={(result) => setDetail(result.creative)}
     />
-
-    <div className="studio-meta">
-      <span>{detail.catalog.semantic_roles.length} {tr('stable semantic roles', 'сталих семантичних ролей')}</span>
-      <code title={detail.state_sha256}>{detail.state_sha256.slice(0, 12)}</code>
-      {busy && <span><RefreshCcw className="spin" /> {tr('Working…', 'Обробка…')}</span>}
-      {previewBusy && <span><RefreshCcw className="spin" /> {tr('Updating preview…', 'Оновлення прев’ю…')}</span>}
-      {!previewBusy && !previewStale && draftPreviewed && <span className="studio-live-state">{tr('Preview up to date', 'Прев’ю оновлено')}</span>}
-      {previewError && <span className="studio-preview-error">{previewError}</span>}
-    </div>
-
-    <section className="panel universal-component-dock" aria-labelledby="studio-components-title">
-      <header>
-        <div><small>{tr('CREATIVE COMPONENTS', 'КОМПОНЕНТИ КРЕАТИВУ')}</small><h2 id="studio-components-title">{tr('Build the composition at a glance', 'Керуйте композицією з одного погляду')}</h2></div>
-        <p>{tr('Only the background is required. Toggle every foreground role here and judge the auto-reflowed result in the preview.', 'Обов’язковим є лише фон. Перемикайте кожен елемент переднього плану й оцінюйте результат з автоматичним компонуванням у прев’ю.')}</p>
-      </header>
-      <div className="universal-component-grid">
-        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Background', 'Фон')}</strong><small>{tr('Mood & contrast', 'Настрій і контраст')}</small></div>
-        <label className={`universal-component-card is-toggle ${configuration.hero_title?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable headline" type="checkbox" checked={configuration.hero_title?.enabled !== false} onChange={(event) => patchConfig('hero_title', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Headline', 'Заголовок')}</strong><small>{configuration.hero_title?.enabled !== false ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
-        <label className={`universal-component-card is-toggle ${configuration.supporting_text?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable supporting copy" type="checkbox" checked={configuration.supporting_text?.enabled !== false} onChange={(event) => patchConfig('supporting_text', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Supporting copy', 'Пояснення')}</strong><small>{configuration.supporting_text?.enabled !== false ? tr('Visible', 'Видиме') : tr('Hidden', 'Приховане')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
-        <label className={`universal-component-card is-toggle ${configuration.offer?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable offer" type="checkbox" checked={configuration.offer?.enabled !== false} onChange={(event) => patchConfig('offer', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Offer', 'Пропозиція')}</strong><small>{configuration.offer?.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
-        <label className={`universal-component-card is-toggle ${configuration.cta.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable CTA" type="checkbox" checked={configuration.cta.enabled !== false} onChange={(event) => patchConfig('cta', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>CTA</strong><small>{configuration.cta.enabled !== false ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
-        <label className={`universal-component-card is-toggle ${configuration.bullets.enabled ? 'is-active' : ''}`}>
-          <input aria-label="Enable bullets" type="checkbox" checked={configuration.bullets.enabled} onChange={(event) => patchConfig('bullets', { enabled: event.target.checked })} />
-          <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Benefits', 'Переваги')}</strong><small>{configuration.bullets.enabled ? tr('Visible', 'Видимі') : tr('Hidden', 'Приховані')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
-        </label>
-        <label className={`universal-component-card is-toggle ${configuration.sticker.enabled ? 'is-active' : ''} ${!stickerAvailable && !detail.pexels_available ? 'is-unavailable' : ''}`}>
-          <input aria-label="Enable sticker" type="checkbox" checked={configuration.sticker.enabled} disabled={busy || (!stickerAvailable && !detail.pexels_available)} onChange={(event) => {
-            if (event.target.checked && !stickerAvailable) {
-              void sourcePexels('sticker_object', stickerQuery)
-            } else {
-              patchConfig('sticker', { enabled: event.target.checked })
-            }
-          }} />
-          <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Sticker', 'Стікер')}</strong><small>{!stickerAvailable ? detail.pexels_available ? tr('Click to source object', 'Натисніть, щоб знайти об’єкт') : tr('Pexels unavailable', 'Pexels недоступний') : configuration.sticker.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
-        </label>
-        <label className={`universal-component-card is-toggle ${configuration.logo.enabled ? 'is-active' : ''}`}><input aria-label="Enable logo" type="checkbox" checked={configuration.logo.enabled} onChange={(event) => patchConfig('logo', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>Natal</strong><small>{configuration.logo.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
-      </div>
-    </section>
-
-    <section className="universal-studio-workspace">
-      <main className="studio-canvas-panel universal-canvas-panel">
-        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Edit, then update your preview', 'Редагуйте, потім оновіть прев’ю')}</h2></div><button type="button" className="secondary" disabled={busy || previewBusy} onClick={() => void updatePreview()}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button></header>
-        <div className={`studio-preview-feedback ${previewError ? 'is-error' : ''}`} aria-live="polite">
-          {previewBusy && <><RefreshCcw className="spin" /> {tr('Rendering your changes…', 'Рендеримо ваші зміни…')}</>}
-          {!previewBusy && previewStale && <>{tr('Changes not previewed. Press Update preview when ready.', 'Зміни ще не показано. Натисніть «Оновити прев’ю», коли завершите редагування.')}</>}
-          {!previewBusy && previewError && <>{tr('Preview could not update:', 'Не вдалося оновити прев’ю:')} {previewError}</>}
-          {!previewBusy && !previewError && !previewStale && draftPreviewed && <>{tr('Preview matches your unsaved changes', 'Прев’ю відповідає незбереженим змінам')}</>}
-          {!previewBusy && !previewError && !previewStale && !draftPreviewed && <>{tr('Preview matches the saved setup', 'Прев’ю відповідає збереженим налаштуванням')}</>}
-        </div>
-        <div className="studio-preview-grid">
-          <figure aria-busy={previewBusy}>{previewUrl
-            ? <img src={previewUrl} alt={tr('Current universal advertising creative', 'Поточний універсальний рекламний креатив')} />
-            : <div className="studio-preview-empty"><ImagePlus /><span>{tr('Render unavailable', 'Рендер недоступний')}</span></div>}
-          </figure>
-        </div>
-      </main>
-
-      <aside className="universal-controls">
-        <StudioSection
-          eyebrow={tr('SEMANTIC CONTENT', 'СЕМАНТИЧНИЙ ВМІСТ')}
-          title={tr('Compact ad message', 'Компактне рекламне повідомлення')}
-          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
-        >
-          {configuration.hero_title?.enabled !== false && <label><span>{tr('Hero Title', 'Головний заголовок')}</span><textarea aria-label="Hero Title" rows={3} value={content.hero_title} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>}
-          {configuration.supporting_text?.enabled !== false && <label><span>{tr('Supporting Text', 'Пояснювальний текст')}</span><textarea aria-label="Supporting Text" rows={3} value={content.supporting_text} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>}
-          {configuration.offer?.enabled !== false && <label><span>{tr('Offer', 'Пропозиція')}</span><textarea aria-label="Offer" rows={2} maxLength={160} value={content.offer} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>}
-          {configuration.cta.enabled !== false && <label><span>CTA</span><input aria-label="CTA" value={content.cta} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>}
-          {configuration.bullets.enabled && <div className="universal-bullets">
-            <label><span>{tr('Bullet style', 'Стиль маркера')}</span><select
-              aria-label="Bullet style" value={configuration.bullets.style}
-              onChange={(event) => patchConfig('bullets', { style: event.target.value as StudioUniversalConfiguration['bullets']['style'] })}
-            >
-              <option value="check">{tr('Check mark', 'Позначка')}</option>
-              <option value="circle">{tr('Filled circle', 'Заповнене коло')}</option>
-              <option value="circle_outline">{tr('Outlined circle', 'Контурне коло')}</option>
-            </select></label>
-            {[0, 1, 2].map((index) => <label key={index}><span><input type="checkbox" aria-label={`Enable bullet ${index + 1}`} checked={configuration.bullets.items_enabled?.[index] !== false} onChange={(event) => { const next = [...(configuration.bullets.items_enabled || [true, true, true])] as [boolean, boolean, boolean]; next[index] = event.target.checked; patchConfig('bullets', { items_enabled: next }) }} /> {tr('Visible', 'Видимий')}</span>{configuration.bullets.items_enabled?.[index] !== false && <input aria-label={`Bullet ${index + 1}`} placeholder={`${tr('Bullet', 'Пункт')} ${index + 1}`} value={content.bullets[index] || ''} onChange={(event) => setBullet(index, event.target.value)} />}</label>)}
-          </div>}
-          {!configuration.bullets.enabled && <p className="universal-section-note">{tr('Benefits are hidden. Enable that component above when the message needs scannable proof points.', 'Переваги приховані. Увімкніть цей компонент вище, коли повідомленню потрібні короткі докази.')}</p>}
-        </StudioSection>
-
-        <StudioSection
-          eyebrow={tr('NATAL LOGO', 'ЛОГОТИП NATAL')} title={tr('Brand colors', 'Кольори бренду')}
-          defaultOpen={false}
-          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
-        >
-            <div className="universal-field-grid">
-              <EditableColorField className="universal-color-field" label={tr('Logo symbol color', 'Колір знака логотипа')} hexLabel={tr('Logo symbol color hex', 'HEX кольору знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => patchConfig('logo', { symbol_color: value })} />
-              <EditableColorField className="universal-color-field" label={tr('Natal name color', 'Колір назви Natal')} hexLabel={tr('Natal name color hex', 'HEX кольору назви Natal')} value={configuration.logo.name_color} onChange={(value) => patchConfig('logo', { name_color: value })} />
-            </div>
-            <p className="universal-section-note">{tr('The full symbol uses one color, including its inner stroke. Save or Approve makes this pair the default for future Posts in this Project. The canonical artwork cannot be replaced.', 'Увесь знак, включно з внутрішнім штрихом, використовує один колір. Після «Зберегти» або «Схвалити» ця пара стане типовою для майбутніх дописів у проєкті. Канонічне зображення не можна замінити.')}</p>
-        </StudioSection>
-
-        <StudioSection
-          eyebrow={tr('BACKGROUND', 'ФОН')} title={tr('Mood and contrast', 'Настрій і контраст')}
-          defaultOpen={false}
-          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
-        ><div className="universal-field-grid">
-            <label><span>{tr('Mode', 'Режим')}</span><select aria-label="Background mode" value={configuration.background.mode} onChange={(event) => patchConfig('background', { mode: event.target.value as StudioUniversalConfiguration['background']['mode'] })}><option value="solid">solid</option><option value="texture">texture</option><option value="image">image</option></select></label>
-            <EditableColorField className="universal-color-field" label={tr('Background color', 'Базовий колір')} hexLabel={tr('Background color hex', 'HEX базового кольору')} value={configuration.background.color} onChange={(value) => patchConfig('background', { color: value })} />
-            {configuration.background.mode === 'texture' && <>
-              <label><span>{tr('Texture', 'Текстура')}</span><select aria-label="Texture" value={configuration.background.texture} onChange={(event) => patchConfig('background', { texture: event.target.value as StudioUniversalConfiguration['background']['texture'] })}>
-                {detail.catalog.variation.texture_presets.map((texture) => <option key={texture} value={texture}>{texture}</option>)}
-              </select></label>
-              <RangeField label={tr('Texture intensity', 'Інтенсивність текстури')} value={configuration.background.texture_intensity} min={0} max={1} step={0.05} onChange={(value) => patchConfig('background', { texture_intensity: value })} />
-            </>}
-            {configuration.background.mode === 'image' && <>
-              <label><span>{tr('Image layout', 'Розміщення зображення')}</span><select value={configuration.background.image_layout} onChange={(event) => patchConfig('background', { image_layout: event.target.value as StudioUniversalConfiguration['background']['image_layout'] })}>{['full', 'left', 'right', 'top', 'bottom'].map((item) => <option key={item}>{item}</option>)}</select></label>
-              {configuration.background.image_layout !== 'full' && <label><span>{tr('Image / background mix', 'Співвідношення зображення / фону')}</span><select
-                aria-label="Image background mix" value={configuration.background.image_percent}
-                onChange={(event) => patchConfig('background', { image_percent: Number(event.target.value) as 25 | 75 })}
-              ><option value={75}>75% image · 25% background</option><option value={25}>25% image · 75% background</option></select></label>}
-              <label><span>{tr('Fit', 'Вписування')}</span><select value={configuration.background.image_fit} onChange={(event) => patchConfig('background', { image_fit: event.target.value as 'cover' | 'contain' })}><option>cover</option><option>contain</option></select></label>
-              <NumberField label="Focal X" value={configuration.background.focal_x} min={0} max={1} step={0.05} onChange={(value) => patchConfig('background', { focal_x: value })} />
-              <NumberField label="Focal Y" value={configuration.background.focal_y} min={0} max={1} step={0.05} onChange={(value) => patchConfig('background', { focal_y: value })} />
-              <div className="universal-inline-upload universal-field-span">
-                <div><strong>{tr('Sample image', 'Тестове зображення')}</strong><span>{backgroundAsset?.available ? `${backgroundAsset.mime_type} · ${String(backgroundAsset.source?.origin || 'stored')}` : tr('No image supplied', 'Зображення не додано')}</span></div>
-                <label className="secondary"><Upload />{tr('Upload sample', 'Завантажити приклад')}<input
-                  aria-label="Upload sample background image" type="file"
-                  accept={backgroundAsset?.allowed_mime_types.join(',') || 'image/jpeg,image/png,image/webp'}
-                  onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset('background_image', file); event.currentTarget.value = '' }}
-                /></label>
-              </div>
-            </>}
-            <EditableColorField className="universal-color-field" label={tr('Overlay color', 'Колір накладення')} hexLabel={tr('Overlay color hex', 'HEX кольору накладення')} value={configuration.background.overlay_color} onChange={(value) => patchConfig('background', { overlay_color: value })} />
-            <RangeField label={tr('Overlay opacity', 'Прозорість накладення')} value={configuration.background.overlay_opacity} min={0} max={0.85} step={0.05} onChange={(value) => patchConfig('background', { overlay_opacity: value })} />
-          </div>
-        </StudioSection>
-
-        <StudioSection
-          eyebrow={tr('HIERARCHY & CTA', 'ІЄРАРХІЯ ТА CTA')} title={tr('Type, layout and action', 'Типографіка, макет і дія')}
-          defaultOpen={false}
-          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
-        ><div className="universal-field-grid">
-            <label><span>{tr('Headline font', 'Шрифт заголовка')}</span><select aria-label="Headline font family" value={configuration.typography.font_family} onChange={(event) => patchConfig('typography', { font_family: event.target.value as StudioUniversalFontFamily })}>
-              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-            </select></label>
-            <label><span>{tr('Supporting font', 'Шрифт пояснення')}</span><select aria-label="Supporting font family" value={configuration.typography.supporting_font_family} onChange={(event) => patchConfig('typography', { supporting_font_family: event.target.value as StudioUniversalFontFamily })}>
-              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-            </select></label>
-            <label><span>{tr('Offer font', 'Шрифт пропозиції')}</span><select aria-label="Offer font family" value={configuration.typography.offer_font_family} onChange={(event) => patchConfig('typography', { offer_font_family: event.target.value as StudioUniversalFontFamily })}>
-              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-            </select></label>
-            <label><span>{tr('Benefits font mood', 'Настрій шрифту переваг')}</span><select aria-label="Benefits font family" value={configuration.typography.benefits_font_family} onChange={(event) => patchConfig('typography', { benefits_font_family: event.target.value as StudioUniversalFontFamily })}>
-              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-            </select></label>
-            <label><span>{tr('Alignment', 'Вирівнювання')}</span><select aria-label="Text alignment" value={configuration.typography.alignment} onChange={(event) => patchConfig('typography', { alignment: event.target.value as 'left' | 'center' })}><option>left</option><option>center</option></select></label>
-            <NumberField label="Hero size" value={configuration.typography.hero_size} min={64} max={180} onChange={(value) => patchConfig('typography', { hero_size: value })} />
-            <NumberField label="Hero weight" value={configuration.typography.hero_weight} min={400} max={900} step={100} onChange={(value) => patchConfig('typography', { hero_weight: value })} />
-            <NumberField label="Supporting size" value={configuration.typography.supporting_size} min={22} max={52} onChange={(value) => patchConfig('typography', { supporting_size: value })} />
-            <NumberField label="Offer size" value={configuration.typography.offer_size} min={18} max={52} onChange={(value) => patchConfig('typography', { offer_size: value })} />
-            <NumberField label="Benefits size" value={configuration.typography.benefits_size} min={16} max={48} onChange={(value) => patchConfig('typography', { benefits_size: value })} />
-            <EditableColorField className="universal-color-field" label={tr('Text color', 'Колір тексту')} hexLabel={tr('Text color hex', 'HEX кольору тексту')} value={configuration.typography.text_color} onChange={(value) => patchConfig('typography', { text_color: value })} />
-            <NumberField label="Content X" value={configuration.layout.content_x} min={48} max={520} onChange={(value) => patchConfig('layout', { content_x: value })} />
-            <NumberField label="Content Y" value={configuration.layout.content_y} min={72} max={360} onChange={(value) => patchConfig('layout', { content_y: value })} />
-            <NumberField label="Content width" value={configuration.layout.content_width} min={420} max={936} onChange={(value) => patchConfig('layout', { content_width: value })} />
-            <NumberField label="Vertical gap" value={configuration.layout.gap} min={8} max={56} onChange={(value) => patchConfig('layout', { gap: value })} />
-            <label><span>{tr('CTA style', 'Стиль CTA')}</span><select aria-label="CTA style" value={configuration.cta.style} onChange={(event) => patchConfig('cta', { style: event.target.value as StudioUniversalConfiguration['cta']['style'] })}>
-              <option value="filled">filled</option><option value="gradient">gradient</option><option value="reverse">reverse</option><option value="link">link</option><option value="outlined">outlined</option>
-            </select></label>
-            <label><span>{tr('CTA placement', 'Розміщення CTA')}</span><select aria-label="CTA placement" value={configuration.cta.position} onChange={(event) => patchConfig('cta', { position: event.target.value as StudioUniversalConfiguration['cta']['position'] })}>
-              <option value="below_text">{tr('Below text', 'Під текстом')}</option>
-              <option value="bottom_left">{tr('Bottom left', 'Знизу ліворуч')}</option>
-              <option value="bottom_right">{tr('Bottom right', 'Знизу праворуч')}</option>
-            </select></label>
-            <EditableColorField className="universal-color-field" label={tr('CTA background color', 'Колір фону CTA')} hexLabel={tr('CTA background color hex', 'HEX кольору фону CTA')} value={configuration.cta.background_color} onChange={(value) => patchConfig('cta', { background_color: value })} />
-            <EditableColorField className="universal-color-field" label={tr('CTA text color', 'Колір тексту CTA')} hexLabel={tr('CTA text color hex', 'HEX кольору тексту CTA')} value={configuration.cta.text_color} onChange={(value) => patchConfig('cta', { text_color: value })} />
-            <label><span>{tr('CTA font', 'Шрифт CTA')}</span><select aria-label="CTA font family" value={configuration.cta.font_family} onChange={(event) => patchConfig('cta', { font_family: event.target.value as StudioUniversalFontFamily })}>
-              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
-            </select></label>
-            <NumberField label={tr('CTA font size', 'Розмір шрифту CTA')} value={configuration.cta.font_size} min={18} max={42} onChange={(value) => patchConfig('cta', { font_size: value })} />
-            <NumberField label="CTA radius" value={configuration.cta.radius} min={0} max={40} onChange={(value) => patchConfig('cta', { radius: value })} />
-          </div>
-        </StudioSection>
-
-        <StudioSection
-          eyebrow={tr('OPTIONAL SETTINGS', 'НАЛАШТУВАННЯ ОПЦІЙ')} title={tr('Sticker placement', 'Розміщення стікера')}
-          defaultOpen={false}
-          expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
-        >
-          {configuration.sticker.enabled && <div className="universal-field-grid">
-            <label><span>{tr('Position', 'Позиція')}</span><select aria-label="Sticker position" value={configuration.sticker.position} onChange={(event) => patchConfig('sticker', { position: event.target.value as StudioUniversalConfiguration['sticker']['position'] })}>
-              <option value="top_left">{tr('Top left', 'Зверху ліворуч')}</option><option value="top_right">{tr('Top right', 'Зверху праворуч')}</option>
-              <option value="bottom_left">{tr('Bottom left', 'Знизу ліворуч')}</option><option value="bottom_right">{tr('Bottom right', 'Знизу праворуч')}</option>
-              <option value="right_edge">{tr('Sticks from right', 'Виступає справа')}</option><option value="bottom_edge">{tr('Sticks from bottom', 'Виступає знизу')}</option>
-              <option value="bullet_list">{tr('Sticks to benefits', 'Кріпиться до переваг')}</option><option value="hero_title">{tr('Sticks to hero title', 'Кріпиться до заголовка')}</option>
-              <option value="cta">{tr('Sticks to CTA', 'Кріпиться до CTA')}</option>
-            </select></label>
-            <NumberField label="Sticker rotation" value={configuration.sticker.rotation} min={-18} max={18} onChange={(value) => patchConfig('sticker', { rotation: value })} />
-            <NumberField label="Sticker width" value={configuration.sticker.width} min={120} max={720} onChange={(value) => patchConfig('sticker', { width: value })} />
-            <NumberField label="Object scale" value={configuration.sticker.object_scale} min={0.35} max={1.5} step={0.05} onChange={(value) => patchConfig('sticker', { object_scale: value })} />
-            <NumberField label="Adjust from right" value={configuration.sticker.offset_right} min={-720} max={720} onChange={(value) => patchConfig('sticker', { offset_right: value })} />
-            <NumberField label="Adjust from bottom" value={configuration.sticker.offset_bottom} min={-720} max={720} onChange={(value) => patchConfig('sticker', { offset_bottom: value })} />
-          </div>}
-          {!configuration.sticker.enabled && <p className="universal-section-note">{tr('Enable Sticker in the component dock to reveal its placement controls.', 'Увімкніть «Стікер» у панелі компонентів, щоб побачити налаштування розміщення.')}</p>}
-        </StudioSection>
-      </aside>
-    </section>
-
-    <section className="panel universal-assets-panel">
-      <small>{tr('FIXED ASSET SLOTS', 'ФІКСОВАНІ МІСЦЯ ДЛЯ РЕСУРСІВ')}</small><h2>{tr('Background and sticker object · Natal is fixed', 'Фон і об’єкт стікера · Natal зафіксовано')}</h2>
-      <div className="studio-asset-list">{detail.assets.filter((asset) => asset.slot !== 'logo').map((asset) => <div key={asset.slot}><div><strong>{asset.slot}</strong><span>{asset.available ? `${asset.mime_type} · ${Math.round((asset.byte_count || 0) / 1024)} KB · ${String(asset.source?.origin || 'stored')}` : tr('Optional · not supplied', 'Необов’язково · не надано')}</span></div>{asset.slot === 'sticker_object' ? <span className="studio-note">{tr('Pexels photograph only', 'Лише фотографія Pexels')}</span> : <label className="secondary"><Upload />{tr('Upload', 'Завантажити')}<input aria-label={`Upload ${asset.slot} asset`} type="file" accept={asset.allowed_mime_types.join(',')} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(asset.slot, file); event.currentTarget.value = '' }} /></label>}</div>)}</div>
-      <div className="universal-pexels-grid">
-        <label><span>{tr('Pexels background query', 'Запит фону Pexels')}</span><input aria-label="Pexels background query" value={backgroundQuery} onChange={(event) => setBackgroundQuery(event.target.value)} /></label>
-        <button className="secondary" disabled={busy || !detail.pexels_available || backgroundQuery.trim().length < 2} onClick={() => void sourcePexels('background_image', backgroundQuery)}><Search />{tr('Source background', 'Знайти фон')}</button>
-        <label><span>{tr('Pexels sticker object query', 'Запит об’єкта стікера Pexels')}</span><input aria-label="Pexels sticker query" value={stickerQuery} onChange={(event) => setStickerQuery(event.target.value)} /></label>
-        <button className="secondary" disabled={busy || !detail.pexels_available || stickerQuery.trim().length < 2} onClick={() => void sourcePexels('sticker_object', stickerQuery)}><Search />{tr('Source & isolate object', 'Знайти й ізолювати об’єкт')}</button>
-      </div>
-      {!detail.pexels_available && <p className="studio-note">{tr('Pexels is not configured in this local runtime. The sticker stays unavailable; background upload remains available.', 'Pexels не налаштовано в цьому локальному середовищі. Стікер недоступний; завантаження фону доступне.')}</p>}
-    </section>
-
-    <section className="panel studio-approval universal-approval">
-      <div><small>{tr('IMMUTABLE EXPERIMENT ASSET', 'НЕЗМІННИЙ РЕСУРС ЕКСПЕРИМЕНТУ')}</small><h2>{tr('Store exact creative + configuration', 'Зберегти точний креатив і конфігурацію')}</h2><p>{tr('Approval stores the rendered PNG, universal configuration, semantic content, asset digests, and internal template digest together.', 'Схвалення разом зберігає PNG, універсальну конфігурацію, семантичний вміст, digest ресурсів і внутрішній digest шаблону.')}</p></div>
-      <label><span>{tr('Version note', 'Примітка до версії')}</span><input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} /></label>
-      <button className="primary large" disabled={busy || !changeNote.trim()} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
-      {detail.versions.length > 0 && <ol className="universal-version-list">{detail.versions.map((version) => <li key={version.version}><strong>v{version.version}</strong><span>{version.change_note}</span><button className="secondary" onClick={() => void showVersion(version.version, version.render_sha256)}>{tr('View', 'Переглянути')}</button></li>)}</ol>}
-    </section>
-    <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />
-    {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl={previewUrl} onClose={() => setTuneOpen(false)} />}
-  </div>
+    <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id} versions={detail.versions} />
+    {variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}>
+      <header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>
+      <PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" />
+      <button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button>
+    </section></div>}
+    {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl="" onClose={() => setTuneOpen(false)} />}
+  </>
 }

@@ -1,4 +1,4 @@
-"""Shared FastAPI routes for the bounded Universal Studio templates."""
+"""Shared FastAPI routes for registered bounded Post templates."""
 
 from __future__ import annotations
 
@@ -193,18 +193,6 @@ def studio_creative_router(
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 
-    @router.post("/projects/{project_id}/creatives/{creative_id}/assets/{slot}")
-    def asset(project_id: str, creative_id: str, slot: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        fields(request, {"base_sha256", "mime_type", "bytes_base64"}, "Studio asset fields are invalid")
-        try:
-            return service.mutate(
-                project_id, creative_id, "upload_asset", slot,
-                base_sha256=str(request["base_sha256"]), mime_type=str(request["mime_type"]),
-                bytes_base64=str(request["bytes_base64"]),
-            )
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
-
     @router.post("/projects/{project_id}/creatives/{creative_id}/phone-screen/select")
     def select_phone(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         fields(request, {"base_sha256", "sha256"}, "Studio phone selection fields are invalid")
@@ -238,23 +226,6 @@ def studio_creative_router(
                 "X-PTW-Content-SHA256": image["sha256"], "X-Content-Type-Options": "nosniff",
             },
         )
-
-    @router.post("/projects/{project_id}/creatives/{creative_id}/pexels")
-    def pexels(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        fields(request, {"base_sha256", "slot", "query", "isolate"}, "Studio Pexels fields are invalid")
-        if not isinstance(request["isolate"], bool):
-            raise HTTPException(status_code=400, detail="Studio Pexels isolate must be boolean")
-        try:
-            workspace = service._workspace(creative_id)
-            service.detail(project_id, creative_id)
-            value = workspace.source_pexels(
-                str(request["slot"]), base_sha256=str(request["base_sha256"]),
-                query=str(request["query"]), isolate=request["isolate"],
-            )
-            service.authority.update_creative(creative_id, state_sha256=value["state_sha256"])
-            return {**value, **service.summary(creative_id)}
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
 
     @router.post("/projects/{project_id}/creatives/{creative_id}/preview")
     def preview(project_id: str, creative_id: str, request: Mapping[str, Any]) -> Response:

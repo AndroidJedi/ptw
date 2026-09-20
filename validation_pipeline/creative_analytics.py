@@ -25,7 +25,6 @@ from .studio_phone_metrics import (
     PHONE_BACKGROUND_TEXTURES, PHONE_COMPONENTS, PHONE_COPY_BACKGROUND_TEXTURES,
     PHONE_SCREEN_TEXTURES,
 )
-from .studio_universal import COMPONENT_DEFINITIONS, UNIVERSAL_SETTING_DEFINITIONS
 
 
 WINDOWS = {7, 30, 90, 0}
@@ -271,12 +270,6 @@ def _post_ui_catalog() -> dict[tuple[str, str, str], dict[str, Any]]:
         "configuration.logo.symbol_color",
         "configuration.logo.name_color",
     }
-    for component in COMPONENT_DEFINITIONS:
-        for setting in component["setting_ids"]:
-            if setting in project_brand_defaults:
-                continue
-            definition = dict(UNIVERSAL_SETTING_DEFINITIONS.get(setting) or {"value_type": "structured"})
-            result[("universal_ad", component["component_id"], setting)] = definition
     phone_enums = {
         "configuration.visual_mode": ["phone", "image"],
         "configuration.background.texture": list(PHONE_BACKGROUND_TEXTURES),
@@ -394,7 +387,7 @@ def normalize_rule(value: Mapping[str, Any], *, scope: str, project_id: str | No
         if surface == "both":
             raise ValueError("copy rules require one exact post or landing semantic role")
         semantic_role = str(target.get("semantic_role") or "")
-        post_roles = {str(item["role"]) for item in (*COMPONENT_DEFINITIONS, *PHONE_COMPONENTS)}
+        post_roles = {str(item["role"]) for item in PHONE_COMPONENTS}
         landing_roles = {str(item["role"]) for item in landing_catalog()["components"]}
         allowed_roles = post_roles if surface == "post" else landing_roles
         if set(target) != {"semantic_role"} or semantic_role not in allowed_roles:
@@ -404,7 +397,7 @@ def normalize_rule(value: Mapping[str, Any], *, scope: str, project_id: str | No
             raise ValueError("image rules require one exact post or landing asset slot")
         asset_slot = str(target.get("asset_slot") or "")
         post_slots = {
-            str(slot) for item in (*COMPONENT_DEFINITIONS, *PHONE_COMPONENTS)
+            str(slot) for item in PHONE_COMPONENTS
             for slot in item["asset_slot_ids"]
         }
         landing_slots = {str(slot) for slot in landing_catalog()["visual_slots"]}

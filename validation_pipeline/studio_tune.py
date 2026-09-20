@@ -1,4 +1,4 @@
-"""Local-only isolated coding-agent loop for Universal Studio Tune mode."""
+"""Local-only isolated coding-agent loop for registered Post Studio templates."""
 
 from __future__ import annotations
 
@@ -28,7 +28,8 @@ MAX_AGENT_SECONDS = 2_400
 MAX_SUMMARY_CHARACTERS = 12_000
 MAX_COMMAND_OUTPUT_CHARACTERS = 12_000
 PREVIEW_FILENAME = "preview.png"
-PREVIEW_SIZE = 1_080
+PREVIEW_WIDTH = 1_080
+PREVIEW_HEIGHT = 1_350
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 SKILL_RULES_PATH = Path("skills/studio-tune-local/references/owner-approved-rules.md")
 SKILL_RULES_START = "<!-- PTW-STUDIO-TUNE-RULES-START -->"
@@ -45,11 +46,11 @@ TUNE_EXACT_PATHS = frozenset({
     "apps/commander-web/src/types.ts",
     "apps/commander-web/src/views/StudioView.test.tsx",
     "apps/commander-web/src/views/StudioView.tsx",
-    "docs/architecture/universal-ad-studio.md",
+    "docs/architecture/post-studio.md",
     "tests/validation_pipeline/test_studio_primitives.py",
-    "tests/validation_pipeline/test_studio_workspace.py",
+    "tests/validation_pipeline/test_studio_phone_metrics.py",
     "validation_pipeline/studio_primitives.py",
-    "validation_pipeline/studio_universal.py",
+    "validation_pipeline/studio_phone_metrics.py",
     "validation_pipeline/studio_workspace.py",
 })
 TUNE_PATH_PREFIXES = (
@@ -101,9 +102,9 @@ def _preview_metadata(value: bytes) -> dict[str, Any]:
         raise ValueError("Studio Tune preview is not a valid PNG")
     width = int.from_bytes(value[16:20], "big")
     height = int.from_bytes(value[20:24], "big")
-    if (width, height) != (PREVIEW_SIZE, PREVIEW_SIZE):
+    if (width, height) != (PREVIEW_WIDTH, PREVIEW_HEIGHT):
         raise ValueError(
-            f"Studio Tune preview must be {PREVIEW_SIZE}x{PREVIEW_SIZE}; got {width}x{height}"
+            f"Studio Tune preview must be {PREVIEW_WIDTH}x{PREVIEW_HEIGHT}; got {width}x{height}"
         )
     return {
         "mime_type": "image/png",
@@ -433,7 +434,7 @@ class StudioTuneService:
         feedback = str(record["feedback"]) or "No prior feedback; this is the first implementation pass."
         studio_context = json.dumps(
             record.get("studio_context") or {
-                "schema": "ptw.studio.universal-ad-agent-context.unavailable.v1",
+                "schema": "ptw.studio.post-agent-context.unavailable.v1",
                 "available": False,
             },
             ensure_ascii=False, sort_keys=True, indent=2,
@@ -443,12 +444,12 @@ class StudioTuneService:
                 *sorted(TUNE_EXACT_PATHS), *(f"{prefix}*" for prefix in TUNE_PATH_PREFIXES),
             )
         )
-        return f"""You are implementing one owner-requested Universal Studio experiment in PTW Tune mode.
+        return f"""You are implementing one owner-requested Post Studio experiment in PTW Tune mode.
 
 This is an isolated disposable snapshot. The host already synchronized and captured the owner's
 current working tree. Do not fetch, pull, deploy, publish, contact production, mutate a database,
 or inspect secrets. Read AGENTS.md, docs/README.md, the current-state resume point,
-skills/studio-tune-local/SKILL.md, and only the Universal Studio documentation needed for the
+skills/studio-tune-local/SKILL.md, and only the Post Studio documentation needed for the
 change. Preserve the generic architecture and keep Instagram-specific behavior behind its adapter.
 
 You may create or edit only these paths:
@@ -561,7 +562,7 @@ make the changes in this snapshot.
                     str(snapshot / ".venv" / "bin" / "python"), "-m", "unittest", "discover",
                     "-s", "tests/validation_pipeline", "-p", "test_studio*.py", "-v",
                 ],
-                "Universal Studio Python tests",
+                "Post Studio Python tests",
             ),
             (
                 [
@@ -581,8 +582,8 @@ make the changes in this snapshot.
     def _render_snapshot_preview(self, snapshot: Path) -> bytes:
         script = "\n".join((
             "import sys",
-            "from validation_pipeline.studio_workspace import UniversalStudioWorkspace",
-            "workspace = UniversalStudioWorkspace(sys.argv[1])",
+            "from validation_pipeline.studio_workspace import PostStudioWorkspace",
+            "workspace = PostStudioWorkspace(sys.argv[1])",
             "detail = workspace.detail()",
             "render = workspace.render_preview(state_sha256=detail['state_sha256'])",
             "sys.stdout.buffer.write(render['bytes'])",

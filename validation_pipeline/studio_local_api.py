@@ -11,7 +11,6 @@ from typing import Any, Mapping
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
-from .images import PexelsClient
 from .local_brief_routes import local_brief_router
 from .local_brief_store import LocalBriefStore
 from .local_briefs import LocalBriefService
@@ -35,7 +34,7 @@ from .openai_images import (
 from .studio_creatives import LocalStudioAuthority, StudioCreativeService
 from .studio_routes import studio_creative_router
 from .studio_tune import StudioTuneService, studio_tune_router
-from .studio_workspace import UniversalStudioWorkspace
+from .studio_workspace import PostStudioWorkspace
 from .commander_chat import commander_chat_router
 from .commander_workspace import CommanderWorkspaceService as CommanderChatService
 from .local_authorization import LocalAuthorization, local_authorization_router
@@ -63,8 +62,6 @@ def create_app(
     workspace_path = Path(os.environ.get(
         "STUDIO_WORKSPACE_PATH", ".local/studio-workspace",
     ))
-    pexels_key = os.environ.get("PEXELS_API_KEY", "").strip()
-    pexels = PexelsClient(pexels_key) if pexels_key else None
     codex_binary = os.environ.get("LOCAL_CODEX_BIN", "").strip() or "codex"
     openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     phone_screen_images = phone_screen_image_provider
@@ -110,8 +107,8 @@ def create_app(
     )
     studio_creatives = StudioCreativeService(
         root=workspace_path, authority=authority,
-        workspace_factory=lambda path: UniversalStudioWorkspace(
-            path, pexels=pexels, image_provider=phone_screen_images,
+        workspace_factory=lambda path: PostStudioWorkspace(
+            path, image_provider=phone_screen_images,
         ),
         structured_provider=structured_provider,
         composer_skill_path=repository_root / "skills/studio-creative-composer/SKILL.md",

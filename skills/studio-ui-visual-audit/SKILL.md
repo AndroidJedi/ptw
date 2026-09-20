@@ -13,11 +13,8 @@ a specific remote target.
 ## Evidence and diagnosis
 
 - Reproduce the reported configuration, content, assets, viewport, and language.
-- Treat `phone_metrics` as the only active template. Retained `universal_ad`
-  renders are compatibility evidence for historical Posts, not a selectable,
-  cloneable, or replaceable owner workflow.
-- Inspect the authenticated raw template-native PNG at full resolution (1080×1080
-  for `universal_ad`, 1080×1350 for `phone_metrics`). If the defect
+- Treat `phone_metrics` as the only registered Post template.
+- Inspect the authenticated raw template-native PNG at full 1080×1350 resolution. If the defect
   is present there or in its resolved node manifest, fix the renderer/template;
   if it appears only in the scaled preview, fix the Studio UI/CSS.
 - For text, compare visible alpha bounds with the assigned box. Treat an ink
@@ -35,7 +32,7 @@ a specific remote target.
 Run the deterministic Studio geometry and colour audit from the repository root:
 
 ```sh
-.venv/bin/python skills/studio-ui-visual-audit/scripts/audit_universal_studio.py
+.venv/bin/python skills/studio-ui-visual-audit/scripts/audit_post_studio.py
 ```
 
 Add focused regression coverage for the actual failed invariant. Prefer
@@ -72,7 +69,7 @@ in-phone textures stay beneath crisp fixed UI. Inspect the representative PNG
 after automated checks pass.
 
 For Natal color controls, inspect the exact chosen RGB values in the authoritative
-Universal lock-up and in both Phone Metrics lock-ups. Verify the complete symbol,
+Post lock-up and in both Phone Metrics lock-ups. Verify the complete symbol,
 including its inner stroke, uses the symbol color; the word uses only the name
 color; alpha geometry and dimensions match the canonical asset; independent
 visibility remains intact; and the editor has no horizontal overflow at desktop,
@@ -91,7 +88,7 @@ bounded boolean mode to the authenticated route when no uploaded reference is se
 that enhancement receives the exact raw current asset, never the composited
 phone preview, and persists its reference SHA-256 while failure preserves the
 previous asset.
-Verify every main component-setting disclosure in both Post templates starts
+Verify every main component-setting disclosure in the Post template starts
 collapsed and remains keyboard-toggleable. For the Phone hero workflow, also
 exercise repeated generation: the current digest-verified thumbnail must become
 visible after bounded transient media failures; an exhausted load must expose a

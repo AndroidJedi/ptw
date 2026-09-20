@@ -318,8 +318,8 @@ export function StudioTuneWizard({ api, language, open, studioPreviewUrl, onClos
           <small>{tr('SAFE SELF-TUNING', 'БЕЗПЕЧНЕ САМОНАЛАШТУВАННЯ')}</small>
           <h3>{tr('It can improve its Studio code.', 'Він може вдосконалювати код Студії.')}</h3>
           <p>{tr(
-            'The agent may update Universal Studio rendering scripts, tests, styles, and Studio UI components—including this wizard UI.',
-            'Агент може оновлювати скрипти рендерингу Universal Studio, тести, стилі й UI-компоненти Студії — зокрема інтерфейс цього майстра.',
+            'The agent may update Post Studio rendering scripts, tests, styles, and Studio UI components—including this wizard UI.',
+            'Агент може оновлювати скрипти рендерингу Post Studio, тести, стилі й UI-компоненти Студії — зокрема інтерфейс цього майстра.',
           )}</p>
           <ul>
             <li>{tr('Works in a disposable copy first', 'Спочатку працює в одноразовій копії')}</li>
@@ -343,7 +343,7 @@ export function StudioTuneWizard({ api, language, open, studioPreviewUrl, onClos
               : tr('The preview is temporarily unavailable. Return to Studio and reopen feedback.', 'Попередній перегляд тимчасово недоступний. Поверніться до Студії та знову відкрийте відгук.')}</div>}
           <figcaption>{run.status === 'failed'
             ? tr('CURRENT STUDIO CREATIVE · 1080×1080', 'ПОТОЧНИЙ КРЕАТИВ СТУДІЇ · 1080×1080')
-            : `${tr('GENERATED CREATIVE', 'ЗГЕНЕРОВАНИЙ КРЕАТИВ')} · ${run.preview?.width || 1080}×${run.preview?.height || 1080}`}</figcaption>
+            : `${tr('GENERATED CREATIVE', 'ЗГЕНЕРОВАНИЙ КРЕАТИВ')} · ${run.preview?.width || 1080}×${run.preview?.height || 1350}`}</figcaption>
         </figure>
 
         <div className="studio-tune-review-feedback">

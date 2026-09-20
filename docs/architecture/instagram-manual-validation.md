@@ -45,7 +45,7 @@ Approve flow. A request UUID makes cloning idempotent and graph lineage records
 `derived_from` the approved source version.
 
 Only the background is mandatory in both active Post templates. Every
-foreground group is optional. Repeated Universal bullets, Phone Metrics cards,
+foreground group is optional. Repeated Post items, Phone Metrics cards,
 and in-phone action buttons have individual visibility switches. Hidden content
 is retained for later restoration, omitted from the render/semantic projection,
 and remaining elements reflow deterministically.

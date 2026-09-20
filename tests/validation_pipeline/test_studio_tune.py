@@ -14,7 +14,7 @@ from validation_pipeline.studio_tune import StudioTuneService
 HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 PREVIEW_BYTES = (
     b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\x0dIHDR"
-    + (1_080).to_bytes(4, "big") + (1_080).to_bytes(4, "big")
+    + (1_080).to_bytes(4, "big") + (1_350).to_bytes(4, "big")
 )
 
 
@@ -101,6 +101,7 @@ class StudioTuneServiceTests(unittest.TestCase):
         self.assertEqual(["focused tests", "production build"], completed["verification"])
         self.assertEqual("image/png", completed["preview"]["mime_type"])
         self.assertEqual(1_080, completed["preview"]["width"])
+        self.assertEqual(1_350, completed["preview"]["height"])
         preview, metadata = service.preview(started["run_id"])
         self.assertEqual(PREVIEW_BYTES, preview)
         self.assertEqual(completed["preview"], metadata)
@@ -111,13 +112,13 @@ class StudioTuneServiceTests(unittest.TestCase):
     def test_agent_prompt_and_run_capture_exact_component_settings_json(self) -> None:
         prompts: list[str] = []
         context = {
-            "schema": "ptw.studio.universal-ad-agent-context.v2",
-            "template_id": "universal_ad",
+            "schema": "ptw.studio.agent-context.v3",
+            "template_id": "phone_metrics",
             "state_sha256": "a" * 64,
             "component_settings": {
-                "schema": "ptw.studio.universal-ad-component-settings.v3",
+                "schema": "ptw.studio.phone-metrics-component-settings.v3",
                 "components": [{
-                    "component_id": "universal_ad.cta",
+                    "component_id": "phone_metrics.cta",
                     "node_ids": ["cta"],
                     "asset_slot_ids": [],
                     "settings": [{
@@ -145,7 +146,7 @@ class StudioTuneServiceTests(unittest.TestCase):
 
         self.assertEqual("completed", completed["status"])
         self.assertEqual(context, completed["studio_context"])
-        self.assertIn('"component_id": "universal_ad.cta"', prompts[0])
+        self.assertIn('"component_id": "phone_metrics.cta"', prompts[0])
         self.assertIn('"setting_id": "configuration.cta.style"', prompts[0])
         self.assertIn('"value": "outlined"', prompts[0])
         self.assertIn("machine-readable authority", prompts[0])

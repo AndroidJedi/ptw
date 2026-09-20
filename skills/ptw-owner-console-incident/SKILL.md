@@ -218,7 +218,7 @@ before changing code or runtime state.
   is never waived merely because another write is valid.
 - Treat that Studio failure as one example of a general contract-drift class,
   not a field-specific exception. Every structured Product Brief, revision,
-  Universal Post, Phone Metrics, Landing composition, performance-learning, and
+  registered Post, Landing composition, performance-learning, and
   visual-analysis call must supply a deterministic domain response validator.
   A provider/schema-valid object is never sufficient by itself. Keep renderer
   and Landing bounds, enums, patterns, fixed values, content lengths, and
@@ -317,11 +317,9 @@ before changing code or runtime state.
   regression that the older Project cannot overwrite the current editor. Read
   the project-scoped creative list before claiming a saved Post disappeared;
   never delete or rewrite authority to repair a client-state race.
-- `phone_metrics` is the only active Post template. Universal Ad must stay out
-  of the live template catalog, first-creative selection, variants, clones, and
-  replacement controls. Preserve existing Universal workspaces and immutable
-  versions as historical authority, and permit only idempotent reconciliation
-  of an already-reserved Universal creative.
+- `phone_metrics` is the only registered Post template. Unknown or retired IDs
+  must fail at the registry boundary for selection, clone, variant, and
+  template-replacement paths.
 
 ## Release acceptance
 

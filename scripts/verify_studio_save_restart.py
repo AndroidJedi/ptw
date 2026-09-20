@@ -21,7 +21,7 @@ from tests.validation_pipeline.test_studio_creatives import FakeStructuredProvid
 from validation_pipeline.studio_creatives import StudioCreativeService, _state_snapshot
 from validation_pipeline.studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from validation_pipeline.studio_routes import studio_creative_router
-from validation_pipeline.studio_workspace import UniversalStudioWorkspace
+from validation_pipeline.studio_workspace import PostStudioWorkspace
 from validation_pipeline.local_brief_store import sha256_json
 
 
@@ -47,7 +47,7 @@ def verify(url, root):
         connection.execute("INSERT INTO validation_projects(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by) VALUES(%s,%s,%s,'Test','owner','test')", (project_id, uuid4(), source_id))
         connection.execute("INSERT INTO product_briefs(entity_id,project_id,request_id,owner_idea_source_id,status,requested_by) VALUES(%s,%s,%s,%s,'completed','test')", (brief_id, project_id, uuid4(), source_id))
         connection.execute("INSERT INTO universal_studio_workspaces(entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by) VALUES(%s,%s,%s,1,'brief_generation','phone_metrics','draft','test')", (cid, project_id, brief_id))
-    workspace = UniversalStudioWorkspace(root / "original", image_provider=FakeImageProvider())
+    workspace = PostStudioWorkspace(root / "original", image_provider=FakeImageProvider())
     detail = workspace.apply_template(base_sha256=workspace.detail()["state_sha256"], template_id="phone_metrics")
     detail = workspace.generate_phone_screen(base_sha256=detail["state_sha256"], visual_direction="A calm blue glass staircase")
     workspace.approve_version(state_sha256=detail["state_sha256"], change_note="Original immutable version")
@@ -66,7 +66,7 @@ def verify(url, root):
 
     def service(directory):
         return StudioCreativeService(root=directory, authority=DatabaseStudioAuthority(url),
-            workspace_factory=lambda path: DatabaseCreativeWorkspace(UniversalStudioWorkspace(path), authority.repository, path.name),
+            workspace_factory=lambda path: DatabaseCreativeWorkspace(PostStudioWorkspace(path), authority.repository, path.name),
             structured_provider=FakeStructuredProvider(),
             composer_skill_path=ROOT / "skills/studio-creative-composer/SKILL.md",
             phone_skill_path=ROOT / "skills/studio-phone-hero-generator/SKILL.md")

@@ -456,21 +456,21 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         {previewError && <ErrorState message={previewError} language={language} />}
         <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
-      <aside className="universal-controls phone-metrics-controls">
+      <aside className="studio-controls phone-metrics-controls">
         <StudioSection
           eyebrow={tr('VISUAL MODE', 'ВІЗУАЛЬНИЙ РЕЖИМ')} title={tr('Phone frame or image only', 'Рамка телефона або лише зображення')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >
           <VisualModeSelect language={language} value={configuration.visual_mode} disabled={mutationBusy}
             onChange={visual_mode => setConfiguration(current => ({ ...current, visual_mode }))} />
-          <label className="universal-toggle"><input aria-label={tr('Show device', 'Показувати телефон')} type="checkbox" checked={configuration.device.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, device: { ...current.device, enabled: event.target.checked } }))} /><span>{configuration.device.enabled !== false ? tr('Device visible', 'Телефон видимий') : tr('Device removed', 'Телефон прибрано')}</span></label>
-          <p className="universal-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
+          <label className="studio-toggle"><input aria-label={tr('Show device', 'Показувати телефон')} type="checkbox" checked={configuration.device.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, device: { ...current.device, enabled: event.target.checked } }))} /><span>{configuration.device.enabled !== false ? tr('Device visible', 'Телефон видимий') : tr('Device removed', 'Телефон прибрано')}</span></label>
+          <p className="studio-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
         </StudioSection>
         <StudioSection
           eyebrow={tr('OWNER COPY', 'ТЕКСТ ВЛАСНИКА')} title={tr('Visible content', 'Видимий вміст')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >
-          <label className="universal-toggle"><input
+          <label className="studio-toggle"><input
             aria-label={tr('Show eyebrow', 'Показувати надзаголовок')}
             type="checkbox" checked={configuration.offer.enabled}
             onChange={(event) => setConfiguration({
@@ -481,7 +481,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             : tr('Eyebrow removed', 'Надзаголовок прибрано')}
           </span></label>
           {configuration.offer.enabled && <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input value={content.offer} maxLength={32} onChange={(event) => setContent(current => ({ ...current, offer: event.target.value }))} /></label>}
-          <label className="universal-toggle"><input aria-label={tr('Show headline', 'Показувати заголовок')} type="checkbox" checked={configuration.hero_title.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, hero_title: { ...current.hero_title, enabled: event.target.checked } }))} /><span>{configuration.hero_title.enabled !== false ? tr('Headline visible', 'Заголовок видимий') : tr('Headline removed', 'Заголовок прибрано')}</span></label>
+          <label className="studio-toggle"><input aria-label={tr('Show headline', 'Показувати заголовок')} type="checkbox" checked={configuration.hero_title.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, hero_title: { ...current.hero_title, enabled: event.target.checked } }))} /><span>{configuration.hero_title.enabled !== false ? tr('Headline visible', 'Заголовок видимий') : tr('Headline removed', 'Заголовок прибрано')}</span></label>
           {configuration.hero_title.enabled !== false && <div className="phone-rich-copy">
             <label><span>{tr('Headline', 'Заголовок')}</span><textarea ref={heroTitleRef} aria-label={tr('Headline', 'Заголовок')} rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent(current => ({ ...current, hero_title: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Headline formatting', 'Форматування заголовка')}>
@@ -490,10 +490,10 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
             </div>
             <div className="phone-rich-settings">
-              <EditableColorField className="universal-color-field" label={tr('Headline highlight color', 'Колір виділення заголовка')} hexLabel={tr('Headline highlight color hex', 'HEX кольору виділення заголовка')} value={configuration.hero_title.highlight_color} onChange={(value) => setConfiguration({ ...configuration, hero_title: { ...configuration.hero_title, highlight_color: value } })} />
+              <EditableColorField className="studio-color-field" label={tr('Headline highlight color', 'Колір виділення заголовка')} hexLabel={tr('Headline highlight color hex', 'HEX кольору виділення заголовка')} value={configuration.hero_title.highlight_color} onChange={(value) => setConfiguration({ ...configuration, hero_title: { ...configuration.hero_title, highlight_color: value } })} />
             </div>
           </div>}
-          <label className="universal-toggle"><input aria-label={tr('Show supporting text', 'Показувати пояснювальний текст')} type="checkbox" checked={configuration.supporting_text.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, supporting_text: { ...current.supporting_text, enabled: event.target.checked } }))} /><span>{configuration.supporting_text.enabled !== false ? tr('Supporting text visible', 'Пояснювальний текст видимий') : tr('Supporting text removed', 'Пояснювальний текст прибрано')}</span></label>
+          <label className="studio-toggle"><input aria-label={tr('Show supporting text', 'Показувати пояснювальний текст')} type="checkbox" checked={configuration.supporting_text.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, supporting_text: { ...current.supporting_text, enabled: event.target.checked } }))} /><span>{configuration.supporting_text.enabled !== false ? tr('Supporting text visible', 'Пояснювальний текст видимий') : tr('Supporting text removed', 'Пояснювальний текст прибрано')}</span></label>
           {configuration.supporting_text.enabled !== false && <div className="phone-rich-copy">
             <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea ref={supportingTextRef} rows={4} value={content.supporting_text} maxLength={220} onChange={(event) => setContent(current => ({ ...current, supporting_text: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Supporting text formatting', 'Форматування пояснювального тексту')}>
@@ -502,10 +502,10 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
             </div>
             <div className="phone-rich-settings">
-              <EditableColorField className="universal-color-field" label={tr('Highlight color', 'Колір підсвічування')} hexLabel={tr('Highlight color hex', 'HEX кольору підсвічування')} value={configuration.supporting_text.highlight_color} onChange={(value) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: value } })} />
+              <EditableColorField className="studio-color-field" label={tr('Highlight color', 'Колір підсвічування')} hexLabel={tr('Highlight color hex', 'HEX кольору підсвічування')} value={configuration.supporting_text.highlight_color} onChange={(value) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: value } })} />
             </div>
           </div>}
-          <label className="universal-toggle"><input
+          <label className="studio-toggle"><input
             aria-label={tr('Show bottom CTA', 'Показувати нижній CTA')}
             type="checkbox" checked={configuration.cta.enabled}
             onChange={(event) => setConfiguration({
@@ -517,20 +517,20 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           </span></label>
           {configuration.cta.enabled && <>
             <label><span>{tr('CTA label', 'Текст CTA')}</span><input aria-label={tr('CTA label', 'Текст CTA')} aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent(current => ({ ...current, cta: event.target.value }))} /></label>
-            <p id="phone-cta-hint" className="universal-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
+            <p id="phone-cta-hint" className="studio-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
             <div className="phone-rich-settings">
-              <EditableColorField className="universal-color-field" label={tr('CTA background color', 'Колір фону CTA')} hexLabel={tr('CTA background color hex', 'HEX кольору фону CTA')} value={configuration.cta.background_color} onChange={(value) => setConfiguration({ ...configuration, cta: { ...configuration.cta, background_color: value } })} />
-              <EditableColorField className="universal-color-field" label={tr('CTA text color', 'Колір тексту CTA')} hexLabel={tr('CTA text color hex', 'HEX кольору тексту CTA')} value={configuration.cta.text_color} onChange={(value) => setConfiguration({ ...configuration, cta: { ...configuration.cta, text_color: value } })} />
+              <EditableColorField className="studio-color-field" label={tr('CTA background color', 'Колір фону CTA')} hexLabel={tr('CTA background color hex', 'HEX кольору фону CTA')} value={configuration.cta.background_color} onChange={(value) => setConfiguration({ ...configuration, cta: { ...configuration.cta, background_color: value } })} />
+              <EditableColorField className="studio-color-field" label={tr('CTA text color', 'Колір тексту CTA')} hexLabel={tr('CTA text color hex', 'HEX кольору тексту CTA')} value={configuration.cta.text_color} onChange={(value) => setConfiguration({ ...configuration, cta: { ...configuration.cta, text_color: value } })} />
             </div>
           </>}
-          <label className="universal-toggle"><input aria-label={tr('Show in-phone title', 'Показувати заголовок у телефоні')} type="checkbox" checked={configuration.phone_screen.title_enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, phone_screen: { ...current.phone_screen, title_enabled: event.target.checked } }))} /><span>{configuration.phone_screen.title_enabled !== false ? tr('In-phone title visible', 'Заголовок у телефоні видимий') : tr('In-phone title removed', 'Заголовок у телефоні прибрано')}</span></label>
+          <label className="studio-toggle"><input aria-label={tr('Show in-phone title', 'Показувати заголовок у телефоні')} type="checkbox" checked={configuration.phone_screen.title_enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, phone_screen: { ...current.phone_screen, title_enabled: event.target.checked } }))} /><span>{configuration.phone_screen.title_enabled !== false ? tr('In-phone title visible', 'Заголовок у телефоні видимий') : tr('In-phone title removed', 'Заголовок у телефоні прибрано')}</span></label>
           {configuration.phone_screen.title_enabled !== false && <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent(current => ({ ...current, phone_hero_title: event.target.value }))} /></label>}
         </StudioSection>
         <StudioSection
           eyebrow={tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')} title={tr('Natal logos', 'Логотипи Natal')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >
-          <label className="universal-toggle"><input
+          <label className="studio-toggle"><input
             aria-label={tr('Show post logo', 'Показувати логотип допису')}
             type="checkbox" checked={configuration.logo.enabled}
             onChange={(event) => setConfiguration({
@@ -539,7 +539,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           /><span><strong>{tr('Upper-left post logo', 'Логотип угорі ліворуч')}</strong><small>{configuration.logo.enabled
             ? tr('Visible on the post canvas', 'Видимий на полотні допису')
             : tr('Hidden from the post canvas', 'Прихований із полотна допису')}</small></span></label>
-          <label className="universal-toggle"><input
+          <label className="studio-toggle"><input
             aria-label={tr('Show in-phone logo', 'Показувати логотип у телефоні')}
             type="checkbox" checked={configuration.phone_screen.logo_enabled}
             onChange={(event) => setConfiguration({
@@ -549,11 +549,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           /><span><strong>{tr('Logo inside iPhone', 'Логотип усередині iPhone')}</strong><small>{configuration.phone_screen.logo_enabled
             ? tr('Visible in the app screen', 'Видимий на екрані застосунку')
             : tr('Hidden from the app screen', 'Прихований з екрана застосунку')}</small></span></label>
-          <div className="universal-field-grid">
-            <EditableColorField className="universal-color-field" label={tr('Logo symbol color', 'Колір знака логотипа')} hexLabel={tr('Logo symbol color hex', 'HEX кольору знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => setConfiguration({ ...configuration, logo: { ...configuration.logo, symbol_color: value } })} />
-            <EditableColorField className="universal-color-field" label={tr('Natal name color', 'Колір назви Natal')} hexLabel={tr('Natal name color hex', 'HEX кольору назви Natal')} value={configuration.logo.name_color} onChange={(value) => setConfiguration({ ...configuration, logo: { ...configuration.logo, name_color: value } })} />
+          <div className="studio-field-grid">
+            <EditableColorField className="studio-color-field" label={tr('Logo symbol color', 'Колір знака логотипа')} hexLabel={tr('Logo symbol color hex', 'HEX кольору знака логотипа')} value={configuration.logo.symbol_color} onChange={(value) => setConfiguration({ ...configuration, logo: { ...configuration.logo, symbol_color: value } })} />
+            <EditableColorField className="studio-color-field" label={tr('Natal name color', 'Колір назви Natal')} hexLabel={tr('Natal name color hex', 'HEX кольору назви Natal')} value={configuration.logo.name_color} onChange={(value) => setConfiguration({ ...configuration, logo: { ...configuration.logo, name_color: value } })} />
           </div>
-          <p className="universal-section-note">{tr('Both visible lock-ups share these colors. The full symbol, including its inner stroke, uses the symbol color. Save or Approve makes the pair the Project default; the canonical artwork cannot be replaced.', 'Обидва видимі логотипи використовують ці кольори. Увесь знак, включно з внутрішнім штрихом, має колір знака. Після «Зберегти» або «Схвалити» пара стане типовою для проєкту; канонічне зображення не можна замінити.')}</p>
+          <p className="studio-section-note">{tr('Both visible lock-ups share these colors. The full symbol, including its inner stroke, uses the symbol color. Save or Approve makes the pair the Project default; the canonical artwork cannot be replaced.', 'Обидва видимі логотипи використовують ці кольори. Увесь знак, включно з внутрішнім штрихом, має колір знака. Після «Зберегти» або «Схвалити» пара стане типовою для проєкту; канонічне зображення не можна замінити.')}</p>
         </StudioSection>
         <StudioSection
           eyebrow={tr('TYPOGRAPHY', 'ТИПОГРАФІКА')} title={tr('Font and size for every text role', 'Шрифт і розмір для кожної ролі')}
@@ -566,13 +566,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               const label = tr(en, uk)
               return <div className="phone-metrics-stat-input phone-typography-role" key={role}>
                 <strong>{label}</strong>
-                <div className="phone-metric-fields"><div className="universal-field-grid">
+                <div className="phone-metric-fields"><div className="studio-field-grid">
                   <label><span>{tr('Font family', 'Сімейство шрифту')}</span><select
                     aria-label={`${label} ${tr('font family', 'сімейство шрифту')}`}
                     value={appearance.font_family}
                     onChange={(event) => setTypography(role, 'font_family', event.target.value as StudioFontFamily)}
                   >{detail.catalog.variation.font_families.map((font) => <option key={font} value={font}>{fontLabels[font]}</option>)}</select></label>
-                  <label className="universal-range-field"><span>{tr('Font size', 'Розмір шрифту')}<code>{appearance.font_size}px</code></span><input
+                  <label className="studio-range-field"><span>{tr('Font size', 'Розмір шрифту')}<code>{appearance.font_size}px</code></span><input
                     aria-label={`${label} ${tr('font size', 'розмір шрифту')}`}
                     type="range" min={bounds.minimum} max={bounds.maximum} step="1"
                     value={appearance.font_size}
@@ -582,7 +582,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               </div>
             })}
           </div>
-          <p className="universal-section-note">{tr('Typography changes only editable creative copy. Logo artwork and iPhone system chrome keep their renderer-owned typography.', 'Типографіка змінює лише редагований текст креативу. Типографіка логотипів і системних елементів iPhone залишається під контролем рендерера.')}</p>
+          <p className="studio-section-note">{tr('Typography changes only editable creative copy. Logo artwork and iPhone system chrome keep their renderer-owned typography.', 'Типографіка змінює лише редагований текст креативу. Типографіка логотипів і системних елементів iPhone залишається під контролем рендерера.')}</p>
         </StudioSection>
         <StudioSection
           eyebrow={tr('OPTIONAL TEXTURES', 'НЕОБОВ’ЯЗКОВІ ТЕКСТУРИ')} title={tr('Material finish', 'Фактура поверхні')}
@@ -597,7 +597,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           <label><span>{tr('Inside iPhone screen', 'Усередині екрана iPhone')}</span><select aria-label={tr('iPhone screen texture', 'Текстура екрана iPhone')} value={configuration.phone_screen.texture} onChange={(event) => setConfiguration({ ...configuration, phone_screen: { ...configuration.phone_screen, texture: event.target.value as StudioPhoneMetricsConfiguration['phone_screen']['texture'] } })}>
             {detail.catalog.variation.phone_screen_textures.map((texture) => <option key={texture} value={texture}>{textureLabel(texture)}</option>)}
           </select></label>
-          <p className="universal-section-note">{tr('Each menu has Off plus three deterministic finishes. The left-area finish is bounded behind Natal and the copy only; every texture stays beneath text and interface details.', 'Кожне меню має вимкнений стан і три детерміновані фактури. Фактура лівої зони обмежена лише тлом під Natal і текстом; усі текстури залишаються під текстом та елементами інтерфейсу.')}</p>
+          <p className="studio-section-note">{tr('Each menu has Off plus three deterministic finishes. The left-area finish is bounded behind Natal and the copy only; every texture stays beneath text and interface details.', 'Кожне меню має вимкнений стан і три детерміновані фактури. Фактура лівої зони обмежена лише тлом під Natal і текстом; усі текстури залишаються під текстом та елементами інтерфейсу.')}</p>
         </StudioSection>
         <StudioSection
           eyebrow={tr('IN-PHONE ACTIONS', 'ДІЇ В ТЕЛЕФОНІ')} title={tr('Three bottom buttons', 'Три нижні кнопки')}
@@ -606,9 +606,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           {content.phone_buttons.map((text, index) => {
             const button = configuration.phone_buttons[index]
             return <div className="phone-metrics-stat-input phone-action-button-input" key={index}>
-              <label className="universal-toggle"><input aria-label={tr(`Show phone button ${index + 1}`, `Показувати кнопку в телефоні ${index + 1}`)} type="checkbox" checked={button.enabled !== false} onChange={(event) => setPhoneButton(index, 'enabled', event.target.checked)} /><span>{index + 1} · {button.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
+              <label className="studio-toggle"><input aria-label={tr(`Show phone button ${index + 1}`, `Показувати кнопку в телефоні ${index + 1}`)} type="checkbox" checked={button.enabled !== false} onChange={(event) => setPhoneButton(index, 'enabled', event.target.checked)} /><span>{index + 1} · {button.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
               {button.enabled !== false && <div className="phone-metric-fields">
-                <div className="universal-field-grid">
+                <div className="studio-field-grid">
                   <label><span>{tr('Text', 'Текст')}</span><input aria-label={tr(`Phone button ${index + 1} text`, `Текст кнопки в телефоні ${index + 1}`)} value={text} maxLength={48} onChange={(event) => setPhoneButtonText(index, event.target.value)} /></label>
                   <label><span>{tr('Style', 'Стиль')}</span><select aria-label={tr(`Phone button ${index + 1} style`, `Стиль кнопки в телефоні ${index + 1}`)} value={button.style} onChange={(event) => setPhoneButton(index, 'style', event.target.value as StudioPhoneActionButtonConfiguration['style'])}>
                     {detail.catalog.variation.phone_button_styles.map((style) => <option key={style} value={style}>{({
@@ -621,13 +621,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
                       square: tr('Square', 'Прямокутна'), rounded: tr('Rounded', 'Заокруглена'), pill: tr('Pill', 'Капсула'),
                     })[shape]}</option>)}
                   </select></label>
-                  <EditableColorField className="universal-color-field" label={tr(`Phone button ${index + 1} text color`, `Колір тексту кнопки в телефоні ${index + 1}`)} hexLabel={tr(`Phone button ${index + 1} text color hex`, `HEX кольору тексту кнопки в телефоні ${index + 1}`)} value={button.text_color} onChange={(value) => setPhoneButton(index, 'text_color', value)} />
-                  <EditableColorField className="universal-color-field" label={tr(`Phone button ${index + 1} background color`, `Колір фону кнопки в телефоні ${index + 1}`)} hexLabel={tr(`Phone button ${index + 1} background color hex`, `HEX кольору фону кнопки в телефоні ${index + 1}`)} value={button.background_color} onChange={(value) => setPhoneButton(index, 'background_color', value)} />
+                  <EditableColorField className="studio-color-field" label={tr(`Phone button ${index + 1} text color`, `Колір тексту кнопки в телефоні ${index + 1}`)} hexLabel={tr(`Phone button ${index + 1} text color hex`, `HEX кольору тексту кнопки в телефоні ${index + 1}`)} value={button.text_color} onChange={(value) => setPhoneButton(index, 'text_color', value)} />
+                  <EditableColorField className="studio-color-field" label={tr(`Phone button ${index + 1} background color`, `Колір фону кнопки в телефоні ${index + 1}`)} hexLabel={tr(`Phone button ${index + 1} background color hex`, `HEX кольору фону кнопки в телефоні ${index + 1}`)} value={button.background_color} onChange={(value) => setPhoneButton(index, 'background_color', value)} />
                 </div>
               </div>}
             </div>
           })}
-          <p className="universal-section-note">{tr('Each action is independent and stays inside the iPhone. The screenshot defaults are blue filled, elevated white, and blue text-only.', 'Кожна дія налаштовується окремо й залишається всередині iPhone. Типові стилі зі скриншота: синя заливка, біла кнопка з тінню та лише синій текст.')}</p>
+          <p className="studio-section-note">{tr('Each action is independent and stays inside the iPhone. The screenshot defaults are blue filled, elevated white, and blue text-only.', 'Кожна дія налаштовується окремо й залишається всередині iPhone. Типові стилі зі скриншота: синя заливка, біла кнопка з тінню та лише синій текст.')}</p>
         </StudioSection>
         <StudioSection
           eyebrow={tr('THREE METRIC CARDS', 'ТРИ КАРТКИ-МЕТРИКИ')} title={tr('Text and appearance', 'Текст і вигляд')}
@@ -636,9 +636,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           {content.stats.map((stat, index) => {
             const card = configuration.metric_cards[index]
             return <div className="phone-metrics-stat-input" key={index}>
-              <label className="universal-toggle"><input aria-label={tr(`Show metric ${index + 1}`, `Показувати метрику ${index + 1}`)} type="checkbox" checked={card.enabled !== false} onChange={(event) => setMetricCard(index, 'enabled', event.target.checked)} /><span>{index + 1} · {card.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
+              <label className="studio-toggle"><input aria-label={tr(`Show metric ${index + 1}`, `Показувати метрику ${index + 1}`)} type="checkbox" checked={card.enabled !== false} onChange={(event) => setMetricCard(index, 'enabled', event.target.checked)} /><span>{index + 1} · {card.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
               {card.enabled !== false && <div className="phone-metric-fields">
-                <div className="universal-field-grid">
+                <div className="studio-field-grid">
                   <label><span>{tr('Value', 'Значення')}</span><input aria-label={tr(`Metric ${index + 1} value`, `Значення метрики ${index + 1}`)} value={stat.value} maxLength={24} onChange={(event) => setStat(index, 'value', event.target.value)} /></label>
                   <label><span>{tr('Label', 'Підпис')}</span><input aria-label={tr(`Metric ${index + 1} label`, `Підпис метрики ${index + 1}`)} value={stat.label} maxLength={38} onChange={(event) => setStat(index, 'label', event.target.value)} /></label>
                   <label><span>{tr('Style', 'Стиль')}</span><select aria-label={tr(`Metric ${index + 1} style`, `Стиль метрики ${index + 1}`)} value={card.style} onChange={(event) => setMetricCard(index, 'style', event.target.value as StudioPhoneMetricCardConfiguration['style'])}>
@@ -649,13 +649,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
                       square: tr('Square', 'Прямокутна'), rounded: tr('Rounded', 'Заокруглена'), pill: tr('Pill', 'Капсула'),
                     })[shape]}</option>)}
                   </select></label>
-                  <EditableColorField className="universal-color-field" label={tr(`Metric ${index + 1} text color`, `Колір тексту метрики ${index + 1}`)} hexLabel={tr(`Metric ${index + 1} text color hex`, `HEX кольору тексту метрики ${index + 1}`)} value={card.text_color} onChange={(value) => setMetricCard(index, 'text_color', value)} />
-                  <EditableColorField className="universal-color-field" label={tr(`Metric ${index + 1} background color`, `Колір фону метрики ${index + 1}`)} hexLabel={tr(`Metric ${index + 1} background color hex`, `HEX кольору фону метрики ${index + 1}`)} value={card.background_color} onChange={(value) => setMetricCard(index, 'background_color', value)} />
+                  <EditableColorField className="studio-color-field" label={tr(`Metric ${index + 1} text color`, `Колір тексту метрики ${index + 1}`)} hexLabel={tr(`Metric ${index + 1} text color hex`, `HEX кольору тексту метрики ${index + 1}`)} value={card.text_color} onChange={(value) => setMetricCard(index, 'text_color', value)} />
+                  <EditableColorField className="studio-color-field" label={tr(`Metric ${index + 1} background color`, `Колір фону метрики ${index + 1}`)} hexLabel={tr(`Metric ${index + 1} background color hex`, `HEX кольору фону метрики ${index + 1}`)} value={card.background_color} onChange={(value) => setMetricCard(index, 'background_color', value)} />
                 </div>
               </div>}
             </div>
           })}
-          <p className="universal-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>
+          <p className="studio-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>
         </StudioSection>
         <StudioSection
           className="phone-screen-rule" eyebrow={tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}
@@ -703,7 +703,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               />)}
             </div>
           </div>}
-          <label className={`universal-toggle phone-screen-enhance ${enhanceDisabled ? 'is-disabled' : ''}`}>
+          <label className={`studio-toggle phone-screen-enhance ${enhanceDisabled ? 'is-disabled' : ''}`}>
             <input
               aria-label={tr('Enhance current image', 'Покращити поточне зображення')}
               type="checkbox" checked={!referenceImage && enhanceCurrent && hasCurrentPhoneScreen}

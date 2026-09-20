@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from copy import deepcopy
 import hashlib
+import json
 import re
 from typing import Any, Mapping
 from uuid import UUID
@@ -16,10 +17,13 @@ from .phone_hero_styles import (
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v3"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v4"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
+MAX_AGENT_HISTORY_MESSAGES = 4
+MAX_AGENT_HISTORY_BYTES = 4 * 1024
+MAX_AGENT_EDITS = 64
 
 
 class StudioManualAgentProviderError(RuntimeError):
@@ -257,68 +261,6 @@ def validate_manual_agent_semantics(
 # available setting paths; this contract gives those paths their owner-facing
 # meaning so a structured provider does not have to infer it from IDs alone.
 _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
-    "post:universal_ad": {
-        "universal_ad.background": {
-            "name": "Background",
-            "purpose": "Sets the full 1080×1080 canvas behind every foreground group.",
-            "visible_result": "Changes colour, material texture, photo treatment, crop, and readability overlay.",
-            "dependencies": "Background media is optional; image layout, fit, focal point, and overlay apply only when relevant to the selected background mode.",
-            "controllers": [
-                {"name": "Surface", "allowed_values": "solid, texture, or image; bounded colour and texture intensity."},
-                {"name": "Image treatment", "allowed_values": "full/left/right/top/bottom layout; 25% or 75% coverage; cover or contain; bounded focal point."},
-                {"name": "Readability overlay", "allowed_values": "bounded overlay colour and 0–0.85 opacity."},
-            ],
-        },
-        "universal_ad.sticker": {
-            "name": "Photographic sticker",
-            "purpose": "Places one optional screened, isolated photographic object above the background.",
-            "visible_result": "Shows or hides the sticker and changes its anchor, rotation, size, scale, and offsets.",
-            "dependencies": "The sticker cannot appear without the existing sticker asset slot; it never creates a new asset slot.",
-            "controllers": [{"name": "Placement", "allowed_values": "visibility; one bounded anchor; bounded rotation, width, scale, and offsets."}],
-        },
-        "universal_ad.hero_title": {
-            "name": "Hero title",
-            "purpose": "The primary advertising message.",
-            "visible_result": "Shows or hides the headline and changes its copy, font, size, weight, colour, alignment, and shared content geometry.",
-            "dependencies": "Shared content position, width, gap, alignment, and text colour also affect adjacent text groups.",
-            "controllers": [{"name": "Headline", "allowed_values": "bounded copy and catalog font/size/weight choices."}],
-        },
-        "universal_ad.supporting_text": {
-            "name": "Supporting text",
-            "purpose": "Explains the hero message beneath the headline.",
-            "visible_result": "Shows or hides the supporting copy and changes its font, size, shared colour, alignment, and layout.",
-            "dependencies": "Uses the shared text layout and colour controls.",
-            "controllers": [{"name": "Supporting copy", "allowed_values": "bounded copy and catalog font/size choices."}],
-        },
-        "universal_ad.offer": {
-            "name": "Offer",
-            "purpose": "Displays an optional promotional offer.",
-            "visible_result": "Shows or hides offer copy and changes its font, size, shared colour, alignment, and layout.",
-            "dependencies": "Uses the shared text layout and colour controls.",
-            "controllers": [{"name": "Offer copy", "allowed_values": "bounded copy and catalog font/size choices."}],
-        },
-        "universal_ad.bullet_list": {
-            "name": "Benefits",
-            "purpose": "Displays up to three independently visible benefit statements.",
-            "visible_result": "Shows or hides the group or each benefit and changes marker style, typography, shared colour, and layout.",
-            "dependencies": "Each item remains part of the fixed three-item list and reflows deterministically when hidden.",
-            "controllers": [{"name": "Benefit list", "allowed_values": "check, circle, or outlined-circle markers; per-item visibility; bounded copy."}],
-        },
-        "universal_ad.cta": {
-            "name": "Call to action",
-            "purpose": "Displays the promotional action label inside the Post image.",
-            "visible_result": "Shows or hides the CTA and changes its copy, treatment, position, colours, radius, font, and size.",
-            "dependencies": "This is visual Post copy only; it does not configure a native advertising destination.",
-            "controllers": [{"name": "CTA", "allowed_values": "filled, gradient, reverse, link, or outlined; three bounded positions; bounded colours, radius, font, and size."}],
-        },
-        "universal_ad.logo": {
-            "name": "Natal identity",
-            "purpose": "Displays the canonical Natal lock-up.",
-            "visible_result": "Shows or hides the lock-up and changes only the bounded symbol and name colours.",
-            "dependencies": "The renderer owns canonical asset geometry, typography, spacing, and placement.",
-            "controllers": [{"name": "Natal colours", "allowed_values": "six-digit hexadecimal symbol and name colours only."}],
-        },
-    },
     "post:phone_metrics": {
         "phone_metrics.background": {
             "name": "Background",
@@ -484,45 +426,34 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     for item in catalog_components:
         component_id = str(item["component_id"])
         contract = declarations[component_id]
-        setting_paths = [str(value) for value in item.get("setting_ids") or []]
         components.append({
             "component_id": component_id,
-            "name": contract["name"],
             "purpose": contract["purpose"],
-            "visible_result": contract["visible_result"],
             "dependencies": contract["dependencies"],
-            "controllers": deepcopy(contract["controllers"]),
-            "setting_paths": setting_paths,
         })
     result: dict[str, Any] = {
-        "schema": "ptw.studio.agent-control-contract.v2",
+        "schema": "ptw.studio.agent-control-contract.v3",
         "surface": surface,
-        "constraint_authority": "The supplied output schema owns every exact enum, range, pattern, length, and fixed collection size for these setting paths.",
         "instructions": [
-            "Read this contract before translating the owner message into the supplied output schema.",
-            "Understand the owner's language, split a compound message into every requested outcome, and map each outcome to the semantically correct component before changing values.",
-            "Resolve dependencies across all requested outcomes; do not translate phrases independently when one control would hide or contradict another requested result.",
-            "Before returning, inspect the complete proposed state and verify that every requested result will actually be visible and that role-specific content remains in the correct field.",
-            "Change only controls that express the owner request and preserve every unrelated value.",
-            "An explicit description of what an image should look like/show/depict is an image-content operation even if the owner does not use the word generate. Style/direction selection alone is not generation. Obey an explicit no-generation instruction.",
-            "If a requested result is outside this fixed contract, preserve the draft and say so briefly in reply.",
+            "Return only scalar edits needed for the owner's latest request; preserve every omitted path.",
+            "Resolve dependencies across all clauses and verify that each requested result remains visible.",
+            "Describing what an image should show is an image operation unless explicitly negated.",
+            "If the fixed editor cannot represent a request, make no related edit and explain briefly.",
         ],
         "immutable_boundaries": [
-            "Do not add components, HTML, CSS, scripts, asset slots, new metric cards, unsupported evidence claims, or contact endpoints.",
-            "Do not Save, Approve, Publish, deploy, or modify code.",
-            "Preserve canonical Natal geometry and any Landing contact endpoints or social-proof evidence exactly.",
+            "No new components, code, asset slots, unsupported claims, contacts, or social proof.",
+            "Never Save, Approve, Publish, deploy, or modify code.",
         ],
         "components": components,
     }
-    if surface != "post:universal_ad":
-        result.update({
-            "image_style_options": _STYLE_OPTIONS,
-            "background_treatments": [{
-                "id": identifier,
-                "name": _BACKGROUND_NAMES[identifier],
-                "direction": directive,
-            } for identifier, directive in PHONE_HERO_BACKGROUND_DIRECTIVES.items()],
-        })
+    result.update({
+        "image_style_options": [
+            {"id": item["id"], "name": item["name"]} for item in _STYLE_OPTIONS
+        ],
+        "background_treatments": [{
+            "id": identifier, "name": _BACKGROUND_NAMES[identifier],
+        } for identifier in PHONE_HERO_BACKGROUND_DIRECTIVES],
+    })
     if surface == "post:phone_metrics":
         result["owner_phrase_mappings"] = {
             "hide_or_remove_phone_device": {
@@ -614,13 +545,26 @@ def manual_agent_request(request: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(history, list) or len(history) > 8:
         raise ValueError("Studio Agent history supports at most eight messages")
     normalized_history: list[dict[str, str]] = []
-    for item in history:
+    for item in history[-MAX_AGENT_HISTORY_MESSAGES:]:
         if not isinstance(item, Mapping) or set(item) != {"role", "content"} or item["role"] not in {"user", "assistant"}:
             raise ValueError("Studio Agent history message is invalid")
         normalized_history.append({
             "role": str(item["role"]),
             "content": _text(item["content"], "history message", 1, 1000),
         })
+    def history_bytes() -> int:
+        return len(json.dumps(
+            normalized_history, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8"))
+
+    while history_bytes() > MAX_AGENT_HISTORY_BYTES:
+        if len(normalized_history) > 1:
+            normalized_history.pop(0)
+            continue
+        content = normalized_history[0]["content"]
+        encoded = content.encode("utf-8")[:MAX_AGENT_HISTORY_BYTES - 100]
+        normalized_history[0]["content"] = encoded.decode("utf-8", errors="ignore").strip()
+        break
     screenshots = request["screenshots"]
     if not isinstance(screenshots, list) or len(screenshots) > MAX_AGENT_SCREENSHOTS:
         raise ValueError("Studio Agent supports at most four screenshots")
@@ -677,22 +621,140 @@ def image_action_schema(slots: list[str], screenshot_count: int) -> dict[str, An
 
 
 def manual_agent_schema(
-    *, configuration_schema: Mapping[str, Any], content_schema: Mapping[str, Any],
-    image_slots: list[str], screenshot_count: int,
-    creative_direction_schema: Mapping[str, Any] | None = None,
+    *, editable_paths: list[str], image_slots: list[str], screenshot_count: int,
 ) -> dict[str, Any]:
+    if not editable_paths:
+        raise ValueError("Studio Agent requires editable paths")
     properties: dict[str, Any] = {
-        "configuration": deepcopy(dict(configuration_schema)),
-        "content": deepcopy(dict(content_schema)),
+        "edits": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "enum": editable_paths},
+                    "value": {
+                        "anyOf": [
+                            {"type": "string"}, {"type": "number"},
+                            {"type": "boolean"}, {"type": "null"},
+                        ],
+                    },
+                },
+                "required": ["path", "value"],
+                "additionalProperties": False,
+            },
+            "maxItems": min(MAX_AGENT_EDITS, len(editable_paths)),
+        },
         "image_actions": image_action_schema(image_slots, screenshot_count),
         "reply": {"type": "string", "minLength": 1, "maxLength": 800},
     }
-    if creative_direction_schema is not None:
-        properties["creative_direction"] = deepcopy(dict(creative_direction_schema))
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,
     }
+
+
+def _flatten_scalars(value: Any, path: str, result: dict[str, Any]) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _flatten_scalars(item, f"{path}.{key}" if path else str(key), result)
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _flatten_scalars(item, f"{path}[{index}]", result)
+        return
+    if value is None or isinstance(value, (str, int, float, bool)):
+        result[path] = value
+
+
+def _path_is_within(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith(prefix + ".") or path.startswith(prefix + "[")
+
+
+def manual_agent_editable_values(
+    *, catalog: Mapping[str, Any], configuration: Mapping[str, Any],
+    content: Mapping[str, Any], creative_direction: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return only catalog-backed scalar leaves that Agent mode may edit."""
+
+    state: dict[str, Any] = {
+        "configuration": deepcopy(dict(configuration)),
+        "content": deepcopy(dict(content)),
+    }
+    prefixes = [
+        str(setting)
+        for component in catalog.get("components") or []
+        for setting in component.get("setting_ids") or []
+    ]
+    if creative_direction is not None:
+        state["creative_direction"] = deepcopy(dict(creative_direction))
+        prefixes.extend(("creative_direction.style", "creative_direction.background"))
+    flattened: dict[str, Any] = {}
+    _flatten_scalars(state, "", flattened)
+    immutable = (
+        "content.social_proof", "content.contacts.email", "content.contacts.phone",
+        "content.contacts.url", "content.contacts.instagram",
+    )
+    return {
+        path: flattened[path]
+        for path in sorted(flattened)
+        if any(_path_is_within(path, prefix) for prefix in prefixes)
+        and not any(_path_is_within(path, prefix) for prefix in immutable)
+        and not path.endswith(".schema")
+    }
+
+
+_PATH_PART = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+
+
+def _assign_path(root: dict[str, Any], path: str, value: Any) -> None:
+    parts: list[str | int] = [
+        int(index) if index else key
+        for key, index in _PATH_PART.findall(path)
+    ]
+    if not parts or not isinstance(parts[0], str):
+        raise ValueError("Studio Agent edit path is invalid")
+    target: Any = root
+    for part in parts[:-1]:
+        target = target[part]
+    target[parts[-1]] = value
+
+
+def apply_manual_agent_edits(
+    value: Any, *, current_values: Mapping[str, Any],
+    configuration: Mapping[str, Any], content: Mapping[str, Any],
+    creative_direction: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(value, list) or len(value) > min(MAX_AGENT_EDITS, len(current_values)):
+        raise ValueError("Studio Agent edits are invalid")
+    state: dict[str, Any] = {
+        "configuration": deepcopy(dict(configuration)),
+        "content": deepcopy(dict(content)),
+    }
+    if creative_direction is not None:
+        state["creative_direction"] = deepcopy(dict(creative_direction))
+    used: set[str] = set()
+    for edit in value:
+        if not isinstance(edit, Mapping) or set(edit) != {"path", "value"}:
+            raise ValueError("Studio Agent edit fields are invalid")
+        path = str(edit["path"])
+        if path not in current_values or path in used:
+            raise ValueError("Studio Agent edit path is invalid or duplicated")
+        next_value = edit["value"]
+        current_value = current_values[path]
+        valid_type = (
+            next_value is None and current_value is None
+            or isinstance(current_value, bool) and isinstance(next_value, bool)
+            or isinstance(current_value, str) and isinstance(next_value, str)
+            or not isinstance(current_value, bool)
+            and isinstance(current_value, (int, float))
+            and not isinstance(next_value, bool)
+            and isinstance(next_value, (int, float))
+        )
+        if not valid_type:
+            raise ValueError("Studio Agent edit value type does not match the current setting")
+        _assign_path(state, path, next_value)
+        used.add(path)
+    return state
 
 
 def validate_image_actions(
@@ -738,23 +800,20 @@ def manual_agent_payload(
     screenshot_artifact_values: list[dict[str, str]], image_slots: list[str],
     current_images: list[str], creative_direction: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    live_catalog = deepcopy(dict(catalog))
     request_constraints = manual_agent_request_constraints(
         surface=surface, message=message, image_slots=image_slots,
+    )
+    editable_values = manual_agent_editable_values(
+        catalog=catalog, configuration=configuration, content=content,
+        creative_direction=creative_direction,
     )
     return {
         "surface": surface,
         "entity_id": entity_id,
         "owner_message": message,
         "recent_conversation": deepcopy(history),
-        "current_editor_state": {
-            "configuration": deepcopy(dict(configuration)),
-            "content": deepcopy(dict(content)),
-            **({"creative_direction": deepcopy(dict(creative_direction))}
-               if creative_direction is not None else {}),
-        },
-        "live_catalog": live_catalog,
-        "agent_control_contract": agent_control_contract(surface, live_catalog),
+        "current_editable_values": editable_values,
+        "agent_control_contract": agent_control_contract(surface, catalog),
         "request_constraints": request_constraints,
         "image_tools": {
             "allowed_slots": image_slots,

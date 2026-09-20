@@ -18,13 +18,11 @@ from validation_pipeline.studio_manual_agent import (
 from validation_pipeline.studio_phone_metrics import (
     DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, phone_metrics_catalog,
 )
-from validation_pipeline.studio_universal import universal_ad_catalog
 
 
 class StudioAgentControlContractTests(unittest.TestCase):
     def test_every_live_component_has_an_english_semantic_contract(self) -> None:
         surfaces = (
-            ("post:universal_ad", universal_ad_catalog()),
             ("post:phone_metrics", phone_metrics_catalog()),
             ("landing:project_landing", landing_catalog()),
         )
@@ -34,7 +32,7 @@ class StudioAgentControlContractTests(unittest.TestCase):
                 self.assertLessEqual(
                     len(json.dumps(contract, ensure_ascii=False).encode()), 16_000,
                 )
-                self.assertEqual("ptw.studio.agent-control-contract.v2", contract["schema"])
+                self.assertEqual("ptw.studio.agent-control-contract.v3", contract["schema"])
                 self.assertEqual(
                     [item["component_id"] for item in catalog["components"]],
                     [item["component_id"] for item in contract["components"]],
@@ -44,15 +42,9 @@ class StudioAgentControlContractTests(unittest.TestCase):
                     for item in catalog["components"]
                 }
                 for component in contract["components"]:
-                    self.assertTrue(component["name"])
                     self.assertTrue(component["purpose"])
-                    self.assertTrue(component["visible_result"])
                     self.assertTrue(component["dependencies"])
-                    self.assertTrue(component["controllers"])
-                    self.assertEqual(
-                        catalog_paths[component["component_id"]],
-                        component["setting_paths"],
-                    )
+                    self.assertIn(component["component_id"], catalog_paths)
 
     def test_phone_and_art_direction_phrase_mappings_are_explicit(self) -> None:
         contract = agent_control_contract("post:phone_metrics", phone_metrics_catalog())
@@ -88,18 +80,18 @@ class StudioAgentControlContractTests(unittest.TestCase):
             {item["id"]: item["name"] for item in contract["background_treatments"]},
         )
 
-    def test_payload_includes_the_contract_separately_from_the_live_catalog(self) -> None:
-        catalog = universal_ad_catalog()
+    def test_payload_is_compact_and_uses_catalog_backed_scalar_values(self) -> None:
+        catalog = phone_metrics_catalog()
         payload = manual_agent_payload(
-            surface="post:universal_ad", entity_id="creative-id", message="Hide the sticker",
-            history=[], configuration={"schema": "configuration"}, content={"schema": "content"},
+            surface="post:phone_metrics", entity_id="creative-id", message="Hide the phone",
+            history=[], configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
             catalog=catalog, screenshot_artifact_values=[], image_slots=[], current_images=[],
         )
-        self.assertEqual(catalog, payload["live_catalog"])
-        self.assertEqual("post:universal_ad", payload["agent_control_contract"]["surface"])
-        self.assertIn("universal_ad.sticker", {
-            item["component_id"] for item in payload["agent_control_contract"]["components"]
-        })
+        self.assertNotIn("live_catalog", payload)
+        self.assertNotIn("current_editor_state", payload)
+        self.assertEqual("post:phone_metrics", payload["agent_control_contract"]["surface"])
+        self.assertIn("configuration.device.enabled", payload["current_editable_values"])
+        self.assertNotIn("configuration.schema", payload["current_editable_values"])
         self.assertEqual(
             "ptw.studio.agent-request-constraints.v1",
             payload["request_constraints"]["schema"],

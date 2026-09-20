@@ -55,15 +55,21 @@ apply_pre_public_migrations() {
 }
 
 apply_pre_public_migrations
-docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
+docker exec -i "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
 INSERT INTO commander_entities(id,kind) VALUES
   ('11111111-1111-4111-8111-111111111111','source'),
-  ('22222222-2222-4222-8222-222222222222','validation_project');
+  ('22222222-2222-4222-8222-222222222222','validation_project'),
+  ('33333333-3333-4333-8333-333333333331','product_brief'),
+  ('33333333-3333-4333-8333-333333333332','studio_workspace');
 INSERT INTO commander_sources(entity_id,source_type,title,provider,external_id,content,content_sha256)
 VALUES('11111111-1111-4111-8111-111111111111','owner_idea','Owner idea','owner','existing','Existing Natal Service idea',repeat('a',64));
 INSERT INTO validation_projects(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by)
 VALUES('22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111','Natal Service','owner','migration-test');
+INSERT INTO product_briefs(entity_id,project_id,request_id,owner_idea_source_id,status,requested_by)
+VALUES('33333333-3333-4333-8333-333333333331','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333334','11111111-1111-4111-8111-111111111111','completed','migration-test');
+INSERT INTO universal_studio_workspaces(entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by)
+VALUES('33333333-3333-4333-8333-333333333332','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333331',1,'brief_generation','universal'||'_'||'ad','draft','migration-test');
 SQL
 preserved_before=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
   "SELECT md5(to_jsonb(project)::text) FROM validation_projects project WHERE entity_id='22222222-2222-4222-8222-222222222222'")
@@ -72,6 +78,15 @@ apply_migrations
 preserved_after=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
   "SELECT md5(to_jsonb(project)::text) FROM validation_projects project WHERE entity_id='22222222-2222-4222-8222-222222222222'")
 [ "$preserved_before" = "$preserved_after" ] || { echo "migration 004 changed the existing Natal Service Project" >&2; exit 1; }
+retired_preserved=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
+  "SELECT count(*) FROM universal_studio_workspaces WHERE entity_id='33333333-3333-4333-8333-333333333332'")
+[ "$retired_preserved" = 1 ] || { echo "active-template constraint rewrote a historical Post row" >&2; exit 1; }
+if docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
+  -U ptw_brief_test -d ptw_brief_test -c \
+  "BEGIN; INSERT INTO commander_entities(id,kind) VALUES('33333333-3333-4333-8333-333333333335','studio_workspace'); INSERT INTO universal_studio_workspaces(entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by) VALUES('33333333-3333-4333-8333-333333333335','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333331',2,'brief_generation','retired_probe','draft','migration-test'); COMMIT;" >/dev/null 2>&1; then
+  echo "active-template constraint accepted a new unsupported Post workspace" >&2
+  exit 1
+fi
 
 actual=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
   "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")
@@ -152,7 +167,7 @@ for table in $expected; do
 done
 
 expected_migrations=$(find "$repository/db/migrations" -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')
-docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 -v expected_migrations="$expected_migrations" \
+docker exec -i "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 -v expected_migrations="$expected_migrations" \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
 CREATE TEMP TABLE expected_migration_inventory AS SELECT :expected_migrations AS count;
 DO $$
@@ -180,6 +195,8 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='011_project_first_brief_source_guard.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='012_phone_metrics_only.sql'
      ) THEN
     RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Instagram validation, and Analytics migrations';
   END IF;
@@ -212,6 +229,12 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='studio_project_logo_defaults_immutable' AND NOT tgisinternal) THEN
     RAISE EXCEPTION 'Studio Project logo default lineage trigger is incomplete';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname='post_studio_workspaces_template_id_check' AND NOT convalidated
+  ) THEN
+    RAISE EXCEPTION 'Post Studio active-template constraint is incomplete';
   END IF;
 END $$;
 

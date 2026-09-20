@@ -1,1 +1,1 @@
-"""PTW Product Brief and Universal Studio runtime."""
+"""PTW Product Brief, Post Studio, and Landing Studio runtime."""

@@ -24,10 +24,11 @@ from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio_creatives import creative_generation_schema
 from .studio_manual_agent import (
-    STUDIO_MANUAL_AGENT_PROMPT_VERSION, manual_agent_payload,
+    STUDIO_MANUAL_AGENT_PROMPT_VERSION, apply_manual_agent_edits,
+    manual_agent_editable_values, manual_agent_payload,
     manual_agent_schema, response_reply, screenshot_artifacts,
 )
-from .studio_workspace import UniversalStudioWorkspace
+from .studio_workspace import PostStudioWorkspace
 
 
 def main() -> None:
@@ -105,7 +106,7 @@ def main() -> None:
         accept(value, mode)
     studio_skill = settings.studio_composer_skill_path.read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="ptw-phone-studio-canary-") as temporary:
-        phone_workspace = UniversalStudioWorkspace(temporary)
+        phone_workspace = PostStudioWorkspace(temporary)
         phone_detail = phone_workspace.apply_template(
             base_sha256=phone_workspace.detail()["state_sha256"],
             template_id="phone_metrics",
@@ -157,27 +158,35 @@ def main() -> None:
             "style": "minimal_sculptural",
             "background": "isolated_key_element",
         }
+        editable_values = manual_agent_editable_values(
+            catalog=phone_detail["catalog"],
+            configuration=phone_detail["configuration"],
+            content=phone_detail["content"],
+            creative_direction=current_direction,
+        )
 
         def validate_manual_edit(value):
-            if set(value) != {
-                "configuration", "content", "creative_direction", "image_actions", "reply",
-            }:
+            if set(value) != {"edits", "image_actions", "reply"}:
                 raise ValueError("Phone Metrics manual Agent canary response fields are invalid")
             if value["image_actions"] != []:
                 raise ValueError("No-change Phone Metrics canary requested an image action")
-            if value["creative_direction"] != current_direction:
+            edited = apply_manual_agent_edits(
+                value["edits"], current_values=editable_values,
+                configuration=phone_detail["configuration"], content=phone_detail["content"],
+                creative_direction=current_direction,
+            )
+            if edited["creative_direction"] != current_direction:
                 raise ValueError("Phone Metrics canary changed the saved creative direction")
             phone_workspace.component_settings(
                 state_sha256=phone_detail["state_sha256"],
-                configuration=value["configuration"], content=value["content"],
+                configuration=edited["configuration"], content=edited["content"],
             )
             return {
-                "configuration": value["configuration"], "content": value["content"],
-                "creative_direction": value["creative_direction"], "image_actions": [],
+                "configuration": edited["configuration"], "content": edited["content"],
+                "creative_direction": edited["creative_direction"], "image_actions": [],
                 "reply": response_reply(value["reply"]),
             }
 
-        manual_properties = creative_generation_schema(phone_detail)["properties"]
         manual_edit = provider.call(
             mode="studio_manual_edit",
             system_prompt=(
@@ -194,19 +203,8 @@ def main() -> None:
             ),
             input_artifacts=manual_artifacts,
             output_schema=manual_agent_schema(
-                configuration_schema=manual_properties["configuration"],
-                content_schema=manual_properties["content"],
+                editable_paths=list(editable_values),
                 image_slots=["phone_screen"], screenshot_count=1,
-                creative_direction_schema={
-                    "type": "object",
-                    "properties": {
-                        "schema": {"type": "string", "enum": [current_direction["schema"]]},
-                        "style": {"type": "string", "enum": [current_direction["style"]]},
-                        "background": {"type": "string", "enum": [current_direction["background"]]},
-                    },
-                    "required": ["schema", "style", "background"],
-                    "additionalProperties": False,
-                },
             ),
             prompt_version=STUDIO_MANUAL_AGENT_PROMPT_VERSION,
             idempotency_key=f"canary:{marker}:studio_manual_edit",
@@ -271,8 +269,8 @@ def main() -> None:
                 "sample_size": 2, "project_count": 1, "confidence": "exploratory",
                 "priority": ["attributable_outbound_contact_rate", "primary_cta_rate", "high_intent_engagement", "interaction_rate", "reach_or_view_velocity"],
                 "items": [
-                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 5, "comments": 2, "shares": 1, "saves": 1}, "funnel": {"landing_view": 10, "primary_cta_click": 3, "contact_click": 2}, "creative": {"template_id": "universal_ad", "content": {"hero_title": "One clear next step"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "medium", "composition": "centered", "density": "sparse", "palette": ["warm white"], "contrast": "high", "human_presence": "none"}}},
-                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 3, "comments": 1, "shares": 0, "saves": 0}, "funnel": {"landing_view": 8, "primary_cta_click": 1, "contact_click": 0}, "creative": {"template_id": "universal_ad", "content": {"hero_title": "A useful product"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "high", "composition": "layered", "density": "dense", "palette": ["blue"], "contrast": "medium", "human_presence": "none"}}},
+                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 5, "comments": 2, "shares": 1, "saves": 1}, "funnel": {"landing_view": 10, "primary_cta_click": 3, "contact_click": 2}, "creative": {"template_id": "phone_metrics", "content": {"hero_title": "One clear next step"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "medium", "composition": "centered", "density": "sparse", "palette": ["warm white"], "contrast": "high", "human_presence": "none"}}},
+                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 3, "comments": 1, "shares": 0, "saves": 0}, "funnel": {"landing_view": 8, "primary_cta_click": 1, "contact_click": 0}, "creative": {"template_id": "phone_metrics", "content": {"hero_title": "A useful product"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "high", "composition": "layered", "density": "dense", "palette": ["blue"], "contrast": "medium", "human_presence": "none"}}},
                 ],
             },
             "active_skills": {"project": None, "global": None},

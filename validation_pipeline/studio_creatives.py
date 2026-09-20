@@ -7,13 +7,13 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
-import tempfile
 import threading
 from typing import Any, Callable, Mapping
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from commander.ids import new_uuid7
 
+from .agent_context import compact_active_skills
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import sanitized
 from .natal_brand import (
@@ -26,7 +26,7 @@ from .phone_hero_styles import (
 from .studio import STUDIO_FONT_FAMILIES
 from .studio_manual_agent import (
     STUDIO_MANUAL_AGENT_PROMPT_VERSION, STUDIO_MANUAL_AGENT_REASONING_EFFORT,
-    manual_agent_payload,
+    apply_manual_agent_edits, manual_agent_editable_values, manual_agent_payload,
     manual_agent_schema, response_reply, screenshot_artifacts,
     studio_manual_agent_provider_error, validate_image_actions,
     validate_manual_agent_semantics,
@@ -47,21 +47,41 @@ from .studio_phone_metrics import (
     normalize_phone_metrics_config,
     normalize_phone_metrics_content,
 )
-from .studio_universal import (
-    UNIVERSAL_AD_TEMPLATE_ID,
-    UNIVERSAL_SETTING_DEFINITIONS,
-    normalize_universal_config,
-    normalize_universal_content,
-)
-from .studio_workspace import UniversalStudioWorkspace
+from .post_templates import POST_TEMPLATE_REGISTRY
 
 
 CREATIVE_STATUSES = frozenset({"queued", "composing", "generating_image", "draft", "failed"})
-TEMPLATE_IDS = frozenset({"universal_ad", PHONE_METRICS_TEMPLATE_ID})
-ACTIVE_TEMPLATE_IDS = frozenset({PHONE_METRICS_TEMPLATE_ID})
+TEMPLATE_IDS = frozenset(POST_TEMPLATE_REGISTRY.ids)
+ACTIVE_TEMPLATE_IDS = TEMPLATE_IDS
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
 STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v3"
+
+
+def post_composition_payload(
+    *, creative_id: str, approved_product_brief: Mapping[str, Any],
+    template_id: str, configuration: Mapping[str, Any],
+    content: Mapping[str, Any], active_creative_skills: Mapping[str, Any],
+    creative_direction: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Build one compact registry-backed Post composition request."""
+
+    definition = POST_TEMPLATE_REGISTRY.get(template_id)
+    return {
+        "creative_id": creative_id,
+        "approved_product_brief": deepcopy(dict(approved_product_brief)),
+        "selected_template_id": template_id,
+        "live_template_catalog": definition.agent_catalog(),
+        "template_defaults": {
+            "configuration": deepcopy(dict(configuration)),
+            "content": deepcopy(dict(content)),
+        },
+        "active_creative_skills": compact_active_skills(
+            active_creative_skills, surface="post",
+        ),
+        **({"creative_direction": deepcopy(dict(creative_direction))}
+           if creative_direction is not None else {}),
+    }
 
 
 def _uuid(value: str, field: str) -> str:
@@ -209,39 +229,6 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         })
         content["phone_buttons"]["items"].update({"minLength": 1, "maxLength": 48})
         properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
-    elif detail.get("template_id") == UNIVERSAL_AD_TEMPLATE_ID:
-        configuration = properties["configuration"]["properties"]
-        configuration["schema"]["enum"] = [detail["configuration"]["schema"]]
-        for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items():
-            parts = setting_id.split(".")
-            field = configuration
-            for part in parts[1:-1]:
-                field = field[part]["properties"]
-            field = field[parts[-1]]
-            value_type = definition["value_type"]
-            if value_type == "color":
-                field["pattern"] = r"^#[0-9A-Fa-f]{6}$"
-            elif definition.get("values"):
-                field["enum"] = list(definition["values"])
-            elif value_type in {"integer", "number"}:
-                field.update({
-                    "minimum": definition["minimum"],
-                    "maximum": definition["maximum"],
-                })
-        for field in ("symbol_color", "name_color"):
-            configuration["logo"]["properties"][field]["enum"] = [
-                detail["configuration"]["logo"][field]
-            ]
-        for field, maximum in (
-            ("hero_title", 140), ("supporting_text", 280),
-            ("offer", 160), ("cta", 60),
-        ):
-            properties["content"]["properties"][field].update({
-                "minLength": 1, "maxLength": maximum,
-            })
-        content = properties["content"]["properties"]
-        content["schema"]["enum"] = [detail["content"]["schema"]]
-        content["bullets"]["items"].update({"minLength": 1, "maxLength": 100})
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,
@@ -315,8 +302,6 @@ def _normalized_checkpoint_baseline(
     if isinstance(configuration, Mapping):
         if normalized.get("template_id") == PHONE_METRICS_TEMPLATE_ID:
             normalized["configuration"] = normalize_phone_metrics_config(configuration)
-        elif normalized.get("template_id") == UNIVERSAL_AD_TEMPLATE_ID:
-            normalized["configuration"] = normalize_universal_config(configuration)
     # A renderer release is provenance, not an owner edit. A real template
     # replacement is retained above because its template_id changes.
     normalized["template_sha256"] = after.get("template_sha256")
@@ -819,22 +804,11 @@ class StudioCreativeService:
         self._lock = threading.RLock()
 
     def templates(self) -> dict[str, Any]:
-        templates = []
-        with tempfile.TemporaryDirectory(prefix=".catalog-", dir=self.root) as temporary:
-            scratch = UniversalStudioWorkspace(Path(temporary))
-            for template_id in sorted(ACTIVE_TEMPLATE_IDS):
-                detail = scratch.detail()
-                if (detail.get("template_id") or detail["catalog"]["template_id"]) != template_id:
-                    detail = scratch.apply_template(
-                        base_sha256=detail["state_sha256"], template_id=template_id,
-                    )
-                templates.append({
-                    **next(item for item in detail["templates"] if item["template_id"] == template_id),
-                    "template_version": detail["catalog"]["template_version"],
-                    "template_sha256": detail["template_sha256"],
-                    **({"creative_direction_options": phone_hero_direction_options()}
-                       if template_id == PHONE_METRICS_TEMPLATE_ID else {}),
-                })
+        templates = [{
+            **definition.summary(),
+            **({"creative_direction_options": phone_hero_direction_options()}
+               if definition.identity.template_id == PHONE_METRICS_TEMPLATE_ID else {}),
+        } for definition in POST_TEMPLATE_REGISTRY.all()]
         return {"schema": "ptw.studio.template-catalog.v1", "items": templates}
 
     def _workspace(self, creative_id: str) -> Any:
@@ -896,15 +870,7 @@ class StudioCreativeService:
         additional: bool = False, creative_direction: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
         brief = self.authority.brief(_uuid(brief_id, "brief_id"))
-        if template_id not in TEMPLATE_IDS:
-            raise ValueError("Studio template is invalid")
-        if template_id not in ACTIVE_TEMPLATE_IDS:
-            existing = sorted((
-                item for item in self.authority.list_creatives(str(brief["project_id"]))
-                if item["source_brief_id"] == brief["brief_id"]
-            ), key=lambda item: int(item["ordinal"]))
-            if additional or not existing or existing[0]["template_id"] != template_id:
-                raise ValueError("Universal Ad is retired; choose an active Studio template")
+        POST_TEMPLATE_REGISTRY.get(template_id)
         creative, created = self.authority.create_creative(
             project_id=brief["project_id"], brief_id=brief_id,
             template_id=template_id, requested_by=requested_by,
@@ -928,8 +894,7 @@ class StudioCreativeService:
         if isinstance(source_version, bool) or not isinstance(source_version, int) or source_version < 1:
             raise ValueError("source_version must be a positive integer")
         source_detail = self.detail(project_id, source_creative_id)
-        if self._template_id(source_detail) not in ACTIVE_TEMPLATE_IDS:
-            raise ValueError("Universal Ad is retired and cannot create another Post")
+        POST_TEMPLATE_REGISTRY.get(self._template_id(source_detail))
         source_workspace = self._workspace(source_creative_id)
         version_record = source_workspace.version_detail(source_version)
         frozen_assets = source_workspace.version_clone_assets(source_version)
@@ -988,16 +953,7 @@ class StudioCreativeService:
     ) -> tuple[dict[str, Any], bool, dict[str, Any], bool]:
         """Approve and reserve idempotently; PostgreSQL performs both in one transaction."""
 
-        if template_id not in TEMPLATE_IDS:
-            raise ValueError("Studio template is invalid")
-        if template_id not in ACTIVE_TEMPLATE_IDS:
-            brief = self.authority.brief(_uuid(brief_id, "brief_id"))
-            existing = sorted((
-                item for item in self.authority.list_creatives(str(brief["project_id"]))
-                if item["source_brief_id"] == brief["brief_id"]
-            ), key=lambda item: int(item["ordinal"]))
-            if not existing or existing[0]["template_id"] != template_id:
-                raise ValueError("Universal Ad is retired; choose an active Studio template")
+        POST_TEMPLATE_REGISTRY.get(template_id)
         if template_id == PHONE_METRICS_TEMPLATE_ID:
             if creative_direction is None:
                 raise ValueError("Phone Metrics creative direction is required")
@@ -1094,38 +1050,13 @@ class StudioCreativeService:
             agent_configuration.setdefault("visual_mode", "phone")
             editor_content = normalize_phone_metrics_content(content)
             image_slots = ["phone_screen"] if detail.get("phone_screen_generation_available") else []
-            options = phone_hero_direction_options()
-            creative_direction_schema: Mapping[str, Any] | None = {
-                "type": "object",
-                "properties": {
-                    "schema": {"type": "string", "enum": [options["schema"]]},
-                    "style": {"type": "string", "enum": options["styles"]},
-                    "background": {"type": "string", "enum": options["backgrounds"]},
-                },
-                "required": ["schema", "style", "background"],
-                "additionalProperties": False,
-            }
-        else:
-            editor_configuration = normalize_universal_config(configuration)
-            agent_configuration = editor_configuration
-            editor_content = normalize_universal_content(content)
-            image_slots = []
-            creative_direction_schema = None
+        else:  # pragma: no cover - registry validation makes this unreachable
+            raise ValueError("Post template is not registered")
         workspace = self._workspace(creative_id)
         workspace.component_settings(
             state_sha256=detail["state_sha256"],
             configuration=editor_configuration, content=editor_content,
         )
-        editor_detail = {
-            **detail, "configuration": agent_configuration, "content": editor_content,
-        }
-        state_schema = creative_generation_schema(editor_detail)
-        state_properties = state_schema["properties"]
-        state_properties.pop("visual_direction", None)
-        logo_properties = state_properties["configuration"]["properties"]["logo"]["properties"]
-        for field in ("symbol_color", "name_color"):
-            logo_properties[field].pop("enum", None)
-            logo_properties[field]["pattern"] = r"^#[0-9A-Fa-f]{6}$"
         artifacts = screenshot_artifacts(screenshots)
         current_images = [
             str(item["slot"]) for item in detail.get("assets", [])
@@ -1140,24 +1071,29 @@ class StudioCreativeService:
             image_slots=image_slots, current_images=current_images,
             creative_direction=current_direction,
         )
+        editable_values = manual_agent_editable_values(
+            catalog=detail["catalog"], configuration=agent_configuration,
+            content=editor_content, creative_direction=current_direction,
+        )
 
         def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
-            expected = {"configuration", "content", "image_actions", "reply"}
-            if creative_direction_schema is not None:
-                expected.add("creative_direction")
-            if not isinstance(value, Mapping) or set(value) != expected:
+            if not isinstance(value, Mapping) or set(value) != {
+                "edits", "image_actions", "reply",
+            }:
                 raise ValueError("Studio Agent response fields are invalid")
+            edited = apply_manual_agent_edits(
+                value["edits"], current_values=editable_values,
+                configuration=agent_configuration, content=editor_content,
+                creative_direction=current_direction,
+            )
             if template_id == PHONE_METRICS_TEMPLATE_ID:
-                next_configuration = normalize_phone_metrics_config(value["configuration"])
+                next_configuration = normalize_phone_metrics_config(edited["configuration"])
                 if (
                     "visual_mode" not in editor_configuration
                     and next_configuration.get("visual_mode") == "phone"
                 ):
                     next_configuration.pop("visual_mode")
-                next_content = normalize_phone_metrics_content(value["content"])
-            else:
-                next_configuration = normalize_universal_config(value["configuration"])
-                next_content = normalize_universal_content(value["content"])
+                next_content = normalize_phone_metrics_content(edited["content"])
             workspace.component_settings(
                 state_sha256=detail["state_sha256"],
                 configuration=next_configuration, content=next_content,
@@ -1171,9 +1107,9 @@ class StudioCreativeService:
                 value["image_actions"], slots=image_slots,
                 screenshot_count=len(screenshots), available_slots=set(current_images),
             )
-            if creative_direction_schema is not None:
+            if current_direction is not None:
                 response["creative_direction"] = normalize_phone_hero_creative_direction(
-                    value["creative_direction"]
+                    edited["creative_direction"]
                 )
             validate_manual_agent_semantics(
                 surface=f"post:{template_id}",
@@ -1188,16 +1124,14 @@ class StudioCreativeService:
                 mode="studio_manual_edit",
                 system_prompt=(
                     self.manual_agent_skill
-                    + "\n\nThe output schema is the complete editor authority. Preserve fields unrelated to the owner's latest request. "
+                    + "\n\nThe output schema accepts scalar patch operations only. Omitted paths remain unchanged. "
                     "Decompose every clause, obey request_constraints as end-state invariants, resolve cross-control dependencies, "
-                    "and verify that every requested result is visible in the complete returned state."
+                    "and verify every requested result against current_editable_values."
                 ),
                 input_payload=payload,
                 output_schema=manual_agent_schema(
-                    configuration_schema=state_properties["configuration"],
-                    content_schema=state_properties["content"],
+                    editable_paths=list(editable_values),
                     image_slots=image_slots, screenshot_count=len(screenshots),
-                    creative_direction_schema=creative_direction_schema,
                 ),
                 idempotency_key=f"studio-manual:{creative_id}:{request_id}",
                 prompt_version=STUDIO_MANUAL_AGENT_PROMPT_VERSION,
@@ -1212,7 +1146,7 @@ class StudioCreativeService:
             {
                 "configuration": editor_configuration, "content": editor_content,
                 **({"creative_direction": current_direction}
-                   if creative_direction_schema is not None and current_direction else {}),
+                   if current_direction else {}),
             },
             {
                 "configuration": response["configuration"], "content": response["content"],
@@ -1245,10 +1179,11 @@ class StudioCreativeService:
     def _phone_skill_context(self, creative: Mapping[str, Any]) -> str:
         """Build the bounded, model-independent context used by every hero call."""
         skills = self._active_skills(str(creative["project_id"]))
+        compact_skills = compact_active_skills(skills, surface="post")
         return "\n\n".join((
             self.phone_skill,
-            "Active global creative spirit snapshot:\n" + _canonical(skills["global"]),
-            "Active Project creative rules snapshot:\n" + _canonical(skills["project"]),
+            "Active global creative spirit snapshot:\n" + _canonical(compact_skills["global"]),
+            "Active Project creative rules snapshot:\n" + _canonical(compact_skills["project"]),
         ))[:6000]
 
     def _active_skills(self, project_id: str) -> dict[str, Any]:
@@ -1382,16 +1317,17 @@ class StudioCreativeService:
             **({"creative_direction": self._creative_direction(creative)}
                if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
         }
-        payload = {
-            "creative_id": creative_id, "approved_product_brief": brief["document"],
-            "selected_template_id": creative["template_id"], "live_template_catalog": detail["catalog"],
-            "template_defaults": {
-                "configuration": detail["configuration"], "content": detail["content"],
-            },
-            "active_creative_skills": skills,
-            **({"creative_direction": self._creative_direction(creative)}
-               if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
-        }
+        payload = post_composition_payload(
+            creative_id=creative_id,
+            approved_product_brief=brief["document"],
+            template_id=str(creative["template_id"]),
+            configuration=detail["configuration"], content=detail["content"],
+            active_creative_skills=skills,
+            creative_direction=(
+                self._creative_direction(creative)
+                if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else None
+            ),
+        )
         system_prompt = (
             self.composer_skill + "\n\nThe live catalog in INPUT_JSON is authoritative. "
             "Return a complete bounded configuration and content object."
@@ -1526,8 +1462,7 @@ class StudioCreativeService:
         workspace = self._workspace(creative_id)
         target = getattr(workspace, method)
         if method == "apply_template":
-            if kwargs.get("template_id") not in ACTIVE_TEMPLATE_IDS:
-                raise ValueError("Universal Ad is retired; choose an active Studio template")
+            POST_TEMPLATE_REGISTRY.get(str(kwargs.get("template_id") or ""))
             kwargs["logo_colors"] = self._project_logo_colors(project_id)
         if method == "generate_phone_screen":
             creative = self.authority.get_creative(creative_id)
@@ -1563,12 +1498,9 @@ class StudioCreativeService:
         # An already-open browser can still hold its verified stored hash.
         workspace._assert_state(base_sha256)
 
-        if self._template_id(current) == PHONE_METRICS_TEMPLATE_ID:
-            candidate_configuration = normalize_phone_metrics_config(configuration)
-            candidate_content = normalize_phone_metrics_content(content)
-        else:
-            candidate_configuration = normalize_universal_config(configuration)
-            candidate_content = normalize_universal_content(content)
+        definition = POST_TEMPLATE_REGISTRY.get(self._template_id(current))
+        candidate_configuration = definition.normalize_configuration(configuration)
+        candidate_content = definition.normalize_content(content)
         pending_changes = (
             _canonical(candidate_configuration) != _canonical(current["configuration"])
             or _canonical(candidate_content) != _canonical(current["content"])

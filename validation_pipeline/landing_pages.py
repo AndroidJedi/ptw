@@ -13,6 +13,7 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 
+from .agent_context import compact_active_skills
 from .landing_workspace import (
     DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION,
     LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA, LANDING_TEMPLATE_ID,
@@ -20,6 +21,7 @@ from .landing_workspace import (
     canonical_json, normalize_composed_content, normalize_configuration,
     normalize_content, sha256_json,
 )
+from .landing_templates import LANDING_TEMPLATE_REGISTRY
 from .landing_design import (
     APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_COMPONENTS,
     DEFAULT_IMAGE_DIRECTIONS, DEFAULT_PHONE_MOCKUP,
@@ -30,7 +32,7 @@ from .local_codex import sanitized
 from .studio_creatives import _json_schema
 from .studio_manual_agent import (
     STUDIO_MANUAL_AGENT_PROMPT_VERSION, STUDIO_MANUAL_AGENT_REASONING_EFFORT,
-    manual_agent_payload,
+    apply_manual_agent_edits, manual_agent_editable_values, manual_agent_payload,
     manual_agent_schema, response_reply, screenshot_artifacts,
     studio_manual_agent_provider_error, validate_image_actions,
     validate_manual_agent_semantics,
@@ -39,7 +41,6 @@ from .studio_manual_agent import (
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
 LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v5"
-LANDING_GENERATION_LESSON_LIMIT = 8
 
 
 def _uuid(value: str, field: str) -> str:
@@ -61,7 +62,11 @@ def _diff_paths(before: Any, after: Any, prefix: str = "") -> list[str]:
         result: list[str] = []
         for key in sorted(set(before) | set(after)):
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key not in before or key not in after:
+            if key not in before and isinstance(after[key], Mapping):
+                result.extend(_diff_paths({}, after[key], path))
+            elif key not in after and isinstance(before[key], Mapping):
+                result.extend(_diff_paths(before[key], {}, path))
+            elif key not in before or key not in after:
                 result.append(path)
             else:
                 result.extend(_diff_paths(before[key], after[key], path))
@@ -131,17 +136,20 @@ def validate_landing_composition(value: Mapping[str, Any]) -> dict[str, Any]:
     return {"content": normalize_composed_content(value["content"])}
 
 
-def _bounded_landing_lessons(document: str) -> list[str]:
-    """Expose recent accepted lessons without allowing prompt growth forever."""
-    return _lessons(document)[-LANDING_GENERATION_LESSON_LIMIT:]
-
-
 def landing_composition_payload(
     *, landing_id: str, approved_product_brief: Mapping[str, Any],
     source_post_snapshot: Mapping[str, Any], content_defaults: Mapping[str, Any],
     active_creative_skills: Mapping[str, Any], live_landing_catalog: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the one canonical, bounded payload used by runtime and canaries."""
+    definition = LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID)
+    if live_landing_catalog.get("template_id") != definition.identity.template_id:
+        raise ValueError("Landing generation catalog is not registered")
+    post_reference = {
+        key: source_post_snapshot[key]
+        for key in ("template_id", "template_version", "template_sha256")
+        if key in source_post_snapshot
+    }
     return {
         "landing_id": landing_id,
         "approved_product_brief": deepcopy(dict(approved_product_brief)),
@@ -150,11 +158,15 @@ def landing_composition_payload(
             "content": deepcopy(source_post_snapshot.get("content") or {}),
             "version_sha256": source_post_snapshot.get("version_sha256"),
         },
+        **({"source_post_template_reference": post_reference}
+           if len(post_reference) == 3 else {}),
         "template_content_defaults": {
             "content": deepcopy(dict(content_defaults)),
         },
-        "live_landing_catalog": deepcopy(dict(live_landing_catalog)),
-        "active_creative_skills": deepcopy(dict(active_creative_skills)),
+        "live_landing_catalog": definition.agent_catalog(),
+        "active_creative_skills": compact_active_skills(
+            active_creative_skills, surface="landing",
+        ),
     }
 
 
@@ -197,12 +209,18 @@ class LocalLandingAuthority:
         record = json.loads(path.read_text(encoding="utf-8"))
         if record.get("version") != version or not isinstance(record.get("version_sha256"), str):
             raise ValueError("Landing source Post version is invalid")
-        return {
+        source = {
             "creative_id": creative_id, "version": version, "version_sha256": record["version_sha256"],
             "source_brief_id": creative["source_brief_id"], "template_id": template,
             "configuration": record["configuration"], "content": record["content"],
             "assets": record.get("assets", []), "generation": deepcopy(creative.get("generation") or {}),
         }
+        if creative.get("template_version") is not None and record.get("template_sha256"):
+            source.update({
+                "template_version": int(creative["template_version"]),
+                "template_sha256": record["template_sha256"],
+            })
+        return source
 
     def source_versions(self, project_id: str) -> list[dict[str, Any]]:
         project_id = _uuid(project_id, "project_id")
@@ -529,7 +547,8 @@ class DatabaseLandingAuthority:
             raise ValueError("Landing source Post version is invalid")
         with self.connection() as connection:
             row = connection.execute(
-                """SELECT workspace.source_brief_id,workspace.template_id,workspace.generation,version.record,version.version_sha256
+                """SELECT workspace.source_brief_id,workspace.template_id,workspace.template_version,
+                          workspace.generation,version.record,version.version_sha256
                      FROM universal_studio_workspaces workspace JOIN universal_studio_versions version
                        ON version.workspace_id=workspace.entity_id
                      WHERE workspace.entity_id=%s AND workspace.project_id=%s AND version.version=%s""",
@@ -537,11 +556,14 @@ class DatabaseLandingAuthority:
             ).fetchone()
         if row is None:
             raise ValueError("Landing requires an immutable approved Post version in this Project")
-        record = dict(row[3])
+        record = dict(row[4])
         return {
-            "creative_id": _uuid(creative_id, "source_creative_id"), "version": version, "version_sha256": row[4],
-            "source_brief_id": str(row[0]), "template_id": row[1], "configuration": record["configuration"],
-            "content": record["content"], "assets": record.get("assets", []), "generation": dict(row[2] or {}),
+            "creative_id": _uuid(creative_id, "source_creative_id"), "version": version,
+            "version_sha256": row[5], "source_brief_id": str(row[0]),
+            "template_id": row[1], "template_version": int(row[2]),
+            "template_sha256": record["template_sha256"],
+            "configuration": record["configuration"], "content": record["content"],
+            "assets": record.get("assets", []), "generation": dict(row[3] or {}),
         }
 
     def source_versions(self, project_id: str) -> list[dict[str, Any]]:
@@ -777,6 +799,12 @@ class LandingService:
         self.analytics: Any | None = None
         self._workspaces: dict[str, Any] = {}
 
+    def templates(self) -> dict[str, Any]:
+        return {
+            "schema": "ptw.landing.template-catalog.v1",
+            "items": [definition.summary() for definition in LANDING_TEMPLATE_REGISTRY.all()],
+        }
+
     def _workspace(self, landing_id: str) -> Any:
         landing_id = _uuid(landing_id, "landing_id")
         self.authority.get_page(landing_id)
@@ -855,18 +883,26 @@ class LandingService:
             catalog=detail["catalog"], screenshot_artifact_values=artifacts,
             image_slots=image_slots, current_images=current_images,
         )
+        editable_values = manual_agent_editable_values(
+            catalog=detail["catalog"], configuration=agent_configuration,
+            content=agent_content,
+        )
 
         def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
             if not isinstance(value, Mapping) or set(value) != {
-                "configuration", "content", "image_actions", "reply",
+                "edits", "image_actions", "reply",
             }:
                 raise ValueError("Studio Agent Landing response fields are invalid")
-            expanded_configuration = normalize_configuration(value["configuration"])
+            edited = apply_manual_agent_edits(
+                value["edits"], current_values=editable_values,
+                configuration=agent_configuration, content=agent_content,
+            )
+            expanded_configuration = normalize_configuration(edited["configuration"])
             next_configuration = deepcopy(expanded_configuration)
             for field, default in effective_configuration_defaults.items():
                 if field not in editor_configuration and next_configuration[field] == default:
                     next_configuration.pop(field)
-            expanded_content = normalize_content(value["content"])
+            expanded_content = normalize_content(edited["content"])
             next_content = deepcopy(expanded_content)
             if "app_feature" not in editor_content and next_content["app_feature"] == agent_content["app_feature"]:
                 next_content.pop("app_feature")
@@ -906,14 +942,13 @@ class LandingService:
                 mode="studio_manual_edit",
                 system_prompt=(
                     self.manual_agent_skill
-                    + "\n\nThe output schema is the complete Landing editor authority. Preserve contact endpoints and social proof exactly. "
+                    + "\n\nThe output schema accepts scalar patch operations only. Omitted paths remain unchanged; preserve contact endpoints and social proof exactly. "
                     "Decompose every clause, obey request_constraints as end-state invariants, resolve cross-control dependencies, "
-                    "and verify that every requested result is visible in the complete returned state."
+                    "and verify every requested result against current_editable_values."
                 ),
                 input_payload=payload,
                 output_schema=manual_agent_schema(
-                    configuration_schema=_json_schema(agent_configuration),
-                    content_schema=_json_schema(agent_content),
+                    editable_paths=list(editable_values),
                     image_slots=image_slots, screenshot_count=len(screenshots),
                 ),
                 idempotency_key=f"landing-manual:{landing_id}:{request_id}",

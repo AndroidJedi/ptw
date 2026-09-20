@@ -1,4 +1,4 @@
-"""Shared media validation and primitive renderer entrypoint for Universal Studio."""
+"""Shared media validation and primitive renderer entrypoint for Post Studio."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def inspect_media(data: bytes, declared_mime: str) -> dict[str, Any]:
 
 
 class StudioRenderer:
-    """Render Universal Studio primitive trees deterministically."""
+    """Render Post Studio primitive trees deterministically."""
 
     def __init__(self, font_path: Path = SUPPORTED_FONTS["Inter"]) -> None:
         self.font_path = font_path

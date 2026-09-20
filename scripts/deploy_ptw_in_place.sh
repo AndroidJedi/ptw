@@ -197,6 +197,7 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='010_studio_project_logo_defaults.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='011_project_first_brief_source_guard.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='012_phone_metrics_only.sql')
      OR to_regclass('public.instagram_publications') IS NULL
      OR to_regclass('public.instagram_publication_attempts') IS NULL
      OR to_regclass('public.tiktok_publications') IS NULL

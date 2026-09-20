@@ -101,41 +101,6 @@ append the Project default. New Posts/template replacements inherit and lock it,
 while existing drafts and approved clones retain their own saved colors. Keep
 these brand defaults outside Creative Skill learning and Landing.
 
-## Apple-style sticker treatment
-
-The sticker source must be an ultra-realistic photograph of a physical object
-obtained through the bounded Pexels API, with provider, photo, photographer,
-license, query, and transformation provenance retained. Never use image
-generation, procedural drawing, illustration, vector art, emoji, screenshots,
-or a repository-bundled fallback for this role. Select an object that visibly
-belongs to its background: align light direction and softness, color
-temperature, palette, material, surface texture, perspective, grain, and scale.
-If no compatible photograph can be isolated cleanly, fail the iteration rather
-than fabricating or compositing an unrelated sticker.
-
-Provider metadata, query relevance, and subject-term matching are prefilters,
-not visual approval. Inspect both the isolated PNG and its exact full-resolution
-Studio render. Reject a close crop or partial detail of a larger object, alpha
-that still touches the source frame, retained photographic background, detached
-rectangular slabs or flecks, multiple unrelated fragments, and any silhouette
-that is not immediately recognizable as one complete object. Leave the Sticker
-disabled or preserve the previous valid asset when no candidate passes; never
-show the least-bad failed candidate.
-
-When the owner asks for an Apple/iOS-style sticker, derive the white die-cut
-background from the isolated subject's final alpha silhouette. Size the solid
-white contour at roughly 5–8% of the actual fitted visible subject width, not
-the nominal image layer, and reserve transparent space so the contour and any
-subtle outside shadow cannot clip into flat rectangular edges. Close only tiny
-gaps needed for a cohesive silhouette and use narrow edge antialiasing; do not
-pre-blur the mask into a white glow or soften the subject itself. The result
-must contain no rectangular paper, frame, cloudy backing, or extra decoration.
-
-Protect this behavior with a pixel-level test using an irregular transparent
-subject that reaches its source bounds. Verify that the contour can extend
-outside the source box while transparent corners remain transparent, then
-inspect the representative Studio preview at full resolution.
-
 ## Visual layout guard
 
 For typography, positioning, spacing, component-layout, preview, or Studio CSS

@@ -186,7 +186,7 @@ class CreativeAnalyticsTests(unittest.TestCase):
         }, scope="project", project_id=self.project_id)
         self.assertIs(phone_rule["target"]["value"], False)
         for template_id, component_id in (
-            ("universal_ad", "universal_ad.logo"),
+            ("unknown_template", "unknown_template.brand"),
             ("phone_metrics", "phone_metrics.brand"),
         ):
             with self.assertRaisesRegex(ValueError, "does not exist"):

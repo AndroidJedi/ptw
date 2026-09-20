@@ -22,7 +22,10 @@ import threading
 import time
 from typing import Any
 
-from .provider import _input_artifacts, bridge_idempotency_key, bridge_request_fingerprint
+from .provider import (
+    _input_artifacts, bridge_idempotency_key, bridge_request_fingerprint,
+    enforce_structured_contract_budget, enforce_structured_response_budget,
+)
 
 
 class LocalCodexError(RuntimeError):
@@ -259,6 +262,16 @@ class LocalCodexStructuredProvider:
             input_artifact_digests=artifact_digests,
         )
         for attempt in range(1, self.maximum_attempts + 1):
+            attempted_prompt = system_prompt + (
+                "\n\nCORRECTION_REQUIRED: The previous structured response was rejected by "
+                f"PTW validation: {self._sanitized_error_message(last_error)}. "
+                "Return a corrected object that obeys that exact constraint."
+                if last_error is not None else ""
+            )
+            contract_bytes = enforce_structured_contract_budget(
+                mode=mode, system_prompt=attempted_prompt,
+                input_payload=input_payload, output_schema=output_schema,
+            )
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
                 root = Path(temporary)
                 schema_path = root / "output-schema.json"
@@ -289,6 +302,7 @@ class LocalCodexStructuredProvider:
                     "ephemeral": True,
                     "input_artifacts": artifact_digests,
                     "input_artifact_bytes": artifact_bytes,
+                    "contract_bytes": contract_bytes,
                 }
                 completed_response = False
                 try:
@@ -296,15 +310,7 @@ class LocalCodexStructuredProvider:
                         raise _CancellationRequested()
                     completed = self._execute(
                         command,
-                        prompt=self._prompt(
-                            system_prompt + (
-                                "\n\nCORRECTION_REQUIRED: The previous structured response was rejected by "
-                                f"PTW validation: {self._sanitized_error_message(last_error)}. "
-                                "Return a corrected object that obeys that exact constraint."
-                                if last_error is not None else ""
-                            ),
-                            input_payload,
-                        ),
+                        prompt=self._prompt(attempted_prompt, input_payload),
                         cwd=root,
                         cancel_event=cancel_event,
                     )
@@ -320,10 +326,12 @@ class LocalCodexStructuredProvider:
                     response = json.loads(raw)
                     if not isinstance(response, Mapping):
                         raise ValueError("Codex structured output must be one JSON object")
+                    response_bytes = enforce_structured_response_budget(mode, response)
                     validated = dict(response_validator(response))
                     record.update({
                         "status": "completed",
                         "response_sha256": sha256_json(validated),
+                        "response_bytes": response_bytes,
                     })
                     attempts.append(record)
                     return {
@@ -335,6 +343,8 @@ class LocalCodexStructuredProvider:
                             "mode": mode,
                             "prompt_version": prompt_version,
                             "input_sha256": input_digest,
+                            "contract_bytes": contract_bytes,
+                            "response_bytes": response_bytes,
                             "attempts": attempts,
                         },
                     }

@@ -164,11 +164,11 @@ Runtime rules use one schema:
   "family": "ui",
   "instruction": "Prefer the compact spacing proven by comparable posts.",
   "target": {
-    "template_id": "universal_ad",
-    "component_id": "copy_panel",
-    "setting_id": "spacing",
+    "template_id": "phone_metrics",
+    "component_id": "phone_metrics.offer",
+    "setting_id": "configuration.offer.enabled",
     "operation": "set",
-    "value": "compact"
+    "value": false
   },
   "evidence": {
     "metric": "interaction_rate",

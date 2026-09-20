@@ -27,7 +27,7 @@ from validation_pipeline.studio_phone_metrics import (
     phone_metrics_catalog, phone_metrics_component_settings,
     phone_metrics_semantic_data,
 )
-from validation_pipeline.studio_workspace import UniversalStudioWorkspace
+from validation_pipeline.studio_workspace import PostStudioWorkspace
 
 
 def _screen_bytes(background: str = "#F5F6F3") -> bytes:
@@ -87,7 +87,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=config, content=detail["content"], change_note="Image mode")
         version = self.workspace.version_detail(1)
         self.assertEqual("image", version["configuration"]["visual_mode"])
-        reopened = UniversalStudioWorkspace(self.workspace.root)
+        reopened = PostStudioWorkspace(self.workspace.root)
         saved = reopened.detail()
         self.assertEqual("image", saved["configuration"]["visual_mode"])
         restored = reopened.save_configuration(base_sha256=saved["state_sha256"], configuration={**config, "visual_mode": "phone"}, content=saved["content"])
@@ -100,15 +100,15 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
-        self.workspace = UniversalStudioWorkspace(Path(self.temporary.name))
+        self.workspace = PostStudioWorkspace(Path(self.temporary.name))
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
     def _phone(self) -> dict:
-        universal = self.workspace.detail()
+        initial = self.workspace.detail()
         return self.workspace.apply_template(
-            base_sha256=universal["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
+            base_sha256=initial["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
         )
 
     def test_optional_cta_hides_band_and_survives_preview_save_approval_and_restart(self) -> None:
@@ -134,7 +134,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             content=saved["content"], change_note="Optional CTA omitted",
         )
         version = self.workspace.version_detail(1)
-        reopened = UniversalStudioWorkspace(self.workspace.root)
+        reopened = PostStudioWorkspace(self.workspace.root)
         self.assertEqual("", reopened.detail()["content"]["cta"])
         self.assertEqual(version, reopened.version_detail(1))
         for value in ("", "X" * 60):
@@ -1180,11 +1180,11 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
     def test_template_apply_replaces_mutable_draft_and_preserves_approved_version(self) -> None:
         detail = self.workspace.detail()
         self.workspace.approve_version(
-            state_sha256=detail["state_sha256"], change_note="Approved universal creative",
+            state_sha256=detail["state_sha256"], change_note="Approved phone creative",
         )
         # Create one mutable asset before replacing the draft template.
         self.workspace._store_asset(  # pylint: disable=protected-access
-            "background_image", mime_type="image/png", data=_screen_bytes(),
+            "phone_screen", mime_type="image/png", data=_screen_bytes(),
             source={"origin": "test"},
         )
         detail = self.workspace.detail()
@@ -1194,9 +1194,9 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertEqual(PHONE_METRICS_TEMPLATE_ID, phone["template_id"])
         self.assertEqual(DEFAULT_PHONE_CONTENT, phone["content"])
         self.assertEqual(DEFAULT_PHONE_CONFIG, phone["configuration"])
-        self.assertFalse((self.workspace.assets / "background_image.png").exists())
+        self.assertFalse((self.workspace.assets / "phone_screen.png").exists())
         self.assertEqual(1, len(phone["versions"]))
-        self.assertEqual("universal_ad", self.workspace.version_detail(1)["template_id"])
+        self.assertEqual(PHONE_METRICS_TEMPLATE_ID, self.workspace.version_detail(1)["template_id"])
 
     def test_natal_is_fixed_and_phone_screen_rejects_owner_upload(self) -> None:
         phone = self._phone()

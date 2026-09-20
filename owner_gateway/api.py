@@ -1,4 +1,4 @@
-"""Firebase-authenticated owner API for Product Briefs and Universal Ad Studio."""
+"""Firebase-authenticated owner API for Product Briefs and PTW Studio."""
 
 from __future__ import annotations
 
@@ -464,14 +464,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/templates/apply")
     async def studio_template_apply(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/templates/apply", request, identity, timeout=60)
-
-    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/assets/{slot}")
-    async def studio_asset(project_id: str, creative_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return await creative_post(project_id, creative_id, f"/assets/{slot}", request, identity, timeout=90)
-
-    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/pexels")
-    async def studio_pexels(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return await creative_post(project_id, creative_id, "/pexels", request, identity, timeout=90)
 
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/generate")
     async def studio_phone_screen_generate(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

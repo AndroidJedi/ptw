@@ -12,9 +12,11 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 
-from .studio_workspace import UniversalStudioWorkspace
+from .studio_workspace import PostStudioWorkspace
 from .natal_brand import normalize_natal_logo_colors
 from .phone_hero_styles import normalize_phone_hero_creative_direction
+from .post_templates import POST_TEMPLATE_REGISTRY
+from .studio_phone_metrics import PHONE_METRICS_TEMPLATE_ID
 from .studio_creatives import (
     GLOBAL_SKILL_SCOPE, PROJECT_SKILL_SCOPE, _append_lesson, _skill_document,
     verified_skill_snapshot,
@@ -22,8 +24,8 @@ from .studio_creatives import (
 
 
 _MUTATING_METHODS = frozenset({
-    "save_configuration", "apply_template", "upload_asset", "select_phone_screen",
-    "generate_phone_screen", "source_pexels", "approve_version", "approve_configuration",
+    "save_configuration", "apply_template", "select_phone_screen",
+    "generate_phone_screen", "approve_version", "approve_configuration",
     "restore_approved_clone",
 })
 
@@ -294,7 +296,7 @@ class DatabaseCreativeWorkspace:
     """Expose one reserved creative with PostgreSQL-owned workspace bytes."""
 
     def __init__(
-        self, workspace: UniversalStudioWorkspace, repository: StudioRepository,
+        self, workspace: PostStudioWorkspace, repository: StudioRepository,
         workspace_id: str,
     ) -> None:
         self.workspace = workspace
@@ -505,9 +507,8 @@ class DatabaseStudioAuthority:
         from psycopg.types.json import Jsonb
 
         project = self.project(project_id)
-        if template_id not in {"universal_ad", "phone_metrics"}:
-            raise ValueError("Studio template is invalid")
-        if template_id == "phone_metrics":
+        POST_TEMPLATE_REGISTRY.get(template_id)
+        if template_id == PHONE_METRICS_TEMPLATE_ID:
             if creative_direction is None:
                 raise ValueError("Phone Metrics creative direction is required")
             creative_direction = normalize_phone_hero_creative_direction(creative_direction)
@@ -530,7 +531,7 @@ class DatabaseStudioAuthority:
             if siblings and not require_approved_previous:
                 if siblings[0][2] != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
-                if template_id == "phone_metrics" and dict(siblings[0][3] or {}).get("creative_direction") != creative_direction:
+                if template_id == PHONE_METRICS_TEMPLATE_ID and dict(siblings[0][3] or {}).get("creative_direction") != creative_direction:
                     raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 return self.get_creative(str(siblings[0][0])), False
             if require_approved_previous:
@@ -654,9 +655,8 @@ class DatabaseStudioAuthority:
 
         from psycopg.types.json import Jsonb
 
-        if template_id not in {"universal_ad", "phone_metrics"}:
-            raise ValueError("Studio template is invalid")
-        if template_id == "phone_metrics":
+        POST_TEMPLATE_REGISTRY.get(template_id)
+        if template_id == PHONE_METRICS_TEMPLATE_ID:
             if creative_direction is None:
                 raise ValueError("Phone Metrics creative direction is required")
             creative_direction = normalize_phone_hero_creative_direction(creative_direction)
@@ -694,7 +694,7 @@ class DatabaseStudioAuthority:
                 ).fetchone()[0]
                 if existing_template != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
-                if template_id == "phone_metrics" and dict(existing[1] or {}).get("creative_direction") != creative_direction:
+                if template_id == PHONE_METRICS_TEMPLATE_ID and dict(existing[1] or {}).get("creative_direction") != creative_direction:
                     raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 creative_created = False
             else:

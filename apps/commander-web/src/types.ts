@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'analytics' | 'settings' | 'commander'
+export type Page = 'templates' | 'briefs' | 'posts' | 'landing' | 'ads' | 'analytics' | 'settings' | 'commander'
 export type I18n<T = string> = { en: T; uk: T }
 
 export interface MetaAdsConnection {
@@ -269,7 +269,7 @@ export interface StudioComponentDefinition {
 
 export interface StudioAgentContext {
   schema: 'ptw.studio.agent-context.v3'
-  template_id: 'phone_metrics'
+  template_id: string
   template_version: number
   state_sha256: string
   template_sha256: string
@@ -348,6 +348,7 @@ export interface StudioPhoneMetricsConfiguration {
 }
 
 export interface StudioPhoneMetricsContent {
+  template_text?: Record<string, string>
   schema: 'ptw.studio.phone-metrics-content.v2'
   offer: string
   hero_title: string
@@ -384,7 +385,7 @@ export interface StudioPhoneScreenHistoryItem {
 }
 
 export interface StudioTemplateSummary {
-  template_id: 'phone_metrics'
+  template_id: string
   name: string
   description: string
   canvas: { width: number; height: number }
@@ -411,7 +412,7 @@ export interface StudioCreativeSummary {
   source_brief_id: string
   ordinal: number
   origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
-  template_id: 'phone_metrics'
+  template_id: string
   template_version: number | null
   template_sha256: string | null
   status: StudioCreativeStatus
@@ -449,6 +450,10 @@ export interface StudioCheckpointResponse<T> {
 }
 
 export interface StudioPhoneMetricsDetail {
+  template_reference?: { surface: 'post'; template_id: string; template_version: number; template_sha256: string }
+  template_name?: string
+  editor_key?: string
+  template_fields?: Array<{ id: string; role: string }>
   creative_id: string
   project_id: string
   source_brief_id: string
@@ -459,11 +464,11 @@ export interface StudioPhoneMetricsDetail {
   approved_version_count: number
   workspace_id?: string
   schema: 'ptw.studio.workspace.v8'
-  template_id: 'phone_metrics'
+  template_id: string
   templates: StudioTemplateSummary[]
   catalog: {
     schema: 'ptw.studio.phone-metrics-catalog.v2'
-    template_id: 'phone_metrics'
+    template_id: string
     template_version: number
     canvas: { width: 1080; height: 1350 }
     semantic_roles: string[]

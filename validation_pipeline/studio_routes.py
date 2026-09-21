@@ -184,6 +184,12 @@ def studio_creative_router(
 
     @router.post("/projects/{project_id}/creatives/{creative_id}/templates/apply")
     def apply_template(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if "template_reference" in request:
+            fields(request, {"base_sha256", "template_reference", "request_id", "configuration", "content"}, "Studio template switch fields are invalid")
+            try:
+                return service.mutate(project_id, creative_id, "switch_template", **request)
+            except (KeyError, ValueError, RuntimeError) as error:
+                raise fail(error) from error
         fields(request, {"base_sha256", "template_id"}, "Studio template apply fields are invalid")
         try:
             return service.mutate(

@@ -78,6 +78,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "$repository"
+npm --prefix apps/commander-web run build:template-preview
 STUDIO_WORKSPACE_PATH="$workspace" \
 STUDIO_TUNE_MODE=1 \
 PTW_COMMANDER_CHAT_MODE=1 \

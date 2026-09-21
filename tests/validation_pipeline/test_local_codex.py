@@ -64,6 +64,30 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
         self.assertIn(":request:", attempts[0]["idempotency_key"])
         self.assertTrue(attempts[1]["idempotency_key"].endswith(":attempt:2"))
 
+    def test_template_xhigh_correction_fits_the_bounded_second_attempt(self):
+        calls = []
+
+        def executor(command, **_kwargs):
+            calls.append(command)
+            _output_path(command).write_text(
+                json.dumps({"value": len(calls)}), encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        result = self._request(
+            self._provider(executor), mode="template_creation",
+            system_prompt="x" * 3955, reasoning_effort="xhigh",
+        )
+
+        self.assertEqual({"value": 2}, result["response"])
+        self.assertEqual(2, len(calls))
+        self.assertTrue(all(
+            'model_reasoning_effort="xhigh"' in command for command in calls
+        ))
+        self.assertLessEqual(
+            result["invocation"]["contract_bytes"]["system_prompt"], 6 * 1024,
+        )
+
     def test_transport_or_cli_failure_never_receives_a_blind_retry(self):
         cases = (
             lambda command, **_kwargs: subprocess.CompletedProcess(

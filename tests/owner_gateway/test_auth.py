@@ -392,6 +392,31 @@ class OwnerClaimsTests(unittest.TestCase):
             params={},
         )
 
+    def test_templates_proxy_requires_owner_bounds_paths_and_preserves_media_digest(self) -> None:
+        class Verifier:
+            def verify(self, token, app_check_token):
+                self_outer.assertEqual(("owner-token", "app-token"), (token, app_check_token))
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+        self_outer = self
+        headers = {"Authorization":"Bearer owner-token", "X-Firebase-AppCheck":"app-token"}
+        upstream = httpx.Response(202, json={"run_id":"run"})
+        forwarded = AsyncMock(return_value=upstream)
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(create_app(self.settings, verifier=Verifier())) as client:
+            self.assertEqual(401, client.post("/api/v1/templates/runs", json={}).status_code)
+            response = client.post("/api/v1/templates/runs", headers=headers, json={"request_id":"r"})
+            self.assertEqual(202,response.status_code)
+            self.assertIn("no-store",response.headers["cache-control"])
+            self.assertEqual("http://validation/internal/v1/templates/runs",forwarded.call_args.args[1])
+            before=forwarded.await_count
+            self.assertEqual(404,client.post("/api/v1/templates/execute",headers=headers,json={}).status_code)
+            self.assertEqual(413,client.post("/api/v1/templates/runs",headers=headers,content='x'*64001).status_code)
+            self.assertEqual(422,client.get("/api/v1/templates?project_id=x",headers=headers).status_code)
+            self.assertEqual(before,forwarded.await_count)
+            forwarded.return_value=httpx.Response(200,content=b"png",headers={"Content-Type":"image/png","X-PTW-Content-SHA256":"a"*64})
+            response=client.get("/api/v1/templates/media/"+"a"*64,headers=headers)
+            self.assertEqual("a"*64,response.headers["x-ptw-content-sha256"])
+            self.assertEqual(b"png",response.content)
+
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):
             validate_owner_claims(

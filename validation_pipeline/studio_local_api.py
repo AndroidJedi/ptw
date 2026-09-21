@@ -33,6 +33,9 @@ from .openai_images import (
 )
 from .studio_creatives import LocalStudioAuthority, StudioCreativeService
 from .studio_routes import studio_creative_router
+from .template_authoring import TemplateAuthoringService
+from .template_store import TemplateStore
+from .template_routes import template_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import PostStudioWorkspace
 from .commander_chat import commander_chat_router
@@ -123,6 +126,8 @@ def create_app(
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
         manual_agent_skill_path=repository_root / "skills/studio-manual-agent/SKILL.md",
     )
+    template_authoring = TemplateAuthoringService(TemplateStore(workspace_path.parent / "template-authoring.sqlite3"), structured_provider)
+    studio_creatives.template_registry = template_authoring.post_registry
     landing_publications = LocalLandingPublicationAuthority(
         local_store, landing_pages._workspace,
     )
@@ -163,6 +168,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        await asyncio.to_thread(template_authoring.recover_interrupted)
         for brief_id in brief_service.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(brief_service.generate_brief, brief_id))
             recovery_tasks.add(task)
@@ -192,6 +198,7 @@ def create_app(
         if commander_chat is not None:
             await asyncio.to_thread(commander_chat.close)
         await asyncio.to_thread(local_authorization.close)
+        template_authoring.close()
 
     app = FastAPI(
         title="PTW Local Owner App", version="1.0.0",
@@ -213,6 +220,7 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "scope": "loopback-local-owner-app"}
 
+    app.include_router(template_router(template_authoring, prefix="/api/v1/templates", dependencies=[Depends(authorize)]))
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
     ))

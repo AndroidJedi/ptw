@@ -10,6 +10,7 @@ import { StudioActionFeedback } from './StudioActionFeedback'
 import { StudioManualAgent } from './StudioManualAgent'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
 import { StudioSection } from './StudioSection'
+import { PostTemplatePicker } from './PostTemplatePicker'
 import { translate, type Language } from '../../i18n'
 import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
@@ -130,6 +131,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     : null
   const canGenerateWithDirection = (hasCreativeDirection && !editingCreativeDirection)
     || Boolean(pendingCreativeDirection)
+  const authored = detail.editor_key === 'post.declarative.react'
   const mutationBusy = busy || generating
   const enhanceDisabled = Boolean(referenceImage) || !canGenerateWithDirection
     || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen
@@ -319,13 +321,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     try {
       const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/approve`, {
         base_sha256: detail.state_sha256, configuration, content,
-        change_note: 'Phone & metrics creative',
+        change_note: authored ? detail.template_name || 'Post creative' : 'Phone & metrics creative',
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
       onCheckpoint(result)
       applyDetail(next); setNotice(result.project_logo_default_updated
         ? tr('Immutable phone creative saved. These Natal colors are now the Project default.', 'Незмінний креатив із телефоном збережено. Ці кольори Natal тепер є типовими для проєкту.')
-        : tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
+        : authored ? tr('Post approved. This version is saved in history.', 'Допис схвалено. Цю версію збережено в історії.') : tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const setStat = (index: number, key: 'value' | 'label', value: string) => setContent((current) => ({
@@ -434,19 +436,16 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
 
   return <div className="studio-page phone-metrics-studio-page">
     <section className="studio-commandbar phone-metrics-commandbar">
-      <div><small>{tr('NATAL TEMPLATE', 'ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
+      <div><small>{tr('TEMPLATE', 'ШАБЛОН')}</small><strong>{detail.template_name || 'Phone & metrics'} · v{detail.catalog.template_version}</strong></div>
+      <PostTemplatePicker api={api} language={language} basePath={basePath} detail={detail} configuration={configuration} content={content} disabled={mutationBusy || previewBusy} onApply={value => { applyDetail(value); void render(value); setNotice(tr('Template applied. Review your Post before approving.', 'Шаблон застосовано. Перевірте допис перед схваленням.')) }} />
+      {!authored && <StudioManualAgent compact api={api} language={language} endpoint={`${basePath}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={mutationBusy || previewBusy} onApply={applyAgentResult} />}
       <button className="secondary" disabled={mutationBusy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       <button className="primary" disabled={mutationBusy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <StudioActionFeedback error={error} notice={notice} language={language} />
-    <StudioManualAgent
-      api={api} language={language} endpoint={`${basePath}/agent`}
-      stateSha256={detail.state_sha256} configuration={configuration} content={content}
-      disabled={mutationBusy || previewBusy} onApply={applyAgentResult}
-    />
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
-        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || generating || previewBusy) && <RefreshCcw className="spin" />}</header>
+        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{authored ? detail.template_name : tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || generating || previewBusy) && <RefreshCcw className="spin" />}</header>
         <button type="button" className="secondary" disabled={busy || generating || previewBusy} onClick={() => void render(detail, true)}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button>
         <div className="studio-preview-feedback" aria-live="polite">
           {previewBusy ? tr('Rendering your changes…', 'Рендеримо ваші зміни…')
@@ -454,10 +453,14 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               : tr('Preview up to date', 'Прев’ю оновлено')}
         </div>
         {previewError && <ErrorState message={previewError} language={language} />}
-        <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
+        <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={authored ? tr('Post preview', 'Прев’ю допису') : tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="studio-controls phone-metrics-controls">
-        <StudioSection
+        {authored && <section className="panel authored-post-content"><h2>{tr('Post text', 'Текст допису')}</h2>
+          {detail.template_fields?.map((field, index) => <label key={field.id}><span>{({ headline: tr('Headline', 'Заголовок'), description: tr('Supporting text', 'Пояснювальний текст'), cta: tr('Button', 'Кнопка'), meta: tr('Caption', 'Підпис'), footer: tr('Footer', 'Нижній текст') } as Record<string, string>)[field.role] || tr('Text', 'Текст')} {index + 1}</span><textarea rows={3} maxLength={500} disabled={mutationBusy} value={content.template_text?.[field.id] || ''} onChange={event => setContent(current => ({ ...current, template_text: { ...current.template_text, [field.id]: event.target.value.replace(/\s+/g, ' ') } }))} /></label>)}
+          <p>{tr('Your existing image is used in this layout. Edit the text, then update the preview.', 'У цьому макеті використано ваше зображення. Відредагуйте текст і оновіть прев’ю.')}</p>
+        </section>}
+        {!authored && <><StudioSection
           eyebrow={tr('VISUAL MODE', 'ВІЗУАЛЬНИЙ РЕЖИМ')} title={tr('Phone frame or image only', 'Рамка телефона або лише зображення')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >
@@ -657,8 +660,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           })}
           <p className="studio-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>
         </StudioSection>
+        </>}
         <StudioSection
-          className="phone-screen-rule" eyebrow={tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}
+          className="phone-screen-rule" eyebrow={authored ? tr('POST IMAGE', 'ЗОБРАЖЕННЯ ДОПИСУ') : tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}
           title={tr('Generate or enhance hero artwork', 'Згенерувати або покращити герой-візуал')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
         >

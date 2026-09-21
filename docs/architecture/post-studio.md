@@ -20,11 +20,11 @@ Post and Landing templates use independent immutable registries:
   normalizers.
 
 A template identity is `{surface, template_id, template_version,
-template_sha256}`. IDs need only be unique inside their surface. The active Post
-registry contains only `phone_metrics`. Unsupported IDs fail at the registry
-boundary and retired implementations are not kept as compatibility renderers.
+template_sha256}`. IDs need only be unique inside their surface. Initial Brief composition uses `phone_metrics`. Existing Posts may select an
+accepted authored Post definition through the exact versioned registry.
+Unsupported IDs fail at that boundary; retired renderers remain unsupported.
 
-The Landing registry is independent. A future Landing-template creation agent
+The Landing registry is independent. The Template Creation Agent
 may receive one versioned Post-template reference
 `{template_id, template_version, template_sha256}`. Resolution exposes only the
 Post definition's identity, description, canvas, and component roles—never a
@@ -32,9 +32,41 @@ Project, Brief, creative, content, asset, or approved Post version. This permits
 one coordinated template-design query while preserving separate Post-only and
 Landing-only creation paths.
 
-This registry work is preparatory architecture. It does not add the Templates
-gallery, template-creation agent, reference-image analysis loop, or runtime
-template authoring.
+The global private [Templates mode](templates-mode.md) builds on these registries
+with a gallery, ephemeral references, a persisted render/compare creation agent,
+and append-only declarative versions. Phone Metrics remains protected and its
+built-in controls remain available; editing its gallery item creates a derivative.
+
+## Change template on an existing Post
+
+The Post editor has one compact toolbar with Change template, Agent mode (for
+Phone Metrics), Save and Approve. A small Post selector replaces the creative
+history panel; secondary creation actions are under More actions. The chooser
+shows native previews of accepted Post templates only, including Phone Metrics.
+New designs become available after explicit acceptance in Templates.
+
+`POST .../templates/apply` accepts an exact `template_reference`, request UUID,
+base state hash and current editor configuration/content. The content-preserving
+switch carries pending text and raw hero pixels, keeps image history and all
+approved versions, validates the resulting render and rolls back on failure.
+Replaying an uncertain request reconciles without another switch. A stale state,
+unaccepted template, wrong surface or mismatched digest is rejected. Selecting
+a template never invokes generation or approves the Post.
+
+Authored layouts bind existing copy by semantic role and occurrence, expose
+individual text fields, and reuse the current image and shared image-generation
+controls. Fields without matching copy begin empty. Text can shrink within its
+box; preview/approval reject remaining overflow. The original Phone configuration
+and prior template drafts are retained. The exact accepted definition is pinned
+in workspace selection, state hashes, checkpoints and approved records, so later
+template versions do not alter an existing Post. Manual Agent remains specific
+to its supported editor. Initial Brief composition remains Phone Metrics.
+
+Migration `014_project_post_templates.sql` widens the preserving workspace ID
+constraint for authored IDs; the runtime still requires exact accepted registry
+membership. PostgreSQL stores the same workspace files and immutable artifacts
+as loopback. Historical cloning, Landing sources and publication copy resolve
+the approved record, independently of the current draft's template.
 
 ## Brief-to-Post workflow
 

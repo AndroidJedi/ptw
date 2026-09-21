@@ -35,6 +35,9 @@ from .instagram_validation_routes import instagram_validation_router
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
+from .template_authoring import TemplateAuthoringService
+from .template_store import TemplateStore
+from .template_routes import template_router
 from .studio_workspace import PostStudioWorkspace
 from .creative_analytics import CreativeAnalyticsService, DatabaseCreativeAnalyticsAuthority
 from .creative_analytics_routes import (
@@ -87,6 +90,7 @@ def create_app(
     studio_workspace: PostStudioWorkspace | None = None,
     studio_creative_service: StudioCreativeService | None = None,
     landing_page_service: LandingService | None = None,
+    template_authoring_service: TemplateAuthoringService | None = None,
     landing_publication_service: Any | None = None,
     meta_ads_service: Any | None = None,
     instagram_service: Any | None = None,
@@ -119,6 +123,8 @@ def create_app(
             structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
             manual_agent_skill_path=settings.studio_manual_agent_skill_path,
         )
+    template_authoring = template_authoring_service or TemplateAuthoringService(TemplateStore(database_url=settings.database_url), bridge)
+    studio_creatives.template_registry = template_authoring.post_registry
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url
     )
@@ -162,6 +168,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        await asyncio.to_thread(template_authoring.recover_interrupted)
         await asyncio.to_thread(repository.recover_interrupted)
         for creative_id in await asyncio.to_thread(studio_creatives.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
@@ -188,6 +195,7 @@ def create_app(
         yield
         for task in tasks:
             task.cancel()
+        template_authoring.close()
 
     app = FastAPI(
         title="PTW Validation API", version="1.0.0", docs_url=None, redoc_url=None,
@@ -198,6 +206,7 @@ def create_app(
         if not settings.owner_gateway_token or x_ptw_owner_gateway_token != settings.owner_gateway_token:
             raise HTTPException(status_code=401, detail="owner gateway authentication required")
 
+    app.include_router(template_router(template_authoring, prefix="/internal/v1/templates", dependencies=[Depends(authorize)]))
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
     ))

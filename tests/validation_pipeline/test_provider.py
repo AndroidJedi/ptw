@@ -43,6 +43,25 @@ class FakeBridge(StructuredBridge):
         }
 
 
+class TemplateBridge(FakeBridge):
+    def _request(self, url, payload, *, timeout=30):
+        if url.endswith("/capabilities"):
+            value = super()._request(url, payload, timeout=timeout)
+            value["json_modes"].append("template_creation")
+            value["multimodal_modes"].append("template_creation")
+            value["reasoning_efforts"] = {"template_creation": "xhigh"}
+            return value
+        return super()._request(url, payload, timeout=timeout)
+
+
+class UnsafeTemplateBridge(TemplateBridge):
+    def _request(self, url, payload, *, timeout=30):
+        value = super()._request(url, payload, timeout=timeout)
+        if url.endswith("/capabilities"):
+            value["reasoning_efforts"] = {"template_creation": "high"}
+        return value
+
+
 class CorrectingFakeBridge(StructuredBridge):
     def __init__(self) -> None:
         super().__init__("https://bridge.invalid/internal/llm/structured", "token", "model")
@@ -148,6 +167,27 @@ class StructuredBridgeTests(unittest.TestCase):
         ], value["json_modes"])
         self.assertEqual(["content_non_human_graphic_generation"], value["media_modes"])
         self.assertEqual(["creative_visual_analysis", "studio_manual_edit"], value["multimodal_modes"])
+
+    def test_template_creation_requires_explicit_xhigh_bridge_support(self) -> None:
+        bridge = TemplateBridge()
+        with self.assertRaisesRegex(ValueError, "requires xhigh"):
+            bridge.call(
+                mode="template_creation", system_prompt="Create a template.",
+                input_payload={}, output_schema={"type": "object"},
+                idempotency_key="template:example", prompt_version="template-v1",
+                response_validator=lambda response: response, reasoning_effort="high",
+            )
+        with self.assertRaisesRegex(RuntimeError, "explicit xhigh"):
+            UnsafeTemplateBridge().capabilities()
+        value = bridge.call(
+            mode="template_creation", system_prompt="Create a template.",
+            input_payload={}, output_schema={"type": "object"},
+            idempotency_key="template:example", prompt_version="template-v1",
+            response_validator=lambda response: response, reasoning_effort="xhigh",
+        )
+        self.assertEqual("xhigh", bridge.posted["reasoning_effort"])
+        self.assertEqual("xhigh", value["invocation"]["reasoning_effort"])
+        self.assertEqual("model", value["invocation"]["model"])
 
     def test_visual_mode_requires_one_digest_bound_png(self) -> None:
         bridge = FakeBridge()
@@ -297,6 +337,12 @@ class StructuredBridgeTests(unittest.TestCase):
         model_bridge.model = "different-model"
         model_bridge.generate(**base)
         keys.append(model_bridge.posted["idempotency_key"])
+        high_bridge = FakeBridge()
+        high_bridge.generate(**base, reasoning_effort="high")
+        keys.append(high_bridge.posted["idempotency_key"])
+        xhigh_bridge = FakeBridge()
+        xhigh_bridge.generate(**base, reasoning_effort="xhigh")
+        keys.append(xhigh_bridge.posted["idempotency_key"])
         self.assertEqual(len(keys), len(set(keys)))
 
         ordered = FakeBridge()

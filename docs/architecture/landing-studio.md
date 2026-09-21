@@ -195,3 +195,13 @@ selection (multiple for checklists), and the screen action follows the same vali
 CTA destination as the page. The visible interface-preview caption distinguishes
 this demonstration from a live booking or account. Long copy scrolls inside the
 phone while its action remains visible. Inline/fullscreen use the same component.
+
+## Global template authoring
+
+[Templates mode](templates-mode.md) registers this existing Landing definition
+as its protected first gallery item. Its authoritative gallery preview uses the
+same `LandingPage` renderer with neutral fixtures and no contacts or social proof.
+New declarative Landing templates can be authored independently or alongside a
+separately versioned Post definition. Their optional exact Post-template reference
+contains no Project content or approved-version data. Existing Landing pages,
+approvals, assets, publication and analytics retain their current behavior.

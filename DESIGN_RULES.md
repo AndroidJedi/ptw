@@ -5,8 +5,8 @@ Updated: 2026-09-04
 
 ## Navigation and trust
 
-- Navigation contains Brief, Post, Landing, Ads, Commander and Settings.
-- The Project selector appears only in project-scoped destinations, never Commander or Settings.
+- Navigation contains Brief, Post, Landing, Ads, Templates, Commander and Settings.
+- The Project selector appears only in project-scoped destinations, never Templates, Commander or Settings.
 - The lower navigation controls include a compact Settings control. The language
   switcher lives inside Settings. Settings always retains ChatGPT Authorization,
   including when local GOD mode is available. It may expose authorization state and the

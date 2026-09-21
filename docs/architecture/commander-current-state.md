@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-20
+Updated: 2026-09-21
 Branch: `main`
 Deployment: live and accepted from code revision
 `84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
@@ -8,6 +8,119 @@ Deployment: live and accepted from code revision
 `god-mobile-20260916-84f4db7b5e8a`; unchanged Owner Gateway retains
 `god-mobile-20260916-57332cbb949a`, and the companion platform retains
 `instagram-manual-retry-20260915-d455ac4`.
+
+## Template draft recovery and reliable comparison — local, not deployed
+
+Templates now has a separate Drafts section above the accepted gallery. It shows
+active, failed, interrupted, paused, capability-gap and proposed runs with their
+latest digest-bound preview, localized status, comparison count, safe failure
+summary and Open/Continue action. Active drafts poll automatically. Accepted and
+rejected runs remain in compact history, and only accepted versions enter the
+gallery or Project template picker. The page explains that reference analysis is
+durable while raw reference pixels remain temporary.
+
+Every Template Creation Agent phase now pins `xhigh`. Model and effort are bound
+into the request fingerprint and sanitized invocation record. A structured bridge
+must explicitly advertise `template_creation → xhigh`; other workflows keep their
+existing effort. The two-attempt structured correction and 420-second timeout are
+unchanged. The system-prompt share is 6 KiB within the existing 52 KiB total so a
+second-attempt validation hint cannot block its own corrective call.
+
+A failed compare resumes with the exact saved PNG only when its media digest and
+definition digest still match. It does not rerender or increase the iteration
+count before a valid comparison response. Failures store only phase, category,
+model, effort, attempt count and a sanitized validation error. Valid solvable
+patches are retained before a capability pause; an owner may explicitly choose an
+existing-component approximation instead of developing a new capability.
+
+The local run `fff155a8-b5c0-4313-a958-18aaf3c9e779` resumed from state
+`caac2846f5af66e07e5b3fe1515a43c4b633a13ed922b36f5c4ae11cbe9de584` and preview
+`f5bbd027cf4b0b248079023247b5c68761e9d359b8e65db9834942bd467386c4` without
+increasing its two saved iterations. A real `xhigh` comparison completed its
+bounded correction, valid patches were applied, and the existing decorations
+were refined through three new renders. The run is now `proposed` at state
+`5a4d866f4422ce2311c0d736b904a896e089158cccb656ee3cf11bb0348cf78f`; its current
+preview is `cb204e45c6cb7a0d67fdd443315be4d59beae5b5b523cefad12718a819c086a2`, has
+zero renderer failures, and passed a final comparison with no differences. It
+was not accepted automatically and remains absent from the reusable gallery.
+
+Local verification passes 328 Validation tests, 107 web tests, the production
+build, all 90 desktop/360px/iPhone-WebKit browser flows and a focused final
+Templates rerun, 43 Commander tests with seven expected environment skips plus
+the demo, the deterministic Studio visual audit, and skill verification. The
+local API was restarted on the updated source; no commit, push, deployment,
+publication or production mutation ran.
+
+## Apply templates to existing Posts — local, not deployed
+
+The Post editor now has Change template, a compact Post selector and a single
+editing toolbar. It lists accepted Post designs with native previews and applies
+an exact version to the existing creative, carrying pending copy and its raw
+image while preserving image history and immutable approvals. Authored layouts
+expose their own text fields and the shared image workflow; Phone Metrics keeps
+its established controls and Manual Agent. New template versions never silently
+update selected layouts. Initial Brief composition remains Phone Metrics.
+
+The switch validates registry identity and state, reconciles uncertain requests,
+rolls back failed renders, and persists through SQLite and PostgreSQL restart.
+New migration `014_project_post_templates.sql` extends the preserving template-ID
+constraint without rewriting prior rows. Historical cloning and Landing sources
+now read template identity from the approved record, and publication copy uses
+its visible authored text. Existing approved PNG bytes remain unchanged.
+
+Verification includes 324 Validation tests, 105 web tests, the production build,
+12 desktop/360px/iPhone-WebKit Post flows, the deterministic Studio visual audit,
+and a real authenticated HTTP/disposable-PostgreSQL apply/approve/restart canary.
+Focused regressions additionally cover historical Landing/clone sources and
+copy, and the live local chooser was inspected in Ukrainian at 1440 and 360px.
+The local API was refreshed; no owner Post was changed during verification.
+No commit, push, deployment, publishing or production database mutation ran.
+
+## Templates gallery and Template Creation Agent — source only, not deployed
+
+The global private Templates destination registers the protected Phone Metrics
+and existing Landing definitions, plus owner-accepted declarative versions.
+Post-only, Landing-only and coordinated creation share the existing template
+registry and structured provider infrastructure. Combined acceptance appends two
+separate versions atomically, with an exact Post-template reference on Landing.
+Existing Project selection, content, controls, saves, approvals and lineage are
+unchanged. See [Templates mode](templates-mode.md) for the canonical route.
+
+Typed component configuration compiles to the existing Studio renderer, with
+reusable native phone/brand assets, bounded text/image/CTA/card/overlay/decoration
+instances and desktop/mobile geometry. Built-in gallery previews use the real
+Phone renderer and shared Landing React renderer with neutral fixtures. Immutable
+versions and PNG digests persist through new forward migration
+`013_template_authoring.sql`, with the same append-only/CAS/request semantics in
+PostgreSQL and local SQLite. No applied migration was modified.
+
+The single-worker agent persists one reference analysis, patch composition,
+render/compare iterations, differences and byte measurements. Temporary normalized
+references expire and never enter template versions or Project state. Corrections,
+timeouts and restart interruptions resume saved state. Every proposal requires a
+successful comparison; owner acceptance creates versions. Genuine capability gaps
+pause for an isolated allowlisted source review, focused tests, visual inspection
+and an exact source/preview receipt before resume. Studio Manual Agent cannot code.
+The new canonical policy is `skills/template-creation-agent/SKILL.md`.
+
+Verification passes 320 Validation tests, 15 Owner Gateway tests, 104 Owner Console
+tests and the production build; 43 Commander tests plus demo (seven expected host
+skips; five in the runtime image after installing its missing test prerequisite,
+Git). All 84 desktop/360px/iPhone-WebKit flows passed across the full run and one
+focused retry of an existing Commander attachment timing failure; all six new
+Templates flows also passed a final rerun. Studio visual audit, full-resolution
+native previews, skill validation/symlink sync, compilation, whitespace checks,
+disposable migration/schema guards, Templates PostgreSQL acceptance/restart and
+existing Studio save/restart canaries pass. The refreshed loopback API serves
+authenticated, digest-verified native built-in previews.
+
+A real Codex combined canary converged after two comparisons and resumed from its
+saved analysis. The final measured call used 18,074 B of structured context and
+a 418 B response, with one attempt and separate image attachments. The Validation
+image build could not fetch Node base-image metadata because Docker Hub timed out;
+that new image remains unverified. Production also requires the companion bridge
+to advertise the optional `template_creation` JSON/multimodal mode. No source was
+committed, pushed, deployed or published, and production PostgreSQL was untouched.
 
 ## Modular Post/Landing templates and compact agents — source only, not deployed
 

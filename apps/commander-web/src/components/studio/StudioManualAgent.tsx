@@ -65,7 +65,7 @@ function ScreenshotTile({ file, remove, disabled, language }: {
 
 export function StudioManualAgent<Configuration, Content>({
   api, language, endpoint, stateSha256, configuration, content, disabled = false,
-  onApply,
+  onApply, compact = false,
 }: {
   api: ApiClient
   language: Language
@@ -73,6 +73,7 @@ export function StudioManualAgent<Configuration, Content>({
   stateSha256: string
   configuration: Configuration
   content: Content
+  compact?: boolean
   disabled?: boolean
   onApply: (
     result: StudioManualAgentResult<Configuration, Content>, screenshots: File[],
@@ -150,9 +151,9 @@ export function StudioManualAgent<Configuration, Content>({
     } finally { setPending(false) }
   }
 
-  return <section className={`panel studio-manual-agent ${open ? 'is-open' : ''}`} aria-labelledby={titleId}>
+  return <section className={`studio-manual-agent ${compact ? 'is-compact' : 'panel'} ${open ? 'is-open' : ''}`} aria-labelledby={titleId}>
     <header>
-      <div><small>{tr('AGENT MODE · EDITOR ONLY', 'РЕЖИМ АГЕНТА · ЛИШЕ РЕДАКТОР')}</small><h2 id={titleId}><Bot /> {tr('Adjust it for me', 'Налаштуй це за мене')}</h2><p>{tr('Describe the result. The agent can move every bounded editor control and use existing image generation, but cannot change code, Save, Approve, or Publish.', 'Опишіть результат. Агент може змінювати всі дозволені налаштування редактора й використовувати наявну генерацію зображень, але не може змінювати код, зберігати, затверджувати чи публікувати.')}</p></div>
+      {(!compact || open) && <div><small>{tr('AGENT MODE · EDITOR ONLY', 'РЕЖИМ АГЕНТА · ЛИШЕ РЕДАКТОР')}</small><h2 id={titleId}><Bot /> {tr('Adjust it for me', 'Налаштуй це за мене')}</h2><p>{tr('Describe the result. The agent can move every bounded editor control and use existing image generation, but cannot change code, Save, Approve, or Publish.', 'Опишіть результат. Агент може змінювати всі дозволені налаштування редактора й використовувати наявну генерацію зображень, але не може змінювати код, зберігати, затверджувати чи публікувати.')}</p></div>}
       <button type="button" className={open ? 'secondary' : 'primary'} onClick={() => setOpen(value => !value)}><WandSparkles />{open ? tr('Close Agent', 'Закрити агента') : tr('Agent mode', 'Режим агента')}</button>
     </header>
     {open && <div className="studio-agent-body">

@@ -9,6 +9,7 @@ const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = 
   { id: 'landing', en: 'Landing', uk: 'Лендінг', icon: LayoutTemplate },
   { id: 'ads', en: 'Instagram tests', uk: 'Instagram-тести', icon: Megaphone },
   { id: 'analytics', en: 'Analytics', uk: 'Аналітика', icon: BarChart3 },
+  { id: 'templates', en: 'Templates', uk: 'Шаблони', icon: LayoutTemplate },
   { id: 'commander', en: 'Commander', uk: 'Commander', icon: Bot },
 ]
 

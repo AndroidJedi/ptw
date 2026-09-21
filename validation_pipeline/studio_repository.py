@@ -24,7 +24,7 @@ from .studio_creatives import (
 
 
 _MUTATING_METHODS = frozenset({
-    "save_configuration", "apply_template", "select_phone_screen",
+    "save_configuration", "apply_template", "switch_template", "select_phone_screen",
     "generate_phone_screen", "approve_version", "approve_configuration",
     "restore_approved_clone",
 })

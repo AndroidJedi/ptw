@@ -18,13 +18,23 @@ JSON_MODES = (
     "studio_manual_edit", "creative_performance_learning", "creative_visual_analysis",
 )
 BRIDGE_JSON_MODES = JSON_MODES
+OPTIONAL_TEMPLATE_MODE = "template_creation"
+JSON_MODES = (*JSON_MODES, OPTIONAL_TEMPLATE_MODE)
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
 BRIDGE_MULTIMODAL_MODES = ("creative_visual_analysis", "studio_manual_edit")
 BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 BRIDGE_CONCURRENT_SLOT_LIMIT = 1
 BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
 BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES = 8_388_608
+STRUCTURED_REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh"})
+TEMPLATE_CREATION_REASONING_EFFORT = "xhigh"
 STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
+    "template_creation": {
+        # Leave room for the bounded second-attempt validation correction while
+        # retaining the same 52 KiB total contract ceiling.
+        "system_prompt": 6 * 1024, "input_payload": 40 * 1024,
+        "output_schema": 8 * 1024, "total": 52 * 1024, "response": 20 * 1024,
+    },
     "studio_manual_edit": {
         "system_prompt": 8 * 1024,
         "input_payload": 20 * 1024,
@@ -53,6 +63,8 @@ def _input_artifacts(
         raise ValueError("structured visual analysis requires exactly one input artifact")
     if mode == "studio_manual_edit" and not 1 <= len(value) <= 4:
         raise ValueError("Studio manual editing supports one to four screenshot artifacts")
+    if mode == OPTIONAL_TEMPLATE_MODE and not 1 <= len(value) <= 4:
+        raise ValueError("Template creation supports at most four artifacts")
     normalized: list[dict[str, str]] = []
     digests: dict[str, str] = {}
     total_bytes = 0
@@ -63,6 +75,8 @@ def _input_artifacts(
         mime_type = str(artifact["mime_type"])
         expected_digest = str(artifact["sha256"])
         expected_name = "approved_png" if mode == "creative_visual_analysis" else f"studio_screenshot_{index}"
+        if mode == OPTIONAL_TEMPLATE_MODE:
+            expected_name = f"template_image_{index}"
         if name != expected_name or mime_type != "image/png":
             raise ValueError("structured input artifact name or MIME type is invalid")
         if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
@@ -159,13 +173,15 @@ def bridge_request_fingerprint(
     *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
     output_schema: Mapping[str, Any], prompt_version: str, model: str,
     input_artifact_digests: Mapping[str, str] | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Bind provider idempotency to every semantic request dependency."""
 
     return _json_digest({
-        "schema": "ptw.bridge-request-fingerprint.v1",
+        "schema": "ptw.bridge-request-fingerprint.v2",
         "mode": mode,
         "model": model or "codex-cli-default",
+        "reasoning_effort": reasoning_effort or "provider-default",
         "prompt_version": prompt_version,
         "system_prompt_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
         "input_payload_sha256": _json_digest(input_payload),
@@ -215,6 +231,7 @@ class StructuredBridge:
         media_modes = value.get("media_modes")
         multimodal_modes = value.get("multimodal_modes")
         maximum = value.get("max_request_bytes")
+        reasoning_efforts = value.get("reasoning_efforts", {})
         if (
             not isinstance(json_modes, list)
             or not all(isinstance(item, str) for item in json_modes)
@@ -223,19 +240,28 @@ class StructuredBridge:
             or not isinstance(multimodal_modes, list)
             or not all(isinstance(item, str) for item in multimodal_modes)
             or not isinstance(maximum, int)
+            or not isinstance(reasoning_efforts, dict)
+            or not all(
+                isinstance(key, str) and isinstance(effort, str)
+                for key, effort in reasoning_efforts.items()
+            )
         ):
             raise ValueError("structured bridge capabilities are invalid")
-        if set(json_modes) != set(BRIDGE_JSON_MODES) or len(json_modes) != len(BRIDGE_JSON_MODES):
+        if not set(BRIDGE_JSON_MODES) <= set(json_modes) <= set(JSON_MODES) or len(json_modes) != len(set(json_modes)):
             raise RuntimeError("structured bridge JSON modes do not match the deployed provider contract")
         if set(media_modes) != set(BRIDGE_MEDIA_MODES) or len(media_modes) != len(BRIDGE_MEDIA_MODES):
             raise RuntimeError("structured bridge media modes do not match the deployed provider contract")
-        if set(multimodal_modes) != set(BRIDGE_MULTIMODAL_MODES) or len(multimodal_modes) != len(BRIDGE_MULTIMODAL_MODES):
+        if not set(BRIDGE_MULTIMODAL_MODES) <= set(multimodal_modes) <= {*BRIDGE_MULTIMODAL_MODES, OPTIONAL_TEMPLATE_MODE} or len(multimodal_modes) != len(set(multimodal_modes)):
             raise RuntimeError("structured bridge multimodal modes do not match the deployed provider contract")
+        if OPTIONAL_TEMPLATE_MODE in set(json_modes) | set(multimodal_modes):
+            if reasoning_efforts.get(OPTIONAL_TEMPLATE_MODE) != TEMPLATE_CREATION_REASONING_EFFORT:
+                raise RuntimeError("Template creation requires explicit xhigh bridge support")
         return {
             "json_modes": sorted(json_modes),
             "media_modes": sorted(media_modes),
             "multimodal_modes": sorted(multimodal_modes),
             "max_request_bytes": maximum,
+            "reasoning_efforts": dict(sorted(reasoning_efforts.items())),
         }
 
     def generate(
@@ -244,12 +270,14 @@ class StructuredBridge:
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         input_artifacts: Sequence[Mapping[str, Any]] | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         return self.call(
             mode=mode, system_prompt=system_prompt, input_payload=input_payload,
             output_schema=output_schema, prompt_version=prompt_version,
             idempotency_key=idempotency_key, response_validator=response_validator,
             input_artifacts=input_artifacts,
+            reasoning_effort=reasoning_effort,
         )
 
     def call(
@@ -258,6 +286,7 @@ class StructuredBridge:
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         input_artifacts: Sequence[Mapping[str, Any]] | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         """Validate a completed response and make at most one fresh correction.
 
@@ -271,10 +300,18 @@ class StructuredBridge:
             raise ValueError("structured bridge calls require a domain response validator")
         if mode not in JSON_MODES:
             raise ValueError("unsupported structured bridge mode")
+        if reasoning_effort is not None and reasoning_effort not in STRUCTURED_REASONING_EFFORTS:
+            raise ValueError("structured bridge reasoning effort is invalid")
+        if mode == OPTIONAL_TEMPLATE_MODE:
+            if reasoning_effort != TEMPLATE_CREATION_REASONING_EFFORT:
+                raise ValueError("Template creation requires xhigh reasoning effort")
+            capabilities = self.capabilities()
+            if mode not in capabilities.get("json_modes", []) or mode not in capabilities.get("multimodal_modes", []):
+                raise RuntimeError("Template creation is not advertised by the structured bridge")
         artifacts, artifact_digests, artifact_bytes = _input_artifacts(
             input_artifacts, mode=mode,
         )
-        if artifacts and mode not in BRIDGE_MULTIMODAL_MODES:
+        if artifacts and mode not in (*BRIDGE_MULTIMODAL_MODES, OPTIONAL_TEMPLATE_MODE):
             raise ValueError("structured input artifacts are not allowed for this mode")
         if mode == "creative_visual_analysis" and not artifacts:
             raise ValueError("structured visual analysis requires an approved PNG")
@@ -292,6 +329,7 @@ class StructuredBridge:
                     input_artifacts=artifacts,
                     input_artifact_digests=artifact_digests,
                     input_artifact_bytes=artifact_bytes,
+                    reasoning_effort=reasoning_effort,
                 )
                 try:
                     response_bytes = enforce_structured_response_budget(mode, result["response"])
@@ -335,6 +373,7 @@ class StructuredBridge:
         input_artifacts: Sequence[Mapping[str, str]] = (),
         input_artifact_digests: Mapping[str, str] | None = None,
         input_artifact_bytes: int = 0,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         context_hash = self._digest(input_payload)
         request_fingerprint = bridge_request_fingerprint(
@@ -342,6 +381,7 @@ class StructuredBridge:
             output_schema=output_schema, prompt_version=prompt_version,
             model=self.model,
             input_artifact_digests=input_artifact_digests,
+            reasoning_effort=reasoning_effort,
         )
         prompt = system_prompt
         if correction is not None:
@@ -370,6 +410,8 @@ class StructuredBridge:
             request_document["input_artifacts"] = list(input_artifacts)
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
+        if reasoning_effort is not None:
+            request_document["reasoning_effort"] = reasoning_effort
         queued = self._request(self.url, request_document)
         request_id = int(queued["request_id"])
         result = self._await(request_id, deadline=time.monotonic() + self.timeout_seconds)
@@ -386,6 +428,8 @@ class StructuredBridge:
             "contract_bytes": contract_bytes,
             "input_artifacts": dict(input_artifact_digests or {}),
             "input_artifact_bytes": input_artifact_bytes,
+            "model": self.model,
+            "reasoning_effort": reasoning_effort or "provider-default",
         }
         return {"response": response, "invocation": invocation}
 

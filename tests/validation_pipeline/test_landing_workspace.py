@@ -136,7 +136,7 @@ class LandingAuthorityTests(unittest.TestCase):
             version_path = root / "studio" / "creatives" / creative_id / "versions" / "phone_metrics_v1.json"
             version_path.parent.mkdir(parents=True)
             version_path.write_text(json.dumps({
-                "version": 1, "version_sha256": "a" * 64,
+                "version": 1, "version_sha256": "a" * 64, "template_id": "phone_metrics",
                 "configuration": {"frozen": "post-style"}, "content": {"frozen": "post-copy"}, "assets": [],
             }), encoding="utf-8")
             authority = LocalLandingAuthority(store, post_workspace_root=root / "studio")

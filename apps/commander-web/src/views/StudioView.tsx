@@ -159,19 +159,10 @@ export function StudioView({
     finally { setBusy(false) }
   }
 
-  const creativePicker = creatives && creatives.length > 0 && <section
-    className="panel studio-creative-picker"
-    aria-label={tr('Project creatives', 'Креативи проєкту')}
-  >
-    <div><small>{tr('PROJECT CREATIVES', 'КРЕАТИВИ ПРОЄКТУ')}</small><strong>{tr('Creative history', 'Історія креативів')}</strong></div>
-    <div>{creatives.map((item) => <button
-      key={item.creative_id} className={item.creative_id === creativeId ? 'is-active' : ''}
-      onClick={() => onCreative(item.creative_id)}
-    ><strong>#{item.ordinal} · {item.template_id}</strong><small>{item.status} · {item.approved_version_count} {tr('approved', 'схвалено')}</small></button>)}</div>
-    {detail?.source_brief_id && detail.approved_version_count > 0 && <>
-      <button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button>
-      <button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button>
-    </>}
+  const creativePicker = creatives && creatives.length > 0 && <section className="post-contextbar" aria-label={tr('Project creatives', 'Креативи проєкту')}>
+    <label>{tr('Post', 'Допис')} <select aria-label={tr('Select Post', 'Обрати допис')} value={detail?.creative_id || creativeId || ''} onChange={event => onCreative(event.target.value)}>{creatives.map(item => <option key={item.creative_id} value={item.creative_id}>#{item.ordinal} · {item.status === 'draft' ? tr('Draft', 'Чернетка') : item.status}</option>)}</select></label>
+    {detail?.source_brief_id && detail.approved_version_count > 0 && <details className="post-more"><summary>{tr('More actions', 'Інші дії')}</summary><button className="secondary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></details>}
+    {tuneMode && <button className="ghost studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
   </section>
 
   if (!projectId) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('Every Studio creative belongs to one Project.', 'Кожен креатив Studio належить одному проєкту.')}</p></Empty>
@@ -216,14 +207,17 @@ export function StudioView({
   const phoneFailure = detail.generation?.phone_image?.status === 'failed'
   return <>
     {creativePicker}
-    {tuneMode && <section className="panel studio-tune-bar"><button className="secondary studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button></section>}
     {phoneFailure && <section className="panel studio-phone-retry" role="alert">
       <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
       <button className="secondary" disabled={busy || !detail.generation?.creative_direction} onClick={() => void retry(`${basePath}/phone-screen/retry`)}><RefreshCcw />{tr('Retry iPhone image', 'Повторити зображення iPhone')}</button>
     </section>}
     <PhoneMetricsStudio
       api={api} language={language} basePath={basePath} detail={detail}
-      onDetail={(value) => setDetail(value as StudioPhoneMetricsDetail)}
+      onDetail={(value) => {
+        const next = value as StudioPhoneMetricsDetail
+        setDetail(next)
+        setCreatives(current => current?.map(item => item.creative_id === next.creative_id ? { ...item, template_id: next.template_id } : item) || null)
+      }}
       onCheckpoint={(result) => setDetail(result.creative)}
     />
     <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id} versions={detail.versions} />

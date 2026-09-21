@@ -139,6 +139,7 @@ def verify(url, root):
             (logo_default[0], checkpoint_id),
         ).fetchone()[0] == 1
     print("PASS: real HTTP/PostgreSQL legacy Save normalization, Project logo default persistence, zero learning calls, fresh service/cache restore, stale rejection, immutable PNG and checkpoint lineage.")
+    return project_id, cid
 
 
 def main():

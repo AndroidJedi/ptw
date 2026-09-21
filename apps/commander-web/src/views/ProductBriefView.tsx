@@ -41,7 +41,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [busy, setBusy] = useState(false)
   const [approvalOpen, setApprovalOpen] = useState(false)
   const [templates, setTemplates] = useState<StudioTemplateSummary[]>([])
-  const [templateId, setTemplateId] = useState<'phone_metrics' | ''>('')
+  const [templateId, setTemplateId] = useState<string>('')
   const [creativeDirection, setCreativeDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const load = async (preferredId?: string, targetProjectId = projectId) => {
@@ -172,7 +172,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     {approvalOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-labelledby="brief-template-title">
       <header><div><small>{selected?.approved ? tr('CREATE CREATIVE', 'СТВОРИТИ КРЕАТИВ') : tr('APPROVE & CREATE', 'СХВАЛИТИ Й СТВОРИТИ')}</small><h2 id="brief-template-title">{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setApprovalOpen(false)}><X /></button></header>
       <p>{tr('The selected common template will be populated from this approved Brief.', 'Обраний спільний шаблон буде заповнено на основі цього схваленого брифу.')}</p>
-      <div className="studio-template-grid">{templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => { setTemplateId(template.template_id); if (template.template_id !== 'phone_metrics') setCreativeDirection({ style: '', background: '' }) }}>
+      <div className="studio-template-grid">{templates.filter(template => template.capabilities?.supports_generation !== false).map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => { setTemplateId(template.template_id); if (template.template_id !== 'phone_metrics') setCreativeDirection({ style: '', background: '' }) }}>
         <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
       </button>)}</div>
       {templateId === 'phone_metrics' && <PhoneHeroDirectionPicker language={language} value={creativeDirection} onChange={setCreativeDirection} disabled={busy} idPrefix="brief-creative-direction" />}

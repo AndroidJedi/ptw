@@ -54,10 +54,12 @@ class PostStudioWorkspace:
     def __init__(
         self, root: Path | str, *, renderer: StudioRenderer | None = None,
         image_provider: Any | None = None,
+        template_registry=None,
     ) -> None:
         self.root = Path(root)
         self.renderer = renderer or StudioRenderer()
         self.image_provider = image_provider
+        self.template_registry = template_registry or (lambda: POST_TEMPLATE_REGISTRY)
         self.assets = self.root / "assets"
         self.versions = self.root / "versions"
         self.root.mkdir(parents=True, exist_ok=True)
@@ -86,17 +88,24 @@ class PostStudioWorkspace:
             value = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as error:
             raise ValueError("Studio template selection is unreadable") from error
-        if not isinstance(value, Mapping) or set(value) != {"schema", "template_id"}:
+        if not isinstance(value, Mapping) or set(value) not in ({"schema", "template_id"}, {"schema", "template_id", "template_version", "template_sha256"}):
             raise ValueError("Studio template selection fields are invalid")
         if value["schema"] != _TEMPLATE_SELECTION_SCHEMA:
             raise ValueError("Studio template selection is invalid")
-        return POST_TEMPLATE_REGISTRY.get(str(value["template_id"])).identity.template_id
+        return self._selection_definition(value).identity.template_id
+
+    def _selection_definition(self, value):
+        registry = POST_TEMPLATE_REGISTRY if value.get("template_id") == PHONE_METRICS_TEMPLATE_ID else self.template_registry()
+        if "template_version" in value:
+            return registry.resolve_reference({k: value[k] for k in ("template_id", "template_version", "template_sha256")})
+        return registry.get(str(value["template_id"]))
 
     def _asset_slots(self) -> Mapping[str, Mapping[str, Any]]:
         return self._definition().asset_slots()
 
     def _definition(self):
-        return POST_TEMPLATE_REGISTRY.get(self._selected_template_id())
+        path = self.root / "template.json"
+        return self._selection_definition(json.loads(path.read_text())) if path.is_file() else POST_TEMPLATE_REGISTRY.get(PHONE_METRICS_TEMPLATE_ID)
 
     def _normalize_configuration(self, value: Mapping[str, Any]) -> dict[str, Any]:
         return self._definition().normalize_configuration(value)
@@ -275,6 +284,20 @@ class PostStudioWorkspace:
     def _asset_records(self, config: Mapping[str, Any], content: Mapping[str, Any] | None = None) -> dict[str, Mapping[str, Any]]:
         normalized_content = self._content() if content is None else self._normalize_content(content)
         screen = self._asset_record("phone_screen")
+        definition = self._definition()
+        if definition.editor_key == "post.declarative.react":
+            records = {}
+            for component in definition.document["components"]:
+                if component["type"] == "brand":
+                    records[component["id"]] = {"bytes": natal_logo_colored_bytes(config["logo"]["symbol_color"], config["logo"]["name_color"]), "mime_type": "image/png"}
+                elif component["type"] == "phone":
+                    records[component["id"]] = compose_phone_device_asset(
+                        None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
+                        normalized_content["cta"], "none", normalized_content["phone_buttons"],
+                        logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"])
+                elif component["type"] == "image" and screen:
+                    records[component["id"]] = {"bytes": screen["bytes"], "mime_type": screen["mime_type"]}
+            return records
         device = compose_phone_device_asset(
             None if screen is None else screen["bytes"],
             normalized_content["phone_hero_title"]
@@ -352,6 +375,7 @@ class PostStudioWorkspace:
 
     def _snapshot(self) -> dict[str, Any]:
         return {
+            **({"template_reference": self._definition().identity.to_reference()} if self._definition().editor_key == "post.declarative.react" else {}),
             "template_id": self._selected_template_id(),
             "configuration": self._configuration(),
             "content": self._content(),
@@ -440,6 +464,9 @@ class PostStudioWorkspace:
         value = {
             "schema": _WORKSPACE_SCHEMA,
             "template_id": self._selected_template_id(),
+            "template_reference": self._definition().identity.to_reference(),
+            "template_name": self._definition().name,
+            "editor_key": self._definition().editor_key,
             "templates": [json.loads(json.dumps(item)) for item in _TEMPLATE_SUMMARIES],
             "catalog": self._catalog(),
             "state_sha256": self.state_sha256(),
@@ -458,7 +485,72 @@ class PostStudioWorkspace:
             } for item in versions],
         }
         value["phone_screen_history"] = self._phone_screen_history_summaries()
+        if self._definition().editor_key == "post.declarative.react":
+            from .post_template_runtime import text_fields
+            value["template_fields"] = text_fields(self._definition().document)
         return value
+
+    def switch_template(self, *, base_sha256, template_reference, request_id, configuration, content):
+        """Preserve Post content, assets and approved history; pin an accepted layout."""
+        from uuid import UUID
+        from .post_template_runtime import bind_content, text_fields
+        request_id = str(UUID(str(request_id)))
+        if not isinstance(template_reference, Mapping) or set(template_reference) != {"surface", "template_id", "template_version", "template_sha256"} or template_reference["surface"] != "post":
+            raise ValueError("Select an exact Post template version")
+        reference = {k: v for k, v in template_reference.items() if k != "surface"}
+        target = self.template_registry().resolve_reference(reference)
+        request_digest = _canonical([base_sha256, template_reference, configuration, content])[1]
+        receipts_path = self.root / "template-switches.json"
+        receipts = json.loads(receipts_path.read_text()) if receipts_path.exists() else {}
+        if request_id in receipts:
+            if receipts[request_id] != request_digest:
+                raise RuntimeError("Template switch request ID was reused with different input")
+            return self.detail()
+        self._assert_state(base_sha256)
+        config, source = self._normalize_configuration(configuration), self._normalize_content(content)
+        current = self._definition()
+        drafts_path = self.root / "template-drafts.json"
+        drafts = json.loads(drafts_path.read_text()) if drafts_path.exists() else {}
+        current_key = _canonical(current.identity.to_reference())[1]
+        target_key = _canonical(target.identity.to_reference())[1]
+        drafts[current_key] = {"configuration": config, "content": source}
+        if current_key == target_key:
+            next_content = source
+        elif target.editor_key == "post.declarative.react":
+            next_content = bind_content(target.document, source,
+                text_fields(current.document) if current.editor_key == "post.declarative.react" else ())
+        else:
+            next_content = {k: v for k, v in source.items() if k != "template_text"}
+            if current.editor_key == "post.declarative.react":
+                role_fields = {"headline": "hero_title", "description": "supporting_text", "cta": "cta", "meta": "offer"}
+                seen = set()
+                for field in text_fields(current.document):
+                    role = field["role"]
+                    if role in role_fields and role not in seen:
+                        next_content[role_fields[role]] = source["template_text"][field["id"]]
+                        seen.add(role)
+            # Keep authored text available on return; restore the built-in's controls.
+            config = drafts.get(target_key, {}).get("configuration", config)
+        next_content = target.normalize_content(next_content)
+        config = target.normalize_configuration(config)
+        updates = {"template.json": {"schema": _TEMPLATE_SELECTION_SCHEMA, **reference},
+            "configuration.json": config, "content.json": next_content,
+            "template-drafts.json": drafts, "template-switches.json": {**receipts, request_id: request_digest}}
+        old = {name: (self.root / name).read_bytes() if (self.root / name).exists() else None for name in updates}
+        try:
+            for name, value in updates.items():
+                self._atomic_json(self.root / name, value)
+            result = self.detail()
+            # Validate rendering before committing the replacement to the caller.
+            self.render_preview(state_sha256=result["state_sha256"])
+            return result
+        except Exception:
+            for name, data in old.items():
+                if data is None:
+                    (self.root / name).unlink(missing_ok=True)
+                else:
+                    self._atomic_bytes(self.root / name, data)
+            raise
 
     def component_settings(
         self, *, state_sha256: str,
@@ -560,11 +652,12 @@ class PostStudioWorkspace:
     def apply_template(
         self, *, base_sha256: str, template_id: str,
         logo_colors: Mapping[str, Any] | None = None,
+        template_reference=None,
     ) -> dict[str, Any]:
         """Replace the entire mutable Studio draft with one preset template."""
 
         self._assert_state(base_sha256)
-        definition = POST_TEMPLATE_REGISTRY.get(template_id)
+        definition = self.template_registry().resolve_reference({k: v for k, v in template_reference.items() if k != "surface"}) if template_reference else self.template_registry().get(template_id)
         # The workspace asset directory has no immutable version material. List
         # exact paths before removal so applying a template cannot touch any
         # sibling authority or version history.
@@ -577,6 +670,7 @@ class PostStudioWorkspace:
                 path.unlink()
         self._atomic_json(self.root / "template.json", {
             "schema": _TEMPLATE_SELECTION_SCHEMA, "template_id": template_id,
+            **({k: v for k, v in definition.identity.to_reference().items() if k != "surface"} if template_reference or definition.editor_key == "post.declarative.react" else {}),
         })
         if logo_colors is not None:
             colors = normalize_natal_logo_colors(dict(logo_colors))
@@ -778,6 +872,11 @@ class PostStudioWorkspace:
             assets=assets,
         )
         rendered["resolved"]["component_settings"] = self._component_settings(config, normalized_content)
+        if self._definition().editor_key == "post.declarative.react":
+            from .template_previews import geometry
+            _observations, failures = geometry(rendered)
+            if failures:
+                raise ValueError("Post text does not fit this template. Shorten the text or choose another template.")
         return rendered
 
     @staticmethod
@@ -816,6 +915,7 @@ class PostStudioWorkspace:
         record = {
             "schema": _TEMPLATE_VERSION_SCHEMA,
             "template_id": template_id,
+            "template_reference": self._definition().identity.to_reference(),
             "version": version,
             "state_sha256": state_sha256,
             "template_sha256": template.digest,

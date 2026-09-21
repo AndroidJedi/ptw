@@ -1,0 +1,4 @@
+interface:
+  display_name: "Template Creation Agent"
+  short_description: "Create and refine reusable Post and Landing templates"
+  default_prompt: "Use $template-creation-agent to create and compare a reusable template from this design reference."

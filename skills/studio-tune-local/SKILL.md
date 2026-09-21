@@ -101,6 +101,23 @@ append the Project default. New Posts/template replacements inherit and lock it,
 while existing drafts and approved clones retain their own saved colors. Keep
 these brand defaults outside Creative Skill learning and Landing.
 
+## Applying a Project Post template
+
+Use the Post editor's compact Change template chooser for accepted Post versions.
+Resolve the exact surface, ID, version and digest through the authoring registry;
+never admit a pending proposal or a Landing definition. Carry pending editor copy
+and the current raw hero through the switch, preserve approved artifacts and
+image history, and reconcile response loss with the same request UUID. The old
+reset-to-preset operation is not a content-preserving template switch.
+
+Verify the full apply/edit/preview/save/approve/restart path against real local
+HTTP and disposable PostgreSQL. Clone and Landing-source reads must resolve the
+approved record's template, never infer it from the creative's current layout.
+Keep initial Brief generation on its supported composer definitions. Authored
+layouts expose their own text fields and use the shared image workflow; do not
+show unrelated Phone Metrics controls or allow the Phone-only Manual Agent to
+edit them. Keep old approved PNGs byte-identical.
+
 ## Visual layout guard
 
 For typography, positioning, spacing, component-layout, preview, or Studio CSS

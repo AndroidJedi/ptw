@@ -150,6 +150,8 @@ studio_learning_proposals
 studio_learning_runs
 studio_project_logo_defaults
 studio_skill_snapshots
+template_authoring_media
+template_authoring_records
 universal_studio_assets
 universal_studio_versions
 universal_studio_workspace_files

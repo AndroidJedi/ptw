@@ -16,6 +16,19 @@ if HAS_FASTAPI:
 
 @unittest.skipUnless(HAS_FASTAPI, "fastapi is required")
 class ValidationApiRouteTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from unittest.mock import patch
+        from validation_pipeline.template_store import TemplateStore
+        from validation_pipeline.template_authoring import TemplateAuthoringService
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        service = TemplateAuthoringService(TemplateStore(Path(temporary.name) / "templates.sqlite3"), None)
+        self.addCleanup(service.close)
+        replacement = patch("validation_pipeline.api.TemplateAuthoringService", return_value=service)
+        replacement.start()
+        self.addCleanup(replacement.stop)
+
     class Studio:
         @staticmethod
         def recover_interrupted():

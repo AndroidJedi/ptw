@@ -202,11 +202,11 @@ class LocalLandingAuthority:
             raise KeyError("Post was not found in this Project")
         if isinstance(version, bool) or not isinstance(version, int) or version < 1:
             raise ValueError("Landing source Post version is invalid")
-        template = str(creative["template_id"])
-        path = self.post_workspace_root / creative_id / "versions" / f"{template}_v{version}.json"
-        if not path.is_file():
+        paths = list((self.post_workspace_root / creative_id / "versions").glob(f"*_v{version}.json"))
+        if len(paths) != 1:
             raise ValueError("Landing requires an immutable approved Post version")
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = json.loads(paths[0].read_text(encoding="utf-8"))
+        template = record["template_id"]
         if record.get("version") != version or not isinstance(record.get("version_sha256"), str):
             raise ValueError("Landing source Post version is invalid")
         source = {
@@ -217,7 +217,7 @@ class LocalLandingAuthority:
         }
         if creative.get("template_version") is not None and record.get("template_sha256"):
             source.update({
-                "template_version": int(creative["template_version"]),
+                "template_version": int(record.get("template_reference", {}).get("template_version") or record.get("primitive_template", {}).get("version") or creative["template_version"]),
                 "template_sha256": record["template_sha256"],
             })
         return source
@@ -229,13 +229,12 @@ class LocalLandingAuthority:
         for creative in self.store.list("studio_creatives"):
             if creative.get("project_id") != project_id:
                 continue
-            template = str(creative.get("template_id") or "")
             versions = self.post_workspace_root / str(creative["creative_id"]) / "versions"
-            for path in sorted(versions.glob(f"{template}_v*.json")) if versions.is_dir() else []:
+            for path in sorted(versions.glob("*_v*.json")) if versions.is_dir() else []:
                 record = json.loads(path.read_text(encoding="utf-8"))
                 items.append({
                     "creative_id": creative["creative_id"], "version": record["version"],
-                    "version_sha256": record["version_sha256"], "template_id": template,
+                    "version_sha256": record["version_sha256"], "template_id": record["template_id"],
                     "source_brief_id": creative["source_brief_id"],
                 })
         return sorted(items, key=lambda item: (item["creative_id"], item["version"]), reverse=True)
@@ -560,7 +559,7 @@ class DatabaseLandingAuthority:
         return {
             "creative_id": _uuid(creative_id, "source_creative_id"), "version": version,
             "version_sha256": row[5], "source_brief_id": str(row[0]),
-            "template_id": row[1], "template_version": int(row[2]),
+            "template_id": record["template_id"], "template_version": int(record.get("template_reference", {}).get("template_version") or record.get("primitive_template", {}).get("version") or row[2]),
             "template_sha256": record["template_sha256"],
             "configuration": record["configuration"], "content": record["content"],
             "assets": record.get("assets", []), "generation": dict(row[3] or {}),
@@ -571,7 +570,7 @@ class DatabaseLandingAuthority:
         self.project(project_id)
         with self.connection() as connection:
             rows = connection.execute(
-                """SELECT workspace.entity_id,version.version,version.version_sha256,workspace.template_id,workspace.source_brief_id
+                """SELECT workspace.entity_id,version.version,version.version_sha256,version.record->>'template_id',workspace.source_brief_id
                      FROM universal_studio_workspaces workspace JOIN universal_studio_versions version
                        ON version.workspace_id=workspace.entity_id WHERE workspace.project_id=%s
                      ORDER BY workspace.created_at DESC,version.version DESC""", (UUID(project_id),),

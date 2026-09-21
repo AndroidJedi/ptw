@@ -13,7 +13,9 @@ a specific remote target.
 ## Evidence and diagnosis
 
 - Reproduce the reported configuration, content, assets, viewport, and language.
-- Treat `phone_metrics` as the only registered Post template.
+- Treat `phone_metrics` as the protected built-in Post template. Global Templates
+  authoring may register separate declarative definitions; audit them through
+  the same primitive renderer at native Post and desktop/mobile Landing sizes.
 - Inspect the authenticated raw template-native PNG at full 1080×1350 resolution. If the defect
   is present there or in its resolved node manifest, fix the renderer/template;
   if it appears only in the scaled preview, fix the Studio UI/CSS.
@@ -117,3 +119,10 @@ failed generation preserves current/history. Gateway forwarding and real route
 validation must accompany mocked UI coverage. The bridge must advertise ephemeral
 reference support before receiving pixels, persist only handle/digest metadata,
 and consume or expire its bounded memory input without storing bytes in jobs.
+
+For Templates gallery changes, build the Landing preview bundle and inspect
+the real React-rendered Landing PNG as well as native Phone Metrics. Run the
+Templates Playwright suite with its disposable HTTP authority at desktop, 360px
+and iPhone WebKit. Check full-resolution preview links, current-version digest
+binding, stale request reconciliation, refresh/restart recovery, and gallery
+filter controls separately from the main Post/Landing navigation.

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../../api'
 import type { StudioPhoneHeroCreativeDirection, StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
+vi.mock('../../firebase', () => ({ appCheck: {} }))
 
 const basePath = '/api/v1/studio/projects/11111111-1111-4111-8111-111111111111/creatives/22222222-2222-4222-8222-222222222222'
 
@@ -926,6 +927,7 @@ describe('Phone & metrics Studio', () => {
 
     await vi.runAllTimersAsync()
     expect(api.media).toHaveBeenCalledTimes(3)
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Retry current iPhone image preview' })).toBeEnabled())
     fireEvent.click(screen.getByRole('radio', { name: 'Retry current iPhone image preview' }))
     await vi.waitFor(() => expect(view.container.querySelector('.phone-screen-history-option img')).toBeInTheDocument())
     expect(api.media).toHaveBeenCalledTimes(4)

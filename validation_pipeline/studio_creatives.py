@@ -275,6 +275,7 @@ def _state_snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
     } for item in detail.get("phone_screen_history", [])]
     return {
         "template_id": detail.get("template_id") or detail.get("catalog", {}).get("template_id"),
+        **({"template_reference": deepcopy(detail["template_reference"])} if detail.get("editor_key") == "post.declarative.react" else {}),
         "template_sha256": detail.get("template_sha256"),
         "configuration": deepcopy(detail.get("configuration")),
         "content": deepcopy(detail.get("content")),
@@ -296,7 +297,7 @@ def _normalized_checkpoint_baseline(
     """Remove renderer/config uplift noise from an owner edit comparison."""
 
     normalized = deepcopy(dict(before))
-    if normalized.get("template_id") != after.get("template_id"):
+    if normalized.get("template_id") != after.get("template_id") or normalized.get("template_reference") != after.get("template_reference"):
         return normalized
     configuration = normalized.get("configuration")
     if isinstance(configuration, Mapping):
@@ -800,6 +801,7 @@ class StudioCreativeService:
             "Adjust only the supplied bounded Studio editor state. Never edit code, save, approve, or publish."
         )
         self.analytics: Any | None = None
+        self.template_registry = lambda: POST_TEMPLATE_REGISTRY
         self._workspaces: dict[str, Any] = {}
         self._lock = threading.RLock()
 
@@ -816,6 +818,8 @@ class StudioCreativeService:
         self.authority.get_creative(creative_id)
         if creative_id not in self._workspaces:
             self._workspaces[creative_id] = self.workspace_factory(self.creatives_root / creative_id)
+            workspace = self._workspaces[creative_id]
+            getattr(workspace, "workspace", workspace).template_registry = self.template_registry
         return self._workspaces[creative_id]
 
     @staticmethod
@@ -846,14 +850,16 @@ class StudioCreativeService:
             configuration=configuration, content=detail["content"],
         )
 
-    def _initialize_workspace(self, creative: Mapping[str, Any]) -> dict[str, Any]:
+    def _initialize_workspace(self, creative: Mapping[str, Any], template_reference=None) -> dict[str, Any]:
         workspace = self._workspace(str(creative["creative_id"]))
         detail = workspace.detail()
         colors = self._project_logo_colors(str(creative["project_id"]))
-        if self._template_id(detail) != creative["template_id"]:
+        target_id = template_reference["template_id"] if template_reference else creative["template_id"]
+        if self._template_id(detail) != target_id or (template_reference and detail.get("template_reference") != template_reference):
             detail = workspace.apply_template(
-                base_sha256=detail["state_sha256"], template_id=str(creative["template_id"]),
+                base_sha256=detail["state_sha256"], template_id=str(target_id),
                 logo_colors=colors,
+                **({"template_reference": template_reference} if template_reference else {}),
             )
         else:
             detail = self._apply_logo_colors_to_draft(workspace, detail, colors)
@@ -893,8 +899,7 @@ class StudioCreativeService:
         request_id = _uuid(request_id, "request_id")
         if isinstance(source_version, bool) or not isinstance(source_version, int) or source_version < 1:
             raise ValueError("source_version must be a positive integer")
-        source_detail = self.detail(project_id, source_creative_id)
-        POST_TEMPLATE_REGISTRY.get(self._template_id(source_detail))
+        self.detail(project_id, source_creative_id)
         source_workspace = self._workspace(source_creative_id)
         version_record = source_workspace.version_detail(source_version)
         frozen_assets = source_workspace.version_clone_assets(source_version)
@@ -916,7 +921,8 @@ class StudioCreativeService:
             return self.summary(str(creative["creative_id"])), False
 
         destination = self._workspace(str(creative["creative_id"]))
-        destination_detail = self._initialize_workspace(creative)
+        version_reference = version_record.get("template_reference") or POST_TEMPLATE_REGISTRY.get(version_record["template_id"]).identity.to_reference()
+        destination_detail = self._initialize_workspace(creative, version_reference)
         clone_assets = [{
             "slot": selected["slot"], "mime_type": selected["mime_type"],
             "bytes_base64": base64.b64encode(bytes(selected["bytes"])).decode(),
@@ -939,6 +945,7 @@ class StudioCreativeService:
         }
         self.authority.update_creative(
             str(creative["creative_id"]), status="draft",
+            template_id=destination_detail["template_id"],
             template_version=destination_detail["catalog"]["template_version"],
             template_sha256=destination_detail["template_sha256"],
             state_sha256=destination_detail["state_sha256"], generation=generation,
@@ -993,7 +1000,7 @@ class StudioCreativeService:
         """Save or replace the direction used by later Phone Metrics generations."""
 
         detail = self.detail(project_id, creative_id)
-        if detail.get("template_id") != PHONE_METRICS_TEMPLATE_ID:
+        if "phone_screen" not in self._workspace(creative_id)._asset_slots():
             raise ValueError("creative direction is available only for Phone Metrics")
         if str(detail["state_sha256"]) != str(base_sha256):
             raise RuntimeError("Studio creative changed; reload before saving")
@@ -1458,7 +1465,9 @@ class StudioCreativeService:
     def mutate(
         self, project_id: str, creative_id: str, method: str, *args: Any, **kwargs: Any,
     ) -> Any:
-        self.detail(project_id, creative_id)
+        detail = self.detail(project_id, creative_id)
+        if method == "switch_template" and detail["status"] in {"queued", "composing", "generating_image"}:
+            raise RuntimeError("Wait for Post generation before changing its template")
         workspace = self._workspace(creative_id)
         target = getattr(workspace, method)
         if method == "apply_template":
@@ -1498,7 +1507,7 @@ class StudioCreativeService:
         # An already-open browser can still hold its verified stored hash.
         workspace._assert_state(base_sha256)
 
-        definition = POST_TEMPLATE_REGISTRY.get(self._template_id(current))
+        definition = workspace._definition()
         candidate_configuration = definition.normalize_configuration(configuration)
         candidate_content = definition.normalize_content(content)
         pending_changes = (

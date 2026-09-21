@@ -246,7 +246,7 @@ class LocalCodexStructuredProvider:
         artifacts, artifact_digests, artifact_bytes = _input_artifacts(
             input_artifacts, mode=mode,
         )
-        if artifacts and mode not in {"creative_visual_analysis", "studio_manual_edit"}:
+        if artifacts and mode not in {"creative_visual_analysis", "studio_manual_edit", "template_creation"}:
             raise ValueError("structured input artifacts are not allowed for this mode")
         if mode == "creative_visual_analysis" and not artifacts:
             raise ValueError("structured visual analysis requires an approved PNG")
@@ -260,6 +260,7 @@ class LocalCodexStructuredProvider:
             output_schema=output_schema, prompt_version=prompt_version,
             model=self.model or "codex-cli-default",
             input_artifact_digests=artifact_digests,
+            reasoning_effort=selected_effort,
         )
         for attempt in range(1, self.maximum_attempts + 1):
             attempted_prompt = system_prompt + (

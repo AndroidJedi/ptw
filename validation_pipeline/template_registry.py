@@ -75,21 +75,27 @@ class TemplateDefinition:
 class TemplateRegistry(Generic[T]):
     """Immutable lookup boundary for one independent template surface."""
 
-    def __init__(self, surface: str, definitions: tuple[T, ...]) -> None:
+    def __init__(self, surface: str, definitions: tuple[T, ...], *, version_loader: Callable[[Mapping[str, Any]], T] | None = None) -> None:
         if not surface or not definitions:
             raise ValueError("Template registry requires a surface and definitions")
         indexed: dict[str, T] = {}
+        versions: dict[tuple[str, int], T] = {}
         for definition in definitions:
             identity = definition.identity
             if identity.surface != surface:
                 raise ValueError("Template definition belongs to another surface")
-            if identity.template_id in indexed:
-                raise ValueError("Template IDs must be unique within one surface")
+            key = (identity.template_id, identity.template_version)
+            if key in versions:
+                raise ValueError("Template versions must be unique within one surface")
             if identity.template_version < 1 or len(identity.template_sha256) != 64:
                 raise ValueError("Template identity is invalid")
-            indexed[identity.template_id] = definition
+            versions[key] = definition
+            if identity.template_id not in indexed or indexed[identity.template_id].identity.template_version < identity.template_version:
+                indexed[identity.template_id] = definition
         self.surface = surface
         self._definitions = indexed
+        self._versions = versions
+        self._version_loader = version_loader
 
     @property
     def ids(self) -> tuple[str, ...]:
@@ -111,7 +117,14 @@ class TemplateRegistry(Generic[T]):
             "template_id", "template_version", "template_sha256",
         }:
             raise ValueError("Template reference fields are invalid")
-        definition = self.get(str(value["template_id"]))
+        if type(value["template_version"]) is not int or value["template_version"] < 1:
+            raise ValueError("Template version must be a positive integer")
+        try:
+            definition = self._versions[(str(value["template_id"]), value["template_version"])]
+        except (KeyError, TypeError) as error:
+            if self._version_loader is None:
+                raise ValueError("Template reference is stale or not registered") from error
+            definition = self._version_loader(value)
         identity = definition.identity
         if (
             value["template_version"] != identity.template_version

@@ -38,6 +38,16 @@ def approved_post_copy(record: Mapping[str, Any], language: str = "uk") -> dict[
     headline = plain_studio_text(content.get("hero_title")) if _enabled(configuration, "hero_title") else ""
     supporting = plain_studio_text(content.get("supporting_text")) if _enabled(configuration, "supporting_text") else ""
     offer = plain_studio_text(content.get("offer")) if _enabled(configuration, "offer") else ""
+    if "template_text" in content:
+        template = record.get("primitive_template") or {}
+        nodes = {node["id"]: node for node in template.get("root", {}).get("children", [])}
+        roles = template.get("semantic_roles", {})
+        def visible_text(role):
+            return "\n\n".join(plain_studio_text(content["template_text"].get(identifier))
+                for identifier in roles.get(role, [])
+                if nodes.get(identifier, {}).get("props", {}).get("visible", True)
+                and content["template_text"].get(identifier))
+        headline, supporting, offer = visible_text("headline"), visible_text("description"), visible_text("meta")
     return {
         "headline": headline,
         "primary_text": "\n\n".join(part for part in (supporting, offer) if part),

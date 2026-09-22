@@ -40,6 +40,27 @@ test.beforeEach(async ({ page, backend }) => {
   })
 })
 
+test('opens the built-in Landing template through its exact version route', async ({ page }) => {
+  test.setTimeout(120000)
+  await page.goto('/?page=templates')
+  await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
+  const card = page.locator('.template-gallery .template-card')
+  await expect(card).toHaveCount(1, { timeout: 30000 })
+  await expect(card).toContainText('Project landing')
+  const detailResponse = page.waitForResponse(response =>
+    response.url().includes('/api/v1/templates/landing/project_landing/versions/5?sha256=')
+      && response.request().method() === 'GET',
+  )
+  await card.getByRole('button', { name: 'Open template' }).click()
+  const response = await detailResponse
+  expect(response.status()).toBe(200)
+  expect(await response.json()).toMatchObject({
+    surface: 'landing', template_id: 'project_landing', template_version: 5, builtin: true,
+  })
+  await expect(page.locator('.template-detail')).toContainText('Project landing · v5')
+  await expect(page.getByRole('button', { name: 'Edit template' })).toBeEnabled()
+})
+
 test('failed draft preview survives restart and resumes without being hidden', async ({ page, backend }) => {
   test.setTimeout(120000)
   await page.goto('/?page=templates')

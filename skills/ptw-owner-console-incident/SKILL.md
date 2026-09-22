@@ -33,6 +33,11 @@ before changing code or runtime state.
   containing `frame-ancestors 'none'`, no report-only CSP, and `X-Frame-Options:
   DENY`. Google Identity/reCAPTCHA response policies are third-party diagnostics
   and cannot be repaired by weakening PTW's enforcing policy.
+- A 401 from Google's `/recaptcha/enterprise/pat` endpoint is the expected
+  Private Access Token challenge on Apple devices, not evidence that App Check
+  or a PTW template request failed. Check the actual authenticated request to
+  the Owner Gateway and the in-app error before changing Firebase settings or
+  deploying. See [Google's Private Access Token documentation](https://docs.cloud.google.com/recaptcha/docs/private-access-tokens).
 - The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
   Instagram tests / Instagram-тести, Analytics, Commander, and Settings. Brief,
   Post, Landing, and Instagram tests retain their required Project scope;

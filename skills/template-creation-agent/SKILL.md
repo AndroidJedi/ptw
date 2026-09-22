@@ -33,7 +33,11 @@ motif region. Count and placement vary by Post ID but stay stable on refresh.
 Keep the marks behind copy and the hero. An opaque Project photo in a
 `cutout_image` slot is background-removed locally; inspect the real Post preview,
 since a transparent gallery fixture cannot prove that path. A failed cutout
-must not silently use the opaque source. Store badges use registered official English assets or the owner's
+must not silently use the opaque source. For production cutouts, verify the
+bundled model is readable by the container runtime UID and render an existing
+Project Post before importing a new version.
+
+Store badges use registered official English assets or the owner's
 `owner_app_store_badge_v1` and `owner_google_play_badge_v1` when requested.
 Never redraw, recolor or replace fixed assets. `store_badge.badge_surface`
 defaults to `slot_pill` for old designs. Set it to `asset_only` when the badge

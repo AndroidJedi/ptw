@@ -17,7 +17,11 @@ MODEL_SHA256 = "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8
 def _session():
     import onnxruntime as ort
 
-    if hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest() != MODEL_SHA256:
+    try:
+        model_digest = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+    except OSError as error:
+        raise RuntimeError("Template cutout model unavailable") from error
+    if model_digest != MODEL_SHA256:
         raise RuntimeError("Template cutout model digest mismatch")
     options = ort.SessionOptions()
     options.intra_op_num_threads = 2

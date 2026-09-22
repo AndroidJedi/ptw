@@ -18,6 +18,7 @@ RUN apt-get update \
     && groupadd --gid 10001 validation \
     && useradd --system --uid 10001 --gid validation validation
 COPY validation_pipeline ./validation_pipeline
+RUN chmod 0644 ./validation_pipeline/studio_assets/cutout-model/u2netp.onnx
 COPY commander/ids.py ./commander/ids.py
 COPY commander/__init__.py ./commander/__init__.py
 COPY natal/assets/logo-natal.png ./natal/assets/logo-natal.png
@@ -28,4 +29,5 @@ COPY --from=template-preview /build/apps/commander-web/node_modules/playwright-c
 COPY apps/commander-web/scripts/render-template-landing.mjs ./apps/commander-web/scripts/render-template-landing.mjs
 ENV PTW_TEMPLATE_PREVIEW_BUNDLE=/app/template-preview PTW_TEMPLATE_CHROMIUM=/usr/bin/chromium
 USER validation
+RUN test -r ./validation_pipeline/studio_assets/cutout-model/u2netp.onnx
 CMD ["uvicorn", "validation_pipeline.api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

@@ -625,6 +625,14 @@ class TemplateAuthoringTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'model unavailable'):
                 render(doc, surface='post', assets={'visual': {'bytes':source, 'mime_type':'image/jpeg'}})
 
+    def test_unreadable_cutout_model_reports_safe_failure(self):
+        from validation_pipeline.template_cutout import _session
+        _session.cache_clear()
+        with patch('validation_pipeline.template_cutout.Path.read_bytes', side_effect=PermissionError('private path')):
+            with self.assertRaisesRegex(RuntimeError, '^Template cutout model unavailable$'):
+                _session()
+        _session.cache_clear()
+
     def test_correction_reference_retry_and_discard_are_append_only(self):
         proposal = self.start()
         baseline_reference = proposal['reference']

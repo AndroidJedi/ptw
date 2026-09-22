@@ -33,6 +33,21 @@ Change template action explicitly applies one accepted version to an existing
 Post, preserving copy, raw image and approved history. The Post still requires
 its own approval before publication.
 
+Three bounded asset classes cover the Bokko reference without reference-specific
+renderer code. `brand_motif` repeats the canonical Natal symbol with configurable
+placement, opacity and deterministic `rotation_degrees`. `store_badge` resolves
+digest-pinned official English Apple or Google artwork from the offline asset
+registry; the agent cannot redraw, recolor or replace it. The component box is the
+complete black rounded button and the immutable artwork is centered inside it, so
+both badges keep the reference's equal-height pill silhouette despite different
+source-art proportions. `cutout_image` uses
+Pexels photo 15004162 as the transparent, digest-pinned
+`neutral_person_stock_v1` authoring fixture. The manifest records source digest,
+URL, author, locale and license. An existing Post's real image always replaces
+the fixture at runtime.
+Bright owner markup such as circles, arrows and highlights is annotation data and
+is never composed into the template.
+
 Phone Metrics previews use a disposable workspace and the real Phone renderer.
 The built-in Landing preview runs the shared `LandingPage` React renderer in
 network-isolated Chromium with bundled fonts and neutral fixtures. Build its
@@ -67,6 +82,20 @@ metadata. Active cards poll automatically. Failed, interrupted, paused,
 capability-gap and proposed work remains directly openable; accepted and rejected
 runs move to compact history. Only accepted versions enter the reusable gallery
 and Project template picker.
+Opening a draft moves keyboard focus and the viewport to its run panel. For a
+proposed run, the accept/reject decision and a short next-step explanation appear
+before the preview so the owner immediately sees the available action.
+The open run uses a two-column preview/action workspace on desktop and one column
+at 360 CSS pixels. Paused runs show a localized checkpoint, remaining comparison
+budget, pending-edit count and stable difference categories. Continue applies the
+saved edits; Refine accepts a focused instruction; Restore append-only recovers
+the latest proposed revision. Each refinement also persists a bounded correction
+record. The workspace keeps its exact text visible as **Your request**, shows
+Composition → Rendering → Comparison, and exposes explicit Retry and Discard
+actions after failure. The latest two unconfirmed texts remain in browser-local
+storage across refresh. Accept is rendered only for a proposed run whose latest
+correction is applied to both preview and comparison. IDs,
+raw model details and operation measurements stay under Technical details.
 Compose → render → compare repeats for meaningful solvable differences. A first
 render is insufficient. Geometry validation rejects text overflow and out-of-
 bounds components. Every proposal needs a completed comparison with no meaningful
@@ -83,8 +112,16 @@ marks active runs interrupted and never replays inference or acceptance. Pending
 adjustments survive iteration limits. Request UUIDs reconcile uncertain writes;
 state hashes reject stale corrections/decisions. Failed UI mutations retain the
 original request for retry; definite validation errors permit correction.
+Each refinement records the latest proposed revision as a comparison baseline.
+The comparator checks the current request and regressions from that baseline,
+without reopening unrelated accepted approximations. Bounded progress history
+detects repeated meaningful categories, repeated patch paths and document cycles;
+those stop as `no_progress` or `capability_gap` before consuming the remaining
+budget.
 If compare fails, resume first verifies that every saved preview still matches
-the current definition digest and reloads those exact immutable PNG bytes. It
+the current definition and `render_contract_sha256`. That contract includes the
+normalized document, renderer version and fixed-asset digests. It reloads those
+exact immutable PNG bytes only when the contract still matches. It
 does not rerender or increase the iteration count before a valid comparison is
 returned. Failures persist only phase, category, model, pinned effort, attempt
 count and a sanitized validation error; raw responses, stderr, credentials,
@@ -98,8 +135,10 @@ strip metadata. Handles expire in ten minutes and capacity is bounded. Pixels
 remain in operation memory or the provider's temporary attachment files, never
 SQLite/PostgreSQL records, template versions, skills or browser history. Worker
 completion/failure and restart discard them. After analysis, resumed work may
-use the saved visual description without pixels; a fresh reference starts a new
-analysis. Before analysis, an interrupted run needs the reference reattached.
+use the saved visual description without pixels. A refinement screenshot is a
+temporary correction reference for compose/compare; it never replaces the
+initial analysis or its reference metadata. Before initial analysis, an
+interrupted run needs the reference reattached.
 Screenshot text is untrusted reference content. Typed response validation cannot
 execute code or create arbitrary components, claims, contacts or evidence.
 
@@ -167,18 +206,27 @@ The final invocation comprised a 3,402 B system prompt, 11,360 B payload and
 These are actual measurements of the disposable neutral fixture, not a promise
 of convergence for every uploaded design.
 
-The saved owner run `fff155a8-b5c0-4313-a958-18aaf3c9e779` also exercised the
-recovery path against real local Codex. Its failed compare reused the exact
-57,359-byte persisted preview without increasing `iterations=2`. The first
-`xhigh` response required the one allowed structured correction; reserving 6 KiB
-for the corrected system prompt kept that retry inside the unchanged 52 KiB total
-budget. The valid response supplied six solvable patches and identified a wave
-divider capability. The owner correction chose an existing-decoration
-approximation, after which compose and three comparison calls each completed in
-one attempt. The final comparison returned no edits, differences or capability
-gap. The proposed preview is 57,304 bytes with digest
-`cb204e45c6cb7a0d67fdd443315be4d59beae5b5b523cefad12718a819c086a2`; it remains
-an unaccepted draft.
+The saved owner run `fff155a8-b5c0-4313-a958-18aaf3c9e779` exercised the final
+append-only correction recovery against real local Codex. Revision 112 recovered
+historical revision 110, and revision 113 prepared its saved four-times-smaller
+motifs with fixed rotations `-18°` and `+14°`, official badge asset IDs and the
+Pexels fixture. The exact temporary correction reference was recovered with its
+original normalized digest `22bdb8fcc059f33d4f7e42ce7272a518ea7ae37a9910fd67a0574884afffe252`.
+Revision 124 first reached `proposed` with the registered assets. The owner then
+identified that the intrinsic badge images were narrower than their reference
+buttons. Declarative renderer v3 now composites contained image artwork over the
+component surface, so each `250 × 58` badge slot renders as the complete black
+rounded pill. A subsequent real `xhigh` compose and comparison each completed in
+one attempt without changing any geometry; only the two badge fills normalized
+from `#111111` to `#000000`. Revision 135 is `proposed` with zero differences and
+zero geometry failures. Its comparison and preview bind correction
+`dcb22b98-ebab-4311-bdb7-f4f3d549d37d`, state is
+`935b0cc12c7520c407e7981cc739bc1b93f35de5c894f8643ac182d428b1b8f5`, full
+1080×1080 preview digest is
+`76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`, and
+render contract is
+`240fca5bc067aa00049329571929222ee4f0dd570d3370fcdf734ecf7a65e0bc`.
+It remains unaccepted.
 
 Remaining bounds: galleries/version summaries return at most 200 records and
 run history at most 30. Exact historical identity reads remain available.

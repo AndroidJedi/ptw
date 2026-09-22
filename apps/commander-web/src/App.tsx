@@ -16,7 +16,11 @@ import { SettingsView } from './views/SettingsView'
 import { CommanderChat } from './components/CommanderChat'
 import { AnalyticsView } from './views/AnalyticsView'
 
-const OWNER = 'sgolovaschuk@gmail.com'
+const OWNER_EMAILS = new Set([
+  'sgolovaschuk@gmail.com',
+  'svitlanabilan23@gmail.com',
+  'befree833@gmail.com',
+])
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
 export const LANGUAGE_STORAGE_KEY = 'ptw-owner-language-v1'
 
@@ -70,9 +74,9 @@ function prefersRedirectSignIn() {
 }
 
 async function enforceOwner(user: User) {
-  if (!user.emailVerified || user.email?.toLowerCase() !== OWNER) {
+  if (!user.emailVerified || !OWNER_EMAILS.has(user.email?.trim().toLowerCase() || '')) {
     await signOut(auth)
-    throw new Error('Доступ дозволено лише підтвердженому обліковому запису власника.')
+    throw new Error('Доступ дозволено лише підтвердженим обліковим записам PTW.')
   }
 }
 
@@ -308,7 +312,7 @@ export function LiveApp({ liveProduction = false }: { liveProduction?: boolean }
 }
 
 const e2eOwner = {
-  email: OWNER,
+  email: 'sgolovaschuk@gmail.com',
   emailVerified: true,
   getIdToken: async () => 'e2e-owner-token',
 } as unknown as User

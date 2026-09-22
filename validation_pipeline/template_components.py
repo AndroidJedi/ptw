@@ -16,17 +16,27 @@ from typing import Any, Mapping
 
 from .studio import STUDIO_FONT_FAMILIES, StudioRenderer
 from .studio_primitives import PrimitiveTemplate, PRIMITIVE_TEMPLATE_SCHEMA
+from .template_assets import ASSET_IDS, RENDERER_VERSION, asset_bytes, document_asset_manifest
 from .template_registry import TemplateCapabilities, TemplateDefinition, TemplateIdentity
 
-COMPONENT_VERSION = 1
-COMPONENT_TYPES = ("text", "image", "button", "card", "overlay", "decoration", "phone", "brand")
+COMPONENT_VERSION = 4
+COMPONENT_TYPES = (
+    "text", "image", "cutout_image", "button", "store_badge", "card",
+    "overlay", "decoration", "brand_motif", "phone", "brand",
+)
 ROLES = ("headline", "description", "hero", "cta", "secondary_media", "footer", "meta", "decoration", "brand")
-PLACEHOLDERS = ("Title", "Supporting text", "Image", "Action", "Section title", "Body text", "Caption", "01", "02", "03", "")
+PLACEHOLDERS = (
+    "Title", "Supporting text", "Image", "Action", "Section title",
+    "Body text", "Caption", "01", "02", "03", "Natal symbol",
+    "App Store", "Google Play", "",
+)
 COMPONENT_FIELDS = {
     "id", "type", "role", "box", "mobile_box", "fill", "color", "border_color",
     "border_width", "radius", "opacity", "font_family", "font_size", "font_weight",
     "align", "placeholder", "fit", "focal_x", "focal_y", "gradient", "enabled",
+    "asset_id", "rotation_degrees",
 }
+LEGACY_COMPONENT_FIELDS = COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
 DOCUMENT_FIELDS = {"name", "description", "canvas", "background", "components"}
 MAX_DOCUMENT_BYTES = 14_000
 
@@ -70,9 +80,16 @@ def box(value: Any) -> list[float]:
 
 
 def component(value: Any) -> dict:
-    if not isinstance(value, Mapping) or set(value) != COMPONENT_FIELDS:
+    if not isinstance(value, Mapping) or frozenset(value) not in {frozenset(COMPONENT_FIELDS), frozenset(LEGACY_COMPONENT_FIELDS)}:
         raise ValueError("Component fields are invalid")
     result = deepcopy(dict(value))
+    if not result.get("asset_id"):
+        result["asset_id"] = {
+            "cutout_image": "neutral_person_stock_v1",
+            "brand_motif": "natal_symbol",
+            "store_badge": "app_store_badge_en" if value.get("placeholder") == "App Store" else "google_play_badge_en",
+        }.get(str(value.get("type")), "")
+    result.setdefault("rotation_degrees", 0)
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", str(value["id"])):
         raise ValueError("Component ID must describe a reusable semantic role")
     if re.search(r"reference|specific|widget|template\d", value["id"], re.I):
@@ -86,10 +103,27 @@ def component(value: Any) -> dict:
     for key, low, high in (("border_width", 0, 12), ("radius", 0, 200), ("opacity", 0, 1),
                            ("font_size", 12, 180), ("font_weight", 100, 900), ("focal_x", 0, 1), ("focal_y", 0, 1)):
         number(value[key], low, high)
+    number(result["rotation_degrees"], -360, 360)
+    if result["asset_id"] not in ASSET_IDS:
+        raise ValueError("Component asset is not registered")
     if value["font_family"] not in STUDIO_FONT_FAMILIES or value["align"] not in ("left", "center", "right"):
         raise ValueError("Typography option is not registered")
     if value["fit"] not in ("cover", "contain", "stretch") or value["placeholder"] not in PLACEHOLDERS:
         raise ValueError("Only bounded non-domain placeholders and registered crop settings are allowed")
+    variants = {
+        "cutout_image": {"Image"},
+        "brand_motif": {"Natal symbol"},
+        "store_badge": {"App Store", "Google Play"},
+    }
+    if value["type"] in variants and value["placeholder"] not in variants[value["type"]]:
+        raise ValueError("Component variant is not registered for this reusable type")
+    expected_asset = {
+        "cutout_image": "neutral_person_stock_v1",
+        "brand_motif": "natal_symbol",
+        "store_badge": "app_store_badge_en" if value["placeholder"] == "App Store" else "google_play_badge_en",
+    }.get(value["type"], "")
+    if result["asset_id"] != expected_asset:
+        raise ValueError("Component asset does not match its registered reusable type")
     if not isinstance(value["enabled"], bool) or not isinstance(value["gradient"], list) or len(value["gradient"]) not in (0, 2):
         raise ValueError("Component visibility or gradient is invalid")
     result["gradient"] = [color(v) for v in value["gradient"]]
@@ -123,7 +157,8 @@ def new_component(identifier: str, kind: str, role: str, bounds: list, text: str
             "fill": "#E9EEF5", "color": "#14243A", "border_color": "#CED8E4", "border_width": 0,
             "radius": 20, "opacity": 1, "font_family": "Inter", "font_size": 48,
             "font_weight": 500, "align": "left", "placeholder": text, "fit": "cover",
-            "focal_x": .5, "focal_y": .5, "gradient": [], "enabled": True}
+            "focal_x": .5, "focal_y": .5, "gradient": [], "enabled": True,
+            "asset_id": "", "rotation_degrees": 0}
 
 
 def seed(surface: str) -> dict:
@@ -138,12 +173,21 @@ def seed(surface: str) -> dict:
 
 
 def catalog(surface: str, types: list[str] | None = None) -> dict:
-    selected = [t for t in COMPONENT_TYPES if types is None or t in types]
+    # Registered visual extensions stay visible when an older saved analysis is
+    # resumed. Otherwise its historical component-type shortlist would hide the
+    # capability that was added to resolve its evidenced gap.
+    extensions = {"cutout_image", "brand_motif", "store_badge"}
+    selected = [t for t in COMPONENT_TYPES if types is None or t in types or t in extensions]
     return {"version": COMPONENT_VERSION, "surface": surface, "types": selected, "roles": list(ROLES),
             "reused_native_components": "phone uses the existing fixed iPhone compositor with an editable hero-art slot; brand uses the canonical Natal lock-up. Neither is a generated screenshot widget.",
             "placeholders": list(PLACEHOLDERS), "fonts": list(STUDIO_FONT_FAMILIES),
             "layout": "Ordered layers; box and mobile_box are [x,y,width,height] in 0–1000 canvas units. Separate mobile composition for Landing.",
-            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean.",
+            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; fixed visuals require an allowlisted asset_id.",
+            "registered_variants": {
+                "cutout_image": ["Image"],
+                "brand_motif": ["Natal symbol"],
+                "store_badge": ["App Store", "Google Play"],
+            },
             "priority": ["existing settings", "existing composition", "reusable parameter", "reusable component", "exception with justification"],
             "component_example": new_component("section_title", "text", "headline", [60, 40, 880, 150], "Section title")}
 
@@ -195,6 +239,24 @@ def placeholder_image() -> bytes:
     return output.getvalue()
 
 
+def neutral_cutout_image() -> bytes:
+    """Compatibility accessor for the pinned stock fixture; no pixels are generated."""
+
+    return asset_bytes("neutral_person_stock_v1")[0]
+
+
+def fixed_component_assets(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Assets shared by gallery previews and Project Post rendering."""
+
+    assets: dict[str, dict[str, Any]] = {}
+    for item in normalize_document(document)["components"]:
+        if not item["asset_id"]:
+            continue
+        data, mime_type = asset_bytes(item["asset_id"])
+        assets[item["id"]] = {"bytes": data, "mime_type": mime_type}
+    return assets
+
+
 def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
               content: Mapping[str, str] | None = None) -> PrimitiveTemplate:
     doc = normalize_document(document)
@@ -206,12 +268,20 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
         raise ValueError("Unknown content role")
     for c in doc["components"]:
         x, y, w, h = c["mobile_box" if mobile else "box"]
-        kind = {"overlay": "card", "decoration": "card", "phone": "image", "brand": "image"}.get(c["type"], c["type"])
+        kind = {
+            "overlay": "card", "decoration": "card", "phone": "image",
+            "brand": "image", "cutout_image": "image",
+            "brand_motif": "image", "store_badge": "image",
+        }.get(c["type"], c["type"])
         props = {"position": "absolute", "x": x * width / 1000, "y": y * height / 1000,
             "width": w * width / 1000, "height": h * height / 1000, "visible": c["enabled"],
-            "background_color": c["fill"] if kind not in ("text", "image") else None,
+            # A store badge's box is the complete black pill from the design,
+            # while its immutable artwork is contained inside that surface.
+            # Other image slots remain transparent unless their primitive
+            # explicitly opts into a background.
+            "background_color": c["fill"] if kind not in ("text", "image") or c["type"] == "store_badge" else None,
             "border_color": c["border_color"], "border_width": c["border_width"], "radius": c["radius"],
-            "opacity": c["opacity"], "background_gradient": c["gradient"]}
+            "opacity": c["opacity"], "rotation": c["rotation_degrees"], "background_gradient": c["gradient"]}
         if kind in ("text", "button"):
             text = content.get(c["id"], c["placeholder"])
             bounded_text(text, 500, "Bound content", empty=True)
@@ -226,7 +296,9 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
             props.update({"asset": c["id"], "fit": c["fit"], "focal_x": c["focal_x"], "focal_y": c["focal_y"], "mask": "rounded_rect" if c["type"] == "image" else "none"})
             if c["type"] in ("phone", "brand"):
                 props["fit"] = "contain"
-            assets[c["id"]] = {"kind": "image", "allowed_mime_types": ["image/png", "image/jpeg", "image/webp"], "required": False, "provenance": "Reusable image slot; gallery uses a neutral geometry fixture."}
+            replaceable = c["type"] in {"image", "cutout_image", "phone"}
+            assets[c["id"]] = {"kind": "image", "allowed_mime_types": ["image/png", "image/jpeg", "image/webp"], "required": False,
+                "provenance": "Reusable image slot; gallery uses a neutral fixture." if replaceable else "Fixed allowlisted template visual."}
         children.append({"id": c["id"], "type": kind, "props": props})
         roles.setdefault(c["role"], []).append(c["id"])
     return PrimitiveTemplate.from_dict({"schema": PRIMITIVE_TEMPLATE_SCHEMA, "template_id": "declarative_design",
@@ -239,10 +311,22 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
 def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
            content: Mapping[str, str] | None = None, assets: Mapping[str, Any] | None = None) -> dict:
     template = primitive(document, surface=surface, mobile=mobile, content=content)
-    fixtures = {key: {"bytes": placeholder_image(), "mime_type": "image/png"} for key in template.document["assets"]}
+    by_id = {item["id"]: item for item in normalize_document(document)["components"]}
+    fixtures = {
+        key: {"bytes": placeholder_image(), "mime_type": "image/png"}
+        for key in template.document["assets"] if by_id[key]["type"] in {"image", "phone"}
+    }
+    fixtures.update(fixed_component_assets(document))
+    for key, item in by_id.items():
+        if item["type"] == "brand":
+            from .natal_brand import natal_logo_bytes
+            fixtures[key] = {"bytes": natal_logo_bytes(), "mime_type": "image/png"}
     if assets:
         if set(assets) - set(fixtures):
             raise ValueError("Unknown image slot")
+        protected = {item["id"] for item in by_id.values() if item["type"] in {"brand_motif", "store_badge", "brand"}}
+        if protected & set(assets):
+            raise ValueError("Fixed template visual cannot be replaced")
         fixtures.update(assets)
     for c in document["components"]:
         if c["type"] == "phone":
@@ -254,6 +338,15 @@ def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
             from .natal_brand import natal_logo_bytes
             fixtures[c["id"]] = {"bytes": natal_logo_bytes(), "mime_type": "image/png"}
     return StudioRenderer().render_preview(template, semantic_data={}, assets=fixtures)
+
+
+def render_contract_sha256(document: Mapping[str, Any]) -> str:
+    """Invalidate saved PNG reuse when the compiler or a fixed asset changes."""
+
+    doc = normalize_document(document)
+    return sha({"document": doc, "renderer_version": RENDERER_VERSION,
+                "assets": [{"asset_id": item["asset_id"], "sha256": item["sha256"]}
+                           for item in document_asset_manifest(doc)]})
 
 
 @dataclass(frozen=True)
@@ -272,6 +365,6 @@ def definition(record: Mapping[str, Any]) -> TemplateDefinition:
         default_configuration=lambda: deepcopy(doc), default_content=lambda: {},
         normalize_configuration=normalize_document, normalize_content=normalize_content,
         component_settings=lambda configuration, content: {"configuration": normalize_document(configuration), "content": normalize_content(content)},
-        capabilities=TemplateCapabilities(image_slots=tuple(c["id"] for c in doc["components"] if c["type"] in ("image", "phone")), supports_manual_agent=False),
-        renderer_key="studio.declarative.pillow.v1", editor_key="templates.declarative.v1",
+        capabilities=TemplateCapabilities(image_slots=tuple(c["id"] for c in doc["components"] if c["type"] in ("image", "cutout_image", "phone")), supports_manual_agent=False),
+        renderer_key=RENDERER_VERSION, editor_key="templates.declarative.v1",
         render=lambda configuration=None, content=None, assets=None, mobile=False: render(doc if configuration is None else configuration, surface=record["surface"], content=content, assets=assets, mobile=mobile))

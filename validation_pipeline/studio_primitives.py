@@ -1851,6 +1851,15 @@ class PrimitivePreviewRenderer:
                 else:
                     image = outline
                 image.info["ptw_unpadded_size"] = size
+            # Image primitives may own a surface (for example a store badge's
+            # full-width black pill) in addition to contained immutable art.
+            # Historically image backgrounds were accepted by the primitive
+            # schema but silently ignored here, leaving only the narrower
+            # intrinsic asset visible.
+            if props.get("background_color") or props.get("background_gradient") or props.get("border_width", 0) > 0:
+                surface = self._surface(command, declarations, assets)
+                surface.alpha_composite(image)
+                return surface
             return image
         if primitive_type == "icon":
             icon_props = dict(props)

@@ -26,9 +26,10 @@ def validate_owner_claims(
         raise HTTPException(status_code=403, detail="owner email must be verified")
     if provider != "google.com":
         raise HTTPException(status_code=403, detail="Google Sign-In is required")
-    if not hmac.compare_digest(email, settings.owner_email):
+    allowed_emails = settings.owner_emails or (settings.owner_email,)
+    if not any(hmac.compare_digest(email, allowed) for allowed in allowed_emails):
         raise HTTPException(status_code=403, detail="owner email is not allowlisted")
-    if not hmac.compare_digest(uid, settings.owner_uid):
+    if hmac.compare_digest(email, settings.owner_email) and not hmac.compare_digest(uid, settings.owner_uid):
         raise HTTPException(status_code=403, detail="owner UID does not match pinned UID")
     if not app_id or not hmac.compare_digest(app_id, settings.firebase_app_id):
         raise HTTPException(status_code=401, detail="invalid App Check app identity")

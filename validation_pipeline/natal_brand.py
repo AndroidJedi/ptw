@@ -91,3 +91,19 @@ def natal_logo_colored_bytes(
     output = BytesIO()
     image.save(output, format="PNG", optimize=False)
     return output.getvalue()
+
+
+@lru_cache(maxsize=32)
+def natal_symbol_bytes(symbol_color: str = NATAL_SYMBOL_COLOR) -> bytes:
+    """Return only the digest-verified Natal symbol for decorative reuse."""
+
+    from PIL import Image
+    normalize_natal_logo_colors({
+        "symbol_color": symbol_color,
+        "name_color": NATAL_NAME_COLOR,
+    })
+    with Image.open(BytesIO(natal_logo_colored_bytes(symbol_color, NATAL_NAME_COLOR))) as source:
+        symbol = source.convert("RGBA").crop((0, 0, _NATAL_SYMBOL_RIGHT + 1, source.height))
+    output = BytesIO()
+    symbol.save(output, format="PNG", optimize=False)
+    return output.getvalue()

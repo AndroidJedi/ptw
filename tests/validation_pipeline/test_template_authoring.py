@@ -18,7 +18,12 @@ from fastapi.testclient import TestClient
 
 from validation_pipeline import template_agent as agent
 from validation_pipeline.template_authoring import TemplateAuthoringService, TemporaryReferences
-from validation_pipeline.template_components import apply_edits, canonical, definition, normalize_document, render, seed, sha
+from validation_pipeline.template_components import (
+    apply_edits, canonical, definition, fixed_component_assets,
+    new_component, neutral_cutout_image, normalize_document, primitive, render,
+    render_contract_sha256, seed, sha,
+)
+from validation_pipeline.template_assets import ASSET_ROOT, asset_metadata
 from validation_pipeline.template_extensions import allowed_path, handoff, validated_capability
 from validation_pipeline.template_previews import builtins, geometry, render_builtin
 from validation_pipeline.template_routes import template_router
@@ -247,7 +252,7 @@ class TemplateAuthoringTests(unittest.TestCase):
         resumed = self.service.resume(run['run_id'],{'request_id':str(uuid4()),'base_sha256':run['state_sha256'],'instruction':''})
         self.assertEqual('proposed',resumed['status'])
         self.assertIsNone(resumed['failure'])
-        self.assertEqual(failed_iterations,resumed['iterations'])
+        self.assertEqual(failed_iterations + 1,resumed['iterations'])
         self.assertEqual(failed_preview,resumed['previews']['post:desktop']['sha256'])
         self.assertEqual(failed_artifact,[c for c in self.provider.calls if c['input_payload']['phase']=='compare'][-1]['input_artifacts'][0]['sha256'])
         self.assertEqual(1,len([c for c in self.provider.calls if c['input_payload']['phase']=='analyze']))
@@ -256,6 +261,51 @@ class TemplateAuthoringTests(unittest.TestCase):
         actual = self.service.store.get('run',interrupted['run_id'])
         self.assertEqual('interrupted',actual['status'])
         self.assertEqual(interrupted['documents'],actual['documents'])
+
+    def test_refine_keeps_pending_edits_and_restore_is_append_only(self):
+        proposal = self.start()
+        original_document = deepcopy(proposal['documents']['post'])
+        original_preview = proposal['previews']['post:desktop']['sha256']
+        pending = [{'surface':'post','path':'components.action.box','value':[60,880,880,100]}]
+        paused = self.service._update(
+            proposal, status='paused', phase='adjust',
+            comparison={'complete':False,'capability_gap':None,'edits':pending,
+                'differences':[{'surface':'post','role':'cta','issue':'Move the action lower',
+                    'severity':'meaningful','solvable':True,'category':'layout'}]},
+            checkpoint={'reason':'segment_checkpoint','recommendation':'continue',
+                'pending_edits':1,'remaining_iterations':11,'meaningful_differences':[]},
+        )
+        refined = self.service.resume(paused['run_id'], {
+            'request_id':str(uuid4()), 'base_sha256':paused['state_sha256'],
+            'instruction':'Keep the saved action move and make no other changes', 'mode':'refine',
+        })
+        self.assertEqual('proposed', refined['status'])
+        self.assertEqual(880, refined['documents']['post']['components'][-1]['box'][1])
+        self.assertEqual(proposal['revision'], refined['baseline']['revision'])
+        self.assertIn('baseline:post:desktop', [
+            name for call in self.provider.calls
+            if call['input_payload']['phase'] == 'compare'
+            for name in call['input_payload']['image_order']
+        ])
+        self.assertTrue(any(
+            call['input_payload'].get('correction_baseline',{}).get('revision') == proposal['revision']
+            for call in self.provider.calls if call['input_payload']['phase'] == 'compare'
+        ))
+
+        regressed = self.service._update(refined, status='paused', phase='compare',
+            documents={'post':seed('post')}, error='A later comparison regressed')
+        restored = self.service.restore_proposal(regressed['run_id'], {
+            'request_id':str(uuid4()), 'base_sha256':regressed['state_sha256'],
+        })
+        self.assertEqual('proposed', restored['status'])
+        self.assertEqual(880, restored['documents']['post']['components'][-1]['box'][1])
+        self.assertEqual(refined['revision'], restored['restored_from']['revision'])
+        self.assertEqual(refined['previews'], restored['previews'])
+        self.assertTrue(any(
+            item.get('previews',{}).get('post:desktop',{}).get('sha256') == original_preview
+            for item in self.service.store.history('run', proposal['run_id'], 200)
+        ))
+        self.assertEqual(original_document, proposal['documents']['post'])
 
     def test_validation_failure_metadata_is_bounded_and_sanitized(self):
         original = self.provider.call
@@ -290,6 +340,73 @@ class TemplateAuthoringTests(unittest.TestCase):
         self.assertEqual('proposed', resumed['status'])
         self.assertEqual(['analyze','compose','compare'], [c['input_payload']['phase'] for c in self.provider.calls])
 
+    def test_four_comparison_checkpoint_preserves_pending_edit_for_continue(self):
+        original = self.provider.call
+        comparisons = [0]
+        useful = [
+            ('components.action.box',[60,840,880,100],'cta','Action position needs one adjustment'),
+            ('components.support.box',[60,200,880,90],'description','Supporting text position needs one adjustment'),
+            ('components.title.box',[60,40,880,140],'headline','Headline position needs one adjustment'),
+            ('components.action.fill','#112233','cta','Action color needs one adjustment'),
+        ]
+        def four_useful_steps(**kwargs):
+            if kwargs['input_payload']['phase'] != 'compare':
+                return original(**kwargs)
+            self.provider.calls.append(kwargs)
+            comparisons[0] += 1
+            surface = next(iter(kwargs['input_payload']['definitions']))
+            if comparisons[0] <= 4:
+                path, value, role, issue = useful[comparisons[0] - 1]
+                result = {'complete':False, 'capability_gap':None,
+                    'edits':[{'surface':surface,'path':path,'value':value}],
+                    'differences':[{'surface':surface,'role':role,'issue':issue,
+                        'severity':'meaningful','solvable':True}]}
+            else:
+                result = {'complete':True,'capability_gap':None,'edits':[],'differences':[]}
+            value = kwargs['response_validator'](result)
+            return {'response':value,'invocation':{'provider':'scripted-test','model':self.provider.model,
+                'reasoning_effort':kwargs.get('reasoning_effort'),'attempts':[{'status':'completed'}]}}
+        with patch.object(self.provider, 'call', side_effect=four_useful_steps):
+            paused = self.start()
+            self.assertEqual('paused', paused['status'])
+            self.assertEqual('adjust', paused['phase'])
+            self.assertEqual(4, paused['iterations'])
+            self.assertEqual('segment_checkpoint', paused['checkpoint']['reason'])
+            self.assertEqual('continue', paused['checkpoint']['recommendation'])
+            self.assertEqual(1, paused['checkpoint']['pending_edits'])
+            resumed = self.service.resume(paused['run_id'], {'request_id':str(uuid4()),
+                'base_sha256':paused['state_sha256'],'instruction':'','mode':'continue'})
+        self.assertEqual('proposed', resumed['status'])
+        self.assertEqual('#112233', resumed['documents']['post']['components'][-1]['fill'])
+        self.assertEqual(5, resumed['iterations'])
+
+    def test_repeated_comparison_cycle_stops_as_no_progress(self):
+        proposal = self.start()
+        paused = self.service._update(proposal, status='paused', phase='compare')
+        original = self.provider.call
+        comparisons = [0]
+        def cycle(**kwargs):
+            if kwargs['input_payload']['phase'] != 'compare':
+                return original(**kwargs)
+            self.provider.calls.append(kwargs)
+            comparisons[0] += 1
+            surface = next(iter(kwargs['input_payload']['definitions']))
+            result = {'complete':False,'capability_gap':None,
+                'edits':[{'surface':surface,'path':'components.action.box',
+                    'value':[60,850 if comparisons[0] == 1 else 830,880,100]}],
+                'differences':[{'surface':surface,'role':'cta','issue':'Action position did not converge',
+                    'severity':'meaningful','solvable':True}]}
+            value = kwargs['response_validator'](result)
+            return {'response':value,'invocation':{'provider':'scripted-test','model':self.provider.model,
+                'reasoning_effort':kwargs.get('reasoning_effort'),'attempts':[{'status':'completed'}]}}
+        with patch.object(self.provider, 'call', side_effect=cycle):
+            result = self.service.resume(paused['run_id'], {'request_id':str(uuid4()),
+                'base_sha256':paused['state_sha256'],'instruction':'Keep other baseline regions unchanged','mode':'refine'})
+        self.assertEqual('paused', result['status'])
+        self.assertEqual('no_progress', result['checkpoint']['reason'])
+        self.assertEqual('restore', result['checkpoint']['recommendation'])
+        self.assertEqual(2, comparisons[0])
+
     def test_stale_decision_and_uncompared_proposal_fail(self):
         run=self.start()
         with self.assertRaises(TemplateConflict):
@@ -316,7 +433,6 @@ class TemplateAuthoringTests(unittest.TestCase):
         self.assertNotEqual(ordinary['bytes'],bound['bytes'])
 
     def test_existing_native_phone_brand_and_overlay_are_reusable_components(self):
-        from validation_pipeline.template_components import new_component
         doc = seed('post')
         doc['components'] = [new_component('phone', 'phone', 'hero', [300,100,400,650]),
             new_component('identity','brand','brand',[60,30,200,60]),
@@ -330,6 +446,88 @@ class TemplateAuthoringTests(unittest.TestCase):
             render(doc,surface='post',assets={'identity':{'bytes':result['bytes'],'mime_type':'image/png'}})
         doc = seed('post'); doc['components'][1]['box'] = doc['components'][0]['box']
         self.assertTrue(any('overlaps' in f['issue'] for f in geometry(render(doc,surface='post'))[1]))
+
+    def test_fixed_natal_motifs_store_badges_and_transparent_cutout_are_deterministic(self):
+        doc = seed('post')
+        doc['components'] = [
+            {**new_component('person','cutout_image','hero',[430,180,530,760],'Image'), 'fit':'contain'},
+            {**new_component('motif_one','brand_motif','decoration',[120,250,120,120],'Natal symbol'),
+                'border_color':'#6ECBE4','opacity':.35,'fit':'contain'},
+            {**new_component('motif_two','brand_motif','decoration',[210,430,120,120],'Natal symbol'),
+                'border_color':'#6ECBE4','opacity':.2,'fit':'contain'},
+            {**new_component('app_store','store_badge','cta',[80,820,350,80],'App Store'),
+                'fill':'#111111','radius':40,'fit':'contain'},
+            {**new_component('google_play','store_badge','cta',[450,820,350,80],'Google Play'),
+                'fill':'#111111','radius':40,'fit':'contain'},
+        ]
+        assets = fixed_component_assets(doc)
+        self.assertEqual(set(item['id'] for item in doc['components']), set(assets))
+        self.assertEqual(assets, fixed_component_assets(doc))
+        cutout = Image.open(BytesIO(neutral_cutout_image())).convert('RGBA')
+        self.assertEqual(0, cutout.getpixel((0, 0))[3])
+        first = render(doc, surface='post')
+        self.assertEqual(first['bytes'], render(doc, surface='post')['bytes'])
+        self.assertFalse(geometry(first)[1])
+        preview = Image.open(BytesIO(first['bytes'])).convert('RGB')
+        # The black store-button surface fills the full declared pill even
+        # where `contain` leaves space around the narrower official artwork.
+        self.assertEqual((17, 17, 17), preview.getpixel((90, 1161)))
+        self.assertEqual((17, 17, 17), preview.getpixel((500, 1161)))
+        for fixed in ('motif_one', 'app_store'):
+            with self.assertRaisesRegex(ValueError, 'cannot be replaced'):
+                render(doc, surface='post', assets={fixed:{'bytes':neutral_cutout_image(),'mime_type':'image/png'}})
+        normalized = normalize_document(doc)
+        normalized['components'][1]['rotation_degrees'] = -18
+        normalized['components'][2]['rotation_degrees'] = 14
+        nodes = primitive(normalized, surface='post').document['root']['children']
+        self.assertEqual([-18, 14], [node['props']['rotation'] for node in nodes if node['id'].startswith('motif_')])
+        legacy = deepcopy(doc); legacy_component = legacy['components'][0]
+        legacy_component.pop('asset_id'); legacy_component.pop('rotation_degrees')
+        self.assertEqual('neutral_person_stock_v1', normalize_document(legacy)['components'][0]['asset_id'])
+        self.assertEqual(0, normalize_document(legacy)['components'][0]['rotation_degrees'])
+        for asset_id in ('app_store_badge_en', 'google_play_badge_en', 'neutral_person_stock_v1'):
+            metadata = asset_metadata(asset_id)
+            self.assertEqual(metadata['sha256'], hashlib.sha256((ASSET_ROOT / metadata['file']).read_bytes()).hexdigest())
+            self.assertTrue(metadata['source_url'].startswith('https://'))
+            self.assertTrue(metadata['license_type'])
+        import validation_pipeline.template_assets as template_assets
+        contract = render_contract_sha256(normalized)
+        changed = {**template_assets._ASSETS['app_store_badge_en'], 'sha256':'0'*64}
+        with patch.dict(template_assets._ASSETS, {'app_store_badge_en':changed}):
+            self.assertNotEqual(contract, render_contract_sha256(normalized))
+        self.assertEqual('^[a-z][a-z0-9_]{2,59}$', agent.GAP_SCHEMA['properties']['capability']['pattern'])
+
+    def test_correction_reference_retry_and_discard_are_append_only(self):
+        proposal = self.start()
+        baseline_reference = proposal['reference']
+        uploaded = self.service.references.upload({'request_id':str(uuid4()),'image':image_input()})
+        self.provider.timeout_phase = 'compare'
+        correction_id = str(uuid4())
+        failed = self.service.resume(proposal['run_id'], {'request_id':correction_id,
+            'base_sha256':proposal['state_sha256'],'instruction':'Rotate only the two motifs',
+            'mode':'refine','reference_id':uploaded['reference_id']})
+        self.assertEqual('failed', failed['latest_correction']['status'])
+        self.assertEqual(correction_id, failed['latest_correction']['correction_id'])
+        self.assertEqual(baseline_reference, failed['reference'])
+        self.assertEqual(uploaded['sha256'], failed['latest_correction']['reference']['sha256'])
+        self.assertIn('correction_reference',
+            [c for c in self.provider.calls if c['input_payload']['phase']=='compare'][-1]['input_payload']['image_order'])
+        failed_revision = failed['revision']
+        self.provider.timeout_phase = None
+        retried = self.service.retry_correction(failed['run_id'], {'request_id':str(uuid4()),
+            'base_sha256':failed['state_sha256']})
+        self.assertEqual('proposed', retried['status'])
+        self.assertEqual('applied', retried['latest_correction']['status'])
+        self.assertEqual(correction_id, retried['comparison']['applied_correction_id'])
+        self.assertTrue(all(item['applied_correction_id'] == correction_id for item in retried['previews'].values()))
+        recovered = self.service.recover_revision(retried['run_id'], {'request_id':str(uuid4()),
+            'base_sha256':retried['state_sha256'],'revision':failed_revision})
+        self.assertEqual('failed', recovered['latest_correction']['status'])
+        self.assertEqual(failed_revision, recovered['recovered_from']['revision'])
+        discarded = self.service.restore_proposal(recovered['run_id'], {'request_id':str(uuid4()),
+            'base_sha256':recovered['state_sha256']})
+        self.assertEqual('proposed', discarded['status'])
+        self.assertEqual('discarded', discarded['latest_correction']['status'])
 
     def test_capability_review_binds_live_catalog_and_source_bytes(self):
         from validation_pipeline.template_extensions import validated_capability
@@ -370,15 +568,27 @@ class TemplateAuthoringTests(unittest.TestCase):
         self.assertEqual(202,response.status_code,response.text)
         run=response.json()
         self.assertEqual('proposed',run['status'])
+        paused=self.service._update(run,status='paused',checkpoint={
+            'reason':'segment_checkpoint','recommendation':'continue','pending_edits':999,
+            'remaining_iterations':999,'meaningful_differences':[
+                {'surface':'post-'+'x'*200,'role':'decoration-'+'x'*200,'category':'component_style-'+'x'*200}
+                for _ in range(20)
+            ]})
         summary=client.get('/templates/runs',headers=headers).json()['items'][0]
-        self.assertEqual({'run_id','scope','status','phase','iterations','state_sha256','error','previews'},set(summary))
-        self.assertEqual({'sha256','definition_sha256','failure_count'},set(summary['previews']['post:desktop']))
+        self.assertEqual({'run_id','scope','status','phase','iterations','state_sha256','error','checkpoint','previews','latest_correction_status'},set(summary))
+        self.assertEqual({'sha256','definition_sha256','render_contract_sha256','failure_count'},set(summary['previews']['post:desktop']))
+        self.assertEqual(64,summary['checkpoint']['pending_edits'])
+        self.assertEqual(12,summary['checkpoint']['remaining_iterations'])
+        self.assertEqual(8,len(summary['checkpoint']['meaningful_differences']))
+        self.assertLessEqual(len(summary['checkpoint']['meaningful_differences'][0]['role']),30)
         self.assertNotIn('instruction',canonical(summary))
         self.assertNotIn('documents',canonical(summary))
         self.assertNotIn('reference',canonical(summary))
         self.assertEqual(413,client.post('/templates/runs',headers=headers,content='x'*64001).status_code)
         self.assertEqual(404,client.get('/public/templates').status_code)
-        preview=run['previews']['post:desktop']['sha256']
+        detail=client.get('/templates/runs/'+run['run_id'],headers=headers).json()
+        self.assertTrue(detail['can_restore'])
+        preview=paused['previews']['post:desktop']['sha256']
         media=client.get('/templates/media/'+preview,headers=headers)
         self.assertEqual(preview,hashlib.sha256(media.content).hexdigest())
         self.assertIn('no-store',media.headers['cache-control'])

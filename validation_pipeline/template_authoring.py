@@ -13,7 +13,8 @@ from uuid import UUID, uuid4
 
 from . import template_agent as agent
 from .image_reference import decode_reference
-from .template_components import canonical, definition, normalize_document, seed, sha
+from .template_assets import RENDERER_VERSION, document_asset_manifest
+from .template_components import canonical, definition, normalize_document, render_contract_sha256, seed, sha
 from .template_previews import builtins, render_builtin, render_designs, geometry
 from .template_registry import TemplateRegistry
 from .template_store import TemplateConflict, TemplateStore
@@ -23,6 +24,81 @@ TERMINAL = {"accepted", "rejected"}
 MAX_ITERATIONS = 4
 MAX_TOTAL_ITERATIONS = 12
 MAX_CALLS = 32
+
+
+def _difference_category(value: Mapping[str, Any]) -> str:
+    """Map free-form model detail to one stable, localizable UI category."""
+
+    issue = str(value.get("issue", "")).lower()
+    if not value.get("solvable", True) or any(word in issue for word in ("absent", "missing", "cannot")):
+        return "component_missing"
+    if value.get("role") == "hero" and any(word in issue for word in ("fixture", "subject", "photo", "image")):
+        return "image_fixture"
+    if any(word in issue for word in ("font", "type", "text", "line height")):
+        return "typography"
+    if any(word in issue for word in ("color", "gradient", "opacity", "contrast")):
+        return "appearance"
+    if any(word in issue for word in ("crop", "focal", "mask")):
+        return "image_crop"
+    if any(word in issue for word in ("position", "spacing", "alignment", "overlap", "size", "width", "height")):
+        return "layout"
+    if value.get("role") in {"decoration", "cta"}:
+        return "component_style"
+    return "visual_match"
+
+
+def _enrich_comparison(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        **dict(value),
+        "differences": [
+            {**dict(item), "category": _difference_category(item)}
+            for item in value.get("differences", [])
+        ],
+    }
+
+
+def _meaningful_keys(comparison: Mapping[str, Any] | None) -> list[str]:
+    return sorted({
+        f"{item.get('surface')}:{item.get('role')}:{item.get('category') or _difference_category(item)}"
+        for item in (comparison or {}).get("differences", [])
+        if item.get("severity") == "meaningful"
+    })[:16]
+
+
+def _checkpoint(run: Mapping[str, Any], reason: str, recommendation: str, *, pending_edits: int = 0) -> dict[str, Any]:
+    comparison = run.get("comparison") or {}
+    return {
+        "reason": reason,
+        "recommendation": recommendation,
+        "pending_edits": min(64, max(0, int(pending_edits))),
+        "remaining_iterations": max(0, MAX_TOTAL_ITERATIONS - int(run.get("iterations", 0))),
+        "meaningful_differences": [
+            {
+                "surface": str(item.get("surface", "unknown"))[:20],
+                "role": str(item.get("role", "unknown"))[:30],
+                "category": str(item.get("category") or _difference_category(item))[:30],
+            }
+            for item in comparison.get("differences", [])
+            if item.get("severity") == "meaningful"
+        ][:8],
+    }
+
+
+def _correction_update(run: Mapping[str, Any], status: str, *, failure: Mapping[str, Any] | None = None,
+                       result_revision: int | None = None) -> dict[str, Any]:
+    """Update one correction record without duplicating it at every saved phase."""
+
+    latest = run.get("latest_correction")
+    if not isinstance(latest, Mapping):
+        return {}
+    updated = {**deepcopy(dict(latest)), "status": status,
+               "failure": deepcopy(dict(failure)) if isinstance(failure, Mapping) else None}
+    if result_revision is not None:
+        updated["result_revision"] = int(result_revision)
+    history = [deepcopy(item) for item in (run.get("correction_history") or [])
+               if isinstance(item, Mapping) and item.get("correction_id") != updated.get("correction_id")]
+    history.append(updated)
+    return {"latest_correction": updated, "correction_history": history[-5:]}
 
 
 class TemplateBudgetReached(RuntimeError):
@@ -166,7 +242,9 @@ class TemplateAuthoringService:
         self.references.clear()
         for run in self.store.list("run", 200):
             if run["status"] in ACTIVE:
-                self._update(run, status="interrupted", error="Run interrupted. Resume from the last saved analysis and composition.")
+                paused = {**run, "status": "interrupted", "error": "Run interrupted. Resume from the last saved analysis and composition."}
+                self._update(run, status=paused["status"], error=paused["error"],
+                    checkpoint=_checkpoint(paused, "interrupted", "continue"))
 
     def _update(self, run: dict, **changes) -> dict:
         with self.store.transaction() as tx:
@@ -285,6 +363,8 @@ class TemplateAuthoringService:
             "post_design": self.resolve_post_reference(post_reference) if post_reference else None,
             "reference": None, "analysis": None, "previews": {}, "comparison": None, "capability_gap": None,
             "iterations": 0, "calls": 0, "invocations": [], "error": None, "failure": None,
+            "checkpoint": None, "baseline": None, "progress": [],
+            "latest_correction": None, "correction_history": [],
             "accepted_versions": []}
         agent.preflight("analyze", run)  # Reject oversized JSON before reserving a provider job.
         data = None
@@ -337,17 +417,18 @@ class TemplateAuthoringService:
 
         def saved_renders() -> dict[str, dict] | None:
             expected = {
-                **({"post:desktop": sha(run["documents"]["post"])} if "post" in run["documents"] else {}),
+                **({"post:desktop": (sha(normalize_document(run["documents"]["post"])), render_contract_sha256(run["documents"]["post"]))} if "post" in run["documents"] else {}),
                 **({
-                    "landing:desktop": sha(run["documents"]["landing"]),
-                    "landing:mobile": sha(run["documents"]["landing"]),
+                    "landing:desktop": (sha(normalize_document(run["documents"]["landing"])), render_contract_sha256(run["documents"]["landing"])),
+                    "landing:mobile": (sha(normalize_document(run["documents"]["landing"])), render_contract_sha256(run["documents"]["landing"])),
                 } if "landing" in run["documents"] else {}),
             }
             previews = run.get("previews") or {}
             if set(previews) != set(expected) or any(
-                previews[key].get("definition_sha256") != digest
+                previews[key].get("definition_sha256") != digests[0]
+                or previews[key].get("render_contract_sha256") != digests[1]
                 or not re.fullmatch(r"[0-9a-f]{64}", str(previews[key].get("sha256", "")))
-                for key, digest in expected.items()
+                for key, digests in expected.items()
             ):
                 return None
             with self.store.transaction() as tx:
@@ -355,6 +436,18 @@ class TemplateAuthoringService:
                     key: {**previews[key], "bytes": tx.read_media(previews[key]["sha256"])}
                     for key in sorted(expected)
                 }
+
+        def baseline_images() -> list[tuple[str, bytes]]:
+            baseline = run.get("baseline") or {}
+            preview_digests = baseline.get("previews") or {}
+            if not isinstance(preview_digests, Mapping):
+                return []
+            with self.store.transaction() as tx:
+                return [
+                    (f"baseline:{key}", tx.read_media(digest))
+                    for key, digest in list(sorted(preview_digests.items()))[:4]
+                    if isinstance(key, str) and re.fullmatch(r"[0-9a-f]{64}", str(digest))
+                ]
         try:
             if run["analysis"] is None:
                 if run["reference"] and data is None:
@@ -366,15 +459,19 @@ class TemplateAuthoringService:
                 run = self._update(run, documents=agent.apply_edits(run["documents"], run["comparison"]["edits"]), phase="render")
             if run["phase"] == "compose":
                 run = self._update(run, status="composing")
-                response = invoke("compose", [])
+                response = invoke("compose", [("correction_reference", data)] if data and run.get("latest_correction") else [])
                 documents = agent.apply_edits(run["documents"], response["edits"])
                 run = self._update(run, documents=documents, phase="render")
             for iteration in range(MAX_ITERATIONS):
                 if self._stopping.is_set():
-                    run = self._update(run, status="interrupted", error="Worker stopped; resume from saved state")
+                    paused = {**run, "status": "interrupted", "error": "Worker stopped; resume from saved state"}
+                    run = self._update(run, status=paused["status"], error=paused["error"],
+                        checkpoint=_checkpoint(paused, "interrupted", "continue"))
                     return
-                if run["iterations"] >= MAX_TOTAL_ITERATIONS or run["calls"] >= MAX_CALLS or time.monotonic() - started > 900:
-                    run = self._update(run, status="paused", error="Bounded iteration budget reached; inspect the saved result")
+                if run["iterations"] >= MAX_TOTAL_ITERATIONS or run["calls"] >= MAX_CALLS:
+                    paused = {**run, "status": "paused", "error": "The total bounded budget was reached; inspect or restore the saved result."}
+                    run = self._update(run, status=paused["status"], error=paused["error"],
+                        checkpoint=_checkpoint(paused, "total_budget", "restore" if run.get("baseline") else "refine"))
                     return
                 renders = saved_renders() if run["phase"] == "compare" else None
                 if renders is None:
@@ -390,13 +487,27 @@ class TemplateAuthoringService:
                                 "delta": [round(a - b, 2) for a, b in zip(observed["box"], target["box"])]}
                                 for observed in preview["geometry"] for target in regions if target["role"] == observed["role"]][:24]
                             assert digest == previews[key]["sha256"]
-                    run = self._update(run, previews=previews, status="comparing", phase="compare", iterations=run["iterations"] + 1)
+                            if run.get("latest_correction"):
+                                previews[key]["applied_correction_id"] = run["latest_correction"]["correction_id"]
+                    run = self._update(run, previews=previews, status="comparing", phase="compare")
                 else:
                     previews = run["previews"]
                     run = self._update(run, status="comparing", phase="compare")
-                images = ([("reference", data)] if data else []) + [(key, value["bytes"]) for key, value in renders.items()]
+                reference_name = "correction_reference" if run.get("latest_correction") else "reference"
+                images = (([(reference_name, data)] if data else []) + baseline_images()
+                    + [(key, value["bytes"]) for key, value in renders.items()])
                 response = invoke("compare", images)
-                run = self._update(run, comparison=response)
+                response = _enrich_comparison(response)
+                if run.get("latest_correction"):
+                    response["applied_correction_id"] = run["latest_correction"]["correction_id"]
+                progress_entry = {
+                    "document_sha256": sha(run["documents"]),
+                    "preview_sha256": {key: value["sha256"] for key, value in sorted(previews.items())},
+                    "meaningful_keys": _meaningful_keys(response),
+                    "edit_paths": sorted({str(edit.get("path", ""))[:100] for edit in response.get("edits", [])})[:64],
+                }
+                progress = [*(run.get("progress") or []), progress_entry][-6:]
+                run = self._update(run, comparison=response, progress=progress, iterations=run["iterations"] + 1)
                 failures = [f for p in previews.values() for f in p["failures"]]
                 meaningful = [d for d in response["differences"] if d["severity"] == "meaningful"]
                 if response["capability_gap"]:
@@ -405,35 +516,64 @@ class TemplateAuthoringService:
                         documents = agent.apply_edits(run["documents"], response["edits"])
                         if sha(documents) != sha(run["documents"]):
                             changes.update(documents=documents, phase="render")
+                    paused = {**run, **changes}
+                    changes["checkpoint"] = _checkpoint(paused, "capability_gap", "extend_capability",
+                        pending_edits=len(response["edits"]))
                     run = self._update(run, **changes)
                     return
                 if response["complete"] and not meaningful and not failures and not response["edits"]:
-                    run = self._update(run, status="proposed", error=None, failure=None)
+                    correction = _correction_update(run, "applied", result_revision=int(run.get("revision", 0)) + 1)
+                    run = self._update(run, status="proposed", error=None, failure=None, checkpoint=None, **correction)
                     return
                 if not response["edits"]:
-                    run = self._update(run, status="paused", error="Comparison found unresolved differences. Add a correction and resume.")
+                    paused = {**run, "status": "paused", "error": "Comparison needs a focused owner clarification."}
+                    run = self._update(run, status=paused["status"], error=paused["error"],
+                        checkpoint=_checkpoint(paused, "needs_clarification", "refine"))
                     return
                 documents = agent.apply_edits(run["documents"], response["edits"])
                 if sha(documents) == sha(run["documents"]):
-                    run = self._update(run, status="paused", error="Comparison made no progress. Add a focused correction.")
+                    paused = {**run, "status": "paused", "error": "The proposed changes do not alter the saved composition."}
+                    run = self._update(run, status=paused["status"], error=paused["error"],
+                        checkpoint=_checkpoint(paused, "no_progress", "restore" if run.get("baseline") else "refine"))
+                    return
+                candidate_sha = sha(documents)
+                prior = progress[:-1]
+                seen_candidate = any(item.get("document_sha256") == candidate_sha for item in prior)
+                recent = progress[-3:]
+                repeated_issue = len(recent) == 3 and len({tuple(item.get("meaningful_keys") or []) for item in recent}) == 1
+                repeated_paths = bool(recent) and bool(set.intersection(*[
+                    set(item.get("edit_paths") or []) for item in recent
+                ]))
+                if seen_candidate or (repeated_issue and repeated_paths):
+                    paused = {**run, "status": "paused", "error": "The same visual issue persisted across bounded corrections."}
+                    run = self._update(run, status=paused["status"], error=paused["error"],
+                        checkpoint=_checkpoint(paused, "no_progress", "restore" if run.get("baseline") else "refine"))
                     return
                 if iteration == MAX_ITERATIONS - 1:
                     run = self._update(run, phase="adjust")
                 else:
                     run = self._update(run, documents=documents, phase="render")
-            run = self._update(run, status="paused", error="Iteration limit reached; resume the saved composition")
+            paused = {**run, "status": "paused", "error": "Review checkpoint reached; saved changes are ready to continue."}
+            run = self._update(run, status=paused["status"], error=paused["error"],
+                checkpoint=_checkpoint(paused, "segment_checkpoint", "continue",
+                    pending_edits=len((run.get("comparison") or {}).get("edits") or [])))
         except TemplateBudgetReached:
-            self._update(run, status="paused", error="Segment time budget reached; resume from the saved phase")
+            paused = {**run, "status": "paused", "error": "Segment time budget reached; resume from the saved phase"}
+            self._update(run, status=paused["status"], error=paused["error"],
+                checkpoint=_checkpoint(paused, "time_budget", "continue"))
         except Exception as error:
             failure = _safe_failure(error, phase=run.get("phase", "unknown"), provider=self.provider)
             # Persist no subprocess stderr, provider output or raw reference bytes.
             message = "Template Agent timed out; resume from saved state" if failure["category"] == "timeout" else "Template Agent could not complete this step. Saved state is available for retry."
             try:
+                failed = {**run, "status": "failed", "error": message, "failure": failure}
+                correction = _correction_update(run, "failed", failure=failure)
                 self._update(run, status="failed", error=message, failure=failure,
+                    checkpoint=_checkpoint(failed, "provider_failure", "continue"),
                     invocations=[*run["invocations"][:-1], {**run["invocations"][-1], "status": "failed",
                         "attempt_count": failure["attempt_count"]}]
                     if run["invocations"] and run["invocations"][-1].get("status") == "started"
-                    else run["invocations"])
+                    else run["invocations"], **correction)
             except TemplateConflict:
                 pass
         finally:
@@ -441,8 +581,27 @@ class TemplateAuthoringService:
             with self._lock:
                 self._active.discard(run_id)
 
+    def _latest_proposal(self, run_id: str, *, before_revision: int | None = None) -> dict | None:
+        return next((item for item in self.store.history("run", run_id, 200)
+            if item.get("status") == "proposed"
+            and (before_revision is None or int(item.get("revision", 0)) < before_revision)), None)
+
+    def can_restore_proposal(self, run: Mapping[str, Any]) -> bool:
+        return self._latest_proposal(str(run["run_id"]), before_revision=int(run.get("revision", 0))) is not None
+
+    @staticmethod
+    def _baseline(value: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "revision": int(value["revision"]),
+            "state_sha256": str(value["state_sha256"]),
+            "document_sha256": sha(value["documents"]),
+            "previews": {
+                key: preview["sha256"] for key, preview in sorted((value.get("previews") or {}).items())
+            },
+        }
+
     def resume(self, run_id: str, request: Mapping) -> dict:
-        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id"}:
+        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "mode"}:
             raise ValueError("Resume fields are invalid")
         request_id, run_id = uuid(request["request_id"]), uuid(run_id)
         digest = sha({"run_id": run_id, "action": "resume", **request})
@@ -460,26 +619,54 @@ class TemplateAuthoringService:
         instruction = request["instruction"]
         if not isinstance(instruction, str) or len(instruction.encode()) > 3000:
             raise ValueError("Template correction exceeds 3000 UTF-8 bytes")
-        if run["status"] == "capability_gap" and not instruction.strip():
+        mode = request.get("mode") or ("refine" if instruction.strip() else "continue")
+        if mode not in {"continue", "refine"}:
+            raise ValueError("Resume mode must be continue or refine")
+        if mode == "continue" and instruction.strip():
+            raise ValueError("Continue uses the saved instruction and pending changes")
+        if mode == "refine" and not instruction.strip():
+            raise ValueError("Refine requires a focused instruction")
+        if run["status"] == "capability_gap" and mode == "continue":
             from .template_extensions import validated_capability
             if not validated_capability(run["capability_gap"]["capability"]):
                 raise TemplateConflict("Capability requires reviewed source tests and visual validation before resuming")
-        if run["status"] == "capability_gap" and instruction.strip() and (run.get("comparison") or {}).get("edits"):
-            # Older run revisions may have paused before persisting otherwise-valid
-            # solvable edits. Fold them into the same CAS-protected resume revision.
+        if mode == "refine" and run.get("phase") == "adjust" and (run.get("comparison") or {}).get("edits"):
+            # A new clarification builds on the already reviewed pending edits;
+            # it must not silently discard the saved segment progress.
+            run = {**run, "documents": agent.apply_edits(run["documents"], run["comparison"]["edits"])}
+        elif run["status"] == "capability_gap" and mode == "refine" and (run.get("comparison") or {}).get("edits"):
             run = {**run, "documents": agent.apply_edits(run["documents"], run["comparison"]["edits"])}
         data = self.references.take(request["reference_id"]) if request.get("reference_id") else None
-        if data:
-            reference = {"sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "byte_count": len(data)}
-            if reference != run["reference"]:
-                run = {**run, "analysis": None}
-            run = {**run, "reference": reference}
+        correction_reference = ({"sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "byte_count": len(data)}
+                                if data else None)
         if run["reference"] and run["analysis"] is None and data is None:
             raise ValueError("Reattach the temporary reference; raw pixels are not retained after interruption")
-        updated = {**run, "instruction": instruction.strip() or run["instruction"], "status": "queued", "error": None,
-                   "failure": None, "capability_gap": None,
-                   "phase": "analyze" if run["analysis"] is None else ("compose" if instruction.strip() else run["phase"])}
-        agent.preflight("analyze" if updated["analysis"] is None else "compose", updated)
+        proposal = (run if run.get("status") == "proposed" else
+                    self._latest_proposal(run_id, before_revision=int(run.get("revision", 0)))) if mode == "refine" else None
+        baseline = self._baseline(proposal) if proposal else run.get("baseline")
+        correction = None
+        correction_history = list(run.get("correction_history") or [])
+        if mode == "refine":
+            correction = {"correction_id": request_id, "instruction": instruction.strip(), "status": "working",
+                          "submitted_revision": int(run.get("revision", 0)), "reference": correction_reference,
+                          "failure": None, "retry_count": 0}
+            correction_history = [item for item in correction_history
+                                  if item.get("correction_id") != correction["correction_id"]][-4:] + [correction]
+        elif run.get("latest_correction"):
+            correction = {**deepcopy(run["latest_correction"]), "status": "working", "failure": None,
+                          "reference": correction_reference or run["latest_correction"].get("reference"),
+                          "retry_count": min(99, int(run["latest_correction"].get("retry_count", 0)) + 1)}
+            correction_history = [item for item in correction_history
+                                  if item.get("correction_id") != correction["correction_id"]][-4:] + [correction]
+        updated = {**run, "instruction": instruction.strip() if mode == "refine" else run["instruction"],
+                   "status": "queued", "error": None, "failure": None, "capability_gap": None,
+                   "checkpoint": None, "baseline": baseline,
+                   "latest_correction": correction if correction is not None else run.get("latest_correction"),
+                   "correction_history": correction_history,
+                   "progress": [] if mode == "refine" else list(run.get("progress") or []),
+                   "phase": "analyze" if run["analysis"] is None else ("compose" if mode == "refine" else run["phase"])}
+        preflight_phase = "analyze" if updated["analysis"] is None else ("compose" if updated["phase"] == "compose" else "compare")
+        agent.preflight(preflight_phase, updated)
         with self.store.transaction() as tx:
             old = self._reconcile(tx, request_id, digest)
             if old:
@@ -490,6 +677,108 @@ class TemplateAuthoringService:
             tx.append("request", request_id, {"run_id": run_id, "request_sha256": digest})
         self._schedule(run_id, data)
         return self.store.get("run", run_id)
+
+    def restore_proposal(self, run_id: str, request: Mapping) -> dict:
+        if set(request) != {"request_id", "base_sha256"}:
+            raise ValueError("Restore fields are invalid")
+        request_id, run_id = uuid(request["request_id"]), uuid(run_id)
+        digest = sha({"run_id": run_id, "action": "restore_proposal", **request})
+        with self.store.transaction() as tx:
+            old = self._reconcile(tx, request_id, digest)
+            if old:
+                return old
+            run = tx.get("run", run_id)
+            if run is None:
+                raise KeyError(run_id)
+            if run["state_sha256"] != request["base_sha256"]:
+                raise TemplateConflict("Template run changed; refresh before restoring")
+            if run["status"] in ACTIVE | TERMINAL:
+                raise TemplateConflict("This template run cannot restore a proposal")
+            proposal = next((item for item in tx.history("run", run_id, 200)
+                if item.get("status") == "proposed" and int(item.get("revision", 0)) < int(run["revision"])), None)
+            if proposal is None:
+                raise TemplateConflict("This run has no earlier ready proposal")
+            correction = _correction_update(run, "discarded")
+            restored = {
+                **run,
+                "instruction": proposal["instruction"],
+                "documents": deepcopy(proposal["documents"]),
+                "previews": deepcopy(proposal["previews"]),
+                "comparison": _enrich_comparison(proposal["comparison"] or {"edits": [], "differences": [], "capability_gap": None, "complete": True}),
+                "status": "proposed", "phase": "compare", "error": None,
+                "failure": None, "capability_gap": None, "checkpoint": None,
+                "baseline": None, "progress": [],
+                "restored_from": {"revision": int(proposal["revision"]), "state_sha256": proposal["state_sha256"]},
+                **correction,
+            }
+            saved = tx.append("run", run_id, restored, expected=request["base_sha256"])
+            tx.append("request", request_id, {"run_id": run_id, "request_sha256": digest})
+            return saved
+
+    def retry_correction(self, run_id: str, request: Mapping) -> dict:
+        if not {"request_id", "base_sha256"} <= set(request) or set(request) - {"request_id", "base_sha256", "reference_id"}:
+            raise ValueError("Correction retry fields are invalid")
+        run = self.store.get("run", uuid(run_id))
+        correction = run.get("latest_correction")
+        if not isinstance(correction, Mapping) or correction.get("status") != "failed":
+            raise TemplateConflict("The latest correction is not available for retry")
+        return self.resume(run_id, {**request, "instruction": "", "mode": "continue"})
+
+    def recover_revision(self, run_id: str, request: Mapping) -> dict:
+        """Append one historical run state as a correction recovery checkpoint."""
+
+        if set(request) != {"request_id", "base_sha256", "revision"} or type(request["revision"]) is not int:
+            raise ValueError("Historical recovery fields are invalid")
+        request_id, run_id = uuid(request["request_id"]), uuid(run_id)
+        digest = sha({"run_id": run_id, "action": "recover_revision", **request})
+        with self.store.transaction() as tx:
+            old = self._reconcile(tx, request_id, digest)
+            if old:
+                return old
+            run = tx.get("run", run_id)
+            if run is None:
+                raise KeyError(run_id)
+            if run["state_sha256"] != request["base_sha256"]:
+                raise TemplateConflict("Template run changed; refresh before recovery")
+            if run["status"] in ACTIVE | TERMINAL:
+                raise TemplateConflict("This template run cannot recover a historical revision")
+            history = tx.history("run", run_id, 200)
+            target = next((item for item in history if int(item.get("revision", 0)) == request["revision"]), None)
+            if target is None or int(target["revision"]) >= int(run["revision"]):
+                raise TemplateConflict("Historical revision is unavailable")
+            proposal = next((item for item in history if item.get("status") == "proposed"
+                             and int(item.get("revision", 0)) < int(target["revision"])), None)
+            if proposal is None:
+                raise TemplateConflict("Historical correction has no ready baseline")
+            reference = target.get("reference") if target.get("reference") != proposal.get("reference") else None
+            correction = {"correction_id": request_id, "instruction": str(target.get("instruction") or "")[:3000],
+                          "status": "failed", "submitted_revision": int(proposal["revision"]),
+                          "reference": deepcopy(reference), "failure": deepcopy(target.get("failure")),
+                          "retry_count": 0}
+            validation_compare = ((target.get("failure") or {}).get("phase") == "compare"
+                                  and (target.get("failure") or {}).get("category") == "validation")
+            restored = {
+                **run,
+                "instruction": correction["instruction"],
+                "documents": {surface: normalize_document(document)
+                              for surface, document in target["documents"].items()},
+                "previews": deepcopy(target.get("previews") or {}),
+                "comparison": deepcopy(target.get("comparison")),
+                "analysis": deepcopy(target.get("analysis")),
+                "reference": deepcopy(proposal.get("reference")),
+                "status": "failed", "phase": str(target.get("phase") or "compare"),
+                "error": "The saved owner correction is ready to retry.",
+                "failure": deepcopy(target.get("failure")), "capability_gap": None,
+                "checkpoint": _checkpoint(target, "provider_failure", "continue"),
+                "baseline": self._baseline(proposal), "progress": deepcopy(target.get("progress") or []),
+                "iterations": max(0, int(target.get("iterations", 0)) - (1 if validation_compare else 0)),
+                "latest_correction": correction,
+                "correction_history": [correction],
+                "recovered_from": {"revision": int(target["revision"]), "state_sha256": target["state_sha256"]},
+            }
+            saved = tx.append("run", run_id, restored, expected=request["base_sha256"])
+            tx.append("request", request_id, {"run_id": run_id, "request_sha256": digest})
+            return saved
 
     def decide(self, run_id: str, request: Mapping) -> dict:
         if set(request) != {"request_id", "base_sha256", "decision"} or request["decision"] not in {"accept", "reject"}:
@@ -509,12 +798,23 @@ class TemplateAuthoringService:
             if request["decision"] == "accept":
                 if run["status"] != "proposed" or not run["comparison"] or run["iterations"] < 1:
                     raise TemplateConflict("Accept requires a converged, compared proposal")
+                correction = run.get("latest_correction")
+                if isinstance(correction, Mapping) and correction.get("status") in {"working", "failed"}:
+                    raise TemplateConflict("The latest owner correction must finish before acceptance")
+                if isinstance(correction, Mapping) and correction.get("status") == "applied":
+                    correction_id = correction.get("correction_id")
+                    if run["comparison"].get("applied_correction_id") != correction_id or any(
+                        preview.get("applied_correction_id") != correction_id for preview in run["previews"].values()
+                    ):
+                        raise TemplateConflict("The proposal does not contain the latest owner correction")
                 for surface in ("post", "landing"):
                     if surface not in run["documents"]:
                         continue
                     doc = normalize_document(run["documents"][surface])
                     previews = {key.split(":")[1]: value for key, value in run["previews"].items() if key.startswith(surface + ":")}
-                    if not previews or any(p["definition_sha256"] != sha(doc) or p["failures"] for p in previews.values()):
+                    if not previews or any(p["definition_sha256"] != sha(doc)
+                                           or p.get("render_contract_sha256") != render_contract_sha256(doc)
+                                           or p["failures"] for p in previews.values()):
                         raise TemplateConflict("Preview does not match the proposed definition")
                     template_id = run["template_ids"][surface]
                     previous = sorted([v for v in tx.list("version", 200) if v["surface"] == surface and v["template_id"] == template_id], key=lambda v: v["template_version"])
@@ -525,7 +825,8 @@ class TemplateAuthoringService:
                     if surface == "landing":
                         post_reference = ({k: accepted[0][k] for k in ("template_id", "template_version", "template_sha256")} if accepted else run["post_reference"])
                     identity_document = {"surface": surface, "template_id": template_id, "template_version": version,
-                        "document": doc, "post_reference": post_reference, "renderer_key": "studio.declarative.pillow.v1"}
+                        "document": doc, "post_reference": post_reference, "renderer_key": RENDERER_VERSION,
+                        "asset_manifest": document_asset_manifest(doc)}
                     template_sha = sha(identity_document)
                     previews = {k: {**p, "template_sha256": template_sha, "binding_sha256": sha({"template_sha256": template_sha, "preview_sha256": p["sha256"], "viewport": k})} for k, p in previews.items()}
                     record = {**identity_document, "template_sha256": template_sha, "name": doc["name"], "description": doc["description"],

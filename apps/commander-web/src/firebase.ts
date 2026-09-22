@@ -33,7 +33,7 @@ export const auth = initializeAuth(firebaseApp, {
   popupRedirectResolver: browserPopupRedirectResolver,
 })
 export const googleProvider = new GoogleAuthProvider()
-googleProvider.setCustomParameters({ prompt: 'select_account', login_hint: 'sgolovaschuk@gmail.com' })
+googleProvider.setCustomParameters({ prompt: 'select_account' })
 
 const appCheckKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY || productionAppCheckKey
 const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))

@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 from .template_components import (COMPONENT_FIELDS, COMPONENT_TYPES, PLACEHOLDERS, ROLES,
     STUDIO_FONT_FAMILIES, apply_edits, bounded_text, box, canonical, catalog, number)
+from .template_assets import ASSET_IDS
 from .provider import enforce_structured_contract_budget, enforce_structured_response_budget
 
 MODE = "template_creation"
@@ -36,7 +37,8 @@ ANALYSIS_SCHEMA = obj({**{key: text_schema() for key in ANALYSIS_FIELDS},
     "component_types": {"type": "array", "maxItems": 8, "items": {"type": "string", "enum": list(COMPONENT_TYPES)}}})
 COMPONENT_SCHEMA = obj({
     **{key: text_schema(40) for key in ("id", "type", "role", "fill", "color", "border_color", "font_family", "align", "placeholder", "fit")},
-    **{key: {"type": "number"} for key in ("border_width", "radius", "opacity", "font_size", "font_weight", "focal_x", "focal_y")},
+    **{key: {"type": "number"} for key in ("border_width", "radius", "opacity", "font_size", "font_weight", "focal_x", "focal_y", "rotation_degrees")},
+    "asset_id": {"type": "string", "enum": list(ASSET_IDS)},
     "box": BOX_SCHEMA, "mobile_box": BOX_SCHEMA, "enabled": {"type": "boolean"},
     "gradient": {"type": "array", "items": text_schema(7), "maxItems": 2}})
 EDIT_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "path": text_schema(100),
@@ -44,7 +46,8 @@ EDIT_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "
         {"type": "array", "items": text_schema(7), "maxItems": 2}, COMPONENT_SCHEMA]}})
 DIFFERENCE_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "role": {"type": "string", "enum": list(ROLES)},
     "issue": text_schema(), "severity": {"type": "string", "enum": ["minor", "meaningful"]}, "solvable": {"type": "boolean"}})
-GAP_SCHEMA = obj({"capability": text_schema(60), "affected_surfaces": {"type": "array", "maxItems": 2, "items": {"type": "string", "enum": ["post", "landing"]}},
+DIFFERENCE_CATEGORIES = {"component_missing", "image_fixture", "typography", "appearance", "image_crop", "layout", "component_style", "visual_match"}
+GAP_SCHEMA = obj({"capability": {"type": "string", "maxLength": 60, "pattern": "^[a-z][a-z0-9_]{2,59}$"}, "affected_surfaces": {"type": "array", "maxItems": 2, "items": {"type": "string", "enum": ["post", "landing"]}},
     "evidence": text_schema(400), "proposed_abstraction": text_schema(400), "why_composition_insufficient": text_schema(400)})
 STEP_SCHEMA = obj({"edits": {"type": "array", "maxItems": 64, "items": EDIT_SCHEMA},
     "differences": {"type": "array", "maxItems": 16, "items": DIFFERENCE_SCHEMA},
@@ -77,8 +80,12 @@ def validate_step(value: Mapping[str, Any], documents: dict, *, comparison: bool
     if not isinstance(differences, list) or len(differences) > 16:
         raise ValueError("Template comparison exceeds its bounded observations")
     for d in differences:
-        if not isinstance(d, dict) or set(d) != set(DIFFERENCE_SCHEMA["properties"]) or d["surface"] not in documents or d["role"] not in ROLES or d["severity"] not in ("minor", "meaningful") or type(d["solvable"]) is not bool:
+        fields = set(d) if isinstance(d, dict) else set()
+        expected = set(DIFFERENCE_SCHEMA["properties"])
+        if not isinstance(d, dict) or frozenset(fields) not in {frozenset(expected), frozenset(expected | {"category"})} or d["surface"] not in documents or d["role"] not in ROLES or d["severity"] not in ("minor", "meaningful") or type(d["solvable"]) is not bool:
             raise ValueError("Template comparison difference is invalid")
+        if "category" in d and d["category"] not in DIFFERENCE_CATEGORIES:
+            raise ValueError("Template comparison category is invalid")
         bounded_text(d["issue"], 240, "Comparison issue")
     gap = value["capability_gap"]
     if gap is not None:
@@ -115,6 +122,28 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
         return payload, ANALYSIS_SCHEMA
     payload.update({"analysis": run["analysis"], "definitions": run["documents"],
                     "capabilities": {s: catalog(s, run["analysis"]["component_types"]) for s in run["documents"]}})
+    payload["fixed_assets"] = {
+        "natal_symbol": "Canonical Natal symbol. Never redraw or replace.",
+        "app_store_badge_en": "Official English Apple artwork. Never redraw, recolor, or replace.",
+        "google_play_badge_en": "Official English Google Play artwork. Never redraw, recolor, or replace.",
+        "neutral_person_stock_v1": "Pinned transparent Pexels stock fixture for previews; the Project Post image replaces it at runtime.",
+    }
+    if run.get("latest_correction"):
+        payload["correction"] = {
+            "correction_id": run["latest_correction"].get("correction_id"),
+            "instruction": run["latest_correction"].get("instruction"),
+            "reference": run["latest_correction"].get("reference"),
+            "rule": "Apply this correction to the saved baseline. A correction reference is temporary comparison evidence and does not replace the original reference analysis.",
+        }
+    if run.get("correction_requirements"):
+        payload["correction_requirements"] = list(run["correction_requirements"])[:12]
+    if run.get("baseline"):
+        payload["correction_baseline"] = {
+            "revision": run["baseline"].get("revision"),
+            "document_sha256": run["baseline"].get("document_sha256"),
+            "preview_names": [f"baseline:{key}" for key in sorted((run["baseline"].get("previews") or {}))],
+            "comparison_rule": "Satisfy the current owner instruction and prevent regressions from the last proposed baseline. Do not reopen unrelated accepted approximations.",
+        }
     if phase == "compare":
         payload["renders"] = {k: {"geometry": v["geometry"], "failures": v["failures"], "reference_geometry_deltas": v.get("reference_geometry_deltas", [])} for k, v in run["previews"].items()}
     payload["previous_differences"] = (run.get("comparison") or {}).get("differences", [])

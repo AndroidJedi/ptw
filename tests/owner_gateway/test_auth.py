@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import importlib.util
+import os
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -32,6 +33,20 @@ def settings() -> Settings:
     )
 
 
+class OwnerSettingsTests(unittest.TestCase):
+    def test_default_allowlist_preserves_original_owner_and_two_collaborators(self) -> None:
+        with patch.dict(os.environ, {
+            "FIREBASE_OWNER_UID": "owner-uid",
+            "OWNER_GATEWAY_BRIDGE_TOKEN": "bridge",
+            "PTW_CODEX_AUTH_BRIDGE_TOKEN": "codex-bridge",
+        }, clear=True):
+            configured = Settings.from_environment()
+        self.assertEqual("sgolovaschuk@gmail.com", configured.owner_email)
+        self.assertEqual((
+            "sgolovaschuk@gmail.com", "svitlanabilan23@gmail.com", "befree833@gmail.com",
+        ), configured.owner_emails)
+
+
 @unittest.skipUnless(HAS_FASTAPI, "fastapi is required")
 class OwnerClaimsTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -44,6 +59,40 @@ class OwnerClaimsTests(unittest.TestCase):
     def test_exact_owner_is_allowed(self) -> None:
         identity = validate_owner_claims(self.settings, self.claims, {"app_id": "firebase-app"})
         self.assertEqual("owner-uid", identity.uid)
+
+    def test_verified_allowlisted_collaborator_is_allowed_with_own_uid(self) -> None:
+        configured = replace(
+            self.settings,
+            owner_emails=("sgolovaschuk@gmail.com", "svitlanabilan23@gmail.com", "befree833@gmail.com"),
+        )
+        claims = {
+            "uid": "collaborator-uid", "email": "SvitlanaBilan23@gmail.com", "email_verified": True,
+            "firebase": {"sign_in_provider": "google.com"},
+        }
+        identity = validate_owner_claims(configured, claims, {"app_id": "firebase-app"})
+        self.assertEqual("collaborator-uid", identity.uid)
+        self.assertEqual("svitlanabilan23@gmail.com", identity.email)
+
+        claims["email"] = "befree833@gmail.com"
+        identity = validate_owner_claims(configured, claims, {"app_id": "firebase-app"})
+        self.assertEqual("befree833@gmail.com", identity.email)
+
+        claims["email"] = "someone-else@gmail.com"
+        with self.assertRaisesRegex(HTTPException, "owner email is not allowlisted"):
+            validate_owner_claims(configured, claims, {"app_id": "firebase-app"})
+
+        claims["email"] = "sgolovaschuk@gmail.com"
+        with self.assertRaisesRegex(HTTPException, "owner UID does not match pinned UID"):
+            validate_owner_claims(configured, claims, {"app_id": "firebase-app"})
+
+    def test_allowlisted_collaborator_still_requires_google_sign_in(self) -> None:
+        configured = replace(self.settings, owner_emails=("sgolovaschuk@gmail.com", "befree833@gmail.com"))
+        claims = {
+            "uid": "collaborator-uid", "email": "befree833@gmail.com", "email_verified": True,
+            "firebase": {"sign_in_provider": "password"},
+        }
+        with self.assertRaisesRegex(HTTPException, "Google Sign-In is required"):
+            validate_owner_claims(configured, claims, {"app_id": "firebase-app"})
 
     def test_owner_origins_are_exact(self) -> None:
         class Verifier:

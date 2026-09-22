@@ -36,6 +36,12 @@ const owner = {
   getIdToken: vi.fn(),
 } as unknown as User
 
+const collaborator = {
+  email: 'svitlanabilan23@gmail.com',
+  emailVerified: true,
+  getIdToken: vi.fn(),
+} as unknown as User
+
 describe('Firebase redirect startup', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/')
@@ -53,6 +59,20 @@ describe('Firebase redirect startup', () => {
     render(<App />)
     expect(await screen.findByText('OWNER CONSOLE READY')).toBeInTheDocument()
     expect(screen.getByText('sgolovaschuk@gmail.com')).toBeInTheDocument()
+  })
+
+  it('opens the console for a verified approved collaborator', async () => {
+    firebase.getRedirectResult.mockResolvedValue({ user: collaborator })
+    render(<App />)
+    expect(await screen.findByText('OWNER CONSOLE READY')).toBeInTheDocument()
+    expect(screen.getByText('svitlanabilan23@gmail.com')).toBeInTheDocument()
+  })
+
+  it('opens the console for the second verified approved collaborator', async () => {
+    firebase.getRedirectResult.mockResolvedValue({ user: { ...collaborator, email: 'befree833@gmail.com' } })
+    render(<App />)
+    expect(await screen.findByText('OWNER CONSOLE READY')).toBeInTheDocument()
+    expect(screen.getByText('befree833@gmail.com')).toBeInTheDocument()
   })
 
   it('shows sign-in when there is no redirect result and the auth observer never fires', async () => {

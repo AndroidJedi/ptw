@@ -5,6 +5,13 @@ import os
 from pathlib import Path
 
 
+DEFAULT_OWNER_EMAILS = (
+    "sgolovaschuk@gmail.com",
+    "svitlanabilan23@gmail.com",
+    "befree833@gmail.com",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     firebase_project_id: str
@@ -21,6 +28,7 @@ class Settings:
     codex_authorization_bridge_token: str = ""
     commander_service_url: str = ""
     commander_release_url: str = ""
+    owner_emails: tuple[str, ...] = ()
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -59,14 +67,25 @@ class Settings:
             "https://natal-landings-86123.web.app",
             "https://natal-landings-86123.firebaseapp.com",
         )
+        owner_email = os.environ.get(
+            "FIREBASE_OWNER_EMAIL", DEFAULT_OWNER_EMAILS[0]
+        ).strip().lower()
+        configured_owner_emails = tuple(
+            value.strip().lower()
+            for value in os.environ.get("FIREBASE_OWNER_EMAILS", "").split(",")
+            if value.strip()
+        )
+        owner_emails = tuple(dict.fromkeys((
+            owner_email,
+            *DEFAULT_OWNER_EMAILS,
+            *configured_owner_emails,
+        )))
         return cls(
             firebase_project_id=firebase_project_id,
             firebase_app_id=os.environ.get(
                 "FIREBASE_APP_ID", "1:463396258702:web:e52325c94f477ede1c9adf"
             ),
-            owner_email=os.environ.get(
-                "FIREBASE_OWNER_EMAIL", "sgolovaschuk@gmail.com"
-            ).lower(),
+            owner_email=owner_email,
             owner_uid=owner_uid,
             service_account_path=Path(credential) if credential else None,
             validation_service_url=os.environ.get(
@@ -86,4 +105,5 @@ class Settings:
             commander_release_url=os.environ.get(
                 "PTW_COMMANDER_RELEASE_URL", "http://commander-release:8096"
             ).rstrip("/"),
+            owner_emails=owner_emails,
         )

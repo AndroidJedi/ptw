@@ -286,7 +286,8 @@ class PostStudioWorkspace:
         screen = self._asset_record("phone_screen")
         definition = self._definition()
         if definition.editor_key == "post.declarative.react":
-            records = {}
+            from .template_components import fixed_component_assets
+            records = fixed_component_assets(definition.document)
             for component in definition.document["components"]:
                 if component["type"] == "brand":
                     records[component["id"]] = {"bytes": natal_logo_colored_bytes(config["logo"]["symbol_color"], config["logo"]["name_color"]), "mime_type": "image/png"}
@@ -295,7 +296,7 @@ class PostStudioWorkspace:
                         None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
                         normalized_content["cta"], "none", normalized_content["phone_buttons"],
                         logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"])
-                elif component["type"] == "image" and screen:
+                elif component["type"] in {"image", "cutout_image"} and screen:
                     records[component["id"]] = {"bytes": screen["bytes"], "mime_type": screen["mime_type"]}
             return records
         device = compose_phone_device_asset(

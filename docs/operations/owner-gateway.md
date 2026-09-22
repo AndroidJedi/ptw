@@ -1,6 +1,8 @@
 # Owner Gateway operations
 
-Owner Console uses Firebase Auth, pinned owner identity, and App Check. Owner
+Owner Console uses Firebase Auth, an exact approved-email allowlist, and App Check. The
+original owner account retains its pinned UID; additional approved accounts must use
+verified Google identities. Owner
 Gateway proxies authenticated Project, Product Brief, project-scoped Studio,
 private Landing/publication, and PAUSED-only Meta Ads APIs. Domain data is never stored in Firebase
 or service-worker caches.

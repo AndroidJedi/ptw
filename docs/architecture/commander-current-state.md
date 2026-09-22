@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-21
+Updated: 2026-09-22
 Branch: `main`
 Deployment: live and accepted from code revision
 `84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
@@ -8,6 +8,16 @@ Deployment: live and accepted from code revision
 `god-mobile-20260916-84f4db7b5e8a`; unchanged Owner Gateway retains
 `god-mobile-20260916-57332cbb949a`, and the companion platform retains
 `instagram-manual-retry-20260915-d455ac4`.
+
+## Approved production accounts — local, not deployed
+
+The source now permits the two additional verified Google accounts
+`svitlanabilan23@gmail.com` and `befree833@gmail.com` through the Firebase
+blocking functions, Owner Console, and Owner Gateway. The original account
+retains its pinned UID and App Check remains required. Deployment must update
+the Firebase auth-guard functions separately from the PTW in-place release;
+the latter includes pending migrations 012–014 and needs its preserving
+confirmation gate. Do not treat a Hosting-only rollout as complete access.
 
 ## Template draft recovery and reliable comparison — local, not deployed
 
@@ -18,6 +28,13 @@ summary and Open/Continue action. Active drafts poll automatically. Accepted and
 rejected runs remain in compact history, and only accepted versions enter the
 gallery or Project template picker. The page explains that reference analysis is
 durable while raw reference pixels remain temporary.
+
+The Draft action now visibly opens its run: the page scrolls to and focuses the
+review panel, localizes the run status and phase, and shows the proposed-run
+accept/reject actions before the preview with a short explanation of the next
+step. The button exposes an opening state while the run detail is fetched. This
+fixes the misleading no-op appearance caused by rendering the detail above the
+current viewport.
 
 Every Template Creation Agent phase now pins `xhigh`. Model and effort are bound
 into the request fingerprint and sanitized invocation record. A structured bridge
@@ -33,23 +50,50 @@ model, effort, attempt count and a sanitized validation error. Valid solvable
 patches are retained before a capability pause; an owner may explicitly choose an
 existing-component approximation instead of developing a new capability.
 
-The local run `fff155a8-b5c0-4313-a958-18aaf3c9e779` resumed from state
-`caac2846f5af66e07e5b3fe1515a43c4b633a13ed922b36f5c4ae11cbe9de584` and preview
-`f5bbd027cf4b0b248079023247b5c68761e9d359b8e65db9834942bd467386c4` without
-increasing its two saved iterations. A real `xhigh` comparison completed its
-bounded correction, valid patches were applied, and the existing decorations
-were refined through three new renders. The run is now `proposed` at state
-`5a4d866f4422ce2311c0d736b904a896e089158cccb656ee3cf11bb0348cf78f`; its current
-preview is `cb204e45c6cb7a0d67fdd443315be4d59beae5b5b523cefad12718a819c086a2`, has
-zero renderer failures, and passed a final comparison with no differences. It
-was not accepted automatically and remains absent from the reusable gallery.
+Authoring now has digest-pinned official App Store and Google Play badge assets,
+canonical Natal symbol motifs with deterministic rotation, and transparent Pexels
+fixture `neutral_person_stock_v1` with source/author/license provenance. The fixture is replaced
+by the existing Post image after an accepted template is applied to a Project.
+Store badge boxes render as their full black rounded pills with the official artwork
+contained and centered, preventing intrinsic Apple/Google asset ratios from making
+the visible buttons smaller or uneven against the owner reference.
+Bright owner markup is treated as annotation only. Refinement comparisons retain
+the last proposed revision as a baseline, apply pending edits before a focused
+clarification, and stop repeated issue/path cycles as `no_progress`. Every four
+comparisons produce a manual checkpoint. The Templates workspace presents the
+preview and next action together, localizes checkpoint categories, and exposes
+Continue, Refine and append-only Restore without showing a disabled Accept action.
 
-Local verification passes 328 Validation tests, 107 web tests, the production
-build, all 90 desktop/360px/iPhone-WebKit browser flows and a focused final
-Templates rerun, 43 Commander tests with seven expected environment skips plus
-the demo, the deterministic Studio visual audit, and skill verification. The
-local API was restarted on the updated source; no commit, push, deployment,
-publication or production mutation ran.
+Each correction is now durable and visible with exact owner text and phases.
+Retry and explicit Discard are append-only, correction screenshots stay isolated
+from initial analysis, and preview/compare bind the applied correction ID. Browser
+storage retains the last two texts until the server confirms them. Accept is
+hidden for working/failed corrections. Preview reuse also checks a render contract
+over document, renderer version and fixed-asset digests.
+
+The local run `fff155a8-b5c0-4313-a958-18aaf3c9e779` append-only recovered revision
+110 as revisions 112–113. Its exact correction reference was recovered at digest
+`22bdb8fcc059f33d4f7e42ce7272a518ea7ae37a9910fd67a0574884afffe252`.
+Revision 124 first reached `proposed` with the two four-times-smaller Natal motifs
+at `-18°/+14°`, official store assets and the visible Pexels fixture. After owner
+review showed the contained artwork made the visible badges too narrow, renderer
+v3 began painting the complete component surface behind image artwork. One more
+real `xhigh` compose and compare completed in one attempt each. Revision 135 is
+`proposed` at state
+`935b0cc12c7520c407e7981cc739bc1b93f35de5c894f8643ac182d428b1b8f5` with both
+existing `250 × 58` slots rendered as equal-height black rounded pills, preview
+digest `76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`,
+render contract `240fca5bc067aa00049329571929222ee4f0dd570d3370fcdf734ecf7a65e0bc`,
+zero differences and zero renderer failures. It remains unaccepted and absent
+from the reusable gallery until owner review.
+
+Local verification passes 334 Validation tests, 112 web tests, the production
+build, nine Templates and three existing-Post application browser cases across
+desktop, 360px and iPhone WebKit, 43 Commander tests with five expected
+environment skips plus the demo, the authenticated disposable PostgreSQL
+Templates and existing-Post application canaries, the deterministic Studio visual
+audit, and skill verification. The local API was restarted on the updated source;
+no commit, push, deployment, publication or production mutation ran.
 
 ## Apply templates to existing Posts — local, not deployed
 

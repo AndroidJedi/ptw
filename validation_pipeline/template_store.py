@@ -41,6 +41,17 @@ class TemplateTransaction:
             ORDER BY r.created_at DESC,r.record_key LIMIT ?""", (kind, kind, min(200, max(1, limit)))).fetchall()
         return [json.loads(row[0]) for row in rows]
 
+    def history(self, kind: str, key: str, limit: int = 200) -> list[dict]:
+        rows = self.execute(
+            "SELECT payload FROM template_authoring_records WHERE kind=? AND record_key=? ORDER BY revision DESC LIMIT ?",
+            (kind, key, min(200, max(1, limit))),
+        ).fetchall()
+        values = [json.loads(row[0]) for row in rows]
+        for value in values:
+            if value.get("state_sha256") != sha({k: v for k, v in value.items() if k != "state_sha256"}):
+                raise RuntimeError("Template record failed its integrity check")
+        return values
+
     def append(self, kind: str, key: str, value: dict, *, expected: str | None = None) -> dict:
         if kind not in KINDS or not isinstance(key, str) or not 1 <= len(key) <= 160:
             raise ValueError("Template record identity is invalid")
@@ -124,3 +135,7 @@ class TemplateStore:
     def list(self, kind: str, limit: int = 100) -> list[dict]:
         with self.transaction() as tx:
             return tx.list(kind, limit)
+
+    def history(self, kind: str, key: str, limit: int = 200) -> list[dict]:
+        with self.transaction() as tx:
+            return tx.history(kind, key, limit)

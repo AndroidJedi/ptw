@@ -6,6 +6,8 @@ from unittest.mock import patch
 from tests.validation_pipeline import test_studio_creatives as fixture
 from tests.validation_pipeline.test_template_authoring import ScriptedTemplateProvider
 from validation_pipeline.template_authoring import TemplateAuthoringService
+from validation_pipeline.template_components import new_component, seed
+from validation_pipeline.template_previews import render_designs
 from validation_pipeline.template_store import TemplateStore
 from validation_pipeline.studio_workspace import PostStudioWorkspace
 
@@ -105,3 +107,35 @@ class PostTemplateSwitchTests(unittest.TestCase):
         detail = self.service.detail(self.project, clone['creative_id'])
         self.assertEqual('phone_metrics', detail['template_id'])
         self.assertEqual(self.detail['content'], detail['content'])
+
+    def test_cutout_fixture_is_replaced_by_existing_post_image_and_fixed_assets_remain(self):
+        document = seed('post')
+        document['name'] = 'Bokko-style reusable post'
+        document['components'] = [
+            new_component('title','text','headline',[60,40,880,120],'Title'),
+            {**new_component('person','cutout_image','hero',[470,170,470,650],'Image'),'fit':'contain'},
+            {**new_component('motif','brand_motif','decoration',[90,300,120,120],'Natal symbol'),
+                'border_color':'#67CBE5','opacity':.3,'fit':'contain'},
+            {**new_component('app_store','store_badge','cta',[60,850,340,90],'App Store'),'fit':'contain'},
+            {**new_component('google_play','store_badge','cta',[420,850,340,90],'Google Play'),'fit':'contain'},
+        ]
+        run = self.authoring.start({'request_id':str(uuid4()),'scope':'post','instruction':'Asset template'})
+        renders = render_designs({'post':document})
+        previews = {}
+        with self.authoring.store.transaction() as tx:
+            for key, preview in renders.items():
+                self.assertEqual(preview['sha256'], tx.media(preview['bytes']))
+                previews[key] = {name:value for name,value in preview.items() if name != 'bytes'}
+        run = self.authoring._update(run, documents={'post':document}, previews=previews,
+            status='proposed', phase='compare', comparison={'complete':True,'edits':[],
+                'differences':[],'capability_gap':None})
+        reference = self.authoring.decide(run['run_id'], {'request_id':str(uuid4()),
+            'base_sha256':run['state_sha256'],'decision':'accept'})['accepted_versions'][0]
+        changed = self.switch(self.request(reference))
+        records = self.workspace._asset_records(changed['configuration'], changed['content'])
+        screen = self.workspace._asset_record('phone_screen')
+        self.assertIsNotNone(screen)
+        self.assertEqual(screen['bytes'], records['person']['bytes'])
+        self.assertNotEqual(screen['bytes'], records['motif']['bytes'])
+        self.assertNotEqual(screen['bytes'], records['app_store']['bytes'])
+        self.assertNotEqual(records['app_store']['bytes'], records['google_play']['bytes'])

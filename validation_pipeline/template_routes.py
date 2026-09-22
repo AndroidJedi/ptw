@@ -32,7 +32,26 @@ def run_summary(run: dict[str, Any]) -> dict[str, Any]:
         previews[str(key)[:80]] = {
             "sha256": str(preview.get("sha256", ""))[:64],
             "definition_sha256": str(preview.get("definition_sha256", ""))[:64],
+            "render_contract_sha256": str(preview.get("render_contract_sha256", ""))[:64],
             "failure_count": min(99, len(preview.get("failures") or [])),
+        }
+    checkpoint = run.get("checkpoint")
+    safe_checkpoint = None
+    if isinstance(checkpoint, dict):
+        differences = checkpoint.get("meaningful_differences") or []
+        safe_checkpoint = {
+            "reason": str(checkpoint.get("reason", "unknown"))[:30],
+            "recommendation": str(checkpoint.get("recommendation", "refine"))[:30],
+            "pending_edits": min(64, max(0, int(checkpoint.get("pending_edits", 0)))),
+            "remaining_iterations": min(12, max(0, int(checkpoint.get("remaining_iterations", 0)))),
+            "meaningful_differences": [
+                {
+                    "surface": str(item.get("surface", "unknown"))[:20],
+                    "role": str(item.get("role", "unknown"))[:30],
+                    "category": str(item.get("category", "visual_match"))[:30],
+                }
+                for item in differences[:8] if isinstance(item, dict)
+            ],
         }
     return {
         "run_id": run["run_id"],
@@ -42,8 +61,36 @@ def run_summary(run: dict[str, Any]) -> dict[str, Any]:
         "iterations": max(0, int(run.get("iterations", 0))),
         "state_sha256": run["state_sha256"],
         "error": str(run.get("error") or "")[:240] or None,
+        "latest_correction_status": str((run.get("latest_correction") or {}).get("status") or "")[:20] or None,
         **({"failure": safe_failure} if safe_failure else {}),
+        **({"checkpoint": safe_checkpoint} if safe_checkpoint else {}),
         "previews": previews,
+    }
+
+
+def _safe_correction(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    reference = value.get("reference")
+    safe_reference = None
+    if isinstance(reference, dict):
+        safe_reference = {"sha256": str(reference.get("sha256", ""))[:64],
+                          "mime_type": str(reference.get("mime_type", ""))[:40],
+                          "byte_count": min(12 * 1024 * 1024, max(0, int(reference.get("byte_count", 0))))}
+    failure = value.get("failure")
+    safe_failure = None
+    if isinstance(failure, dict):
+        safe_failure = {key: failure.get(key) for key in
+                        ("phase", "category", "model", "reasoning_effort", "attempt_count", "validation_error")}
+    return {
+        "correction_id": str(value.get("correction_id", ""))[:36],
+        "instruction": str(value.get("instruction", ""))[:3000],
+        "status": str(value.get("status", "failed"))[:20],
+        "submitted_revision": max(0, int(value.get("submitted_revision", 0))),
+        "result_revision": max(0, int(value.get("result_revision", 0))) if value.get("result_revision") is not None else None,
+        "reference": safe_reference,
+        "failure": safe_failure,
+        "retry_count": min(99, max(0, int(value.get("retry_count", 0)))),
     }
 
 
@@ -106,11 +153,33 @@ def template_router(service: TemplateAuthoringService, *, prefix: str, dependenc
 
     @router.get("/runs/{run_id}")
     def progress(run_id: str):
-        return invoke(lambda: service.store.get("run", uuid(run_id)))
+        def value():
+            run = service.store.get("run", uuid(run_id))
+            return {**run, "latest_correction": _safe_correction(run.get("latest_correction")),
+                    "correction_history": [item for item in
+                        (_safe_correction(value) for value in (run.get("correction_history") or [])[-5:]) if item],
+                    "can_restore": service.can_restore_proposal(run)}
+        return invoke(value)
 
     @router.post("/runs/{run_id}/resume", status_code=202)
     def resume(run_id: str, request: dict = Depends(body)):
         return invoke(service.resume, run_id, request)
+
+    @router.post("/runs/{run_id}/corrections/retry", status_code=202)
+    def retry_correction(run_id: str, request: dict = Depends(body)):
+        return invoke(service.retry_correction, run_id, request)
+
+    @router.post("/runs/{run_id}/corrections/discard")
+    def discard_correction(run_id: str, request: dict = Depends(body)):
+        return invoke(service.restore_proposal, run_id, request)
+
+    @router.post("/runs/{run_id}/recover-revision")
+    def recover_revision(run_id: str, request: dict = Depends(body)):
+        return invoke(service.recover_revision, run_id, request)
+
+    @router.post("/runs/{run_id}/restore-proposal")
+    def restore_proposal(run_id: str, request: dict = Depends(body)):
+        return invoke(service.restore_proposal, run_id, request)
 
     @router.post("/runs/{run_id}/decision")
     def decision(run_id: str, request: dict = Depends(body)):

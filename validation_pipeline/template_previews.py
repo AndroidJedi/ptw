@@ -13,7 +13,7 @@ import signal
 from .post_templates import POST_TEMPLATE_REGISTRY
 from .landing_templates import LANDING_TEMPLATE_REGISTRY
 from .studio import StudioRenderer
-from .template_components import placeholder_image, render, sha
+from .template_components import normalize_document, placeholder_image, render, render_contract_sha256, sha
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -103,9 +103,11 @@ def geometry(result: dict) -> tuple[list[dict], list[dict]]:
 def render_designs(documents: dict) -> dict:
     results = {}
     for surface, document in documents.items():
+        document = normalize_document(document)
         for viewport in (["desktop", "mobile"] if surface == "landing" else ["desktop"]):
             result = render(document, surface=surface, mobile=viewport == "mobile")
             observations, failures = geometry(result)
             results[f"{surface}:{viewport}"] = {"bytes": result["bytes"], "geometry": observations, "failures": failures,
-                "definition_sha256": sha(document), "sha256": hashlib.sha256(result["bytes"]).hexdigest()}
+                "definition_sha256": sha(document), "render_contract_sha256": render_contract_sha256(document),
+                "sha256": hashlib.sha256(result["bytes"]).hexdigest()}
     return results

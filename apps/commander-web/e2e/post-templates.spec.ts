@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -13,7 +14,8 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
   const headers = { Authorization: 'Bearer e2e-owner-token', 'X-Firebase-AppCheck': 'e2e-app-check' }
   let child: ChildProcess
   const launch = async () => {
-    child = spawn('../../.venv/bin/python', ['../../scripts/template_browser_canary.py', '--port', String(port), '--directory', directory, '--project-post'], { stdio: 'pipe' })
+    const python = process.env.PTW_E2E_PYTHON || (existsSync('../../.venv/bin/python') ? '../../.venv/bin/python' : 'python3')
+    child = spawn(python, ['../../scripts/template_browser_canary.py', '--port', String(port), '--directory', directory, '--project-post'], { stdio: 'pipe' })
     let diagnostic = ''
     child.stderr?.on('data', value => { diagnostic += value.toString() })
     for (let attempt = 0; attempt < 250; attempt++) {

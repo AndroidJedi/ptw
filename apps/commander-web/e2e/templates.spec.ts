@@ -1,5 +1,6 @@
 import { expect, test as base } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -11,7 +12,8 @@ const test = base.extend<{ backend: { url: string; restart: () => Promise<void> 
     const url = `http://127.0.0.1:${port}`
     let child: ChildProcess
     const launch = async () => {
-      child = spawn('../../.venv/bin/python', ['../../scripts/template_browser_canary.py', '--port', String(port), '--directory', directory], { stdio: 'pipe' })
+      const python = process.env.PTW_E2E_PYTHON || (existsSync('../../.venv/bin/python') ? '../../.venv/bin/python' : 'python3')
+      child = spawn(python, ['../../scripts/template_browser_canary.py', '--port', String(port), '--directory', directory], { stdio: 'pipe' })
       let diagnostic = ''
       child.stderr?.on('data', value => { diagnostic += value.toString() })
       for (let attempt = 0; attempt < 80; attempt++) {

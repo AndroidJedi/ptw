@@ -48,7 +48,18 @@ artwork bounds rather than only the component slot. `cutout_image` uses
 Pexels photo 15004162 as the transparent, digest-pinned
 `neutral_person_stock_v1` authoring fixture. The manifest records source digest,
 URL, author, locale and license. An existing Post's real image always replaces
-the fixture at runtime.
+the fixture at runtime. Opaque Project images in `cutout_image` are segmented
+locally with a bundled, SHA-pinned U²-Netp model into a transparent PNG. The
+raw Post image and its history remain untouched; already-transparent inputs
+pass through. If segmentation cannot find a foreground or the model digest
+fails, rendering fails visibly instead of placing an opaque rectangle over
+the layout. Fixed Natal marks and store badges are never segmented. The model
+performs no runtime download or provider request.
+`brand_motif.repeat_min/repeat_max` optionally expands one region into 1–8
+small canonical marks. Old documents default to one. A stable per-creative
+seed varies count, locations and angles across Posts while keeping each Post
+identical across refresh, save and restart. Repeated marks render over the
+backdrop but behind copy and hero imagery.
 Bright owner markup such as circles, arrows and highlights is annotation data and
 is never composed into the template.
 

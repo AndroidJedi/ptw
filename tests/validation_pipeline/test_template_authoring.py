@@ -564,7 +564,8 @@ class TemplateAuthoringTests(unittest.TestCase):
         nodes = primitive(normalized, surface='post').document['root']['children']
         self.assertEqual([-18, 14], [node['props']['rotation'] for node in nodes if node['id'].startswith('motif_')])
         legacy = deepcopy(doc); legacy_component = legacy['components'][0]
-        legacy_component.pop('asset_id'); legacy_component.pop('rotation_degrees')
+        for field in ('asset_id', 'rotation_degrees', 'repeat_min', 'repeat_max'):
+            legacy_component.pop(field)
         self.assertEqual('neutral_person_stock_v1', normalize_document(legacy)['components'][0]['asset_id'])
         self.assertEqual(0, normalize_document(legacy)['components'][0]['rotation_degrees'])
         for asset_id in ('app_store_badge_en', 'google_play_badge_en', 'neutral_person_stock_v1'):
@@ -578,6 +579,51 @@ class TemplateAuthoringTests(unittest.TestCase):
         with patch.dict(template_assets._ASSETS, {'app_store_badge_en':changed}):
             self.assertNotEqual(contract, render_contract_sha256(normalized))
         self.assertEqual('^[a-z][a-z0-9_]{2,59}$', agent.GAP_SCHEMA['properties']['capability']['pattern'])
+
+    def test_motif_count_varies_by_post_but_render_is_stable_and_layered(self):
+        doc = seed('post')
+        doc['components'] = [
+            new_component('backdrop', 'decoration', 'decoration', [0,0,1000,1000]),
+            new_component('title', 'text', 'headline', [30,30,900,140], 'Title'),
+            {**new_component('motifs', 'brand_motif', 'decoration', [40,300,400,300], 'Natal symbol'),
+             'repeat_min': 3, 'repeat_max': 6, 'opacity': .18, 'fit': 'contain'},
+        ]
+        first = primitive(doc, surface='post', variant_seed='creative-a').document
+        again = primitive(doc, surface='post', variant_seed='creative-a').document
+        self.assertEqual(first, again)
+        nodes = first['root']['children']
+        self.assertEqual('backdrop', nodes[0]['id'])
+        self.assertTrue(nodes[1]['id'].startswith('motifs_'))
+        self.assertEqual('title', nodes[-1]['id'])
+        self.assertTrue(3 <= len(nodes) - 2 <= 6)
+        variants = {len([n for n in primitive(doc, surface='post', variant_seed=f'creative-{i}').document['root']['children'] if n['id'].startswith('motifs_')]) for i in range(16)}
+        self.assertGreater(len(variants), 1)
+        legacy = deepcopy(doc)
+        legacy['components'][-1].pop('repeat_min'); legacy['components'][-1].pop('repeat_max')
+        self.assertEqual(1, len([n for n in primitive(legacy, surface='post').document['root']['children'] if n['id'] == 'motifs']))
+        invalid = deepcopy(doc); invalid['components'][1]['repeat_max'] = 3
+        with self.assertRaisesRegex(ValueError, 'Motif repeat'):
+            normalize_document(invalid)
+
+    def test_opaque_source_image_becomes_transparent_in_cutout_slot(self):
+        from validation_pipeline.template_cutout import MODEL_PATH, MODEL_SHA256, cutout_png
+        source = (ASSET_ROOT / 'neutral_person_stock_v1-source.jpg').read_bytes()
+        self.assertEqual(MODEL_SHA256, hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest())
+        cutout = Image.open(BytesIO(cutout_png(source))).convert('RGBA')
+        self.assertEqual(0, cutout.getpixel((0,0))[3])
+        self.assertEqual(255, cutout.getpixel((cutout.width//2,cutout.height//2))[3])
+        already_clear = neutral_cutout_image()
+        self.assertEqual(already_clear, cutout_png(already_clear))
+        doc = seed('post')
+        doc['components'] = [{**new_component('visual','cutout_image','hero',[300,100,600,800],'Image'), 'fit':'contain'}]
+        painted = render(doc, surface='post', assets={'visual': {'bytes':source, 'mime_type':'image/jpeg'}})
+        self.assertNotEqual(render(doc, surface='post')['bytes'], painted['bytes'])
+        with self.assertRaises(ValueError):
+            render(doc, surface='post', assets={'visual': {'bytes':source, 'mime_type':'image/png'}})
+        cutout_png.cache_clear()
+        with patch('validation_pipeline.template_cutout._session', side_effect=RuntimeError('model unavailable')):
+            with self.assertRaisesRegex(RuntimeError, 'model unavailable'):
+                render(doc, surface='post', assets={'visual': {'bytes':source, 'mime_type':'image/jpeg'}})
 
     def test_correction_reference_retry_and_discard_are_append_only(self):
         proposal = self.start()

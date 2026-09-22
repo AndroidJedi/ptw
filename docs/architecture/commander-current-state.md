@@ -8,6 +8,30 @@ Deployment: the preserving release accepted code revision
 and Owner Console Hosting published; Commander, Owner Gateway, GOD, Landing
 Hosting and Firebase auth-guard functions retained their prior versions.
 
+## Bokko v3 cutout and motif correction — local acceptance, release pending
+
+The production Post using Bokko v2 exposed its raw opaque white-shirt image in
+the `cutout_image` slot. The gallery's transparent fixture had hidden this
+Project path. Validation now segments opaque cutout images offline with a
+bundled, SHA-pinned U²-Netp model while preserving raw Post image/history and
+fixed badges/Natal assets. Failure cannot fall back to an opaque rectangle.
+`brand_motif.repeat_min/repeat_max` adds bounded, per-creative deterministic
+count/placement for small Natal marks; older documents default to one mark.
+Renderer contract v6 binds the model digest and revised motif layering.
+
+Local `xhigh` Template Agent run `fdb69b91-db1f-47f9-aaeb-ce63cce9eb09`
+accepted revision 27 as Bokko Post v3, template digest
+`17467591f85341cd072b7f432ea58fb9aa1a7d5a7277b4d5545693745af7e75c`,
+preview digest `34848ad9a598a6dca677f81b813f68b7e1778388431fcfefcb118586b72bc7fd`.
+Only the two motif regions, count ranges and opacity differ from v2; their
+total count varies from five to eight. The agent required a full-size render
+with the actual production white-shirt image and long Ukrainian copy before
+its second comparison marked zero unresolved differences. That exact native
+render passed geometry and visual inspection. Historical v1/v2 records and
+PNGs remain unchanged. Local API restart lists accepted v3. The preserving
+source release, production version import, existing-Post switch and restart
+verification remain to complete.
+
 ## Bokko badge edit recovery — v2 deployed and accepted
 
 Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` failed twice while composing the

@@ -61,8 +61,9 @@ def post_definition(record):
             raise ValueError("Post text must match the selected template's fields")
         return {**source, "template_text": {k: bounded_text(v, 500, "Post text", empty=True) for k, v in texts.items()}}
 
-    def build(configuration, value):
-        result = deepcopy(primitive(doc, surface="post", content=content(value)["template_text"]).document)
+    def build(configuration, value, *, variant_seed=""):
+        result = deepcopy(primitive(doc, surface="post", content=content(value)["template_text"],
+                                    variant_seed=variant_seed).document)
         result.update(template_id=identity.template_id, version=identity.template_version)
         for node in result["root"]["children"]:
             if node["type"] == "text":

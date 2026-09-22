@@ -114,7 +114,10 @@ class PostStudioWorkspace:
         return self._definition().normalize_content(value)
 
     def _build_template(self, config: Mapping[str, Any], content: Mapping[str, Any]):
-        return self._definition().build_template(config, content)
+        definition = self._definition()
+        if definition.editor_key == "post.declarative.react":
+            return definition.build_template(config, content, variant_seed=self.root.name)
+        return definition.build_template(config, content)
 
     def _catalog(self) -> dict[str, Any]:
         return self._definition().catalog()
@@ -297,7 +300,11 @@ class PostStudioWorkspace:
                         normalized_content["cta"], "none", normalized_content["phone_buttons"],
                         logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"])
                 elif component["type"] in {"image", "cutout_image"} and screen:
-                    records[component["id"]] = {"bytes": screen["bytes"], "mime_type": screen["mime_type"]}
+                    if component["type"] == "cutout_image":
+                        from .template_cutout import cutout_png
+                        records[component["id"]] = {"bytes": cutout_png(screen["bytes"]), "mime_type": "image/png"}
+                    else:
+                        records[component["id"]] = {"bytes": screen["bytes"], "mime_type": screen["mime_type"]}
             return records
         device = compose_phone_device_asset(
             None if screen is None else screen["bytes"],

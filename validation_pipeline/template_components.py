@@ -11,15 +11,16 @@ import hashlib
 from io import BytesIO
 import json
 import math
+import random
 import re
 from typing import Any, Mapping
 
-from .studio import STUDIO_FONT_FAMILIES, StudioRenderer
+from .studio import STUDIO_FONT_FAMILIES, StudioRenderer, inspect_media
 from .studio_primitives import PrimitiveTemplate, PRIMITIVE_TEMPLATE_SCHEMA
 from .template_assets import ASSET_IDS, RENDERER_VERSION, asset_bytes, document_asset_manifest
 from .template_registry import TemplateCapabilities, TemplateDefinition, TemplateIdentity
 
-COMPONENT_VERSION = 5
+COMPONENT_VERSION = 6
 COMPONENT_TYPES = (
     "text", "image", "cutout_image", "button", "store_badge", "card",
     "overlay", "decoration", "brand_motif", "phone", "brand",
@@ -34,11 +35,13 @@ COMPONENT_FIELDS = {
     "id", "type", "role", "box", "mobile_box", "fill", "color", "border_color",
     "border_width", "radius", "opacity", "font_family", "font_size", "font_weight",
     "align", "placeholder", "fit", "focal_x", "focal_y", "gradient", "enabled",
-    "asset_id", "rotation_degrees", "badge_surface",
+    "asset_id", "rotation_degrees", "badge_surface", "repeat_min", "repeat_max",
 }
-PREVIOUS_COMPONENT_FIELDS = COMPONENT_FIELDS - {"badge_surface"}
+REPEATLESS_COMPONENT_FIELDS = COMPONENT_FIELDS - {"repeat_min", "repeat_max"}
+REPEAT_WITHOUT_SURFACE_FIELDS = COMPONENT_FIELDS - {"badge_surface"}
+PREVIOUS_COMPONENT_FIELDS = REPEATLESS_COMPONENT_FIELDS - {"badge_surface"}
 LEGACY_COMPONENT_FIELDS = PREVIOUS_COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
-LEGACY_WITH_SURFACE_FIELDS = COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
+LEGACY_WITH_SURFACE_FIELDS = REPEATLESS_COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
 DOCUMENT_FIELDS = {"name", "description", "canvas", "background", "components"}
 MAX_DOCUMENT_BYTES = 14_000
 
@@ -83,7 +86,8 @@ def box(value: Any) -> list[float]:
 
 def component(value: Any) -> dict:
     if not isinstance(value, Mapping) or frozenset(value) not in {
-        frozenset(COMPONENT_FIELDS), frozenset(PREVIOUS_COMPONENT_FIELDS),
+        frozenset(COMPONENT_FIELDS), frozenset(REPEATLESS_COMPONENT_FIELDS),
+        frozenset(REPEAT_WITHOUT_SURFACE_FIELDS), frozenset(PREVIOUS_COMPONENT_FIELDS),
         frozenset(LEGACY_COMPONENT_FIELDS), frozenset(LEGACY_WITH_SURFACE_FIELDS),
     }:
         raise ValueError("Component fields are invalid")
@@ -96,6 +100,8 @@ def component(value: Any) -> dict:
         }.get(str(value.get("type")), "")
     result.setdefault("rotation_degrees", 0)
     result.setdefault("badge_surface", "slot_pill")
+    result.setdefault("repeat_min", 1)
+    result.setdefault("repeat_max", 1)
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", str(value["id"])):
         raise ValueError("Component ID must describe a reusable semantic role")
     if re.search(r"reference|specific|widget|template\d", value["id"], re.I):
@@ -110,6 +116,10 @@ def component(value: Any) -> dict:
                            ("font_size", 12, 180), ("font_weight", 100, 900), ("focal_x", 0, 1), ("focal_y", 0, 1)):
         number(value[key], low, high)
     number(result["rotation_degrees"], -360, 360)
+    if (type(result["repeat_min"]) is not int or type(result["repeat_max"]) is not int
+            or not 1 <= result["repeat_min"] <= result["repeat_max"] <= 8
+            or (value["type"] != "brand_motif" and result["repeat_max"] != 1)):
+        raise ValueError("Motif repeat range must be 1–8")
     if result["asset_id"] not in ASSET_IDS:
         raise ValueError("Component asset is not registered")
     if result["badge_surface"] not in {"slot_pill", "asset_only"} or (value["type"] != "store_badge" and result["badge_surface"] != "slot_pill"):
@@ -169,7 +179,8 @@ def new_component(identifier: str, kind: str, role: str, bounds: list, text: str
             "radius": 20, "opacity": 1, "font_family": "Inter", "font_size": 48,
             "font_weight": 500, "align": "left", "placeholder": text, "fit": "cover",
             "focal_x": .5, "focal_y": .5, "gradient": [], "enabled": True,
-            "asset_id": "", "rotation_degrees": 0, "badge_surface": "slot_pill"}
+            "asset_id": "", "rotation_degrees": 0, "badge_surface": "slot_pill",
+            "repeat_min": 1, "repeat_max": 1}
 
 
 def seed(surface: str) -> dict:
@@ -193,7 +204,7 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
             "reused_native_components": "phone uses the existing fixed iPhone compositor with an editable hero-art slot; brand uses the canonical Natal lock-up. Neither is a generated screenshot widget.",
             "placeholders": list(PLACEHOLDERS), "fonts": list(STUDIO_FONT_FAMILIES),
             "layout": "Ordered layers; box and mobile_box are [x,y,width,height] in 0–1000 canvas units. Separate mobile composition for Landing.",
-            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
+            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; brand_motif repeat_min/repeat_max 1–8 in its box, seeded per Post for stable variety; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
             "registered_variants": {
                 "cutout_image": ["Image"],
                 "brand_motif": ["Natal symbol"],
@@ -270,12 +281,35 @@ def fixed_component_assets(document: Mapping[str, Any]) -> dict[str, dict[str, A
     return assets
 
 
+def _motif_nodes(c: Mapping[str, Any], props: dict, *, seed_value: str) -> list[dict]:
+    """Expand one motif region into stable small instances for a given Post."""
+    digest = hashlib.sha256(f"{seed_value}:{c['id']}".encode()).digest()
+    rng = random.Random(int.from_bytes(digest, "big"))
+    count = rng.randint(c["repeat_min"], c["repeat_max"])
+    cells = [(column, row) for row in range(4) for column in range(2)]
+    rng.shuffle(cells)
+    cell_width, cell_height = props["width"] / 2, props["height"] / 4
+    icon_width = max(10, min(cell_width * .48, cell_height * .68, 48))
+    icon_height = icon_width * .8
+    result = []
+    for index, (column, row) in enumerate(cells[:count], 1):
+        local = dict(props)
+        local.update({
+            "x": props["x"] + column * cell_width + (cell_width - icon_width) / 2 + rng.uniform(-.09, .09) * cell_width,
+            "y": props["y"] + row * cell_height + (cell_height - icon_height) / 2 + rng.uniform(-.08, .08) * cell_height,
+            "width": icon_width, "height": icon_height,
+            "rotation": c["rotation_degrees"] + rng.randint(-18, 18),
+        })
+        result.append({"id": f"{c['id']}_{index}", "type": "image", "props": local})
+    return result
+
+
 def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
-              content: Mapping[str, str] | None = None) -> PrimitiveTemplate:
+              content: Mapping[str, str] | None = None, variant_seed: str = "") -> PrimitiveTemplate:
     doc = normalize_document(document)
     width = 360 if mobile else doc["canvas"]["width"]
     height = doc["canvas"]["mobile_height"] if mobile else doc["canvas"]["height"]
-    children, roles, assets = [], {}, {}
+    children, roles, assets, repeated_motifs = [], {}, {}, []
     content = dict(content or {})
     if set(content) - {c["id"] for c in doc["components"] if c["type"] in ("text", "button")}:
         raise ValueError("Unknown content role")
@@ -314,8 +348,23 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
             replaceable = c["type"] in {"image", "cutout_image", "phone"}
             assets[c["id"]] = {"kind": "image", "allowed_mime_types": ["image/png", "image/jpeg", "image/webp"], "required": False,
                 "provenance": "Reusable image slot; gallery uses a neutral fixture." if replaceable else "Fixed allowlisted template visual."}
-        children.append({"id": c["id"], "type": kind, "props": props})
-        roles.setdefault(c["role"], []).append(c["id"])
+        nodes = (_motif_nodes(c, props, seed_value=variant_seed or sha(doc))
+                 if c["type"] == "brand_motif" and c["repeat_max"] > 1 else
+                 [{"id": c["id"], "type": kind, "props": props}])
+        if c["type"] == "brand_motif" and c["repeat_max"] > 1:
+            repeated_motifs.extend(nodes)
+        else:
+            children.extend(nodes)
+        roles.setdefault(c["role"], []).extend(node["id"] for node in nodes)
+    if repeated_motifs:
+        # Full-canvas art sits below these watermarks. Foreground surfaces,
+        # including a white footer, then mask them before copy and hero paint.
+        after_backdrop = next((index + 1 for index, node in enumerate(children)
+                               if node["type"] == "card" and node["props"]["x"] == 0
+                               and node["props"]["y"] == 0
+                               and node["props"]["width"] == width
+                               and node["props"]["height"] == height), 0)
+        children[after_backdrop:after_backdrop] = repeated_motifs
     return PrimitiveTemplate.from_dict({"schema": PRIMITIVE_TEMPLATE_SCHEMA, "template_id": "declarative_design",
         "template_type": surface, "version": 1, "status": "draft",
         "root": {"id": "canvas", "type": "frame", "props": {"width": width, "height": height, "background_color": doc["background"]}, "children": children},
@@ -342,7 +391,14 @@ def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
         protected = {item["id"] for item in by_id.values() if item["type"] in {"brand_motif", "store_badge", "brand"}}
         if protected & set(assets):
             raise ValueError("Fixed template visual cannot be replaced")
-        fixtures.update(assets)
+        for key, record in assets.items():
+            if by_id[key]["type"] == "cutout_image":
+                from .template_cutout import cutout_png
+                source = bytes(record["bytes"])
+                inspect_media(source, str(record["mime_type"]))
+                fixtures[key] = {"bytes": cutout_png(source), "mime_type": "image/png"}
+            else:
+                fixtures[key] = record
     for c in document["components"]:
         if c["type"] == "phone":
             from .studio_phone_metrics import compose_phone_device_asset
@@ -359,7 +415,9 @@ def render_contract_sha256(document: Mapping[str, Any]) -> str:
     """Invalidate saved PNG reuse when the compiler or a fixed asset changes."""
 
     doc = normalize_document(document)
+    from .template_cutout import MODEL_SHA256
     return sha({"document": doc, "renderer_version": RENDERER_VERSION,
+                "cutout_model_sha256": MODEL_SHA256 if any(c["type"] == "cutout_image" for c in doc["components"]) else None,
                 "assets": [{"asset_id": item["asset_id"], "sha256": item["sha256"]}
                            for item in document_asset_manifest(doc)]})
 

@@ -28,7 +28,12 @@ The bridge must advertise `template_creation → xhigh`.
 Use `cutout_image` with `neutral_person_stock_v1` for the preview; a Project
 Post image replaces it. Never approximate a photo with shapes. Use
 `brand_motif` with `natal_symbol` and fixed `rotation_degrees` for faint Natal
-decorations. Store badges use registered official English assets or the owner's
+decorations. For varied small marks, set `repeat_min`/`repeat_max` (1–8) on a
+motif region. Count and placement vary by Post ID but stay stable on refresh.
+Keep the marks behind copy and the hero. An opaque Project photo in a
+`cutout_image` slot is background-removed locally; inspect the real Post preview,
+since a transparent gallery fixture cannot prove that path. A failed cutout
+must not silently use the opaque source. Store badges use registered official English assets or the owner's
 `owner_app_store_badge_v1` and `owner_google_play_badge_v1` when requested.
 Never redraw, recolor or replace fixed assets. `store_badge.badge_surface`
 defaults to `slot_pill` for old designs. Set it to `asset_only` when the badge

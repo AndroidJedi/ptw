@@ -1,7 +1,10 @@
 from copy import deepcopy
+from io import BytesIO
+from pathlib import Path
 import unittest
 from uuid import uuid4
 from unittest.mock import patch
+from PIL import Image
 
 from tests.validation_pipeline import test_studio_creatives as fixture
 from tests.validation_pipeline.test_template_authoring import ScriptedTemplateProvider
@@ -109,6 +112,12 @@ class PostTemplateSwitchTests(unittest.TestCase):
         self.assertEqual(self.detail['content'], detail['content'])
 
     def test_cutout_fixture_is_replaced_by_existing_post_image_and_fixed_assets_remain(self):
+        source = Path(__file__).resolve().parents[2] / 'validation_pipeline/studio_assets/template-assets/neutral_person_stock_v1-source.jpg'
+        image = Image.open(source).convert('RGB'); image.thumbnail((640,960))
+        raw = BytesIO(); image.save(raw, format='PNG')
+        self.detail = self.workspace.store_generated_phone_screen(
+            base_sha256=self.detail['state_sha256'], data=raw.getvalue(),
+            source={'origin':'codex_builtin_image_generation','text_in_screen':'prohibited_by_prompt'})
         document = seed('post')
         document['name'] = 'Bokko-style reusable post'
         document['components'] = [
@@ -135,7 +144,11 @@ class PostTemplateSwitchTests(unittest.TestCase):
         records = self.workspace._asset_records(changed['configuration'], changed['content'])
         screen = self.workspace._asset_record('phone_screen')
         self.assertIsNotNone(screen)
-        self.assertEqual(screen['bytes'], records['person']['bytes'])
+        self.assertNotEqual(screen['bytes'], records['person']['bytes'])
+        cutout = Image.open(BytesIO(records['person']['bytes'])).convert('RGBA')
+        self.assertEqual(0, cutout.getpixel((0,0))[3])
+        self.assertEqual(255, cutout.getpixel((cutout.width//2,cutout.height//2))[3])
+        self.assertEqual(raw.getvalue(), screen['bytes'])
         self.assertNotEqual(screen['bytes'], records['motif']['bytes'])
         self.assertNotEqual(screen['bytes'], records['app_store']['bytes'])
         self.assertNotEqual(records['app_store']['bytes'], records['google_play']['bytes'])

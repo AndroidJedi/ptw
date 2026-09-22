@@ -41,6 +41,8 @@ COMPONENT_SCHEMA = obj({
     **{key: {"type": "number"} for key in ("border_width", "radius", "opacity", "font_size", "font_weight", "focal_x", "focal_y", "rotation_degrees")},
     "asset_id": {"type": "string", "enum": list(ASSET_IDS)},
     "badge_surface": {"type": "string", "enum": ["slot_pill", "asset_only"]},
+    "repeat_min": {"type": "integer", "minimum": 1, "maximum": 8},
+    "repeat_max": {"type": "integer", "minimum": 1, "maximum": 8},
     "box": BOX_SCHEMA, "mobile_box": BOX_SCHEMA, "enabled": {"type": "boolean"},
     "gradient": {"type": "array", "items": text_schema(7), "maxItems": 2}})
 EDIT_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "path": text_schema(100),

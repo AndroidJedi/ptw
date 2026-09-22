@@ -3,12 +3,12 @@
 Updated: 2026-09-22
 Branch: `candidate/ptw-prod-access-20260922`
 Deployment: the preserving release accepted code revision
-`fd5ac372889568877c1ce8d4c80305c117e58a5f` with companion platform
-`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced
-and Owner Console Hosting published; Commander, Owner Gateway, GOD, Landing
-Hosting and Firebase auth-guard functions retained their prior versions.
+`529415435eae4a573ea1bb043f948806718bc1f9` with companion platform
+`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced;
+Commander, Owner Gateway, GOD, Landing Hosting and Firebase auth-guard
+functions retained their prior versions. Owner Console Hosting audit passed.
 
-## Bokko v3 cutout and motif correction — local acceptance, release pending
+## Bokko v3 cutout and motif correction — deployed
 
 The production Post using Bokko v2 exposed its raw opaque white-shirt image in
 the `cutout_image` slot. The gallery's transparent fixture had hidden this
@@ -28,9 +28,37 @@ total count varies from five to eight. The agent required a full-size render
 with the actual production white-shirt image and long Ukrainian copy before
 its second comparison marked zero unresolved differences. That exact native
 render passed geometry and visual inspection. Historical v1/v2 records and
-PNGs remain unchanged. Local API restart lists accepted v3. The preserving
-source release, production version import, existing-Post switch and restart
-verification remain to complete.
+PNGs remain unchanged. Local API restart lists accepted v3.
+
+The first preserving Validation release deployed the cutout model with root-only
+file permissions because the local source file was mode 0600. The actual
+production Post preview exposed a 500 `PermissionError` despite a healthy API.
+Temporary runtime permission repair confirmed the rendered cutout; the durable
+follow-up release at `5294154` sets mode 0644 in the Dockerfile, checks model
+readability as the Validation runtime user during image build, and maps an
+unreadable model to a safe render failure. The actual Post canary passed on the
+clean replacement container without a runtime repair, producing PNG digest
+`9b03d922bacf90df178f1aecaf12f6f389f8f3d1149608bafa44f27808eb6bfd`.
+Both preserving releases passed structured/media/Pexels canaries, dependency,
+resource, access and Hosting audits. Final Validation ran 345 tests; local web
+checks/build, focused desktop/360 px/WebKit browser tests, Commander tests/demo,
+skill verification and Studio visual audit passed before release.
+
+Append-only production import registered the exact accepted v3 digest and PNG;
+the authenticated gallery, version, run and media APIs verified both digests.
+Root-owned pre-import PostgreSQL backup
+`.local/template-bokko-v3-import-20260922/pre-v3-import.dump` has SHA-256
+`6d58b45189f1b6228f3421fd2e22de8b59808c50e669f0ab8735169831736100`.
+The existing production draft Post `01a07f55-20a5-755c-bbec-17a3f158ef4b`
+in Project `01a07c66-b00a-7364-8fda-7de87c12a907` now selects v3. Its
+content, raw image history, five historical approved versions and draft status
+were preserved. Full-size production preview digest
+`5a806c2d35a41803b5cee6d137df74a0bcb8f9c6e80d979b97d6b342125edf01`
+shows the shirt without its white rectangle and five small marks behind copy.
+The same template reference, draft state and PNG digest persisted after a
+Validation restart. Root-owned pre-restart backup
+`.local/template-bokko-v3-import-20260922/pre-v3-restart.dump` has SHA-256
+`4fbba7bb84ab4558e836846a799db3438634a015aaa49844d9528cb0c4901bc1`.
 
 ## Bokko badge edit recovery — v2 deployed and accepted
 

@@ -16,8 +16,8 @@ The source now permits the two additional verified Google accounts
 blocking functions, Owner Console, and Owner Gateway. The original account
 retains its pinned UID and App Check remains required. Deployment must update
 the Firebase auth-guard functions separately from the PTW in-place release;
-the latter includes pending migrations 012–014 and needs its preserving
-confirmation gate. Do not treat a Hosting-only rollout as complete access.
+the latter includes migrations 012–014 and needs its preserving confirmation
+gate. Do not treat a Hosting-only rollout as complete access.
 
 The first owner-authorized mobile attempt passed CI and applied additive
 migrations 012–014 while preserving existing rows, but failed after cutover

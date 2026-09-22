@@ -37,12 +37,13 @@ secrets = EnvironmentSecretStore()
 EMERGENCY_COMMANDS = frozenset({"/help", "/status", "/stop"})
 JSON_MODES = frozenset({
     "product_brief", "product_brief_revision", "studio_creative_generation",
-    "creative_performance_learning", "creative_visual_analysis",
+    "studio_manual_edit", "creative_performance_learning", "creative_visual_analysis",
+    "template_creation",
 })
 MEDIA_MODES = frozenset({"content_non_human_graphic_generation"})
-MULTIMODAL_MODES = frozenset({"creative_visual_analysis"})
+MULTIMODAL_MODES = frozenset({"creative_visual_analysis", "studio_manual_edit", "template_creation"})
 STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
-MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
+MAX_STRUCTURED_LLM_REQUEST_BYTES = 32_000_000
 MAX_MEDIA_REFERENCE_BYTES = 8 * 1024 * 1024
 image_references = EphemeralImageReferences()
 
@@ -69,6 +70,12 @@ def validate_structured_llm_request(request: dict) -> None:
         raise ValueError("invalid structured LLM request")
     if "input_reference" in request:
         raise ValueError("reference handles are server-owned")
+    if ("reasoning_effort" in request and
+        (not isinstance(request["reasoning_effort"], str) or
+         request["reasoning_effort"] not in {"low", "medium", "high", "xhigh"})):
+        raise ValueError("invalid structured LLM reasoning effort")
+    if request["mode"] == "template_creation" and request.get("reasoning_effort") != "xhigh":
+        raise ValueError("template creation requires xhigh reasoning effort")
     images = request.get("input_images")
     artifacts = request.get("input_artifacts")
     if images is not None and artifacts is not None:
@@ -102,28 +109,33 @@ def validate_structured_llm_request(request: dict) -> None:
                 raise ValueError("non-human graphic reference bytes or dimensions are invalid")
     elif images is not None:
         raise ValueError("only the media mode accepts input images")
-    if request["mode"] == "creative_visual_analysis":
-        if not isinstance(artifacts, list) or len(artifacts) != 1:
+    if request["mode"] in MULTIMODAL_MODES:
+        if request["mode"] == "creative_visual_analysis" and (not isinstance(artifacts, list) or len(artifacts) != 1):
             raise ValueError("creative visual analysis requires exactly one approved PNG")
-        artifact = artifacts[0]
-        if not isinstance(artifact, dict) or set(artifact) != {
-            "name", "mime_type", "sha256", "bytes_base64",
-        }:
-            raise ValueError("invalid creative visual analysis artifact mapping")
-        try:
-            content = base64.b64decode(artifact["bytes_base64"], validate=True)
-        except (TypeError, ValueError, binascii.Error) as error:
-            raise ValueError("creative visual analysis artifact base64 is invalid") from error
-        if (
-            artifact["name"] != "approved_png"
-            or artifact["mime_type"] != "image/png"
-            or not content.startswith(b"\x89PNG\r\n\x1a\n")
-            or not 33 <= len(content) <= MAX_MEDIA_REFERENCE_BYTES
-            or artifact["sha256"] != hashlib.sha256(content).hexdigest()
-        ):
-            raise ValueError("creative visual analysis artifact failed exact PNG validation")
+        if artifacts is not None:
+            if not isinstance(artifacts, list) or not 1 <= len(artifacts) <= 4:
+                raise ValueError("structured input artifacts must contain one to four PNGs")
+            total_bytes = 0
+            for index, artifact in enumerate(artifacts, start=1):
+                if not isinstance(artifact, dict) or set(artifact) != {"name", "mime_type", "sha256", "bytes_base64"}:
+                    raise ValueError("invalid structured input artifact mapping")
+                expected_name = ("approved_png" if request["mode"] == "creative_visual_analysis" else
+                                 f"studio_screenshot_{index}" if request["mode"] == "studio_manual_edit" else
+                                 f"template_image_{index}")
+                try:
+                    content = base64.b64decode(artifact["bytes_base64"], validate=True)
+                except (TypeError, ValueError, binascii.Error) as error:
+                    raise ValueError("structured input artifact base64 is invalid") from error
+                total_bytes += len(content)
+                if (artifact["name"] != expected_name or artifact["mime_type"] != "image/png"
+                    or not content.startswith(b"\x89PNG\r\n\x1a\n")
+                    or not 33 <= len(content) <= MAX_MEDIA_REFERENCE_BYTES
+                    or artifact["sha256"] != hashlib.sha256(content).hexdigest()):
+                    raise ValueError("structured input artifact failed exact PNG validation")
+            if total_bytes > 20 * 1024 * 1024:
+                raise ValueError("structured input artifacts exceed their byte budget")
     elif artifacts is not None:
-        raise ValueError("only creative visual analysis accepts structured input artifacts")
+        raise ValueError("only multimodal modes accept structured input artifacts")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 
@@ -132,6 +144,7 @@ def structured_llm_capabilities() -> dict:
     return {
         "json_modes": sorted(JSON_MODES), "media_modes": sorted(MEDIA_MODES),
         "multimodal_modes": sorted(MULTIMODAL_MODES),
+        "reasoning_efforts": {"template_creation": "xhigh"},
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
     }
@@ -276,8 +289,22 @@ def consume_image_reference(reference_id: str, x_ptw_bridge_token: str = Header(
         image = image_references.consume(reference_id)
     except KeyError as error:
         raise HTTPException(status_code=410, detail="Reference expired; upload it again") from error
+    if not isinstance(image, dict):
+        raise HTTPException(status_code=409, detail="Invalid image reference")
     return Response(content=base64.b64decode(image["bytes_base64"], validate=True),
                     media_type="image/png", headers={"Cache-Control": "private, no-store"})
+
+
+@app.post("/internal/llm/input-reference/{reference_id}/consume-batch")
+def consume_image_reference_batch(reference_id: str, x_ptw_bridge_token: str = Header(default="")) -> dict:
+    _authorize_bridge(x_ptw_bridge_token)
+    try:
+        images = image_references.consume(reference_id)
+    except KeyError as error:
+        raise HTTPException(status_code=410, detail="Reference expired; upload it again") from error
+    if not isinstance(images, list) or not 1 <= len(images) <= 4:
+        raise HTTPException(status_code=409, detail="Invalid image reference batch")
+    return {"artifacts": images}
 
 
 @app.delete("/internal/llm/structured/{job_id}/input-reference")

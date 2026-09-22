@@ -15,20 +15,24 @@ esac
   exit 1
 }
 mkdir -p "$output_directory"
+revision=$(git rev-parse HEAD)
 
 docker buildx build --platform linux/amd64 --load \
+  --label "org.opencontainers.image.revision=$revision" \
   --tag "ptw-agent-platform-commander-api:$release_tag" \
   --file commander/Dockerfile .
 docker save --output "$output_directory/commander-api.tar" \
   "ptw-agent-platform-commander-api:$release_tag"
 
 docker buildx build --platform linux/amd64 --load \
+  --label "org.opencontainers.image.revision=$revision" \
   --tag "ptw-agent-platform-commander-worker:$release_tag" \
   --file worker/Dockerfile .
 docker save --output "$output_directory/commander-worker.tar" \
   "ptw-agent-platform-commander-worker:$release_tag"
 
 docker buildx build --platform linux/amd64 --load \
+  --label "org.opencontainers.image.revision=$revision" \
   --tag "ptw-agent-platform-codex-auth:$release_tag" \
   --file auth/Dockerfile .
 docker save --output "$output_directory/codex-auth.tar" \

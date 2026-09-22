@@ -26,6 +26,18 @@ def visual_artifact():
     }
 
 
+def studio_artifacts(count=4):
+    result = []
+    for index in range(1, count + 1):
+        content = png_header(640 + index, 320)
+        result.append({
+            'name': f'studio_screenshot_{index}', 'mime_type': 'image/png',
+            'sha256': hashlib.sha256(content).hexdigest(),
+            'bytes_base64': base64.b64encode(content).decode(),
+        })
+    return result
+
+
 def test_job_parameters_never_contain_image_bytes():
     references = EphemeralImageReferences()
     request = {'mode': 'content_non_human_graphic_generation', 'input_images': [image()]}
@@ -47,6 +59,31 @@ def test_visual_artifact_bytes_are_ephemeral_and_never_persisted():
     assert 'bytes_base64' not in json.dumps(persisted)
     assert persisted['input_reference']['name'] == 'approved_png'
     assert references.consume(key) == visual_artifact()
+
+
+def test_ordered_studio_artifacts_use_one_private_batch_reference(tmp_path, monkeypatch):
+    artifacts = studio_artifacts()
+    references = EphemeralImageReferences()
+    persisted, key = persistable_image_request({
+        'mode': 'studio_manual_edit', 'input_artifacts': artifacts,
+    }, references)
+    assert 'bytes_base64' not in json.dumps(persisted)
+    assert [item['name'] for item in persisted['input_reference']['items']] == [
+        item['name'] for item in artifacts
+    ]
+    monkeypatch.setattr('worker.main.secrets.get', lambda _name: 'test-token')
+    def consume(url, **kwargs):
+        assert url.endswith(f'/{key}/consume-batch')
+        return Mock(status_code=200, json=lambda: {'artifacts': references.consume(key)})
+    monkeypatch.setattr('worker.main.httpx.post', consume)
+    paths, mapping = _materialize_input_images(persisted, tmp_path)
+    assert len(paths) == len(mapping) == 4
+    assert [path.read_bytes() for path in paths] == [
+        base64.b64decode(item['bytes_base64']) for item in artifacts
+    ]
+    assert [item['attachment_index'] for item in mapping] == [1, 2, 3, 4]
+    with pytest.raises(KeyError):
+        references.consume(key)
 
 
 def test_ttl_capacity_explicit_cleanup_and_restart():

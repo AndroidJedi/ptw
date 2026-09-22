@@ -189,25 +189,48 @@ def _structured_reasoning_effort() -> str:
     return value
 
 
+def _request_reasoning_effort(parameters: dict) -> str:
+    default = _structured_reasoning_effort()
+    value = parameters.get("reasoning_effort", default)
+    if not isinstance(value, str) or value not in STRUCTURED_REASONING_EFFORTS:
+        raise RuntimeError("Result bridge reasoning effort is invalid")
+    if parameters.get("mode") == "template_creation" and value != "xhigh":
+        raise RuntimeError("Template creation requires xhigh reasoning effort")
+    return value
+
+
 def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
     reference = parameters.get("input_reference")
     if reference is not None:
         if images is not None or parameters.get("mode") not in {
             "content_non_human_graphic_generation", "creative_visual_analysis",
+            "studio_manual_edit", "template_creation",
         }:
             raise RuntimeError("Invalid ephemeral image reference")
         reference_id = str(reference.get("id", ""))
         if not re.fullmatch(r"[0-9a-f]{32}", reference_id):
             raise RuntimeError("Invalid ephemeral image reference")
+        batch = "items" in reference
         response = httpx.post(
-            f"http://commander-api:8000/internal/llm/input-reference/{reference_id}/consume",
+            f"http://commander-api:8000/internal/llm/input-reference/{reference_id}/consume"
+            + ("-batch" if batch else ""),
             headers={"X-PTW-Bridge-Token": secrets.get("TELEGRAM_BOT_TOKEN")}, timeout=15,
         )
         if response.status_code != 200:
             raise RuntimeError("Reference unavailable; upload it again")
-        images = [{**{k: v for k, v in reference.items() if k != "id"},
-                   "bytes_base64": base64.b64encode(response.content).decode()}]
+        if batch:
+            images = response.json().get("artifacts")
+            metadata = reference.get("items")
+            if (not isinstance(images, list) or not isinstance(metadata, list)
+                or len(images) != len(metadata)
+                or any(not isinstance(image, dict) or
+                       {k: v for k, v in image.items() if k != "bytes_base64"} != expected
+                       for image, expected in zip(images, metadata))):
+                raise RuntimeError("Invalid ephemeral image reference")
+        else:
+            images = [{**{k: v for k, v in reference.items() if k != "id"},
+                       "bytes_base64": base64.b64encode(response.content).decode()}]
 
     mode = parameters.get("mode")
     if mode == "content_non_human_graphic_generation":
@@ -239,28 +262,42 @@ def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[P
         path.write_bytes(content)
         path.chmod(0o600)
         return [path], [{"sha256": digest, "attachment_index": 1}]
-    if mode == "creative_visual_analysis":
-        if not isinstance(images, list) or len(images) != 1:
+    if mode in {"creative_visual_analysis", "studio_manual_edit", "template_creation"}:
+        if mode == "creative_visual_analysis" and (not isinstance(images, list) or len(images) != 1):
             raise RuntimeError("creative visual analysis requires exactly one approved PNG")
-        image = images[0]
-        try:
-            content = base64.b64decode(image["bytes_base64"], validate=True)
-        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
-            raise RuntimeError("creative visual analysis artifact base64 is invalid") from exc
-        digest = hashlib.sha256(content).hexdigest()
-        if (
-            set(image) != {"name", "mime_type", "sha256", "bytes_base64"}
-            or image.get("name") != "approved_png"
-            or image.get("mime_type") != "image/png"
-            or image.get("sha256") != digest
-            or not content.startswith(b"\x89PNG\r\n\x1a\n")
-            or not 33 <= len(content) <= 8 * 1024 * 1024
-        ):
-            raise RuntimeError("creative visual analysis artifact failed exact PNG validation")
-        path = directory / f"approved-{digest[:12]}.png"
-        path.write_bytes(content)
-        path.chmod(0o600)
-        return [path], [{"name": "approved_png", "sha256": digest, "attachment_index": 1}]
+        if images is None and mode != "creative_visual_analysis":
+            return [], []
+        if not isinstance(images, list) or not 1 <= len(images) <= 4:
+            raise RuntimeError("structured input artifacts must contain one to four PNGs")
+        paths = []
+        mapping = []
+        total_bytes = 0
+        for index, image in enumerate(images, start=1):
+            expected_name = ("approved_png" if mode == "creative_visual_analysis" else
+                             f"studio_screenshot_{index}" if mode == "studio_manual_edit" else
+                             f"template_image_{index}")
+            try:
+                content = base64.b64decode(image["bytes_base64"], validate=True)
+            except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+                raise RuntimeError("structured input artifact base64 is invalid") from exc
+            digest = hashlib.sha256(content).hexdigest()
+            total_bytes += len(content)
+            if (
+                set(image) != {"name", "mime_type", "sha256", "bytes_base64"}
+                or image.get("name") != expected_name
+                or image.get("mime_type") != "image/png"
+                or image.get("sha256") != digest
+                or not content.startswith(b"\x89PNG\r\n\x1a\n")
+                or not 33 <= len(content) <= 8 * 1024 * 1024
+                or total_bytes > 20 * 1024 * 1024
+            ):
+                raise RuntimeError("structured input artifact failed exact PNG validation")
+            path = directory / f"{expected_name}-{digest[:12]}.png"
+            path.write_bytes(content)
+            path.chmod(0o600)
+            paths.append(path)
+            mapping.append({"name": expected_name, "sha256": digest, "attachment_index": index})
+        return paths, mapping
     if images is not None:
         raise RuntimeError("only the media mode accepts input images")
     return [], []
@@ -281,7 +318,8 @@ def execute_structured_llm(parameters: dict) -> dict:
     mode = parameters.get("mode")
     if mode not in {
         "product_brief", "product_brief_revision", "studio_creative_generation",
-        "creative_performance_learning", "creative_visual_analysis",
+        "studio_manual_edit", "creative_performance_learning", "creative_visual_analysis",
+        "template_creation",
         "content_non_human_graphic_generation",
     }:
         raise RuntimeError("unsupported Result bridge mode")
@@ -303,11 +341,18 @@ def execute_structured_llm(parameters: dict) -> dict:
                 "the image-generation call use num_last_images_to_include=1 and do not use a path.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
-        elif attachment_mapping:
+        elif attachment_mapping and mode == "creative_visual_analysis":
             prompt += (
                 "\nAPPROVED_VISUAL_ATTACHMENT: Inspect the one attached digest-checked PNG "
                 "only for bounded, non-identifying visual descriptors. Do not perform OCR, "
                 "identify people, or generate an image.\n"
+                + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
+            )
+        elif attachment_mapping:
+            prompt += (
+                "\nOWNER_VISUAL_ATTACHMENTS: Treat these ordered, digest-checked PNGs as "
+                "visual context for the owner's editing request; return only JSON conforming "
+                "to the supplied schema.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
         if mode == "content_non_human_graphic_generation":
@@ -326,7 +371,7 @@ def execute_structured_llm(parameters: dict) -> dict:
             "--ephemeral",
             "--ignore-user-config",
             "--config",
-            f'model_reasoning_effort="{_structured_reasoning_effort()}"',
+            f'model_reasoning_effort="{_request_reasoning_effort(parameters)}"',
         ]
         requested_model = str(parameters.get("model") or "").strip()
         if requested_model and requested_model != "codex-cli-default":

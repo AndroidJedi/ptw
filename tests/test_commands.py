@@ -33,15 +33,17 @@ def test_telegram_surface_is_emergency_only() -> None:
 def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> None:
     json_modes = {
         "product_brief", "product_brief_revision", "studio_creative_generation",
-        "creative_performance_learning", "creative_visual_analysis",
+        "studio_manual_edit", "creative_performance_learning", "creative_visual_analysis",
+        "template_creation",
     }
     assert JSON_MODES == json_modes
     assert MEDIA_MODES == {"content_non_human_graphic_generation"}
-    assert MULTIMODAL_MODES == {"creative_visual_analysis"}
+    assert MULTIMODAL_MODES == {"creative_visual_analysis", "studio_manual_edit", "template_creation"}
     assert structured_llm_capabilities() == {
         "json_modes": sorted(json_modes),
         "media_modes": ["content_non_human_graphic_generation"],
-        "multimodal_modes": ["creative_visual_analysis"],
+        "multimodal_modes": sorted(MULTIMODAL_MODES),
+        "reasoning_efforts": {"template_creation": "xhigh"},
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
     }
@@ -74,6 +76,21 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
             "bytes_base64": base64.b64encode(reference).decode(),
         }],
     })
+    for mode, name in (("studio_manual_edit", "studio_screenshot_1"),
+                       ("template_creation", "template_image_1")):
+        validate_structured_llm_request({
+            "mode": mode,
+            "system_prompt": "Use owner visual context.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+            "idempotency_key": f"test:{mode}:attempt:1",
+            **({"reasoning_effort": "xhigh"} if mode == "template_creation" else {}),
+            "input_artifacts": [{
+                "name": name, "mime_type": "image/png",
+                "sha256": hashlib.sha256(reference).hexdigest(),
+                "bytes_base64": base64.b64encode(reference).decode(),
+            }],
+        })
     validate_structured_llm_request({
         "mode": "creative_visual_analysis",
         "system_prompt": "Describe safe visual traits.",

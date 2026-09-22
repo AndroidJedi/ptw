@@ -156,6 +156,23 @@ def test_structured_execution_timeout_is_bounded_and_passed_to_codex(monkeypatch
         execute_structured_llm(request("studio_creative_generation"))
 
 
+def test_template_creation_pins_xhigh_reasoning(monkeypatch) -> None:
+    observed = {}
+    monkeypatch.setenv("RESULT_BRIDGE_REASONING_EFFORT", "low")
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"candidate":"ok"}', encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout=thread_output("template-1"), stderr="")
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    execute_structured_llm(request("template_creation", reasoning_effort="xhigh"))
+    config_index = observed["command"].index("--config")
+    assert observed["command"][config_index + 1] == 'model_reasoning_effort="xhigh"'
+    with pytest.raises(RuntimeError, match="xhigh"):
+        execute_structured_llm(request("template_creation"))
+
+
 def test_non_human_graphic_enhancement_receives_private_png_reference(monkeypatch, tmp_path: Path) -> None:
     codex_home = tmp_path / "codex-home"
     asset_root = tmp_path / "assets" / "content-graphics"

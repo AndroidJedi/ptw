@@ -2,14 +2,13 @@
 
 Updated: 2026-09-22
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: the serial in-place release accepted code revision
-`d54ac07822383cbde689bf141305d690dcd9523b`; a later Validation-only
-release accepted `84d78f0fa5e686cf8f32853a8c3ccb0eda3e703b` with companion
-platform `57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Owner Console,
-Landing Hosting and Firebase auth-guard functions were published. The
-Template Creation corrective-attempt hotfix is deployed.
+Deployment: the preserving release accepted code revision
+`fd5ac372889568877c1ce8d4c80305c117e58a5f` with companion platform
+`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced
+and Owner Console Hosting published; Commander, Owner Gateway, GOD, Landing
+Hosting and Firebase auth-guard functions retained their prior versions.
 
-## Bokko badge edit recovery — v2 accepted locally, production release pending
+## Bokko badge edit recovery — v2 deployed and accepted
 
 Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` failed twice while composing the
 owner's badge-size correction. The first structured response was invalid; local
@@ -40,10 +39,20 @@ build, skill verification, and Studio visual audit. The owner authorized release
 and the local decision appended revision 46 as `accepted`, registering Post
 template `design_ee8759d1b6034ee2bffe` v2 at template digest
 `d6505516a0c86867d4aa51bc43497c32351a8503e42f3524e88d4ef4974862a1`.
-Production still serves accepted v1 until the clean source/assets release and
-guarded import of the exact accepted version and media complete.
+The preserving release deployed the source/assets and Owner Console. Its real
+structured/media/Pexels canaries, dependency and resource audits, 117 web tests,
+production build, and 96 browser tests passed. A separate production
+`template_creation` bridge call succeeded at `xhigh` on attempt one without
+creating a Project or template run. A root-owned pre-import PostgreSQL
+backup at `.local/template-bokko-v2-import-20260922/pre-v2-import.dump` has SHA-256
+`4eb50ca8f906d15bc7075e3e63d07a7079228622d01d91be6945c3adb836a6c8`.
+The guarded import appended 46 run revisions, six request receipts, one immutable
+v2 record and three new PNGs; v1 records and media remained unchanged. The
+production API now lists v2 as the current Post template, resolves its exact
+version and serves the 624073-byte PNG at the expected digest. A Validation
+restart retained the same accepted run, version, media and deployed image.
 
-## SVG references and two-file Template edits — production release pending
+## SVG references and two-file Template edits — deployed
 
 Studio image-reference inputs, Studio Manual Agent screenshots and Commander
 image attachments accept SVG alongside PNG/JPEG/WebP. The browser rejects
@@ -58,8 +67,8 @@ selected `owner_app_store_badge_v1` and `owner_google_play_badge_v1`, rendered
 the first proposal at revision 15, and reported zero unresolved differences.
 Compared with accepted v1, that revision changed only the two badge `asset_id`
 values. Later owner corrections produced revision 45 described above; its
-unchanged document and preview were accepted in revision 46. The v2 authority
-has not yet been transferred to production.
+unchanged document and preview were accepted in revision 46. The exact v2
+authority is available locally and in production.
 
 ## Bokko template authority restored — local and production
 

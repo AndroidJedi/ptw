@@ -3,10 +3,29 @@
 Updated: 2026-09-22
 Branch: `candidate/ptw-prod-access-20260922`
 Deployment: the serial in-place release accepted code revision
-`d54ac07822383cbde689bf141305d690dcd9523b` and companion platform
-`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Owner Console, Landing
-Hosting and Firebase auth-guard functions were published. This revision adds
-the corrective Template Creation hotfix described below.
+`d54ac07822383cbde689bf141305d690dcd9523b`; a later Validation-only
+release accepted `84d78f0fa5e686cf8f32853a8c3ccb0eda3e703b` with companion
+platform `57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Owner Console,
+Landing Hosting and Firebase auth-guard functions were published. The
+Template Creation corrective-attempt hotfix is deployed.
+
+## Built-in Landing template version 404
+
+Opening the registered `project_landing` v5 from the Templates gallery returned
+404 when its native preview renderer failed: the gallery exposed an ephemeral
+`preview_status: failed` built-in, but the exact-version read looked only for a
+persisted record. Exact reads now resolve the same registered summary even if
+preview rendering fails. A derivative can start from owner text without those
+preview bytes. Wrong digests still conflict and unknown IDs still return 404.
+The Gateway's exact version/digest forwarding is covered by a regression. The
+detail view now explains a failed preview and offers Retry while
+keeping Edit available. Local verification passed 337 Validation tests, 18
+Owner Gateway tests, 115 Owner Console unit tests, its production build, nine
+desktop/mobile/iPhone WebKit Templates browser checks, 43 Commander tests
+(seven expected host skips), the Commander demo, skill verification, and
+whitespace checks.
+Confirm the deployed marker and public Owner Hosting before treating this fix
+as live.
 
 ## Approved production accounts — deployed
 

@@ -43,6 +43,14 @@ before changing code or runtime state.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
   prompt credential, database secret, or raw token.
+- When a built-in Templates card appears but opening its exact version returns
+  404, compare the browser's version/digest with the built-in catalog and trace
+  the GET through Gateway and Validation. A failed native preview may leave the
+  gallery's built-in summary unpersisted; exact reads must still resolve that
+  registered identity and show `preview_status: failed`. Keep wrong-digest
+  conflicts and unknown-template 404s distinct. Test the actual Gateway path
+  and the Validation read while forcing the preview renderer to fail; editing
+  from an instruction must not require unavailable preview bytes.
 - When Recent iPhone Images has metadata but blank thumbnails, first verify the
   exact history bytes and digest through Validation, then check whether any
   history GET reached the Gateway. Zero Gateway requests while ordinary preview

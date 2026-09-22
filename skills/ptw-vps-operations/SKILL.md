@@ -308,6 +308,13 @@ false failed status.
 Normal preserving deployments target 2–4 minutes for a single PTW component and
 under 10 minutes when Validation/provider execution is required. Keep authority
 snapshots, rollback, health/resource checks, and approved artifact verification.
+For a Templates built-in exact-version 404, verify that the requested version
+and digest match the registered catalog before treating it as missing data.
+Preview-render failure can leave the gallery entry visible without a persisted
+built-in record. A fix must keep that exact GET readable with
+`preview_status: failed`, preserve wrong-digest 409 and unknown-ID 404, and let
+the owner retry the preview. Probe the exact Gateway route and query forwarding;
+do not mutate Project or template authority to repair the read.
 When a release retires or renames a navigation or provider surface, run the full
 Owner Playwright suite before the first cutover; a focused replacement spec is
 not sufficient. Search the remaining browser specs for the retired labels and

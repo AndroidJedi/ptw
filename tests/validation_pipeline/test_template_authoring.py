@@ -597,6 +597,37 @@ class TemplateAuthoringTests(unittest.TestCase):
 
 
 class BuiltinTemplateGalleryTests(unittest.TestCase):
+    def test_builtin_version_remains_readable_when_preview_renderer_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = TemplateAuthoringService(
+                TemplateStore(Path(directory) / 'templates.sqlite3'),
+                ScriptedTemplateProvider(), asynchronous=False,
+            )
+            self.addCleanup(service.close)
+            def owner(authorization: str = Header(default='')):
+                if authorization != 'Bearer owner':
+                    raise HTTPException(401, 'owner required')
+            app = FastAPI()
+            app.include_router(template_router(service, prefix='/templates', dependencies=[Depends(owner)]))
+            client = TestClient(app)
+            headers = {'Authorization': 'Bearer owner'}
+            with patch('validation_pipeline.template_authoring.render_builtin', side_effect=RuntimeError('renderer unavailable')):
+                landing = next(item for item in client.get('/templates', headers=headers).json()['items']
+                    if item['surface'] == 'landing')
+                self.assertEqual('failed', landing['preview_status'])
+                path = f"/templates/landing/project_landing/versions/{landing['template_version']}"
+                response = client.get(path, params={'sha256': landing['template_sha256']}, headers=headers)
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual(landing['template_sha256'], response.json()['template_sha256'])
+                self.assertEqual([], list(response.json()['previews']))
+                self.assertEqual(409, client.get(path, params={'sha256': '0' * 64}, headers=headers).status_code)
+                self.assertEqual(404, client.get(path.replace('project_landing', 'unknown_landing'),
+                    params={'sha256': landing['template_sha256']}, headers=headers).status_code)
+                run = service.start({'request_id': str(uuid4()), 'scope': 'landing',
+                    'instruction': 'Create a derivative', 'source': {
+                        key: landing[key] for key in ('surface', 'template_id', 'template_version', 'template_sha256')}})
+                self.assertEqual('proposed', run['status'], run.get('error'))
+
     def test_builtin_preview_and_filter_registration_preserve_existing_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             service=TemplateAuthoringService(TemplateStore(Path(directory)/'templates.sqlite3'),ScriptedTemplateProvider(),asynchronous=False)

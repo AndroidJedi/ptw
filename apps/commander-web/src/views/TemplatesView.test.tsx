@@ -34,6 +34,21 @@ it('loads authenticated gallery previews, filters surfaces, and opens immutable 
   expect(screen.getByLabelText('Creation scope')).toBeDisabled()
 })
 
+it('keeps a built-in Landing available when its preview renderer fails', async () => {
+  const landing = { ...item, surface: 'landing', template_id: 'project_landing', template_version: 5,
+    template_sha256: '6bd068332255e5bf294341f85f46d31f3708b933282cb4bf09497b3511466d7a',
+    name: 'Project landing', preview_status: 'failed', previews: {} }
+  const api = client()
+  api.get.mockImplementation(async path => path.endsWith('/runs') ? { items: [] }
+    : path.includes('/versions/') ? landing : { items: [landing] })
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Open template' }))
+  expect(await screen.findByText('This template is available, but its preview could not be rendered. Retry the preview or edit from your instruction.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Edit template' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }))
+  await waitFor(() => expect(api.get.mock.calls.filter(([path]) => path.includes('/versions/5?sha256='))).toHaveLength(2))
+})
+
 it('supports coordinated creation, owner acceptance, and measured comparison results', async () => {
   const api = client(); render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
   fireEvent.click(screen.getByRole('button', { name: 'Create Template Agent' }))

@@ -293,8 +293,15 @@ class TemplateAuthoringService:
         try:
             record = self.store.get("version", key)
         except KeyError:
-            self.ensure_builtins()
-            record = self.store.get("builtin", key)
+            # A built-in remains registered even if its optional native preview
+            # cannot be rendered. In that case ensure_builtins returns a failed
+            # preview summary without persisting a record, just as the gallery
+            # does; exact reads must resolve that same summary.
+            record = next((item for item in self.ensure_builtins()
+                if reference_key({field: item[field] for field in
+                    ("surface", "template_id", "template_version", "template_sha256")}) == key), None)
+            if record is None:
+                raise KeyError("Template record does not exist")
         if record["template_sha256"] != reference["template_sha256"]:
             raise TemplateConflict("Template digest does not match its immutable version")
         return record
@@ -370,7 +377,7 @@ class TemplateAuthoringService:
         data = None
         if request.get("reference_id"):
             data = self.references.take(request["reference_id"])
-        elif source and source["builtin"]:
+        elif source and source["builtin"] and source["previews"].get("desktop"):
             with self.store.transaction() as tx:
                 data = tx.read_media(source["previews"]["desktop"]["sha256"])
         if data:

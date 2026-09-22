@@ -465,6 +465,14 @@ class OwnerClaimsTests(unittest.TestCase):
             response=client.get("/api/v1/templates/media/"+"a"*64,headers=headers)
             self.assertEqual("a"*64,response.headers["x-ptw-content-sha256"])
             self.assertEqual(b"png",response.content)
+            forwarded.return_value=httpx.Response(200,json={"template_id":"project_landing","template_version":5})
+            response=client.get("/api/v1/templates/landing/project_landing/versions/5",
+                params={"sha256":"6bd068332255e5bf294341f85f46d31f3708b933282cb4bf09497b3511466d7a"},headers=headers)
+            self.assertEqual(200,response.status_code,response.text)
+            self.assertEqual("http://validation/internal/v1/templates/landing/project_landing/versions/5",
+                forwarded.call_args.args[1])
+            self.assertEqual({"sha256":"6bd068332255e5bf294341f85f46d31f3708b933282cb4bf09497b3511466d7a"},
+                forwarded.call_args.kwargs["params"])
 
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):

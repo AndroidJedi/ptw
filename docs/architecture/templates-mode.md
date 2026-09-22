@@ -54,6 +54,12 @@ network-isolated Chromium with bundled fonts and neutral fixtures. Build its
 bundle with `npm --prefix apps/commander-web run build:template-preview`; the
 local launcher and Validation image build do this automatically. No separate
 mock gallery artwork exists. Browser failure yields an explicit preview retry.
+Built-in identities remain readable when native preview rendering is temporarily
+unavailable: the gallery and exact-version detail both expose the registered
+template with `preview_status: failed`, and a later read can retry the preview.
+Creating a derivative from an unavailable built-in preview may use the owner's
+instruction without attaching preview pixels. A wrong immutable digest still
+conflicts, and an unknown template still returns 404.
 Accepted historical PNGs remain immutable even after renderer code changes.
 
 ## Durable creation and review

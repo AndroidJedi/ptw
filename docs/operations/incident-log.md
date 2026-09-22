@@ -1,6 +1,25 @@
 # PTW incident log
 
-Updated: 2026-09-16
+Updated: 2026-09-22
+
+## 2026-09-22 — PTW candidate rolled back after bridge readiness failure
+
+The owner-authorized mobile release passed its CI suites and migration rehearsal.
+Production applied additive migrations 012–014 and verified preservation of
+existing business rows, then replaced the application containers. A readiness
+probe failed after their Docker health checks became green. The receiver
+restored the accepted PTW source and application images and restored the prior
+Owner Hosting version. Firebase auth-guard functions were not deployed, so the
+two requested accounts do not yet have complete production access.
+
+The candidate Validation contract requires `studio_manual_edit` and optionally
+`template_creation` with `xhigh`, while the unchanged companion platform
+advertises neither mode. The mobile publisher always reuses platform images,
+so that channel cannot deliver this coupled release. A compatible platform
+API/worker change is prepared and locally tested. Production acceptance remains
+pending a serial in-place release with both repositories and a successful live
+bridge canary. Do not retry the incompatible mobile request or infer readiness
+from healthy containers. The VPS operations skill now records this preflight.
 
 ## 2026-09-16 — First Brief creation on an empty Project returned HTTP 500
 

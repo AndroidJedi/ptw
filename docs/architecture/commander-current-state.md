@@ -19,6 +19,14 @@ the Firebase auth-guard functions separately from the PTW in-place release;
 the latter includes pending migrations 012–014 and needs its preserving
 confirmation gate. Do not treat a Hosting-only rollout as complete access.
 
+The first owner-authorized mobile attempt passed CI and applied additive
+migrations 012–014 while preserving existing rows, but failed after cutover
+because the still-reused companion bridge lacks `studio_manual_edit` (and
+`template_creation`). The receiver restored the accepted application and Owner
+Hosting. Firebase functions remain unchanged. A compatible platform API/worker
+revision is prepared locally; the coupled release must use the serial in-place
+publisher once direct VPS access is available.
+
 ## Template draft recovery and reliable comparison — local, not deployed
 
 Templates now has a separate Drafts section above the accepted gallery. It shows

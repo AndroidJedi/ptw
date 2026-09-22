@@ -115,6 +115,15 @@ before the requested database exists; that is not migration-test readiness.
 
 ## Production contract
 
+- Before a migration-bearing mobile release replaces Validation, compare its
+  required JSON/multimodal modes and optional reasoning-effort declarations with
+  the live companion bridge capabilities. The mobile publisher currently
+  streams `REUSE` for every platform artifact; a new Validation requirement
+  cannot be repaired by retrying the same mobile request. Build and publish the
+  compatible platform revision together with PTW through the confirmation-gated
+  serial in-place path. A failed `/readyz` after application cutover must roll
+  back source, images, and Hosting; Docker `/healthz` may still be green. Keep
+  Firebase auth-guard changes withheld until the application release is accepted.
 - Bridge structured modes are exactly `product_brief`,
   `product_brief_revision`, `studio_creative_generation`,
   `studio_manual_edit`, `creative_performance_learning`, and

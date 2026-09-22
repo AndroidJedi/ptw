@@ -5,7 +5,9 @@ from copy import deepcopy
 import hashlib
 from io import BytesIO
 import json
+import os
 from pathlib import Path
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -601,7 +603,15 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
             try:
                 gallery=service.gallery()
                 self.assertEqual({'phone_metrics','project_landing'},{v['template_id'] for v in gallery['items']})
-                self.assertTrue(all(v['preview_status']=='ready' for v in gallery['items']))
+                statuses={v['surface']:v['preview_status'] for v in gallery['items']}
+                self.assertEqual('ready',statuses['post'])
+                # The source-only CI test runs before npm installs Playwright and
+                # builds the Landing preview bundle. The Validation image carries
+                # both and must produce a ready Landing preview at runtime.
+                root=Path(__file__).resolve().parents[2]
+                bundle=Path(os.environ.get('PTW_TEMPLATE_PREVIEW_BUNDLE',str(root/'.local/template-preview')))
+                has_landing_renderer=bool(shutil.which('node')) and (root/'apps/commander-web/node_modules/playwright').is_dir() and bundle.is_dir()
+                self.assertEqual('ready' if has_landing_renderer else 'failed',statuses['landing'])
                 self.assertEqual(['post'],[v['surface'] for v in service.gallery('post')['items']])
                 for item in gallery['items']:
                     self.assertEqual(next(b['template_sha256'] for b in builtins() if b['surface']==item['surface']),item['template_sha256'])

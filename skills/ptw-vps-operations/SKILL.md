@@ -107,6 +107,14 @@ before the requested database exists; that is not migration-test readiness.
    immutable request branch by running candidate release code before acceptance.
    Promote canonical source only after the preserving rollout is accepted, then
    reconcile the matching durable Commander record.
+   A Template Creation job can complete but fail PTW's domain validator. If the
+   canonical system prompt is near its 6 KiB limit, appending the validation
+   error can block the second attempt before it reaches the bridge. Keep the
+   prompt immutable, put a bounded correction in server-owned input context,
+   reserve room in the first request's input/total budgets, and bind corrected
+   input into its distinct request fingerprint. Verify a near-limit prompt with
+   invalid-first/valid-second responses; a provider or transport failure must
+   still create no second job. A completed bridge job alone is not acceptance.
 8. A candidate merge can reset modified skill files to Git mode 0644. Before
    dependency and skill verification, run the accepted
    `install_ptw_skill_sync.sh` against the candidate repository so Linux group

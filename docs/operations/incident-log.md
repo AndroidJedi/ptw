@@ -2,6 +2,23 @@
 
 Updated: 2026-09-22
 
+## 2026-09-22 — Template Creation correction exceeded prompt budget
+
+The coupled in-place release passed its provider, Studio and media canaries,
+preserved production rows, and deployed the two requested Owner accounts across
+Gateway, Hosting and Firebase blocking functions. A subsequent real Template
+Creation analysis job completed, but PTW rejected its component selection. The
+provider tried to append the bounded domain error to the near-6 KiB canonical
+system prompt, exceeding that prompt's budget locally before a second job was
+queued. This was a retry-contract defect, not a bridge outage or lost reference.
+
+The hotfix keeps the canonical prompt fixed, carries the bounded correction in
+server-owned input context, reserves input/total budget on attempt one, and
+includes the corrected payload in context and idempotency fingerprints. A focused
+regression covers a near-limit prompt and completed invalid-first/valid-second
+responses. Release acceptance requires a fresh production Template Creation
+canary.
+
 ## 2026-09-22 — PTW candidate rolled back after bridge readiness failure
 
 The owner-authorized mobile release passed its CI suites and migration rehearsal.
@@ -16,10 +33,9 @@ The candidate Validation contract requires `studio_manual_edit` and optionally
 `template_creation` with `xhigh`, while the unchanged companion platform
 advertises neither mode. The mobile publisher always reuses platform images,
 so that channel cannot deliver this coupled release. A compatible platform
-API/worker change is prepared and locally tested. Production acceptance remains
-pending a serial in-place release with both repositories and a successful live
-bridge canary. Do not retry the incompatible mobile request or infer readiness
-from healthy containers. The VPS operations skill now records this preflight.
+API/worker change was later deployed in a serial in-place release with both
+repositories and successful live bridge canaries. The VPS operations skill
+records this preflight.
 
 ## 2026-09-16 — First Brief creation on an empty Project returned HTTP 500
 

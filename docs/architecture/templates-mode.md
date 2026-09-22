@@ -1,6 +1,6 @@
 # Private Templates mode
 
-Status: source implementation; not deployed.
+Status: deployed; see `commander-current-state.md` for the current hotfix.
 
 Templates is a global owner destination at `?page=templates`, with no Project
 selector. Post and Landing filters include their protected built-ins and owner-
@@ -144,8 +144,11 @@ execute code or create arbitrary components, claims, contacts or evidence.
 
 The `template_creation` mode shares `LocalCodexStructuredProvider` and
 `StructuredBridge`. Its canonical skill is `skills/template-creation-agent`.
-System/input/schema/total/response budgets are 6/40/8/52/20 KiB. The system share
-includes room for the bounded second-attempt validation correction. Later calls contain
+System/input/schema/total/response budgets are 6/40/8/52/20 KiB. The first
+attempt reserves 3 KiB inside the input and total budgets for a possible
+bounded validation correction. A corrective attempt keeps the canonical system
+prompt unchanged and places that correction in a server-owned input field,
+bound into the request fingerprint and context hash. Later calls contain
 only the current definition, selected component capabilities, one analysis and
 the latest comparison, plus necessary image attachments. They omit skills/rule
 histories, graph rows, repository source and unrelated registries. Every call

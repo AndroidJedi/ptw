@@ -28,6 +28,8 @@ BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
 BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES = 8_388_608
 STRUCTURED_REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh"})
 TEMPLATE_CREATION_REASONING_EFFORT = "xhigh"
+TEMPLATE_CORRECTION_RESERVE_BYTES = 3072
+TEMPLATE_CORRECTION_KEY = "_ptw_validation_correction"
 STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
     "template_creation": {
         # Leave room for the bounded second-attempt validation correction while
@@ -156,6 +158,12 @@ def enforce_structured_contract_budget(
                 raise ValueError(
                     f"{mode} {part.replace('_', ' ')} exceeds its compact byte budget"
                 )
+        if mode == OPTIONAL_TEMPLATE_MODE and TEMPLATE_CORRECTION_KEY not in input_payload:
+            if any(
+                budget[part] - contract_bytes[part] < TEMPLATE_CORRECTION_RESERVE_BYTES
+                for part in ("input_payload", "total")
+            ):
+                raise ValueError("template_creation contract leaves no corrective attempt budget")
     return contract_bytes
 
 
@@ -375,16 +383,25 @@ class StructuredBridge:
         input_artifact_bytes: int = 0,
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
-        context_hash = self._digest(input_payload)
+        request_payload = dict(input_payload)
+        if correction is not None and mode == OPTIONAL_TEMPLATE_MODE:
+            # Keep the canonical skill inside its 6 KiB prompt budget. The
+            # first attempt reserves room in the input contract for this hint.
+            request_payload[TEMPLATE_CORRECTION_KEY] = (
+                "The previous completed structured response was rejected by PTW "
+                f"validation: {correction}. Return a corrected object that obeys "
+                "that exact constraint."
+            )
+        context_hash = self._digest(request_payload)
         request_fingerprint = bridge_request_fingerprint(
-            mode=mode, system_prompt=system_prompt, input_payload=input_payload,
+            mode=mode, system_prompt=system_prompt, input_payload=request_payload,
             output_schema=output_schema, prompt_version=prompt_version,
             model=self.model,
             input_artifact_digests=input_artifact_digests,
             reasoning_effort=reasoning_effort,
         )
         prompt = system_prompt
-        if correction is not None:
+        if correction is not None and mode != OPTIONAL_TEMPLATE_MODE:
             prompt += (
                 "\n\nCORRECTION_REQUIRED: The previous completed structured response "
                 f"was rejected by PTW validation: {correction}. Return a corrected "
@@ -392,13 +409,13 @@ class StructuredBridge:
             )
         contract_bytes = enforce_structured_contract_budget(
             mode=mode,
-            system_prompt=prompt, input_payload=input_payload,
+            system_prompt=prompt, input_payload=request_payload,
             output_schema=output_schema,
         )
         request_document: dict[str, Any] = {
             "mode": mode,
             "system_prompt": prompt,
-            "input_payload": dict(input_payload),
+            "input_payload": request_payload,
             "output_schema": dict(output_schema),
             "prompt_template_version": prompt_version,
             "context_hash": context_hash,

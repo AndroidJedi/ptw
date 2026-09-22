@@ -1,33 +1,43 @@
 # Commander current state
 
 Updated: 2026-09-22
-Branch: `main`
-Deployment: live and accepted from code revision
-`84f4db7b5e8a22773cd128ff3fd66528ef11a681`. Owner Hosting version
-`851b5707e0309f29` remains current. Commander and Validation run
-`god-mobile-20260916-84f4db7b5e8a`; unchanged Owner Gateway retains
-`god-mobile-20260916-57332cbb949a`, and the companion platform retains
-`instagram-manual-retry-20260915-d455ac4`.
+Branch: `candidate/ptw-prod-access-20260922`
+Deployment: the serial in-place release accepted code revision
+`d54ac07822383cbde689bf141305d690dcd9523b` and companion platform
+`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Owner Console, Landing
+Hosting and Firebase auth-guard functions were published. This revision adds
+the corrective Template Creation hotfix described below.
 
-## Approved production accounts — local, not deployed
+## Approved production accounts — deployed
 
-The source now permits the two additional verified Google accounts
+Production permits the two additional verified Google accounts
 `svitlanabilan23@gmail.com` and `befree833@gmail.com` through the Firebase
 blocking functions, Owner Console, and Owner Gateway. The original account
-retains its pinned UID and App Check remains required. Deployment must update
-the Firebase auth-guard functions separately from the PTW in-place release;
-the latter includes migrations 012–014 and needs its preserving confirmation
-gate. Do not treat a Hosting-only rollout as complete access.
+retains its pinned UID and App Check remains required. Gateway Settings, the
+live web bundle, and both active Firebase auth-guard blocking functions include
+both accounts. Individual interactive sign-in for each new account remains
+unverified because their credentials were not available.
 
 The first owner-authorized mobile attempt passed CI and applied additive
 migrations 012–014 while preserving existing rows, but failed after cutover
 because the still-reused companion bridge lacks `studio_manual_edit` (and
 `template_creation`). The receiver restored the accepted application and Owner
 Hosting. Firebase functions remain unchanged. A compatible platform API/worker
-revision is prepared locally; the coupled release must use the serial in-place
-publisher once direct VPS access is available.
+revision was then deployed with the serial in-place publisher. Migrations
+012–014 are installed and production row-preservation checks passed.
 
-## Template draft recovery and reliable comparison — local, not deployed
+## Template Creation corrective-attempt hotfix
+
+A live Template Creation analysis bridge job completed but its response failed
+PTW component-selection validation. The second attempt was blocked locally when
+the appended correction pushed the canonical skill over its 6 KiB prompt budget.
+The hotfix keeps the prompt fixed, places the bounded error in server-owned input
+context, reserves 3 KiB in the first request's input/total budgets, and binds the
+correction into the fresh context hash and request fingerprint. A focused
+near-limit regression passes. Release acceptance requires a fresh live Template
+Creation canary.
+
+## Template draft recovery and reliable comparison — deployed
 
 Templates now has a separate Drafts section above the accepted gallery. It shows
 active, failed, interrupted, paused, capability-gap and proposed runs with their
@@ -48,8 +58,8 @@ Every Template Creation Agent phase now pins `xhigh`. Model and effort are bound
 into the request fingerprint and sanitized invocation record. A structured bridge
 must explicitly advertise `template_creation → xhigh`; other workflows keep their
 existing effort. The two-attempt structured correction and 420-second timeout are
-unchanged. The system-prompt share is 6 KiB within the existing 52 KiB total so a
-second-attempt validation hint cannot block its own corrective call.
+unchanged. The system-prompt share is 6 KiB within the existing 52 KiB total;
+the hotfix above carries a possible correction in reserved input context.
 
 A failed compare resumes with the exact saved PNG only when its media digest and
 definition digest still match. It does not rerender or increase the iteration
@@ -103,7 +113,7 @@ Templates and existing-Post application canaries, the deterministic Studio visua
 audit, and skill verification. The local API was restarted on the updated source;
 no commit, push, deployment, publication or production mutation ran.
 
-## Apply templates to existing Posts — local, not deployed
+## Apply templates to existing Posts — deployed
 
 The Post editor now has Change template, a compact Post selector and a single
 editing toolbar. It lists accepted Post designs with native previews and applies
@@ -128,7 +138,7 @@ copy, and the live local chooser was inspected in Ukrainian at 1440 and 360px.
 The local API was refreshed; no owner Post was changed during verification.
 No commit, push, deployment, publishing or production database mutation ran.
 
-## Templates gallery and Template Creation Agent — source only, not deployed
+## Templates gallery and Template Creation Agent — deployed
 
 The global private Templates destination registers the protected Phone Metrics
 and existing Landing definitions, plus owner-accepted declarative versions.
@@ -174,7 +184,7 @@ that new image remains unverified. Production also requires the companion bridge
 to advertise the optional `template_creation` JSON/multimodal mode. No source was
 committed, pushed, deployed or published, and production PostgreSQL was untouched.
 
-## Modular Post/Landing templates and compact agents — source only, not deployed
+## Modular Post/Landing templates and compact agents — deployed
 
 The reported Post workspace merge is a browser-state race rather than evidence
 that saved PostgreSQL creatives were combined or deleted. Project/creative
@@ -211,7 +221,7 @@ the disposable full-schema guard, and the real HTTP/PostgreSQL save/restart
 canary. The migration canary proves historical unsupported rows are retained
 while new unsupported Post rows are rejected.
 
-## Post and Landing manual Agent mode — local, not deployed
+## Post and Landing manual Agent mode — deployed
 
 Post Studio and Landing Studio now expose one owner-only **Agent mode** that
 translates a task message plus up to four temporary screenshots into the complete
@@ -278,7 +288,7 @@ the artwork area enabled, one outer logo, numeric 01/02/03 Metric values, and a
 text-free home-medicine-cabinet image action. This milestone has not been
 deployed.
 
-## Studio editor image-control recovery — local, not deployed
+## Studio editor image-control recovery — deployed
 
 The Post template now starts every component-setting disclosure collapsed.
 Phone Metrics retries transient authenticated raw-hero thumbnail reads and offers

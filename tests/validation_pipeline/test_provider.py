@@ -10,7 +10,8 @@ from unittest.mock import patch
 from validation_pipeline.provider import (
     BRIDGE_CONCURRENT_SLOT_LIMIT, BRIDGE_IDEMPOTENCY_KEY_LIMIT,
     BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, STRUCTURED_MODE_BUDGETS,
-    StructuredBridge, enforce_structured_response_budget,
+    TEMPLATE_CORRECTION_KEY, StructuredBridge, enforce_structured_contract_budget,
+    enforce_structured_response_budget,
 )
 
 
@@ -81,6 +82,13 @@ class CorrectingFakeBridge(StructuredBridge):
                 "invocation": {"provider": "fake"},
             },
         }
+
+
+class CorrectingTemplateBridge(CorrectingFakeBridge):
+    def _request(self, url, payload, *, timeout=30):
+        if url.endswith("/capabilities"):
+            return TemplateBridge()._request(url, payload, timeout=timeout)
+        return super()._request(url, payload, timeout=timeout)
 
 
 class FailedProviderBridge(StructuredBridge):
@@ -292,6 +300,44 @@ class StructuredBridgeTests(unittest.TestCase):
             ["rejected", "completed"],
             [item["status"] for item in value["invocation"]["validation_attempts"]],
         )
+
+    def test_template_correction_keeps_near_limit_canonical_prompt_unchanged(self) -> None:
+        bridge = CorrectingTemplateBridge()
+        prompt = "S" * 6000
+
+        def validate(response):
+            if response["texture_intensity"] == 0:
+                raise ValueError("Reference component selection is invalid")
+            return response
+
+        value = bridge.call(
+            mode="template_creation", system_prompt=prompt,
+            input_payload={"phase": "analyze"}, output_schema={"type": "object"},
+            idempotency_key="template:corrective", prompt_version="template-v1",
+            response_validator=validate, reasoning_effort="xhigh",
+        )
+        self.assertEqual(2, value["invocation"]["bridge_attempt"])
+        self.assertEqual([prompt, prompt], [post["system_prompt"] for post in bridge.posts])
+        self.assertNotIn(TEMPLATE_CORRECTION_KEY, bridge.posts[0]["input_payload"])
+        self.assertIn(
+            "Reference component selection is invalid",
+            bridge.posts[1]["input_payload"][TEMPLATE_CORRECTION_KEY],
+        )
+        self.assertNotEqual(
+            bridge.posts[0]["context_hash"], bridge.posts[1]["context_hash"],
+        )
+        self.assertNotEqual(
+            bridge.posts[0]["idempotency_key"], bridge.posts[1]["idempotency_key"],
+        )
+
+    def test_template_preflight_reserves_input_room_for_correction(self) -> None:
+        budget = STRUCTURED_MODE_BUDGETS["template_creation"]["input_payload"]
+        with self.assertRaisesRegex(ValueError, "corrective attempt budget"):
+            enforce_structured_contract_budget(
+                mode="template_creation", system_prompt="short",
+                input_payload={"reference": "x" * (budget - 1024)},
+                output_schema={"type": "object"},
+            )
 
     def test_provider_failure_does_not_create_a_second_attempt(self) -> None:
         bridge = FailedProviderBridge()

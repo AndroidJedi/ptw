@@ -37,6 +37,12 @@ with a gallery, ephemeral references, a persisted render/compare creation agent,
 and append-only declarative versions. Phone Metrics remains protected and its
 built-in controls remain available; editing its gallery item creates a derivative.
 
+Studio visual-reference inputs accept SVG as well as PNG/JPEG/WebP. The browser
+rejects active or external SVG content and sends a bounded rasterized PNG to the
+existing image API; no raw SVG enters Project authority. Template edits may
+attach two ordered visual references and select separately registered fixed
+assets for a new immutable version.
+
 ## Change template on an existing Post
 
 The Post editor has one compact toolbar with Change template, Agent mode (for

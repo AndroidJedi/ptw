@@ -19,7 +19,7 @@ from .studio_primitives import PrimitiveTemplate, PRIMITIVE_TEMPLATE_SCHEMA
 from .template_assets import ASSET_IDS, RENDERER_VERSION, asset_bytes, document_asset_manifest
 from .template_registry import TemplateCapabilities, TemplateDefinition, TemplateIdentity
 
-COMPONENT_VERSION = 4
+COMPONENT_VERSION = 5
 COMPONENT_TYPES = (
     "text", "image", "cutout_image", "button", "store_badge", "card",
     "overlay", "decoration", "brand_motif", "phone", "brand",
@@ -34,9 +34,11 @@ COMPONENT_FIELDS = {
     "id", "type", "role", "box", "mobile_box", "fill", "color", "border_color",
     "border_width", "radius", "opacity", "font_family", "font_size", "font_weight",
     "align", "placeholder", "fit", "focal_x", "focal_y", "gradient", "enabled",
-    "asset_id", "rotation_degrees",
+    "asset_id", "rotation_degrees", "badge_surface",
 }
-LEGACY_COMPONENT_FIELDS = COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
+PREVIOUS_COMPONENT_FIELDS = COMPONENT_FIELDS - {"badge_surface"}
+LEGACY_COMPONENT_FIELDS = PREVIOUS_COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
+LEGACY_WITH_SURFACE_FIELDS = COMPONENT_FIELDS - {"asset_id", "rotation_degrees"}
 DOCUMENT_FIELDS = {"name", "description", "canvas", "background", "components"}
 MAX_DOCUMENT_BYTES = 14_000
 
@@ -80,7 +82,10 @@ def box(value: Any) -> list[float]:
 
 
 def component(value: Any) -> dict:
-    if not isinstance(value, Mapping) or frozenset(value) not in {frozenset(COMPONENT_FIELDS), frozenset(LEGACY_COMPONENT_FIELDS)}:
+    if not isinstance(value, Mapping) or frozenset(value) not in {
+        frozenset(COMPONENT_FIELDS), frozenset(PREVIOUS_COMPONENT_FIELDS),
+        frozenset(LEGACY_COMPONENT_FIELDS), frozenset(LEGACY_WITH_SURFACE_FIELDS),
+    }:
         raise ValueError("Component fields are invalid")
     result = deepcopy(dict(value))
     if not result.get("asset_id"):
@@ -90,6 +95,7 @@ def component(value: Any) -> dict:
             "store_badge": "app_store_badge_en" if value.get("placeholder") == "App Store" else "google_play_badge_en",
         }.get(str(value.get("type")), "")
     result.setdefault("rotation_degrees", 0)
+    result.setdefault("badge_surface", "slot_pill")
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", str(value["id"])):
         raise ValueError("Component ID must describe a reusable semantic role")
     if re.search(r"reference|specific|widget|template\d", value["id"], re.I):
@@ -106,6 +112,8 @@ def component(value: Any) -> dict:
     number(result["rotation_degrees"], -360, 360)
     if result["asset_id"] not in ASSET_IDS:
         raise ValueError("Component asset is not registered")
+    if result["badge_surface"] not in {"slot_pill", "asset_only"} or (value["type"] != "store_badge" and result["badge_surface"] != "slot_pill"):
+        raise ValueError("Badge surface is not registered for this component")
     if value["font_family"] not in STUDIO_FONT_FAMILIES or value["align"] not in ("left", "center", "right"):
         raise ValueError("Typography option is not registered")
     if value["fit"] not in ("cover", "contain", "stretch") or value["placeholder"] not in PLACEHOLDERS:
@@ -122,7 +130,10 @@ def component(value: Any) -> dict:
         "brand_motif": "natal_symbol",
         "store_badge": "app_store_badge_en" if value["placeholder"] == "App Store" else "google_play_badge_en",
     }.get(value["type"], "")
-    if result["asset_id"] != expected_asset:
+    allowed_assets = {expected_asset}
+    if value["type"] == "store_badge":
+        allowed_assets.add("owner_app_store_badge_v1" if value["placeholder"] == "App Store" else "owner_google_play_badge_v1")
+    if result["asset_id"] not in allowed_assets:
         raise ValueError("Component asset does not match its registered reusable type")
     if not isinstance(value["enabled"], bool) or not isinstance(value["gradient"], list) or len(value["gradient"]) not in (0, 2):
         raise ValueError("Component visibility or gradient is invalid")
@@ -158,7 +169,7 @@ def new_component(identifier: str, kind: str, role: str, bounds: list, text: str
             "radius": 20, "opacity": 1, "font_family": "Inter", "font_size": 48,
             "font_weight": 500, "align": "left", "placeholder": text, "fit": "cover",
             "focal_x": .5, "focal_y": .5, "gradient": [], "enabled": True,
-            "asset_id": "", "rotation_degrees": 0}
+            "asset_id": "", "rotation_degrees": 0, "badge_surface": "slot_pill"}
 
 
 def seed(surface: str) -> dict:
@@ -182,12 +193,14 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
             "reused_native_components": "phone uses the existing fixed iPhone compositor with an editable hero-art slot; brand uses the canonical Natal lock-up. Neither is a generated screenshot widget.",
             "placeholders": list(PLACEHOLDERS), "fonts": list(STUDIO_FONT_FAMILIES),
             "layout": "Ordered layers; box and mobile_box are [x,y,width,height] in 0–1000 canvas units. Separate mobile composition for Landing.",
-            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; fixed visuals require an allowlisted asset_id.",
+            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
             "registered_variants": {
                 "cutout_image": ["Image"],
                 "brand_motif": ["Natal symbol"],
                 "store_badge": ["App Store", "Google Play"],
             },
+            "store_badge_assets": {"App Store": ["app_store_badge_en", "owner_app_store_badge_v1"],
+                                   "Google Play": ["google_play_badge_en", "owner_google_play_badge_v1"]},
             "priority": ["existing settings", "existing composition", "reusable parameter", "reusable component", "exception with justification"],
             "component_example": new_component("section_title", "text", "headline", [60, 40, 880, 150], "Section title")}
 
@@ -275,13 +288,15 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
         }.get(c["type"], c["type"])
         props = {"position": "absolute", "x": x * width / 1000, "y": y * height / 1000,
             "width": w * width / 1000, "height": h * height / 1000, "visible": c["enabled"],
-            # A store badge's box is the complete black pill from the design,
-            # while its immutable artwork is contained inside that surface.
+            # Legacy badges paint the slot pill. An asset_only badge is already
+            # complete artwork and must not receive another black background.
             # Other image slots remain transparent unless their primitive
             # explicitly opts into a background.
-            "background_color": c["fill"] if kind not in ("text", "image") or c["type"] == "store_badge" else None,
-            "border_color": c["border_color"], "border_width": c["border_width"], "radius": c["radius"],
-            "opacity": c["opacity"], "rotation": c["rotation_degrees"], "background_gradient": c["gradient"]}
+            "background_color": c["fill"] if kind not in ("text", "image") or (c["type"] == "store_badge" and c["badge_surface"] == "slot_pill") else None,
+            "border_color": c["border_color"], "border_width": 0 if c["type"] == "store_badge" and c["badge_surface"] == "asset_only" else c["border_width"],
+            "radius": 0 if c["type"] == "store_badge" and c["badge_surface"] == "asset_only" else c["radius"],
+            "opacity": c["opacity"], "rotation": c["rotation_degrees"],
+            "background_gradient": [] if c["type"] == "store_badge" and c["badge_surface"] == "asset_only" else c["gradient"]}
         if kind in ("text", "button"):
             text = content.get(c["id"], c["placeholder"])
             bounded_text(text, 500, "Bound content", empty=True)

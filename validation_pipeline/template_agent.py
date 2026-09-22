@@ -8,7 +8,8 @@ from typing import Any, Mapping
 from .template_components import (COMPONENT_FIELDS, COMPONENT_TYPES, PLACEHOLDERS, ROLES,
     STUDIO_FONT_FAMILIES, apply_edits, bounded_text, box, canonical, catalog, number)
 from .template_assets import ASSET_IDS
-from .provider import enforce_structured_contract_budget, enforce_structured_response_budget
+from .provider import (TEMPLATE_CORRECTION_KEY, enforce_structured_contract_budget,
+    enforce_structured_response_budget, template_validation_correction)
 
 MODE = "template_creation"
 PROMPT_VERSION = "template-creation-v1"
@@ -39,6 +40,7 @@ COMPONENT_SCHEMA = obj({
     **{key: text_schema(40) for key in ("id", "type", "role", "fill", "color", "border_color", "font_family", "align", "placeholder", "fit")},
     **{key: {"type": "number"} for key in ("border_width", "radius", "opacity", "font_size", "font_weight", "focal_x", "focal_y", "rotation_degrees")},
     "asset_id": {"type": "string", "enum": list(ASSET_IDS)},
+    "badge_surface": {"type": "string", "enum": ["slot_pill", "asset_only"]},
     "box": BOX_SCHEMA, "mobile_box": BOX_SCHEMA, "enabled": {"type": "boolean"},
     "gradient": {"type": "array", "items": text_schema(7), "maxItems": 2}})
 EDIT_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "path": text_schema(100),
@@ -115,7 +117,8 @@ def artifact(data: bytes, index: int) -> dict:
 def contract(phase: str, run: dict) -> tuple[dict, dict]:
     # Whitelist every field: no registry dump, repository, Project, skills, history or graph.
     payload = {"phase": phase, "scope": run["scope"], "instruction": run["instruction"],
-               "reference": run.get("reference"), "image_order": [], "post_template_design": run.get("post_design")}
+               "reference": run.get("reference"), "reference_assets": (run.get("reference_assets") or [])[:2],
+               "image_order": [], "post_template_design": run.get("post_design")}
     if phase == "analyze":
         payload["allowed_component_types"] = list(COMPONENT_TYPES)
         payload["geometry_units"] = "Every region box is [x,y,width,height] in 0–1000 canvas units; e.g. [60,50,880,140]. Never use 0–1 fractions."
@@ -126,6 +129,8 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
         "natal_symbol": "Canonical Natal symbol. Never redraw or replace.",
         "app_store_badge_en": "Official English Apple artwork. Never redraw, recolor, or replace.",
         "google_play_badge_en": "Official English Google Play artwork. Never redraw, recolor, or replace.",
+        "owner_app_store_badge_v1": "Owner-supplied App Store SVG artwork, safely rasterized and digest-pinned. Select this asset when the owner requests their attached file; never redraw it.",
+        "owner_google_play_badge_v1": "Owner-supplied Google Play SVG artwork, safely rasterized and digest-pinned. Select this asset when the owner requests their attached file; never redraw it.",
         "neutral_person_stock_v1": "Pinned transparent Pexels stock fixture for previews; the Project Post image replaces it at runtime.",
     }
     if run.get("latest_correction"):
@@ -133,6 +138,7 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
             "correction_id": run["latest_correction"].get("correction_id"),
             "instruction": run["latest_correction"].get("instruction"),
             "reference": run["latest_correction"].get("reference"),
+            "reference_assets": (run["latest_correction"].get("reference_assets") or [])[:2],
             "rule": "Apply this correction to the saved baseline. A correction reference is temporary comparison evidence and does not replace the original reference analysis.",
         }
     if run.get("correction_requirements"):
@@ -152,7 +158,14 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
 
 def preflight(phase: str, run: dict) -> dict:
     payload, schema = contract(phase, run)
-    return enforce_structured_contract_budget(mode=MODE, system_prompt=SYSTEM, input_payload=payload, output_schema=schema)
+    measured = enforce_structured_contract_budget(mode=MODE, system_prompt=SYSTEM,
+        input_payload=payload, output_schema=schema)
+    # A completed but invalid first response must always be able to receive its
+    # bounded second attempt. Check that envelope before recording a call.
+    corrected = {**payload, TEMPLATE_CORRECTION_KEY: template_validation_correction("x" * 500)}
+    enforce_structured_contract_budget(mode=MODE, system_prompt=SYSTEM,
+        input_payload=corrected, output_schema=schema)
+    return measured
 
 
 def call(provider, phase: str, run: dict, images: list[tuple[str, bytes]], *, cancel_event=None) -> tuple[dict, dict]:

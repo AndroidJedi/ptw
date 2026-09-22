@@ -24,6 +24,28 @@
       "license_url": "https://partnermarketinghub.withgoogle.com/brands/google-play/google-play/lockups-icons-badges/"
     },
     {
+      "asset_id": "owner_app_store_badge_v1",
+      "file": "owner_app_store_badge_v1.png",
+      "sha256": "264cfc3793f4d7d2da214b4eea39e381c9c9bf203b59a3810eacb036c6e27474",
+      "source_file": "owner_app_store_badge_v1.svg",
+      "source_sha256": "0606b8eebb270d9d3780cc4fc6113e49b33434b15ddad1e9157fc49a294bac88",
+      "source_url": "owner-provided:download-on-the-app-store-apple-logo-svgrepo-com.svg",
+      "locale": "en",
+      "license_type": "Owner-provided SVG Repo artwork",
+      "derivation": "Transparent canvas cropped for the fixed Studio asset; source SVG preserved byte-for-byte."
+    },
+    {
+      "asset_id": "owner_google_play_badge_v1",
+      "file": "owner_google_play_badge_v1.png",
+      "sha256": "149f799872fd6a828e4da5e9364895e1f36b582dd73d3790f0d396c88e6b3d7c",
+      "source_file": "owner_google_play_badge_v1.svg",
+      "source_sha256": "1461a54d1eabc5941d6a5be2e26b0c71426fda096488721834951c738bed8ab7",
+      "source_url": "owner-provided:google-play-badge-logo-svgrepo-com.svg",
+      "locale": "en",
+      "license_type": "Owner-provided SVG Repo artwork",
+      "derivation": "Transparent canvas cropped for the fixed Studio asset; source SVG preserved byte-for-byte."
+    },
+    {
       "asset_id": "neutral_person_stock_v1",
       "file": "neutral_person_stock_v1.png",
       "sha256": "ef432494f7850cfd91be5d218a5439ad7047d9adb93b8015b1591bd35b963d7a",

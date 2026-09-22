@@ -65,8 +65,8 @@ def _input_artifacts(
         raise ValueError("structured visual analysis requires exactly one input artifact")
     if mode == "studio_manual_edit" and not 1 <= len(value) <= 4:
         raise ValueError("Studio manual editing supports one to four screenshot artifacts")
-    if mode == OPTIONAL_TEMPLATE_MODE and not 1 <= len(value) <= 4:
-        raise ValueError("Template creation supports at most four artifacts")
+    if mode == OPTIONAL_TEMPLATE_MODE and not 1 <= len(value) <= 6:
+        raise ValueError("Template creation supports at most six artifacts")
     normalized: list[dict[str, str]] = []
     digests: dict[str, str] = {}
     total_bytes = 0
@@ -105,11 +105,20 @@ def _input_artifacts(
     return normalized, digests, total_bytes
 
 
-def _validation_error(error: Exception) -> str:
+def _validation_error(error: Exception | str) -> str:
     message = " ".join(str(error).split())[:500] or type(error).__name__
     return re.sub(
         r"(?i)(token|secret|credential|password)\s*[:=]\s*\S+",
         r"\1=[redacted]", message,
+    )
+
+
+def template_validation_correction(error: Exception | str) -> str:
+    """One bounded, server-owned correction shared by local Codex and the bridge."""
+    return (
+        "The previous completed structured response was rejected by PTW "
+        f"validation: {_validation_error(error)}. Return a corrected object that obeys "
+        "that exact constraint."
     )
 
 
@@ -387,11 +396,7 @@ class StructuredBridge:
         if correction is not None and mode == OPTIONAL_TEMPLATE_MODE:
             # Keep the canonical skill inside its 6 KiB prompt budget. The
             # first attempt reserves room in the input contract for this hint.
-            request_payload[TEMPLATE_CORRECTION_KEY] = (
-                "The previous completed structured response was rejected by PTW "
-                f"validation: {correction}. Return a corrected object that obeys "
-                "that exact constraint."
-            )
+            request_payload[TEMPLATE_CORRECTION_KEY] = template_validation_correction(correction)
         context_hash = self._digest(request_payload)
         request_fingerprint = bridge_request_fingerprint(
             mode=mode, system_prompt=system_prompt, input_payload=request_payload,

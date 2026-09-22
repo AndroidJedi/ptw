@@ -111,7 +111,12 @@ def _safe_failure(error: Exception, *, phase: str, provider: Any) -> dict[str, A
     attempts = [item for item in getattr(error, "attempts", []) if isinstance(item, Mapping)]
     last = attempts[-1] if attempts else {}
     error_types = {str(item.get("error_type", "")) for item in attempts}
-    if isinstance(error, TimeoutError) or error_types & {"TimeoutExpired", "TimeoutError"}:
+    contract_failure = isinstance(error, ValueError) and any(term in str(error) for term in (
+        "compact byte budget", "corrective attempt budget", "safe byte budget",
+    ))
+    if contract_failure:
+        category = "contract"
+    elif isinstance(error, TimeoutError) or error_types & {"TimeoutExpired", "TimeoutError"}:
         category = "timeout"
     elif "Cancelled" in type(error).__name__ or any("Cancelled" in value for value in error_types):
         category = "cancelled"
@@ -121,8 +126,8 @@ def _safe_failure(error: Exception, *, phase: str, provider: Any) -> dict[str, A
         category = "validation"
     else:
         category = "provider"
-    validation_error = str(last.get("error_message", "")) if category == "validation" else ""
-    if not validation_error and category == "validation":
+    validation_error = str(last.get("error_message", "")) if category in {"validation", "contract"} else ""
+    if not validation_error and category in {"validation", "contract"}:
         validation_error = str(error)
     validation_error = " ".join(validation_error.split())[:240]
     validation_error = re.sub(
@@ -150,6 +155,19 @@ def reference_key(value: Mapping) -> str:
     if set(value) != {"surface", "template_id", "template_version", "template_sha256"} or value["surface"] not in {"post", "landing"} or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", str(value["template_id"])) or type(value["template_version"]) is not int or value["template_version"] < 1 or not re.fullmatch(r"[0-9a-f]{64}", str(value["template_sha256"])):
         raise ValueError("Exact template reference is invalid")
     return f"{value['surface']}:{value['template_id']}:{value['template_version']}"
+
+
+def reference_ids(request: Mapping) -> list[str]:
+    if "reference_id" in request and "reference_ids" in request:
+        raise ValueError("Choose one reference field")
+    values = request.get("reference_ids", [request["reference_id"]] if request.get("reference_id") else [])
+    if not isinstance(values, list) or len(values) > 2 or len(set(map(str, values))) != len(values):
+        raise ValueError("Attach at most two distinct template references")
+    return [uuid(value) for value in values]
+
+
+def reference_metadata(data: bytes) -> dict:
+    return {"sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "byte_count": len(data)}
 
 
 class TemporaryReferences:
@@ -194,16 +212,22 @@ class TemporaryReferences:
         return {"reference_id": identifier, "sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "width": width, "height": height, "expires_in_seconds": 600}
 
     def take(self, identifier: str) -> bytes:
+        return self.take_many([identifier])[0]
+
+    def take_many(self, identifiers: list[str]) -> list[bytes]:
+        if not 1 <= len(identifiers) <= 2 or len(set(identifiers)) != len(identifiers):
+            raise ValueError("Attach one or two distinct template references")
         with self._lock:
             self._expire()
-            identifier = uuid(identifier)
-            value = self._items.pop(identifier, None)
-            timer = self._timers.pop(identifier, None)
-            if timer:
-                timer.cancel()
-        if value is None:
-            raise ValueError("Temporary reference expired; attach it again")
-        return value[1]
+            keys = [uuid(identifier) for identifier in identifiers]
+            if any(key not in self._items for key in keys):
+                raise ValueError("Temporary reference expired; attach it again")
+            values = [self._items.pop(key)[1] for key in keys]
+            for key in keys:
+                timer = self._timers.pop(key, None)
+                if timer:
+                    timer.cancel()
+            return values
 
     def discard(self, identifier: str):
         with self._lock:
@@ -337,7 +361,7 @@ class TemplateAuthoringService:
         return None
 
     def start(self, request: Mapping) -> dict:
-        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "source", "post_reference"}:
+        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "reference_ids", "source", "post_reference"}:
             raise ValueError("Template creation fields are invalid")
         request_id = uuid(request["request_id"])
         digest = sha(dict(request))
@@ -351,7 +375,8 @@ class TemplateAuthoringService:
         instruction = request["instruction"]
         if not isinstance(instruction, str) or len(instruction.encode()) > 3000:
             raise ValueError("Template instruction exceeds 3000 UTF-8 bytes")
-        if not instruction.strip() and not request.get("reference_id"):
+        identifiers = reference_ids(request)
+        if not instruction.strip() and not identifiers:
             raise ValueError("Provide an instruction, a reference image, or both")
         surfaces = ["post", "landing"] if scope == "combined" else [scope]
         source = self.read(request["source"]) if request.get("source") else None
@@ -368,20 +393,21 @@ class TemplateAuthoringService:
         run = {"run_id": request_id, "scope": scope, "instruction": instruction.strip(), "status": "queued", "phase": "analyze",
             "documents": documents, "template_ids": template_ids, "source": base, "post_reference": post_reference,
             "post_design": self.resolve_post_reference(post_reference) if post_reference else None,
-            "reference": None, "analysis": None, "previews": {}, "comparison": None, "capability_gap": None,
+            "reference": None, "reference_assets": [], "analysis": None, "previews": {}, "comparison": None, "capability_gap": None,
             "iterations": 0, "calls": 0, "invocations": [], "error": None, "failure": None,
             "checkpoint": None, "baseline": None, "progress": [],
             "latest_correction": None, "correction_history": [],
             "accepted_versions": []}
         agent.preflight("analyze", run)  # Reject oversized JSON before reserving a provider job.
-        data = None
-        if request.get("reference_id"):
-            data = self.references.take(request["reference_id"])
+        images = []
+        if identifiers:
+            images = self.references.take_many(identifiers)
         elif source and source["builtin"] and source["previews"].get("desktop"):
             with self.store.transaction() as tx:
-                data = tx.read_media(source["previews"]["desktop"]["sha256"])
-        if data:
-            run["reference"] = {"sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "byte_count": len(data)}
+                images = [tx.read_media(source["previews"]["desktop"]["sha256"])]
+        if images:
+            run["reference"] = reference_metadata(images[0])
+            run["reference_assets"] = [reference_metadata(data) for data in images]
         with self.store.transaction() as tx:
             old = self._reconcile(tx, request_id, digest)
             if old:
@@ -390,21 +416,22 @@ class TemplateAuthoringService:
                 raise TemplateConflict("A template creation run is already active")
             run = tx.append("run", request_id, run)
             tx.append("request", request_id, {"run_id": request_id, "request_sha256": digest})
-        self._schedule(run["run_id"], data)
+        self._schedule(run["run_id"], images)
         return self.store.get("run", request_id)
 
-    def _schedule(self, run_id: str, data: bytes | None):
+    def _schedule(self, run_id: str, images: list[bytes] | None):
         with self._lock:
             if run_id in self._active:
                 return
             self._active.add(run_id)
         if self.asynchronous:
-            self._executor.submit(self.execute, run_id, data)
+            self._executor.submit(self.execute, run_id, images)
         else:
-            self.execute(run_id, data)
+            self.execute(run_id, images)
 
-    def execute(self, run_id: str, data: bytes | None = None):
+    def execute(self, run_id: str, reference_images: list[bytes] | None = None):
         run = self.store.get("run", run_id)
+        reference_images = reference_images or []
         started = time.monotonic()
         def invoke(phase, images):
             nonlocal run
@@ -457,16 +484,16 @@ class TemplateAuthoringService:
                 ]
         try:
             if run["analysis"] is None:
-                if run["reference"] and data is None:
+                if run["reference"] and not reference_images:
                     raise ValueError("Reattach the reference to finish its analysis")
                 run = self._update(run, status="analyzing", phase="analyze")
-                analysis = invoke("analyze", [("reference", data)] if data else [])
+                analysis = invoke("analyze", [("reference" if index == 1 else f"reference_{index}", data) for index, data in enumerate(reference_images, 1)])
                 run = self._update(run, analysis=analysis, phase="compose")
             if run["phase"] == "adjust":
                 run = self._update(run, documents=agent.apply_edits(run["documents"], run["comparison"]["edits"]), phase="render")
             if run["phase"] == "compose":
                 run = self._update(run, status="composing")
-                response = invoke("compose", [("correction_reference", data)] if data and run.get("latest_correction") else [])
+                response = invoke("compose", [("correction_reference" if index == 1 else f"correction_reference_{index}", data) for index, data in enumerate(reference_images, 1)] if run.get("latest_correction") else [])
                 documents = agent.apply_edits(run["documents"], response["edits"])
                 run = self._update(run, documents=documents, phase="render")
             for iteration in range(MAX_ITERATIONS):
@@ -501,7 +528,7 @@ class TemplateAuthoringService:
                     previews = run["previews"]
                     run = self._update(run, status="comparing", phase="compare")
                 reference_name = "correction_reference" if run.get("latest_correction") else "reference"
-                images = (([(reference_name, data)] if data else []) + baseline_images()
+                images = ([(reference_name if index == 1 else f"{reference_name}_{index}", data) for index, data in enumerate(reference_images, 1)] + baseline_images()
                     + [(key, value["bytes"]) for key, value in renders.items()])
                 response = invoke("compare", images)
                 response = _enrich_comparison(response)
@@ -576,7 +603,8 @@ class TemplateAuthoringService:
                 failed = {**run, "status": "failed", "error": message, "failure": failure}
                 correction = _correction_update(run, "failed", failure=failure)
                 self._update(run, status="failed", error=message, failure=failure,
-                    checkpoint=_checkpoint(failed, "provider_failure", "continue"),
+                    checkpoint=_checkpoint(failed, "contract_failure" if failure["category"] == "contract" else "provider_failure",
+                        "repair_service" if failure["category"] == "contract" else "continue"),
                     invocations=[*run["invocations"][:-1], {**run["invocations"][-1], "status": "failed",
                         "attempt_count": failure["attempt_count"]}]
                     if run["invocations"] and run["invocations"][-1].get("status") == "started"
@@ -608,7 +636,7 @@ class TemplateAuthoringService:
         }
 
     def resume(self, run_id: str, request: Mapping) -> dict:
-        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "mode"}:
+        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "reference_ids", "mode"}:
             raise ValueError("Resume fields are invalid")
         request_id, run_id = uuid(request["request_id"]), uuid(run_id)
         digest = sha({"run_id": run_id, "action": "resume", **request})
@@ -643,10 +671,10 @@ class TemplateAuthoringService:
             run = {**run, "documents": agent.apply_edits(run["documents"], run["comparison"]["edits"])}
         elif run["status"] == "capability_gap" and mode == "refine" and (run.get("comparison") or {}).get("edits"):
             run = {**run, "documents": agent.apply_edits(run["documents"], run["comparison"]["edits"])}
-        data = self.references.take(request["reference_id"]) if request.get("reference_id") else None
-        correction_reference = ({"sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/png", "byte_count": len(data)}
-                                if data else None)
-        if run["reference"] and run["analysis"] is None and data is None:
+        identifiers = reference_ids(request)
+        images = self.references.take_many(identifiers) if identifiers else []
+        correction_reference = reference_metadata(images[0]) if images else None
+        if run["reference"] and run["analysis"] is None and not images:
             raise ValueError("Reattach the temporary reference; raw pixels are not retained after interruption")
         proposal = (run if run.get("status") == "proposed" else
                     self._latest_proposal(run_id, before_revision=int(run.get("revision", 0)))) if mode == "refine" else None
@@ -656,12 +684,14 @@ class TemplateAuthoringService:
         if mode == "refine":
             correction = {"correction_id": request_id, "instruction": instruction.strip(), "status": "working",
                           "submitted_revision": int(run.get("revision", 0)), "reference": correction_reference,
+                          "reference_assets": [reference_metadata(data) for data in images],
                           "failure": None, "retry_count": 0}
             correction_history = [item for item in correction_history
                                   if item.get("correction_id") != correction["correction_id"]][-4:] + [correction]
         elif run.get("latest_correction"):
             correction = {**deepcopy(run["latest_correction"]), "status": "working", "failure": None,
                           "reference": correction_reference or run["latest_correction"].get("reference"),
+                          "reference_assets": [reference_metadata(data) for data in images] if images else run["latest_correction"].get("reference_assets", []),
                           "retry_count": min(99, int(run["latest_correction"].get("retry_count", 0)) + 1)}
             correction_history = [item for item in correction_history
                                   if item.get("correction_id") != correction["correction_id"]][-4:] + [correction]
@@ -682,7 +712,7 @@ class TemplateAuthoringService:
                 raise TemplateConflict("A template creation run is already active")
             saved = tx.append("run", run_id, updated, expected=request["base_sha256"])
             tx.append("request", request_id, {"run_id": run_id, "request_sha256": digest})
-        self._schedule(run_id, data)
+        self._schedule(run_id, images)
         return self.store.get("run", run_id)
 
     def restore_proposal(self, run_id: str, request: Mapping) -> dict:
@@ -723,7 +753,7 @@ class TemplateAuthoringService:
             return saved
 
     def retry_correction(self, run_id: str, request: Mapping) -> dict:
-        if not {"request_id", "base_sha256"} <= set(request) or set(request) - {"request_id", "base_sha256", "reference_id"}:
+        if not {"request_id", "base_sha256"} <= set(request) or set(request) - {"request_id", "base_sha256", "reference_id", "reference_ids"}:
             raise ValueError("Correction retry fields are invalid")
         run = self.store.get("run", uuid(run_id))
         correction = run.get("latest_correction")

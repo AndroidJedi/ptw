@@ -66,17 +66,20 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
 
     def test_template_xhigh_correction_fits_the_bounded_second_attempt(self):
         calls = []
+        prompts = []
 
-        def executor(command, **_kwargs):
+        def executor(command, **kwargs):
             calls.append(command)
+            prompts.append(kwargs['input'])
             _output_path(command).write_text(
                 json.dumps({"value": len(calls)}), encoding="utf-8",
             )
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
+        skill = "x" * (6 * 1024 - 20)
         result = self._request(
             self._provider(executor), mode="template_creation",
-            system_prompt="x" * 3955, reasoning_effort="xhigh",
+            system_prompt=skill, reasoning_effort="xhigh",
         )
 
         self.assertEqual({"value": 2}, result["response"])
@@ -84,6 +87,15 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
         self.assertTrue(all(
             'model_reasoning_effort="xhigh"' in command for command in calls
         ))
+        self.assertTrue(all(prompt.startswith(skill) for prompt in prompts))
+        self.assertNotIn('CORRECTION_REQUIRED', prompts[1])
+        self.assertNotIn('_ptw_validation_correction', prompts[0])
+        self.assertIn('_ptw_validation_correction', prompts[1])
+        self.assertIn('value must equal 2', prompts[1])
+        self.assertNotEqual(result['invocation']['attempts'][0]['request_fingerprint'],
+                            result['invocation']['attempts'][1]['request_fingerprint'])
+        self.assertNotEqual(result['invocation']['attempts'][0]['input_sha256'],
+                            result['invocation']['attempts'][1]['input_sha256'])
         self.assertLessEqual(
             result["invocation"]["contract_bytes"]["system_prompt"], 6 * 1024,
         )

@@ -4,7 +4,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ApiClient } from '../api'
 import { translate, type Language } from '../i18n'
-import { imageReferencePayload } from './ImageReferenceInput'
+import { imageReferencePayload, referenceAccept, supportedReference } from './ImageReferenceInput'
 import './CommanderChat.css'
 
 type Options = { mode: 'plan' | 'build'; model: string; effort: string }
@@ -285,9 +285,9 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
         <label className="commander-model"><span>{tr('Model', 'Модель')}</span><select aria-label={tr('Model', 'Модель')} value={options.model} onChange={event => { const model = models.find(m => m.id === event.target.value)!; setPreference({ ...options, model: model.id, effort: model.efforts.includes(options.effort) ? options.effort : model.default_effort }) }}>{!models.length && <option value="">{tr('Loading…', 'Завантаження…')}</option>}{models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
         <label><span>{tr('Effort', 'Зусилля')}</span><select aria-label={tr('Effort', 'Зусилля')} value={options.effort} onChange={event => setPreference({ ...options, effort: event.target.value })}>{selectedModel?.efforts.map(effort => <option key={effort} value={effort}>{effort}</option>)}</select></label>
       </div><div className="commander-send-actions">
-        <label className="commander-attach" title={tr('Attach images', 'Додати зображення')}><ImagePlus /><input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" multiple aria-label={tr('Attach images', 'Додати зображення')} onChange={event => {
+        <label className="commander-attach" title={tr('Attach images', 'Додати зображення')}><ImagePlus /><input ref={imageInput} type="file" accept={referenceAccept} multiple aria-label={tr('Attach images', 'Додати зображення')} onChange={event => {
           const next = [...images, ...Array.from(event.target.files || [])]
-          if (next.length > 4 || next.some(f => !['image/png', 'image/jpeg', 'image/webp'].includes(f.type) || f.size > 8 * 1024 * 1024) || next.reduce((total, f) => total + f.size, 0) > 20 * 1024 * 1024) setError(tr('Use up to four PNG, JPEG or WebP images, 8 MB each and 20 MB total.', 'До чотирьох PNG, JPEG або WebP, по 8 МБ і 20 МБ загалом.'))
+          if (next.length > 4 || next.some(f => !supportedReference(f) || f.size > 8 * 1024 * 1024) || next.reduce((total, f) => total + f.size, 0) > 20 * 1024 * 1024) setError(tr('Use up to four PNG, JPEG, WebP, or SVG images, 8 MB each and 20 MB total.', 'До чотирьох PNG, JPEG, WebP або SVG, по 8 МБ і 20 МБ загалом.'))
           else setImages(next)
         }} /></label>
         {runtime?.target === 'hosted' && <button type="button" className="secondary" title={release?.candidate.push_unavailable_reason || ''} disabled={busy || !!runtime.active_turn || releaseActive || branchPushActive || !release?.candidate.pushable || options.mode === 'plan'} onClick={() => void pushBranch()}><GitBranch />{tr('Push branch', 'Push гілки')}</button>}

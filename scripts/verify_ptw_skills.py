@@ -46,6 +46,11 @@ def main() -> None:
         require(len(frontmatter) == 3, f"invalid frontmatter in {name}")
         require(f"name: {name}" in frontmatter[1], f"wrong skill name in {name}")
         require("description:" in frontmatter[1], f"missing description in {name}")
+        if name == "template-creation-agent":
+            # Runtime caps the complete system prompt at 6 KiB. Keep enough
+            # editing headroom that an ordinary skill update cannot break it.
+            require(len((skill / "SKILL.md").read_bytes()) <= 5 * 1024,
+                    "template-creation-agent skill exceeds its 5 KiB maintenance budget")
 
     validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(

@@ -5,6 +5,11 @@ repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python="$repository/.venv/bin/python"
 workspace="${STUDIO_WORKSPACE_PATH:-$repository/.local/studio-workspace}"
 local_secrets="${PTW_LOCAL_SECRETS_PATH:-$repository/.local/local-studio.env}"
+web_port="${PTW_LOCAL_WEB_PORT:-5173}"
+if [[ ! "$web_port" =~ ^[0-9]+$ ]] || (( 10#$web_port < 1 || 10#$web_port > 65535 )); then
+  echo "PTW_LOCAL_WEB_PORT must be a TCP port from 1 to 65535." >&2
+  exit 1
+fi
 
 if [[ -f "$local_secrets" ]]; then
   if [[ -L "$local_secrets" ]]; then
@@ -62,7 +67,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
 PY
 }
 
-for port in 8088 5173; do
+for port in 8088 "$web_port"; do
   if port_is_listening "$port"; then
     echo "Local Studio port $port is already in use. Stop the prior Studio process and run this launcher again." >&2
     exit 1
@@ -117,5 +122,5 @@ curl --fail --silent \
 unset META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID META_PAGE_ID \
   META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX META_INSTAGRAM_MEDIA_ORIGIN
 
-echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
-VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort
+echo "PTW local app: http://127.0.0.1:$web_port/?e2e=1"
+VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --port "$web_port" --strictPort

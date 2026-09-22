@@ -73,6 +73,15 @@ and explicitly expands the task.
 
 ## Explicit Post previews
 
+Studio visual references may be PNG, JPEG, WebP, or SVG. Rasterize SVG in the
+browser after rejecting active/external content; send only bounded PNG to the
+existing image API. Template edits accept two ordered visual references and
+use registered immutable assets for final rendering.
+When a fixed store-badge asset already contains its black button and border,
+render it with `badge_surface: asset_only`; never paint a second slot pill behind
+it. Match visible asset bounds and aspect ratio in the final PNG. Keep the
+legacy `slot_pill` default for accepted templates made before this setting.
+
 Both Post editors batch field/control edits until **Update preview**. Do not
 restore debounce-driven render requests or validate incomplete fields while the
 owner types. Keep the last successful image visible on pending edits and render

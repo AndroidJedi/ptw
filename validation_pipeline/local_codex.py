@@ -23,8 +23,10 @@ import time
 from typing import Any
 
 from .provider import (
-    _input_artifacts, bridge_idempotency_key, bridge_request_fingerprint,
+    OPTIONAL_TEMPLATE_MODE, TEMPLATE_CORRECTION_KEY, _input_artifacts,
+    bridge_idempotency_key, bridge_request_fingerprint,
     enforce_structured_contract_budget, enforce_structured_response_budget,
+    template_validation_correction,
 )
 
 
@@ -250,28 +252,33 @@ class LocalCodexStructuredProvider:
             raise ValueError("structured input artifacts are not allowed for this mode")
         if mode == "creative_visual_analysis" and not artifacts:
             raise ValueError("structured visual analysis requires an approved PNG")
-        input_digest = sha256_json(sanitized(input_payload))
         last_error: Exception | None = None
         selected_effort = reasoning_effort or self.reasoning_effort
         if selected_effort not in self.supported_reasoning_efforts:
             raise ValueError("local structured reasoning effort must be low, medium, high, or xhigh")
-        request_fingerprint = bridge_request_fingerprint(
-            mode=mode, system_prompt=system_prompt, input_payload=input_payload,
-            output_schema=output_schema, prompt_version=prompt_version,
-            model=self.model or "codex-cli-default",
-            input_artifact_digests=artifact_digests,
-            reasoning_effort=selected_effort,
-        )
         for attempt in range(1, self.maximum_attempts + 1):
+            attempt_payload = dict(input_payload)
+            if mode == OPTIONAL_TEMPLATE_MODE and last_error is not None:
+                attempt_payload[TEMPLATE_CORRECTION_KEY] = template_validation_correction(last_error)
             attempted_prompt = system_prompt + (
                 "\n\nCORRECTION_REQUIRED: The previous structured response was rejected by "
                 f"PTW validation: {self._sanitized_error_message(last_error)}. "
                 "Return a corrected object that obeys that exact constraint."
-                if last_error is not None else ""
+                if last_error is not None and mode != OPTIONAL_TEMPLATE_MODE else ""
             )
             contract_bytes = enforce_structured_contract_budget(
                 mode=mode, system_prompt=attempted_prompt,
-                input_payload=input_payload, output_schema=output_schema,
+                input_payload=attempt_payload, output_schema=output_schema,
+            )
+            input_digest = sha256_json(sanitized(attempt_payload))
+            request_fingerprint = bridge_request_fingerprint(
+                mode=mode,
+                system_prompt=system_prompt if mode != OPTIONAL_TEMPLATE_MODE else attempted_prompt,
+                input_payload=attempt_payload if mode == OPTIONAL_TEMPLATE_MODE else input_payload,
+                output_schema=output_schema, prompt_version=prompt_version,
+                model=self.model or "codex-cli-default",
+                input_artifact_digests=artifact_digests,
+                reasoning_effort=selected_effort,
             )
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
                 root = Path(temporary)
@@ -311,7 +318,7 @@ class LocalCodexStructuredProvider:
                         raise _CancellationRequested()
                     completed = self._execute(
                         command,
-                        prompt=self._prompt(attempted_prompt, input_payload),
+                        prompt=self._prompt(attempted_prompt, attempt_payload),
                         cwd=root,
                         cancel_event=cancel_event,
                     )

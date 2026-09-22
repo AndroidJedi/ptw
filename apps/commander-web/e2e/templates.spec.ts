@@ -103,7 +103,7 @@ test('authoritative gallery, all three scopes, immutable review and restart', as
     await page.getByRole('button', { name: 'Create Template Agent', exact: true }).click()
     await page.getByLabel('Creation scope').selectOption(scope)
     await page.getByLabel('Design instruction').fill('A clear title, a large image, and a lower action')
-    if (scope === 'combined') await page.getByLabel('Upload reference image').setInputFiles({ name: 'reference.png', mimeType: 'image/png', buffer: await page.locator('.template-gallery img').first().screenshot() })
+    if (scope === 'combined') await page.getByLabel('Visual references (up to 2)').setInputFiles({ name: 'reference.png', mimeType: 'image/png', buffer: await page.locator('.template-gallery img').first().screenshot() })
     await page.getByRole('button', { name: 'Start creation' }).click()
     await expect(page.getByRole('button', { name: 'Accept template version' })).toBeEnabled({ timeout: 30000 })
     await expect(page.getByText('No unresolved visual differences reported.')).toBeVisible()
@@ -140,9 +140,37 @@ test('gallery transport failure offers retry and references can be removed', asy
   await page.getByRole('button', { name: 'Retry', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Phone & metrics' })).toBeVisible({ timeout: 30000 })
   await page.getByRole('button', { name: 'Create Template Agent', exact: true }).click()
-  await page.getByLabel('Upload reference image').setInputFiles({ name: 'reference-with-long-name-for-small-viewports.png', mimeType: 'image/png', buffer: await page.locator('.template-gallery img').first().screenshot() })
+  await page.getByLabel('Visual references (up to 2)').setInputFiles({ name: 'reference-with-long-name-for-small-viewports.png', mimeType: 'image/png', buffer: await page.locator('.template-gallery img').first().screenshot() })
   await expect(page.getByRole('button', { name: 'Start creation' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Remove reference' }).click()
+  await page.getByRole('button', { name: 'Remove' }).click()
   await expect(page.getByRole('button', { name: 'Start creation' })).toBeDisabled()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('two SVG assets are rasterized, ordered, and passed to the Template Agent', async ({ page }) => {
+  test.setTimeout(120000)
+  await page.goto('/?page=templates')
+  await page.getByRole('button', { name: 'Create Template Agent', exact: true }).click()
+  const first = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><defs><linearGradient id="a"><stop stop-color="#000"/><stop offset="1" stop-color="#444"/></linearGradient></defs><rect width="120" height="90" fill="url(#a)"/></svg>'
+  const second = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><style>.badge{fill:#222}</style><path class="badge" d="M0 0h120v90H0z"/></svg>'
+  await page.getByLabel('Visual references (up to 2)').setInputFiles({ name: 'unsafe.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><script>alert(1)</script></svg>') })
+  await page.getByLabel('Design instruction').fill('Inspect the attachment')
+  await page.getByRole('button', { name: 'Start creation' }).click()
+  await expect(page.getByRole('alert')).toContainText('SVG contains unsupported content.')
+  await page.getByRole('button', { name: 'Remove' }).click()
+  await page.getByLabel('Visual references (up to 2)').setInputFiles([
+    { name: 'apple.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(first) },
+    { name: 'google.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(second) },
+  ])
+  await expect(page.locator('.template-reference-file')).toHaveCount(2)
+  await page.getByLabel('Design instruction').fill('Use the two attached badge shapes as visual guidance')
+  const uploads: string[] = []
+  page.on('request', request => { if (request.url().endsWith('/api/v1/templates/references') && request.method() === 'POST') uploads.push(request.postDataJSON().image.mime_type) })
+  await page.getByRole('button', { name: 'Start creation' }).click()
+  await expect(page.getByRole('button', { name: 'Accept template version' })).toBeEnabled({ timeout: 60000 })
+  expect(uploads).toEqual(['image/png', 'image/png'])
+  await expect(page.locator('.template-run')).toBeVisible()
+  await expect(page.locator('.template-workspace-preview img')).toHaveJSProperty('complete', true)
+  await expect.poll(() => page.locator('.template-workspace-preview img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  await page.close()
 })

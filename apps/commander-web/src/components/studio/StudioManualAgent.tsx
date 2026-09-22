@@ -1,7 +1,7 @@
 import { Bot, Paperclip, Send, Trash2, WandSparkles, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ApiClient } from '../../api'
-import { imageReferencePayload } from '../ImageReferenceInput'
+import { imageReferencePayload, referenceAccept, supportedReference } from '../ImageReferenceInput'
 import { translate, type Language } from '../../i18n'
 import type { StudioManualAgentResult } from '../../types'
 
@@ -113,8 +113,8 @@ export function StudioManualAgent<Configuration, Content>({
   const selectScreenshots = (files: FileList | null) => {
     if (!files) return
     const selected = [...files]
-    if (selected.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || !file.size || file.size > 8 * 1024 * 1024)) {
-      setError(tr('Use PNG, JPEG, or WebP screenshots up to 8 MB each.', 'Використовуйте скриншоти PNG, JPEG або WebP до 8 МБ кожен.'))
+    if (selected.some(file => !supportedReference(file) || !file.size || file.size > 8 * 1024 * 1024)) {
+      setError(tr('Use PNG, JPEG, WebP, or SVG screenshots up to 8 MB each.', 'Використовуйте скриншоти PNG, JPEG, WebP або SVG до 8 МБ кожен.'))
       return
     }
     const next = [...screenshots, ...selected].slice(0, 4)
@@ -165,7 +165,7 @@ export function StudioManualAgent<Configuration, Content>({
       <label className="studio-agent-task"><span>{tr('Task', 'Завдання')}</span><textarea value={task} maxLength={4000} disabled={pending || disabled} placeholder={tr('Example: Make the hierarchy calmer, use warmer colors, enlarge the main image, and generate a new premium hero.', 'Наприклад: Зроби ієрархію спокійнішою, використай тепліші кольори, збільш головне зображення та згенеруй нового преміального героя.')} onChange={event => setTask(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void send() }} /></label>
       {screenshots.length > 0 && <div className="studio-agent-screenshots">{screenshots.map((file, index) => <ScreenshotTile key={`${file.name}-${file.lastModified}-${index}`} file={file} language={language} disabled={pending || disabled} remove={() => setScreenshots(current => current.filter((_, itemIndex) => itemIndex !== index))} />)}</div>}
       <footer>
-        <label className="secondary studio-agent-attach"><Paperclip />{tr('Add screenshots', 'Додати скриншоти')}<input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={pending || disabled || screenshots.length >= 4} onChange={event => { selectScreenshots(event.target.files); event.currentTarget.value = '' }} /></label>
+        <label className="secondary studio-agent-attach"><Paperclip />{tr('Add screenshots', 'Додати скриншоти')}<input ref={fileInput} type="file" accept={referenceAccept} multiple disabled={pending || disabled || screenshots.length >= 4} onChange={event => { selectScreenshots(event.target.files); event.currentTarget.value = '' }} /></label>
         {messages.length > 0 && <button type="button" className="ghost" disabled={pending} onClick={() => setMessages([])}><Trash2 />{tr('Clear chat', 'Очистити чат')}</button>}
         <button type="button" className="primary" disabled={pending || disabled || !task.trim()} onClick={() => void send()}>{pending ? <WandSparkles className="spin" /> : <Send />}{pending ? tr('Adjusting…', 'Налаштовую…') : tr('Apply task', 'Застосувати завдання')}</button>
       </footer>

@@ -7,24 +7,34 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from .template_authoring import TemplateAuthoringService, uuid
+from . import template_agent
 from .template_extensions import handoff
 from .template_store import TemplateConflict
+
+
+def _public_failure(failure: Any) -> dict[str, Any] | None:
+    if isinstance(failure, dict):
+        error = str(failure.get("validation_error", ""))[:240]
+        category = str(failure.get("category", "provider"))[:20]
+        # Old append-only records classified this deterministic preflight bug
+        # as model validation. Correct their presentation without rewriting it.
+        if category == "validation" and "system prompt exceeds its compact byte budget" in error:
+            category = "contract"
+        return {
+            "phase": str(failure.get("phase", "unknown"))[:20],
+            "category": category,
+            "model": str(failure.get("model", "unknown"))[:80],
+            "reasoning_effort": str(failure.get("reasoning_effort", "unknown"))[:20],
+            "attempt_count": min(2, max(1, int(failure.get("attempt_count", 1)))),
+            "validation_error": error,
+        }
+    return None
 
 
 def run_summary(run: dict[str, Any]) -> dict[str, Any]:
     """Expose enough durable state to recover drafts without leaking authoring input."""
 
-    failure = run.get("failure")
-    safe_failure = None
-    if isinstance(failure, dict):
-        safe_failure = {
-            "phase": str(failure.get("phase", "unknown"))[:20],
-            "category": str(failure.get("category", "provider"))[:20],
-            "model": str(failure.get("model", "unknown"))[:80],
-            "reasoning_effort": str(failure.get("reasoning_effort", "unknown"))[:20],
-            "attempt_count": min(2, max(1, int(failure.get("attempt_count", 1)))),
-            "validation_error": str(failure.get("validation_error", ""))[:240],
-        }
+    safe_failure = _public_failure(run.get("failure"))
     previews = {}
     for key, preview in list((run.get("previews") or {}).items())[:4]:
         if not isinstance(preview, dict):
@@ -77,11 +87,7 @@ def _safe_correction(value: Any) -> dict[str, Any] | None:
         safe_reference = {"sha256": str(reference.get("sha256", ""))[:64],
                           "mime_type": str(reference.get("mime_type", ""))[:40],
                           "byte_count": min(12 * 1024 * 1024, max(0, int(reference.get("byte_count", 0))))}
-    failure = value.get("failure")
-    safe_failure = None
-    if isinstance(failure, dict):
-        safe_failure = {key: failure.get(key) for key in
-                        ("phase", "category", "model", "reasoning_effort", "attempt_count", "validation_error")}
+    safe_failure = _public_failure(value.get("failure"))
     return {
         "correction_id": str(value.get("correction_id", ""))[:36],
         "instruction": str(value.get("instruction", ""))[:3000],
@@ -89,6 +95,11 @@ def _safe_correction(value: Any) -> dict[str, Any] | None:
         "submitted_revision": max(0, int(value.get("submitted_revision", 0))),
         "result_revision": max(0, int(value.get("result_revision", 0))) if value.get("result_revision") is not None else None,
         "reference": safe_reference,
+        "reference_assets": [
+            {"sha256": str(item.get("sha256", ""))[:64], "mime_type": str(item.get("mime_type", ""))[:40],
+             "byte_count": min(8 * 1024 * 1024, max(0, int(item.get("byte_count", 0))))}
+            for item in (value.get("reference_assets") or [])[:2] if isinstance(item, dict)
+        ],
         "failure": safe_failure,
         "retry_count": min(99, max(0, int(value.get("retry_count", 0)))),
     }
@@ -155,7 +166,17 @@ def template_router(service: TemplateAuthoringService, *, prefix: str, dependenc
     def progress(run_id: str):
         def value():
             run = service.store.get("run", uuid(run_id))
-            return {**run, "latest_correction": _safe_correction(run.get("latest_correction")),
+            retry_ready = False
+            correction = run.get("latest_correction") or {}
+            if run.get("status") == "failed" and correction.get("status") == "failed" and run.get("phase") in {"analyze", "compose", "compare"}:
+                try:
+                    template_agent.preflight(run["phase"], run)
+                    retry_ready = True
+                except (ValueError, TypeError, KeyError):
+                    pass
+            return {**run, "failure": _public_failure(run.get("failure")),
+                    "retry_ready": retry_ready,
+                    "latest_correction": _safe_correction(run.get("latest_correction")),
                     "correction_history": [item for item in
                         (_safe_correction(value) for value in (run.get("correction_history") or [])[-5:]) if item],
                     "can_restore": service.can_restore_proposal(run)}
@@ -205,7 +226,7 @@ def template_router(service: TemplateAuthoringService, *, prefix: str, dependenc
 
     @router.post("/{surface}/{template_id}/versions/{version}/edit", status_code=202)
     def edit(surface: str, template_id: str, version: int, request: dict = Depends(body)):
-        if set(request) - {"request_id", "instruction", "reference_id", "base_sha256"} or not {"request_id", "instruction", "base_sha256"} <= set(request):
+        if set(request) - {"request_id", "instruction", "reference_id", "reference_ids", "base_sha256"} or not {"request_id", "instruction", "base_sha256"} <= set(request):
             raise HTTPException(422, "Template edit fields are invalid")
         return invoke(service.start, {"scope": surface, "source": {"surface": surface, "template_id": template_id,
             "template_version": version, "template_sha256": request["base_sha256"]},

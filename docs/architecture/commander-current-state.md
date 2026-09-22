@@ -9,6 +9,81 @@ platform `57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Owner Console,
 Landing Hosting and Firebase auth-guard functions were published. The
 Template Creation corrective-attempt hotfix is deployed.
 
+## Bokko badge edit recovery — v2 accepted locally, production release pending
+
+Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` failed twice while composing the
+owner's badge-size correction. The first structured response was invalid; local
+Codex then appended its validation hint to the 6043-byte system skill and hit the
+6 KiB cap before the second model attempt. Local Codex now uses the bridge's
+bounded server-owned correction input with a distinct fingerprint, and
+preflights both attempts before a call is counted. The canonical skill is below
+5 KiB with a verifier guard. Contract failures are classified separately from
+model failures; the Templates UI does not show a previous comparison as the
+result of an unfinished correction.
+
+Both owner badge assets already contain their own black button and border.
+Declarative `store_badge.badge_surface` now supports `asset_only`; historical
+documents default to `slot_pill`. The accepted Bokko v1 re-rendered byte-for-byte
+at its original PNG digest
+`76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`.
+The same saved correction was retried through the real local `xhigh` Template
+Agent, then a focused follow-up through that agent restored the agreed original
+positions/widths. Revision 45 is `proposed`: only the two store badges changed
+from the failed revision 23, each to `asset_only` and height `74.4` with x/y
+and width `250` unchanged. The full 1080×1080 PNG digest is
+`04efacf4f364a1100a246621b665a3d3ff286918ceb0c9df28937e46238206d6`,
+the latest comparison has zero differences, and a local API restart retained
+the same revision and media bytes. Browser inspection passed desktop, 360 px and
+WebKit with no horizontal overflow. Validation passed 342 tests, web 117,
+Templates Playwright 15, Commander 43 (seven host skips) and demo, production
+build, skill verification, and Studio visual audit. The owner authorized release
+and the local decision appended revision 46 as `accepted`, registering Post
+template `design_ee8759d1b6034ee2bffe` v2 at template digest
+`d6505516a0c86867d4aa51bc43497c32351a8503e42f3524e88d4ef4974862a1`.
+Production still serves accepted v1 until the clean source/assets release and
+guarded import of the exact accepted version and media complete.
+
+## SVG references and two-file Template edits — production release pending
+
+Studio image-reference inputs, Studio Manual Agent screenshots and Commander
+image attachments accept SVG alongside PNG/JPEG/WebP. The browser rejects
+active/external SVG content and sends a bounded PNG to existing image APIs.
+Template creation/edit accepts up to two ordered temporary references; both
+reach analysis and comparison, and correction references also reach compose.
+Only digest metadata enters append-only state. Two owner-supplied SVG Repo badge
+files are preserved as source assets and registered as separate digest-pinned
+raster fixtures; earlier official badge assets and accepted template v1 remain
+unchanged. A real local `xhigh` Template Agent edit of Bokko v1 used both SVGs,
+selected `owner_app_store_badge_v1` and `owner_google_play_badge_v1`, rendered
+the first proposal at revision 15, and reported zero unresolved differences.
+Compared with accepted v1, that revision changed only the two badge `asset_id`
+values. Later owner corrections produced revision 45 described above; its
+unchanged document and preview were accepted in revision 46. The v2 authority
+has not yet been transferred to production.
+
+## Bokko template authority restored — local and production
+
+The finished local Bokko run was intact in `.local/template-authoring.sqlite3`,
+but the API on port 8088 was a disposable Templates browser canary using another
+database. Port 5173 belonged to a different project. The real run was also only
+`proposed`, which excludes it from the reusable gallery. Production had the
+renderer/assets but no Bokko run, version or media records; source deployment
+does not transfer template authority.
+
+The owner-directed recovery backed up the local SQLite authority, accepted the
+compared proposal append-only as run revision 136, and registered Post template
+`design_ee8759d1b6034ee2bffe` v1 with template digest
+`beee7d9051b8330b8126f2c096d2fbe15939e61453f908b116875307cc33a4c9`.
+After a pre-import production PostgreSQL backup, a guarded transaction imported
+the 136 run revisions, 14 request receipts, one immutable version and 13 PNGs.
+The production Validation API returns the version in its Post gallery, resolves
+the exact version, and serves its checked 619221-byte preview at digest
+`76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`.
+The normal local PTW API now reads the original database at 8088; because 5173
+is occupied, its Vite UI runs at 5174. The local launcher accepts
+`PTW_LOCAL_WEB_PORT` for that conflict. No production code release or reset was
+needed for this data restoration.
+
 ## Built-in Landing template version 404
 
 Opening the registered `project_landing` v5 from the Templates gallery returned
@@ -121,8 +196,8 @@ real `xhigh` compose and compare completed in one attempt each. Revision 135 is
 existing `250 × 58` slots rendered as equal-height black rounded pills, preview
 digest `76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`,
 render contract `240fca5bc067aa00049329571929222ee4f0dd570d3370fcdf734ecf7a65e0bc`,
-zero differences and zero renderer failures. It remains unaccepted and absent
-from the reusable gallery until owner review.
+zero differences and zero renderer failures. At that checkpoint it remained
+unaccepted; the owner-directed recovery above later accepted it as revision 136.
 
 Local verification passes 334 Validation tests, 112 web tests, the production
 build, nine Templates and three existing-Post application browser cases across

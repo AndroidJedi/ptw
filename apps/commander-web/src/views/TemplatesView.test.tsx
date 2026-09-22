@@ -63,6 +63,31 @@ it('supports coordinated creation, owner acceptance, and measured comparison res
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/decision'), expect.objectContaining({ decision: 'accept', base_sha256: proposed.state_sha256 }), expect.anything()))
 })
 
+it('keeps two selected template assets in order and sends both references to the edit agent', async () => {
+  const api = client()
+  let number = 0
+  api.post.mockImplementation(async path => path.endsWith('/references')
+    ? { reference_id: `018f07ea-7f20-7000-8000-0000000000${++number}` } as unknown as typeof proposed
+    : proposed)
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Open template' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit template' }))
+  const input = screen.getByLabelText('Visual references (up to 2)') as HTMLInputElement
+  expect(input.accept).toContain('.svg')
+  expect(input.multiple).toBe(true)
+  const apple = new File(['png'], 'apple.png', { type: 'image/png' })
+  const google = new File(['png'], 'google.png', { type: 'image/png' })
+  fireEvent.change(input, { target: { files: [apple, google] } })
+  expect(screen.getByText('1. apple.png')).toBeVisible()
+  expect(screen.getByText('2. google.png')).toBeVisible()
+  fireEvent.change(screen.getByLabelText('Design instruction'), { target: { value: 'Use both attached badge assets' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Start creation' }))
+  await waitFor(() => expect(api.post.mock.calls.filter(([path]) => path.endsWith('/references'))).toHaveLength(2))
+  await waitFor(() => expect(api.post.mock.calls.find(([path]) => path.endsWith('/runs'))?.[1]).toMatchObject({
+    reference_ids: ['018f07ea-7f20-7000-8000-00000000001', '018f07ea-7f20-7000-8000-00000000002'],
+  }))
+})
+
 it('retains the exact mutation request UUID after uncertain transport failure', async () => {
   const api = client(); api.post.mockRejectedValueOnce(new Error('Connection lost'))
   render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
@@ -149,6 +174,26 @@ it('shows the exact failed correction, hides stale acceptance, and retries that 
   expect(screen.queryByRole('button', { name: 'Прийняти версію шаблону' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Повторити моє уточнення' }))
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/corrections/retry'), expect.objectContaining({ base_sha256: failed.state_sha256 }), expect.anything()))
+})
+
+it('separates a service contract failure from the previous comparison and gates retry readiness', async () => {
+  const correction = { correction_id: '018f07ea-7f20-7000-8000-000000000091', instruction: 'Remove the extra pill and enlarge the badges', status: 'failed', submitted_revision: 16, result_revision: null, reference: null, failure: null, retry_count: 2 }
+  const blocked = { ...failedDraft, phase: 'compose', latest_correction: correction, comparison: { differences: [], applied_correction_id: 'older-correction' }, retry_ready: false,
+    failure: { ...failedDraft.failure, phase: 'compose', category: 'contract', validation_error: 'template_creation system prompt exceeds its compact byte budget' },
+    checkpoint: { reason: 'provider_failure', recommendation: 'continue', pending_edits: 0, remaining_iterations: 11, meaningful_differences: [] } }
+  window.history.replaceState(null, '', '/?page=templates&template_run=' + blocked.run_id)
+  const api = client(); api.get.mockImplementation(async path => path.includes('/runs/') ? blocked : path.endsWith('/runs') ? { items: [blocked] } : { items: [item] })
+  const view = render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  expect(await screen.findByText(correction.instruction)).toBeVisible()
+  expect(screen.queryByText('No unresolved visual differences reported.')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Retry my correction' })).toBeDisabled()
+  expect(screen.getAllByText(/service rejected its own agent request/i).length).toBeGreaterThan(0)
+  view.unmount()
+  const ready = { ...blocked, retry_ready: true }
+  api.get.mockImplementation(async path => path.includes('/runs/') ? ready : path.endsWith('/runs') ? { items: [ready] } : { items: [item] })
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  expect(await screen.findByText('The service is ready to retry this saved edit.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Retry my correction' })).toBeEnabled()
 })
 
 it('recovers an unconfirmed correction text from browser storage after refresh', async () => {

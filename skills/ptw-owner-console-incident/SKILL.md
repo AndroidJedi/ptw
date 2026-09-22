@@ -56,6 +56,16 @@ before changing code or runtime state.
   conflicts and unknown-template 404s distinct. Test the actual Gateway path
   and the Validation read while forcing the preview renderer to fail; editing
   from an instruction must not require unavailable preview bytes.
+- When a locally authored template appears missing, verify which process owns
+  the browser and API ports and which database the API opened. The Templates
+  browser canary serves a disposable database; a `proposed` run appears under
+  Drafts, while only an accepted version appears in the gallery and Project
+  picker. Check the exact run, version and preview digests before recovery.
+  Source deployment does not transfer local template records. For an owner-
+  directed production restore, back up both authorities, import the checked
+  append-only run/version/media under the maintenance lock without replacing
+  existing records, then verify gallery, exact-version and digest-bound media
+  through the running API. Keep the original local authority intact.
 - When Recent iPhone Images has metadata but blank thumbnails, first verify the
   exact history bytes and digest through Validation, then check whether any
   history GET reached the Gateway. Zero Gateway requests while ordinary preview

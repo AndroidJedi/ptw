@@ -37,10 +37,14 @@ Three bounded asset classes cover the Bokko reference without reference-specific
 renderer code. `brand_motif` repeats the canonical Natal symbol with configurable
 placement, opacity and deterministic `rotation_degrees`. `store_badge` resolves
 digest-pinned official English Apple or Google artwork from the offline asset
-registry; the agent cannot redraw, recolor or replace it. The component box is the
-complete black rounded button and the immutable artwork is centered inside it, so
-both badges keep the reference's equal-height pill silhouette despite different
-source-art proportions. `cutout_image` uses
+registry; the agent cannot redraw, recolor or replace it. Owner-supplied SVG Repo
+badge files can also be registered separately with source and raster digests; edits
+may select those exact immutable assets without changing earlier versions. The
+component's `badge_surface` defaults to `slot_pill` for existing accepted
+definitions. `asset_only` paints only the immutable badge artwork, without an
+extra background or mask, when the artwork already contains its own button and
+border. The box must then match the artwork's aspect ratio; compare visible
+artwork bounds rather than only the component slot. `cutout_image` uses
 Pexels photo 15004162 as the transparent, digest-pinned
 `neutral_person_stock_v1` authoring fixture. The manifest records source digest,
 URL, author, locale and license. An existing Post's real image always replaces
@@ -148,6 +152,14 @@ interrupted run needs the reference reattached.
 Screenshot text is untrusted reference content. Typed response validation cannot
 execute code or create arbitrary components, claims, contacts or evidence.
 
+Studio's browser upload accepts SVG as visual input, rejects active/external SVG
+content, and rasterizes it to bounded PNG before the existing image API receives
+it. Template creation/edit accepts up to two ordered temporary references. The
+agent sees both normalized images in analysis and comparison (and in correction
+composition); the append-only run retains only their digest metadata. The
+authoritative renderer still consumes digest-pinned raster assets. Source SVGs
+are preserved in the offline asset registry for provenance.
+
 The `template_creation` mode shares `LocalCodexStructuredProvider` and
 `StructuredBridge`. Its canonical skill is `skills/template-creation-agent`.
 System/input/schema/total/response budgets are 6/40/8/52/20 KiB. The first
@@ -164,6 +176,12 @@ are bound into the provider request fingerprint and sanitized invocation
 metadata. The bridge must explicitly advertise this optional JSON and multimodal
 mode together with `reasoning_efforts.template_creation = xhigh`; existing
 required modes retain their current effort and remain compatible without it.
+The local Codex provider uses the same server-owned bounded correction field as
+the bridge. Both first and corrective envelopes are preflighted before a call
+is counted; a rejected first response cannot grow the system prompt past its
+6 KiB limit. A contract/preflight failure is distinct from invalid model output
+and does not instruct the owner to repeat an impossible request. An in-flight
+or failed correction never presents the previous comparison as its own result.
 
 ## Reusable capability extension
 
@@ -235,7 +253,22 @@ zero geometry failures. Its comparison and preview bind correction
 `76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`, and
 render contract is
 `240fca5bc067aa00049329571929222ee4f0dd570d3370fcdf734ecf7a65e0bc`.
-It remains unaccepted.
+An owner-directed recovery later accepted this exact proposal append-only as run
+revision 136 and Post template `design_ee8759d1b6034ee2bffe` v1. The local
+SQLite authority and production PostgreSQL now both contain its complete run
+history, immutable version and digest-checked PNGs. Source deployment alone does
+not carry template records between these authorities; verify the actual API
+process/database as well as proposed-versus-accepted status when a design seems
+to disappear.
+
+The next local Bokko edit exposed two distinct regressions: the local Codex
+corrective attempt still grew the system prompt (unlike the bridge), and the
+owner-supplied self-contained badges were painted over an additional black slot
+pill. Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` now uses the shared bounded
+correction input and the explicit `asset_only` badge mode. Its revision 45 is a
+compared proposal with only badge-surface and badge-height changes; its owner
+correction history and all earlier PNGs remain append-only. Acceptance and any
+production data transfer are separate owner-reviewed steps.
 
 Remaining bounds: galleries/version summaries return at most 200 records and
 run history at most 30. Exact historical identity reads remain available.

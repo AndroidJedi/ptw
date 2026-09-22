@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 
 ASSET_ROOT = Path(__file__).with_name("studio_assets") / "template-assets"
-RENDERER_VERSION = "studio.declarative.pillow.v3"
+RENDERER_VERSION = "studio.declarative.pillow.v4"
 
 _manifest = json.loads((ASSET_ROOT / "manifest.json").read_text(encoding="utf-8"))
 if _manifest.get("schema") != "ptw.template-assets.v1" or not isinstance(_manifest.get("assets"), list):
@@ -18,7 +18,7 @@ _ASSETS: dict[str, dict[str, Any]] = {
     str(item["asset_id"]): {**item, "mime_type": "image/png", "immutable": True}
     for item in _manifest["assets"]
 }
-if set(_ASSETS) != {"app_store_badge_en", "google_play_badge_en", "neutral_person_stock_v1"}:
+if set(_ASSETS) != {"app_store_badge_en", "google_play_badge_en", "owner_app_store_badge_v1", "owner_google_play_badge_v1", "neutral_person_stock_v1"}:
     raise RuntimeError("Template asset manifest registrations are invalid")
 
 ASSET_IDS = ("", "natal_symbol", *_ASSETS)

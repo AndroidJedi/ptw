@@ -2,13 +2,13 @@
 
 Updated: 2026-09-23
 Branch: `codex/project-delete-20260923`
-Deployment: the preserving release accepted code revision
-`529415435eae4a573ea1bb043f948806718bc1f9` with companion platform
-`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced;
-Commander, Owner Gateway, GOD, Landing Hosting and Firebase auth-guard
-functions retained their prior versions. Owner Console Hosting audit passed.
+Deployment: serial release `project-delete-20260923-a21b421` accepted code
+revision `a21b4216b802cec3836aecfa3df7d69dd3acab1d` with companion platform
+`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Commander, Validation, Owner
+Gateway and Owner Console Hosting run the Project-deletion release. GOD and
+Firebase auth-guard functions retained their accepted versions.
 
-## Confirmed Project deletion — local candidate
+## Confirmed Project deletion — deployed
 
 The Project switcher now exposes a destructive Delete action behind an exact-name
 confirmation dialog in English and Ukrainian. One stable request UUID reconciles
@@ -25,8 +25,16 @@ preserves every existing business value.
 
 Local verification passed the complete Validation, Commander, Owner Gateway,
 schema-preservation, skill, Owner unit/build, and 99-test cross-browser suites,
-plus a disposable PostgreSQL deletion/audit canary. Deployment and production
-verification remain pending.
+plus a disposable PostgreSQL deletion/audit canary. Production migration 015 is
+recorded exactly once; its three tombstone columns are present, no Project was
+deleted during rollout, and every pre-existing business row was preserved. The
+root-only pre-release backup is
+`/opt/ptw/backups/commander/20260923T074353Z-pre-project-delete-20260923-a21b421.dump`.
+A fresh full structured/media/Pexels bridge canary, dependency audit, read-only
+Telegram identity check, 1 GB resource audit, all 99 browser tests, Firebase
+Hosting release, public Owner Console audit, and post-release dependency audit
+passed. All expected containers are healthy, and the 24-hour follow-up resource
+audit is scheduled for 2026-09-24 07:49 UTC.
 
 ## Bokko v3 cutout and motif correction — deployed
 

@@ -207,6 +207,47 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.assertEqual("uk", repository.create_input["required_language"])
             self.assertEqual(project_id, repository.create_input["project_id"])
 
+    def test_deleted_project_is_rejected_before_project_scoped_handler_runs(self) -> None:
+        project_id = "01900000-0000-7000-8000-000000000002"
+
+        class Repository:
+            def __init__(self) -> None:
+                self.create_called = False
+
+            @staticmethod
+            def recover_interrupted() -> dict[str, int]:
+                return {"briefs": 0}
+
+            @staticmethod
+            def assert_project_active(_project_id: str) -> None:
+                raise KeyError("Project not found")
+
+            def create_brief(self, **_value):
+                self.create_called = True
+                raise AssertionError("deleted Project reached the route handler")
+
+        repository = Repository()
+        app = create_app(
+            self.settings(), repository=repository, runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
+        )
+
+        with TestClient(app) as client:
+            response = client.post(
+                f"/internal/v1/projects/{project_id}/briefs",
+                headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
+                json={
+                    "request_id": "01900000-0000-7000-8000-000000000003",
+                    "raw_idea": "This must remain inaccessible.",
+                    "language": "en",
+                },
+            )
+
+        self.assertEqual(404, response.status_code, response.text)
+        self.assertEqual("Project not found", response.json()["detail"])
+        self.assertFalse(repository.create_called)
+
     def test_create_project_persists_owner_name_without_starting_generation(self) -> None:
         project_id = "01900000-0000-7000-8000-000000000020"
 
@@ -245,6 +286,54 @@ class ValidationApiRouteTests(unittest.TestCase):
         self.assertEqual("Owner Chosen Name", response.json()["project"]["name"])
         self.assertIsNone(response.json()["project"]["owner_idea_source_id"])
         self.assertEqual("owner-web", repository.input["requested_by"])
+
+    def test_delete_project_forwards_exact_confirmation_and_actor(self) -> None:
+        project_id = "01900000-0000-7000-8000-000000000020"
+        request_id = "01900000-0000-7000-8000-000000000021"
+
+        class Repository:
+            def __init__(self) -> None:
+                self.input = None
+
+            @staticmethod
+            def recover_interrupted() -> dict[str, int]:
+                return {"briefs": 0}
+
+            @staticmethod
+            def assert_project_active(value: str) -> None:
+                raise AssertionError(f"delete reconciliation must bypass the active-project guard: {value}")
+
+            def delete_project(self, value: str, **request):
+                self.input = (value, request)
+                return {
+                    "project_id": value, "deleted": True,
+                    "deleted_at": "2026-09-23T10:00:00+00:00",
+                }
+
+        repository = Repository()
+        app = create_app(
+            self.settings(), repository=repository, runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
+        )
+        with TestClient(app) as client:
+            response = client.post(
+                f"/internal/v1/projects/{project_id}/delete",
+                headers={
+                    "X-PTW-Owner-Gateway-Token": "owner-token",
+                    "X-PTW-Actor": "firebase:test-owner",
+                },
+                json={"request_id": request_id, "confirmation_name": "Owner Chosen Name"},
+            )
+
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(response.json()["deleted"])
+        self.assertEqual(project_id, repository.input[0])
+        self.assertEqual({
+            "request_id": request_id,
+            "confirmation_name": "Owner Chosen Name",
+            "requested_by": "firebase:test-owner",
+        }, repository.input[1])
 
     def test_busy_brief_admission_returns_conflict_instead_of_500(self) -> None:
         class Repository:

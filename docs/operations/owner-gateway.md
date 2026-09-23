@@ -7,6 +7,18 @@ Gateway proxies authenticated Project, Product Brief, project-scoped Studio,
 private Landing/publication, and PAUSED-only Meta Ads APIs. Domain data is never stored in Firebase
 or service-worker caches.
 
+Project deletion is the owner-only
+`POST /api/v1/projects/{project_id}/delete` route with exactly `request_id` and
+`confirmation_name`. The name must exactly match the current Project name. The
+same request UUID reconciles an uncertain response; a different request cannot
+reopen or mutate a deleted Project. Validation refuses deletion while Product
+Brief, Post, Landing, social-publication, manual Instagram test, Analytics
+learning, or preserved Meta work is active. A
+successful deletion tombstones the Project, removes it from active lists, makes
+all project-scoped routes fail closed, and makes any public Landing route return
+404. PostgreSQL retains audit and graph lineage; external provider posts are not
+deleted by this action.
+
 Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
 also requires its bounded saved `creative_direction`. The creative-scoped
 direction route is state-hash guarded and may replace that direction without

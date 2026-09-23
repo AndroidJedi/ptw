@@ -110,6 +110,96 @@ class LocalBriefService:
         self.store.append("projects", project_id, updated)
         return self._project(project_id)
 
+    def delete_project(
+        self, project_id: str, *, request_id: str, confirmation_name: str,
+        requested_by: str,
+    ) -> dict[str, Any]:
+        project_id = _uuid(project_id, "project_id")
+        request_id = _uuid(request_id, "request_id")
+        project = self.store.get("projects", project_id, include_deleted=True)
+        if project.get("deleted_at"):
+            if project.get("delete_request_id") == request_id:
+                return {
+                    "project_id": project_id, "deleted": True,
+                    "deleted_at": project["deleted_at"],
+                }
+            raise KeyError(project_id)
+        if confirmation_name != project["name"]:
+            raise ValueError("Project name confirmation does not match")
+        target_id, created = self.store.reserve_request(
+            scope="project-delete", request_id=request_id,
+            fingerprint={
+                "project_id": project_id, "confirmation_name": confirmation_name,
+            },
+            create_target=lambda: project_id,
+        )
+        if target_id != project_id:
+            raise ValueError("request_id was already used to delete another Project")
+        if not created:
+            current = self.store.get("projects", project_id, include_deleted=True)
+            if current.get("deleted_at"):
+                return {
+                    "project_id": project_id, "deleted": True,
+                    "deleted_at": current["deleted_at"],
+                }
+        active = [
+            ("Product Brief", item.get("brief_id"))
+            for item in self.store.list("briefs")
+            if item.get("project_id") == project_id
+            and item.get("status") in {"queued", "generating"}
+        ]
+        active += [
+            ("Post", item.get("creative_id"))
+            for item in self.store.list("studio_creatives")
+            if item.get("project_id") == project_id
+            and item.get("status") in {"queued", "composing", "generating_image"}
+        ]
+        active += [
+            ("Landing", item.get("landing_id"))
+            for item in self.store.list("landing_workspaces")
+            if item.get("project_id") == project_id
+            and item.get("status") in {"queued", "composing", "generating_images"}
+        ]
+        active += [
+            ("Instagram publication", item.get("publication_id"))
+            for item in self.store.list("instagram_publications")
+            if item.get("project_id") == project_id
+            and str((item.get("state") or {}).get("status"))
+            in {"queued", "creating_container", "preparing", "publishing"}
+        ]
+        instagram_events = self.store.list("instagram_validation_test_events")
+        active_test_ids = {
+            item.get("test_id") for item in instagram_events
+            if item.get("action") == "activated"
+        } - {
+            item.get("test_id") for item in instagram_events
+            if item.get("action") in {"completed", "abandoned"}
+        }
+        active += [
+            ("Instagram test", item.get("test_id"))
+            for item in self.store.list("instagram_validation_tests")
+            if item.get("project_id") == project_id
+            and item.get("test_id") in active_test_ids
+        ]
+        active += [
+            ("Analytics learning", item.get("learning_run_id"))
+            for item in self.store.list("creative_learning_runs")
+            if item.get("project_id") == project_id and item.get("status") == "running"
+        ]
+        if active:
+            raise RuntimeError(
+                f"{active[0][0]} {active[0][1]} is active; wait for it to finish before deleting the Project"
+            )
+        deleted_at = utc_now()
+        self.store.append("projects", project_id, {
+            **project, "deleted_at": deleted_at, "deleted_by": requested_by,
+            "delete_request_id": request_id, "updated_at": deleted_at,
+        })
+        return {
+            "project_id": project_id, "deleted": True,
+            "deleted_at": deleted_at,
+        }
+
     def create_project(
         self, *, request_id: str, name: str, requested_by: str,
     ) -> tuple[dict[str, Any], bool]:
@@ -120,7 +210,10 @@ class LocalBriefService:
             fingerprint={"request_id": request_id, "name": name},
         )
         if not created:
-            return self._project(project_id), False
+            try:
+                return self._project(project_id), False
+            except KeyError as error:
+                raise ValueError("request_id belongs to a deleted Project") from error
         now = utc_now()
         self.store.append("projects", project_id, {
             "project_id": project_id, "request_id": request_id,

@@ -151,7 +151,8 @@ class OwnerClaimsTests(unittest.TestCase):
         paths = {route.path for route in create_app(self.settings, verifier=Verifier()).routes}
         creative = "/api/v1/studio/projects/{project_id}/creatives/{creative_id}"
         required = {
-            "/api/v1/projects", "/api/v1/projects/{project_id}/briefs", "/api/v1/briefs",
+            "/api/v1/projects", "/api/v1/projects/{project_id}/briefs",
+            "/api/v1/projects/{project_id}/delete", "/api/v1/briefs",
             "/api/v1/settings/chatgpt-authorization",
             "/api/v1/settings/chatgpt-authorization/refresh",
             "/api/v1/settings/commander",
@@ -220,6 +221,41 @@ class OwnerClaimsTests(unittest.TestCase):
         ])
         self.assertFalse([path for path in paths if "/learning/" in path and path.startswith((creative, "/api/v1/landings/"))])
 
+    def test_project_delete_crosses_authenticated_gateway_with_exact_contract(self) -> None:
+        class Verifier:
+            def verify(self, token: str, app_check_token: str) -> OwnerIdentity:
+                self_outer.assertEqual(("owner-token", "app-token"), (token, app_check_token))
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        self_outer = self
+        project_id = "01900000-0000-7000-8000-000000000001"
+        path = f"/api/v1/projects/{project_id}/delete"
+        payload = {
+            "request_id": "01900000-0000-7000-8000-000000000002",
+            "confirmation_name": "Project to remove",
+        }
+        upstream = httpx.Response(
+            200,
+            json={"project_id": project_id, "deleted": True, "deleted_at": "2026-09-23T10:00:00Z"},
+            request=httpx.Request("POST", f"http://validation/internal/v1/projects/{project_id}/delete"),
+        )
+        request = AsyncMock(return_value=upstream)
+        headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
+        with patch("httpx.AsyncClient.request", request), TestClient(
+            create_app(self.settings, verifier=Verifier())
+        ) as client:
+            self.assertEqual(401, client.post(path, json=payload).status_code)
+            response = client.post(path, headers=headers, json=payload)
+
+        self.assertEqual(200, response.status_code, response.text)
+        request.assert_awaited_once_with(
+            "POST", f"http://validation/internal/v1/projects/{project_id}/delete",
+            headers={
+                "X-PTW-Owner-Gateway-Token": "bridge",
+                "X-PTW-Actor": "firebase:owner-uid",
+            },
+            json=payload, params={},
+        )
     def test_commander_routes_require_owner_and_forward_only_to_private_runtime(self) -> None:
         class Verifier:
             def verify(self, token: str, app_check_token: str) -> OwnerIdentity:

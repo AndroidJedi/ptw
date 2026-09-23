@@ -118,6 +118,88 @@ class LocalBriefTests(unittest.TestCase):
                 raw_idea="Second idea", required_language="en", requested_by="test-owner",
             )
 
+    def test_project_deletion_requires_name_and_is_idempotently_hidden(self) -> None:
+        project, _ = self.service.create_project(
+            request_id=str(uuid4()), name="Project to remove", requested_by="test-owner",
+        )
+        request_id = str(uuid4())
+        with self.assertRaisesRegex(ValueError, "name confirmation"):
+            self.service.delete_project(
+                project["project_id"], request_id=request_id,
+                confirmation_name="wrong", requested_by="test-owner",
+            )
+
+        deleted = self.service.delete_project(
+            project["project_id"], request_id=request_id,
+            confirmation_name=project["name"], requested_by="test-owner",
+        )
+        repeated = self.service.delete_project(
+            project["project_id"], request_id=request_id,
+            confirmation_name=project["name"], requested_by="test-owner",
+        )
+
+        self.assertTrue(deleted["deleted"])
+        self.assertEqual(deleted, repeated)
+        self.assertEqual([], self.service.list_projects())
+        with self.assertRaises(KeyError):
+            self.store.get("projects", project["project_id"])
+        retained = self.store.get(
+            "projects", project["project_id"], include_deleted=True,
+        )
+        self.assertEqual(request_id, retained["delete_request_id"])
+        self.assertEqual("test-owner", retained["deleted_by"])
+        with self.assertRaisesRegex(ValueError, "request_id belongs to a deleted Project"):
+            self.service.create_project(
+                request_id=project["request_id"], name=project["name"],
+                requested_by="test-owner",
+            )
+        with self.assertRaises(KeyError):
+            self.service.delete_project(
+                project["project_id"], request_id=str(uuid4()),
+                confirmation_name=project["name"], requested_by="test-owner",
+            )
+
+    def test_project_deletion_refuses_active_generation(self) -> None:
+        project, _brief, _, _ = self.create_project_and_brief()
+        with self.assertRaisesRegex(RuntimeError, "Product Brief"):
+            self.service.delete_project(
+                project["project_id"], request_id=str(uuid4()),
+                confirmation_name=project["name"], requested_by="test-owner",
+            )
+        self.assertEqual(project["project_id"], self.service.list_projects()[0]["project_id"])
+
+    def test_project_deletion_refuses_active_validation_and_learning(self) -> None:
+        instagram_project, _ = self.service.create_project(
+            request_id=str(uuid4()), name="Active Instagram test", requested_by="test-owner",
+        )
+        test_id = str(uuid4())
+        self.store.append("instagram_validation_tests", test_id, {
+            "test_id": test_id, "project_id": instagram_project["project_id"],
+        })
+        event_id = str(uuid4())
+        self.store.append("instagram_validation_test_events", event_id, {
+            "event_id": event_id, "test_id": test_id, "action": "activated",
+        })
+        with self.assertRaisesRegex(RuntimeError, "Instagram test"):
+            self.service.delete_project(
+                instagram_project["project_id"], request_id=str(uuid4()),
+                confirmation_name=instagram_project["name"], requested_by="test-owner",
+            )
+
+        analytics_project, _ = self.service.create_project(
+            request_id=str(uuid4()), name="Active Analytics learning", requested_by="test-owner",
+        )
+        run_id = str(uuid4())
+        self.store.append("creative_learning_runs", run_id, {
+            "learning_run_id": run_id, "project_id": analytics_project["project_id"],
+            "status": "running",
+        })
+        with self.assertRaisesRegex(RuntimeError, "Analytics learning"):
+            self.service.delete_project(
+                analytics_project["project_id"], request_id=str(uuid4()),
+                confirmation_name=analytics_project["name"], requested_by="test-owner",
+            )
+
     def test_restart_requeues_only_interrupted_briefs(self) -> None:
         _, brief, _, _ = self.create_project_and_brief()
         self.store.append("briefs", brief["brief_id"], {

@@ -6,10 +6,11 @@ import asyncio
 from contextlib import asynccontextmanager
 import os
 from pathlib import Path
+import re
 import shutil
 from typing import Any, Mapping
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 
 from .local_brief_routes import local_brief_router
 from .local_brief_store import LocalBriefStore
@@ -216,31 +217,42 @@ def create_app(
         ):
             raise HTTPException(status_code=401, detail="local owner authentication required")
 
+    def require_active_project(request: Request) -> None:
+        match = re.search(r"/projects/([0-9a-fA-F-]{36})(?:/|$)", request.url.path)
+        if match is None:
+            return
+        try:
+            local_store.get("projects", match.group(1))
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+
+    project_dependencies = [Depends(authorize), Depends(require_active_project)]
+
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok", "scope": "loopback-local-owner-app"}
 
     app.include_router(template_router(template_authoring, prefix="/api/v1/templates", dependencies=[Depends(authorize)]))
     app.include_router(studio_creative_router(
-        studio_creatives, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
+        studio_creatives, prefix="/api/v1/studio", dependencies=project_dependencies,
     ))
     app.include_router(landing_page_router(
-        landing_pages, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
+        landing_pages, prefix="/api/v1/landings", dependencies=project_dependencies,
     ))
     app.include_router(landing_publication_owner_router(
-        landing_publications, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
+        landing_publications, prefix="/api/v1/landings", dependencies=project_dependencies,
     ))
     app.include_router(landing_publication_read_router(
         landing_publications, prefix="/api/v1/public/landings",
     ))
     app.include_router(instagram_router(
-        instagram_service, prefix="/api/v1/instagram", dependencies=[Depends(authorize)],
+        instagram_service, prefix="/api/v1/instagram", dependencies=project_dependencies,
     ))
     app.include_router(instagram_media_router(
         instagram_service, prefix="/api/v1/public/instagram-media",
     ))
     app.include_router(instagram_validation_router(
-        instagram_validation, prefix="/api/v1/instagram-tests", dependencies=[Depends(authorize)],
+        instagram_validation, prefix="/api/v1/instagram-tests", dependencies=project_dependencies,
     ))
     app.include_router(creative_analytics_owner_router(
         analytics, prefix="/api/v1/analytics", dependencies=[Depends(authorize)],

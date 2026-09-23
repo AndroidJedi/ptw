@@ -50,6 +50,22 @@ def local_brief_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
+    @router.post("/projects/{project_id}/delete")
+    def delete_project(project_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"request_id", "confirmation_name"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Project deletion requires request_id and exact confirmation_name",
+            )
+        try:
+            return service.delete_project(
+                project_id, request_id=str(request["request_id"]),
+                confirmation_name=str(request["confirmation_name"]),
+                requested_by="loopback:owner",
+            )
+        except (KeyError, RuntimeError, ValueError) as error:
+            raise fail(error) from error
+
     @router.post("/projects/{project_id}/briefs", status_code=202)
     def create_brief(
         project_id: str, request: Mapping[str, Any], background: BackgroundTasks,

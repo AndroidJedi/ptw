@@ -338,6 +338,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/projects/{project_id}/rename", body=request, actor=actor(identity)
         )).json()
 
+    @app.post("/api/v1/projects/{project_id}/delete")
+    async def delete_project(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/projects/{project_id}/delete",
+            body=request, actor=actor(identity),
+        )).json()
+
     @app.post("/api/v1/projects/{project_id}/briefs", status_code=202)
     async def create_brief(
         project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)

@@ -626,7 +626,9 @@ class DatabaseCreativeAnalyticsAuthority:
 
     def project_ids(self) -> list[str]:
         with self.connection() as connection:
-            rows = connection.execute("SELECT entity_id FROM validation_projects ORDER BY created_at").fetchall()
+            rows = connection.execute(
+                "SELECT entity_id FROM validation_projects WHERE deleted_at IS NULL ORDER BY created_at"
+            ).fetchall()
         return [str(row[0]) for row in rows]
 
     @staticmethod

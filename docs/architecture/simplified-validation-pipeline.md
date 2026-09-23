@@ -2,11 +2,19 @@
 
 ## Boundary
 
-PTW begins with one owner idea and creates one strict Product Brief validation
-hypothesis. The initial request atomically creates a Project, permanent Source,
-and queued Brief. Language is part of the immutable request and idempotency
-contract. The model receives only the idea, language, and canonical Product
-Brief skill; validation rejects unsupported proof.
+PTW begins with an owner-created empty Project and one owner idea that creates one
+strict Product Brief validation hypothesis. The Brief request atomically creates
+the permanent Source and queued Brief inside that Project. Language is part of
+the immutable request and idempotency contract. The model receives only the
+idea, language, and canonical Product Brief skill; validation rejects unsupported
+proof.
+
+An owner may delete a Project only after typing its exact name. Deletion uses one
+request UUID, refuses active generation or publishing, and writes an immutable
+tombstone rather than erasing graph/audit lineage. Deleted Projects disappear
+from every private workspace, all project-scoped routes fail closed, and their
+public Landing routes return 404. Content already published to an external
+provider is outside this local deletion boundary.
 
 A correction creates a complete immutable replacement with `supersedes`,
 `derived_from`, `evaluates`, and `adjusts` lineage through HumanFeedback
@@ -27,7 +35,7 @@ immutable approved version.
 
 ## Authority
 
-PostgreSQL is the complete production authority for Projects, Sources, Briefs,
+PostgreSQL is the complete production authority for active and deleted Projects, Sources, Briefs,
 corrections, approvals, Studio creatives, skills, and graph lineage. The only
 schema baseline is `db/migrations/001_ptw_brief_v1.sql` plus the private Landing
 extension `db/migrations/002_ptw_landing_studio_v1.sql`; no earlier Studio, Post,

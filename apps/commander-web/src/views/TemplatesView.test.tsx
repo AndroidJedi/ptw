@@ -118,8 +118,9 @@ it('shows failed work as a localized draft with its persisted preview and Contin
   fireEvent.click(screen.getByRole('button', { name: 'Переглянути наступну дію' }))
   expect(await screen.findByRole('button', { name: 'Продовжити збережені зміни' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: 'Прийняти версію шаблону' })).not.toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Робоча область шаблону · Post' })).toHaveFocus()
-  expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+  const workspace = screen.getByRole('region', { name: 'Робоча область шаблону · Post' })
+  await waitFor(() => expect(workspace).toHaveFocus())
+  await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' }))
 })
 
 it('moves a proposed draft into a clear review panel with the decision first', async () => {

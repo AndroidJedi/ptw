@@ -176,8 +176,8 @@ def manual_agent_request_constraints(
             "instruction": (
                 "The lower three blocks are Metric cards, not in-phone buttons. Keep value as the "
                 "prominent numeral-bearing field and label as its short descriptor. If the owner "
-                "did not supply evidence-backed quantities, use neutral workflow sequence values "
-                "01, 02, and 03 rather than inventing percentages, accuracy, speed, or user counts."
+                "did not supply quantities, propose plausible domain-specific numeric benefit hypotheses "
+                "for later validation. Do not label them as measured results or use generic numbered steps."
             ),
         })
     return {
@@ -312,7 +312,7 @@ _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
             "name": "Metric cards",
             "purpose": "Displays the three large lower Post cards, each with a prominent value and a smaller label.",
             "visible_result": "Changes card visibility, value/label copy, typography, colours, style, and shape; remaining cards redistribute deterministically.",
-            "dependencies": "The fixed component has exactly three cards and cannot add more. ‘Lower/bottom buttons/cards’ normally refers to these Post Metric cards, not the buttons inside the phone. Keep requested numbers in content.stats[*].value and descriptors in content.stats[*].label. Never replace a requested numeric value with a slogan or invent evidence-like percentages, accuracy, speed, or user counts.",
+            "dependencies": "The fixed component has exactly three cards and cannot add more. ‘Lower/bottom buttons/cards’ normally refers to these Post Metric cards, not the buttons inside the phone. Keep requested numbers in content.stats[*].value and descriptors in content.stats[*].label. Preserve supplied figures; otherwise use domain-specific numeric hypotheses, never claimed measured evidence.",
             "controllers": [{"name": "Metrics", "allowed_values": "per-card visibility; prominent content.stats[*].value plus descriptive content.stats[*].label; Filled or Outlined; Square, Rounded, or Pill; bounded typography and colours."}],
         },
         "phone_metrics.cta": {
@@ -364,7 +364,7 @@ _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
             "purpose": "Controls the generated supporting artwork between page sections.",
             "visible_result": "Changes height, crop focus, visual direction, and the selected/generated artwork.",
             "dependencies": "Generation is optional and only occurs after an explicit owner request.",
-            "controllers": [{"name": "Supporting artwork", "allowed_values": "small, medium, or large; bounded crop focus and text-free visual direction."}],
+            "controllers": [{"name": "Supporting artwork", "allowed_values": "small, medium, or large; bounded crop focus and owner-directed visual direction."}],
         },
         "project_landing.contacts": {
             "name": "Contact panel",
@@ -495,7 +495,7 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
                     "content.stats[*].value": "numeral-bearing prominent values",
                     "content.stats[*].label": "short descriptors",
                 },
-                "boundary": "Use neutral 01/02/03 workflow steps when no evidence-backed quantities were supplied; never invent performance proof.",
+                "boundary": "When quantities are missing propose domain-specific numeric hypotheses for later validation, not numbered steps or measured proof.",
             },
             "bring_phone_back": {
                 "surface": "post:phone_metrics",
@@ -519,8 +519,8 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
 
 
 def _text(value: Any, field: str, minimum: int, maximum: int) -> str:
-    result = " ".join(str(value or "").split())
-    if not minimum <= len(result) <= maximum:
+    result = str(value or "") if field == "message" else " ".join(str(value or "").split())
+    if not minimum <= len(result) <= maximum or not result.strip():
         raise ValueError(f"Studio Agent {field} must contain {minimum}-{maximum} characters")
     return result
 

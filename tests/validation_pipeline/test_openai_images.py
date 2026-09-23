@@ -61,10 +61,10 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         self.assertEqual(PHONE_SCREEN_IMAGE_MODEL, seen["payload"]["model"])
         self.assertEqual("1024x1024", PHONE_SCREEN_IMAGE_SIZE)
         self.assertEqual(PHONE_SCREEN_IMAGE_SIZE, seen["payload"]["size"])
-        self.assertIn("no readable text", seen["payload"]["prompt"])
+        self.assertIn("Text-free abstract editorial", seen["payload"]["prompt"])
         self.assertEqual("openai_image_api", result["source"]["origin"])
         self.assertEqual("image_generation", result["source"]["operation"])
-        self.assertEqual("prohibited_by_prompt", result["source"]["text_in_screen"])
+        self.assertEqual("owner_directed", result["source"]["text_in_screen"])
         self.assertRegex(result["source"]["prompt_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual("request_123", result["source"]["request_id"])
         self.assertNotIn("api_key", result["source"])
@@ -163,12 +163,25 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         self.assertIn("sole referenced input image", seen["prompt"])
         self.assertEqual("image_edit", result["source"]["operation"])
 
+    def test_legacy_worker_is_rejected_before_a_generation_job(self):
+        requests = []
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(200, json={"image_reference_retention": "ephemeral"})
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            provider = ResultBridgePhoneScreenImageProvider("http://bridge/internal/llm/structured", "test", client=client)
+            with self.assertRaisesRegex(RuntimeError, "compatible domain-image worker"):
+                provider.generate("A guest scanning a QR code on a hotel table")
+        self.assertEqual(["GET"], [request.method for request in requests])
+
     def test_result_bridge_provider_generates_and_verifies_private_asset(self) -> None:
         generated = self._square_png()
         digest = hashlib.sha256(generated).hexdigest()
         seen: dict[str, object] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/capabilities"):
+                return httpx.Response(200, json={"image_generation_policies": ["ptw.domain-image.v1"], "image_reference_retention": "ephemeral"})
             if request.method == "POST":
                 seen["payload"] = json.loads(request.content)
                 seen["token"] = request.headers.get("x-ptw-bridge-token")
@@ -215,7 +228,7 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
 
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path.endswith("/capabilities"):
-                return httpx.Response(200, json={"image_reference_retention": "ephemeral"})
+                return httpx.Response(200, json={"image_reference_retention": "ephemeral", "image_generation_policies": ["ptw.domain-image.v1"]})
             if request.method == "DELETE":
                 seen["discarded"] = True
                 return httpx.Response(200, json={})
@@ -258,7 +271,7 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         requests = []
         def handler(request):
             requests.append(request)
-            return httpx.Response(200, json={"media_modes": ["content_non_human_graphic_generation"]})
+            return httpx.Response(200, json={"media_modes": ["content_non_human_graphic_generation"], "image_generation_policies": ["ptw.domain-image.v1"]})
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             provider = ResultBridgePhoneScreenImageProvider("http://bridge/internal/llm/structured", "test", client=client)
             with self.assertRaisesRegex(RuntimeError, "temporary input"):
@@ -270,7 +283,7 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         def handler(request):
             requests.append(request)
             if request.url.path.endswith("/capabilities"):
-                return httpx.Response(200, json={"image_reference_retention": "ephemeral"})
+                return httpx.Response(200, json={"image_reference_retention": "ephemeral", "image_generation_policies": ["ptw.domain-image.v1"]})
             if request.method == "POST":
                 return httpx.Response(200, json={"request_id": 73})
             return httpx.Response(200, json={"status": "failed"})
@@ -316,11 +329,11 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
             "Translucent glass steps in soft blue light with one lime accent.",
         )
         self.assertIn("Translucent glass steps", prompt)
-        self.assertIn("the server adds the Natal identity", prompt)
-        self.assertIn("lower area calm enough to fade into white", prompt)
-        self.assertIn("direct, first-person live camera view", prompt)
-        self.assertIn("non-textual computer-vision treatment is allowed", prompt)
-        self.assertIn("no readable text", prompt)
+        self.assertIn("renderer-owned", prompt)
+        self.assertIn("visible crop", prompt)
+        self.assertNotIn("direct, first-person live camera view", prompt)
+        self.assertIn("People, hands, faces, phones", prompt)
+        self.assertIn("Omit readable text", prompt)
         with self.assertRaisesRegex(ValueError, "8-600"):
             phone_screen_art_prompt("short")
 
@@ -354,8 +367,8 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
                 )
                 self.assertIn(style_directive, prompt)
                 self.assertIn(background_directive, prompt)
-                self.assertIn("no readable text", prompt)
-                self.assertIn("the server adds the Natal identity", prompt)
+                self.assertIn("Omit readable text", prompt)
+                self.assertIn("renderer-owned", prompt)
         with self.assertRaisesRegex(ValueError, "style"):
             normalize_phone_hero_creative_direction({
                 "schema": "ptw.studio.phone-hero-direction.v1",

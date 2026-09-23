@@ -15,7 +15,7 @@ The sole v4 page template keeps this semantic order: Hero, three feature cards,
 social proof, a generated visual break, contacts, and three FAQs. The owner can
 edit bounded content and theme/layout controls but cannot add HTML, CSS,
 scripts, arbitrary sections, or reorder the composition. Hero and visual-break
-art are independently generated text-free PNGs; each retains its newest three
+art are independently generated owner-directed PNGs; each retains its newest three
 digest-checked raw images and supports exact-image enhancement and selection.
 Both image prompts also accept the shared optional [Image Reference input](post-studio.md#phone-metrics). Uploaded references are temporary
 operation inputs, never Landing assets or saved page state.
@@ -157,6 +157,15 @@ frozen Post style; the Post snapshot remains provenance. Hero and supporting ima
 retain independent choices and crop-aware subject directions. A style change leaves
 existing pixels/history intact until Generate or Enhance is requested. Pending edits
 are persisted first, and the prompt uses that persisted configuration's digest.
+Both slots use the [shared versioned image policy](post-studio.md#shared-image-generation-policy),
+including instruction origins, pinned current Brief/settings, reference precedence
+and immediate display of technically valid output. The Hero in phone mode is a
+backdrop behind the phone overlay, not an app-screen aperture; image-only mode
+uses standalone artwork, and the visual-break slot carries its responsive crop
+and focus settings. Original Manual Agent messages remain distinct from their
+interpretations. Generated directions never acquire owner priority merely by
+being saved. Source Post metric hypotheses remain unvalidated copy, never facts
+or social proof for Landing composition.
 Those image controls introduce no new provider mode. Publication is a separate read authority
 over approved versions and never influences Landing or Post generation.
 
@@ -174,7 +183,8 @@ is part of this local milestone.
 Every service is presented as a Natal app by default. The hero uses Post Studio's bundled,
 digest-checked iPhone 15 Pro front frame, with a responsive HTML screen behind its
 original aperture. Generated hero art is atmospheric context behind the phone;
-text, controls, identity, and hardware are never generated into those pixels.
+surrounding text, controls, identity and hardware are renderer-owned. Requested
+text/UI/devices inside artwork are allowed by the shared generation policy.
 The separate App feature inspector selects Light, Dark, or Glass screen themes
 and Overview, Booking, or Checklist layouts independently of page/art themes.
 

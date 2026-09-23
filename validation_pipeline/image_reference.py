@@ -18,8 +18,15 @@ REFERENCE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
 def generation_request(request: Mapping[str, Any]) -> dict[str, Any]:
     required = {"base_sha256", "visual_direction"}
-    if not required <= set(request) or set(request) - required - {"enhance_current", "reference_image"}:
+    if not required <= set(request) or set(request) - required - {"enhance_current", "reference_image", "instruction_context", "changed_image_settings"}:
         raise ValueError("Image generation fields are invalid")
+    context = request.get("instruction_context")
+    if context is not None:
+        from .image_generation_policy import resolve_instruction
+        resolve_instruction(str(request["visual_direction"]), requested=context)
+    changed = request.get("changed_image_settings", [])
+    if not isinstance(changed, list) or len(changed) > 3 or any(not isinstance(key, str) or key not in {"style", "background", "palette"} for key in changed):
+        raise ValueError("Changed image settings are invalid")
     enhance = request.get("enhance_current", False)
     if not isinstance(enhance, bool):
         raise ValueError("Image enhancement setting must be boolean")
@@ -30,6 +37,8 @@ def generation_request(request: Mapping[str, Any]) -> dict[str, Any]:
         "base_sha256": str(request["base_sha256"]),
         "visual_direction": str(request["visual_direction"]),
         "enhance_current": enhance,
+        **({"changed_image_settings": changed} if changed else {}),
+        **({"instruction_context": dict(context)} if context is not None else {}),
         **({"reference_image": decode_reference(reference)} if reference is not None else {}),
     }
 

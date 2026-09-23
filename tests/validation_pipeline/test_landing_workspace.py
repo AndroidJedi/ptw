@@ -690,7 +690,14 @@ class LandingDesignTests(unittest.TestCase):
         from validation_pipeline.landing_design import DEFAULT_IMAGE_DIRECTIONS, PHONE_HERO_STYLE_DIRECTIVES, LANDING_BACKGROUND_DIRECTIVES
         from validation_pipeline.landing_pages import LandingService
         service = object.__new__(LandingService)
-        page = {'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+        page = {'landing_id': 'page', 'project_id': 'project', 'source_brief_id': 'brief', 'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+        service.analytics = None
+        service.authority = Mock()
+        service.authority.brief.return_value = {'brief_id': 'brief', 'document': {'product': 'Hotel service'}}
+        service._workspace = Mock()
+        service._workspace.return_value._history.return_value = []
+        service._workspace.return_value._content.return_value = deepcopy(DEFAULT_CONTENT)
+        service._workspace.return_value.state_sha256.return_value = 'a' * 64
         for style, directive in PHONE_HERO_STYLE_DIRECTIVES.items():
             for background, treatment in LANDING_BACKGROUND_DIRECTIVES.items():
                 config = {**deepcopy(DEFAULT_CONFIGURATION), 'image_directions': deepcopy(DEFAULT_IMAGE_DIRECTIONS)}
@@ -700,7 +707,7 @@ class LandingDesignTests(unittest.TestCase):
                 self.assertIn(directive, prompt)
                 self.assertIn(treatment, prompt)
                 self.assertIn('#123456', prompt)
-                self.assertIn('balanced hero crop', prompt)
+                self.assertIn('visible crop', prompt)
                 self.assertIn('central horizontal band', service._image_prompt(page, 'visual_break_visual', 'Another cabinet', config))
                 self.assertIn('premium_editorial', service._image_prompt(page, 'visual_break_visual', 'Another cabinet', config))
         config['image_directions']['hero_visual']['style'] = 'unknown'
@@ -723,7 +730,9 @@ class LandingDesignTests(unittest.TestCase):
             service.summary = Mock(return_value={})
             service._workspace = Mock(return_value=workspace)
             service.authority = Mock()
-            service.authority.get_page.return_value = {'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+            service.analytics = None
+            service.authority.brief.return_value = {'brief_id': 'brief', 'document': {'product': 'Hotel service'}}
+            service.authority.get_page.return_value = {'landing_id': 'page', 'project_id': 'project', 'source_brief_id': 'brief', 'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
             generated = service.mutate('project', 'page', 'generate_visual', base_sha256=workspace.detail()['state_sha256'], slot='hero_visual', visual_direction='A paper cabinet')
             self.assertIn('Handmade tactile materials', provider.generate.call_args.args[0])
             raw = (workspace.assets / f"{generated['assets'][0]['sha256']}.png").read_bytes()

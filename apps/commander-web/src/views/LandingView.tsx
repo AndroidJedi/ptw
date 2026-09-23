@@ -6,7 +6,7 @@ import { Empty, ErrorState, Loading } from '../components/State'
 import { StudioManualAgent } from '../components/studio/StudioManualAgent'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
-import type { LandingConfiguration, LandingContent, LandingDetail, LandingPublication, LandingSummary, StudioManualAgentResult } from '../types'
+import type { ImageInstructionContext, LandingConfiguration, LandingContent, LandingDetail, LandingPublication, LandingSummary, StudioManualAgentResult } from '../types'
 import { LandingPage } from '../landing/LandingPage'
 import { LandingInspector, LandingField } from '../landing/LandingInspector'
 import { LandingCanvas, LandingDialog } from '../landing/LandingCanvas'
@@ -30,6 +30,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [detail, setDetail] = useState<LandingDetail | null>(null)
   const [configuration, setConfiguration] = useState<LandingConfiguration | null>(null)
   const [content, setContent] = useState<LandingContent | null>(null)
+  const [imageInstructions, setImageInstructions] = useState<Record<string, ImageInstructionContext>>({})
   const [images, setImages] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -179,14 +180,31 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     } finally { setBusy(false) }
   }
   useEffect(() => { setReferenceImage(null) }, [detail?.landing_id, section, projectId])
+  useEffect(() => { setImageInstructions({}) }, [detail?.landing_id, projectId])
+  const editContent = (next: LandingContent) => {
+    if (content) {
+      if (next.hero.visual_direction !== content.hero.visual_direction) setImageInstructions(current => ({ ...current, hero_visual: { origin: 'owner' } }))
+      if (next.visual_break.visual_direction !== content.visual_break.visual_direction) setImageInstructions(current => ({ ...current, visual_break_visual: { origin: 'owner' } }))
+    }
+    setContent(next)
+  }
+  const changedImageSettings = (slot: 'hero_visual' | 'visual_break_visual', next: LandingConfiguration) => {
+    const old = detail?.configuration
+    return [
+      ...(['style', 'background'] as const).filter(key => next.image_directions?.[slot]?.[key] !== old?.image_directions?.[slot]?.[key]),
+      ...(JSON.stringify(next.theme) !== JSON.stringify(old?.theme) ? ['palette'] : []),
+    ]
+  }
   const generate = async (slot: 'hero_visual' | 'visual_break_visual', enhance = false) => {
     if (!detail || !content) return
     setBusy(true); setError('')
     try {
       const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
+      const changed = configuration ? changedImageSettings(slot, configuration) : []
+      const instruction = imageInstructions[slot]
       const saved = await persist()
       const direction = slot === 'hero_visual' ? content.hero.visual_direction : content.visual_break.visual_direction
-      const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/generate`, { base_sha256: saved.state_sha256, visual_direction: direction, ...(reference ? { reference_image: reference } : enhance ? { enhance_current: true } : {}) }, { deadlineMs: 480_000 })
+      const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/generate`, { base_sha256: saved.state_sha256, visual_direction: direction, ...(instruction ? { instruction_context: instruction } : {}), ...(changed.length ? { changed_image_settings: changed } : {}), ...(reference ? { reference_image: reference } : enhance ? { enhance_current: true } : {}) }, { deadlineMs: 480_000 })
       applyDetail(value)
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setReferenceImage(null); setBusy(false) }
   }
@@ -198,6 +216,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/select`, {
         base_sha256: saved.state_sha256, sha256,
       })
+      setImageInstructions(current => { const next = { ...current }; delete next[slot]; return next })
       applyDetail(value)
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
@@ -230,9 +249,12 @@ export function LandingView({ api, language, projectId = null, projectName = '',
           saved = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${action.slot}/generate`, {
             base_sha256: saved.state_sha256,
             visual_direction: action.visual_direction,
+            ...(result.owner_instruction ? { instruction_context: { origin: 'agent', owner_instruction: result.owner_instruction } } : {}),
+            ...(changedImageSettings(action.slot as 'hero_visual' | 'visual_break_visual', nextConfiguration).length ? { changed_image_settings: changedImageSettings(action.slot as 'hero_visual' | 'visual_break_visual', nextConfiguration) } : {}),
             enhance_current: action.enhance_current,
             ...(reference ? { reference_image: reference } : {}),
           }, { deadlineMs: 480_000 })
+          if (result.owner_instruction) setImageInstructions(current => ({ ...current, [action.slot]: { origin: 'agent', owner_instruction: result.owner_instruction } }))
           applyDetail(saved)
         }
       }
@@ -337,7 +359,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     <div className={`landing-workbench is-${mode}`}>
       <aside className="landing-editor"><nav className="landing-section-nav" aria-label={tr('Page sections', 'Секції сторінки')}>{sections.map(key => <button key={key} aria-label={labels[language][key]} className={section === key ? 'active' : ''} aria-current={section === key ? 'true' : undefined} onClick={() => setSection(key)}>{labels[language][key]}{issues.some(issue => issue.section === key) && <span aria-label={tr('Needs attention', 'Потребує уваги')}>·</span>}</button>)}</nav>
         <div className="landing-inspector"><header><small>{tr('SECTION EDITOR', 'РЕДАКТОР СЕКЦІЇ')}</small><h2>{labels[language][section]}</h2></header>
-          <LandingInspector referenceImage={referenceImage} onReferenceImage={setReferenceImage} section={section} configuration={configuration} content={content} detail={detail} onConfiguration={setConfiguration} onContent={setContent} language={language} busy={busy} issues={issues} imageUrls={images} onGenerate={(slot, enhance) => void generate(slot, enhance)} onSelectImage={(slot, sha) => void selectVisual(slot, sha)} />
+          <LandingInspector referenceImage={referenceImage} onReferenceImage={setReferenceImage} section={section} configuration={configuration} content={content} detail={detail} onConfiguration={setConfiguration} onContent={editContent} language={language} busy={busy} issues={issues} imageUrls={images} onGenerate={(slot, enhance) => void generate(slot, enhance)} onSelectImage={(slot, sha) => void selectVisual(slot, sha)} />
           <details className="landing-readiness"><summary>{issues.length ? tr(`${issues.length} items before approval`, `${issues.length} пунктів до затвердження`) : tr('Ready for approval', 'Готово до затвердження')}</summary>{issues.map(issue => <button key={issue.path} onClick={() => setSection(issue.section)}>{issue[language]}</button>)}<LandingField label={tr('Approval note', 'Нотатка затвердження')} value={note} max={240} onChange={setNote} /></details>
         </div>
       </aside>

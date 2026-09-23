@@ -1287,6 +1287,8 @@ class CreativeAnalyticsService:
                     "template_id": artifact["detail"].get("template_id"),
                     "configuration": deepcopy(record.get("configuration") or {}),
                     "content": deepcopy(record.get("content") or {}),
+                    "metric_provenance": deepcopy(record.get("metric_provenance") or []),
+                    "copy_quantities_are_performance_evidence": False,
                     "generation": deepcopy(
                         record.get("generation") or artifact["detail"].get("generation") or {}
                     ),

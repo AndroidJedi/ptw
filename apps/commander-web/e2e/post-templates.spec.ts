@@ -13,10 +13,11 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
   const url = `http://127.0.0.1:${port}`
   const headers = { Authorization: 'Bearer e2e-owner-token', 'X-Firebase-AppCheck': 'e2e-app-check' }
   let child: ChildProcess
+  let diagnostic = ''
   const launch = async () => {
     const python = process.env.PTW_E2E_PYTHON || (existsSync('../../.venv/bin/python') ? '../../.venv/bin/python' : 'python3')
     child = spawn(python, ['../../scripts/template_browser_canary.py', '--port', String(port), '--directory', directory, '--project-post'], { stdio: 'pipe' })
-    let diagnostic = ''
+    diagnostic = ''
     child.stderr?.on('data', value => { diagnostic += value.toString() })
     for (let attempt = 0; attempt < 250; attempt++) {
       if (child.exitCode !== null) throw Error(diagnostic)
@@ -52,7 +53,9 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
     await expect(page.getByText('Preview up to date', { exact: true })).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: 'Save creative' }).click()
     await expect(page.getByText('Creative saved with an edit checkpoint.', { exact: true })).toBeVisible({ timeout: 15000 })
+    const approval = page.waitForResponse(response => response.url().endsWith('/approve') && response.request().method() === 'POST')
     await page.getByRole('button', { name: 'Approve creative' }).click()
+    expect((await approval).ok(), diagnostic).toBeTruthy()
     await expect(page.getByRole('button', { name: 'Approve creative' })).toBeEnabled({ timeout: 15000 })
     const path = `/api/v1/studio/projects/${ids.project_id}/creatives/${ids.creative_id}`
     const before = await fetch(url + path, { headers }).then(r => r.json())

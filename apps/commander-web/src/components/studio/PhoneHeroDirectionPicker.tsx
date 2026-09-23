@@ -10,7 +10,7 @@ export type PhoneHeroDirectionDraft = {
 }
 
 export const styles: Array<{ id: StudioPhoneHeroStyle; en: string; uk: string; detailEn: string; detailUk: string }> = [
-  { id: 'business_professional', en: 'Business professional', uk: 'Діловий професійний', detailEn: 'Credible commercial still life', detailUk: 'Переконливий комерційний натюрморт' },
+  { id: 'business_professional', en: 'Business professional', uk: 'Діловий професійний', detailEn: 'Polished commercial imagery', detailUk: 'Виразне комерційне зображення' },
   { id: 'ultra_realistic_lifestyle', en: 'Ultra-realistic lifestyle', uk: 'Ультрареалістичний лайфстайл', detailEn: 'Natural, high-fidelity product scene', detailUk: 'Природна деталізована продуктова сцена' },
   { id: 'cinematic', en: 'Cinematic', uk: 'Кінематографічний', detailEn: 'Filmic light and depth', detailUk: 'Кінематографічне світло й глибина' },
   { id: 'premium_editorial', en: 'Premium editorial', uk: 'Преміальний редакційний', detailEn: 'Refined art direction', detailUk: 'Вишукана артдирекція' },
@@ -24,7 +24,7 @@ export const styles: Array<{ id: StudioPhoneHeroStyle; en: string; uk: string; d
 
 export const backgrounds: Array<{ id: StudioPhoneHeroBackground; en: string; uk: string; detailEn: string; detailUk: string }> = [
   { id: 'scene', en: 'Keep a scene background', uk: 'Залишити сценічний фон', detailEn: 'A contextual, uncluttered backdrop', detailUk: 'Контекстний, але чистий фон' },
-  { id: 'isolated_key_element', en: 'Remove scene background', uk: 'Прибрати сценічний фон', detailEn: 'One object on a clean tonal field, never transparent', detailUk: 'Один об’єкт на чистому тональному полі, без прозорості' },
+  { id: 'isolated_key_element', en: 'Remove scene background', uk: 'Прибрати сценічний фон', detailEn: 'Complete subject or interaction on a clean field', detailUk: 'Цілісний об’єкт або взаємодія на чистому тлі' },
 ]
 
 export const creativeDirectionFromDraft = (value: PhoneHeroDirectionDraft): StudioPhoneHeroCreativeDirection | null => (
@@ -73,7 +73,7 @@ export function PhoneHeroDirectionPicker({
         <strong>{language === 'uk' ? item.uk : item.en}</strong><small>{language === 'uk' ? item.detailUk : item.detailEn}</small>
       </label>)}
     </div>
-    <div className="phone-hero-background-heading"><small>{tr('BACKGROUND TREATMENT', 'ВАРІАНТ ФОНУ')}</small><strong>{tr('Keep a scene or remove it', 'Залишити сцену або прибрати її')}</strong><span>{tr('Removing the scene keeps a solid clean tonal field; it does not create a transparent image.', 'Прибирання сцени залишає суцільне чисте тональне поле, а не прозоре зображення.')}</span></div>
+    <div className="phone-hero-background-heading"><small>{tr('BACKGROUND TREATMENT', 'ВАРІАНТ ФОНУ')}</small><strong>{tr('Keep a scene or remove it', 'Залишити сцену або прибрати її')}</strong><span>{tr('These are defaults. Your written request takes priority; removing scenery keeps all objects needed for the action.', 'Це типові налаштування. Ваш опис має пріоритет; прибирання сцени зберігає всі потрібні для дії об’єкти.')}</span></div>
     <div className="phone-hero-background-options" role="radiogroup" aria-label={tr('Background treatment', 'Обробка фону')}>
       {backgrounds.map((item) => <label key={item.id} className={`phone-hero-direction-option ${value.background === item.id ? 'is-selected' : ''}`}>
         <input type="radio" name={`${idPrefix}-background`} value={item.id} checked={value.background === item.id} disabled={disabled} onChange={() => onChange?.({ ...value, background: item.id })} />

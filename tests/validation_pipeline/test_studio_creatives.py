@@ -52,6 +52,8 @@ class FakeStructuredProvider:
                 response["configuration"]["invented_control"] = True
             response["content"]["hero_title"] = "A clear promise for this audience"
             if request["input_payload"]["selected_template_id"] == "phone_metrics":
+                response["content"]["stats"] = [{"value": "+35%", "label": "More service requests"}, {"value": "−25%", "label": "Fewer calls"}, {"value": "2×", "label": "Faster handling"}]
+                response["metric_basis"] = [{"origin": "ai_hypothesis", "evidence": ""} for _ in range(3)]
                 response["visual_direction"] = (
                     "A translucent staircase rising through calm blue studio light"
                 )
@@ -145,6 +147,56 @@ class StudioCreativeServiceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_numeric_hypothesis_provenance_survives_approval_edit_and_clone(self):
+        project_id, _, detail = self.generate_creative()
+        provenance = detail["generation"]["metric_provenance"]
+        self.assertEqual(3, len(provenance))
+        self.assertTrue(all(item["origin"] == "ai_hypothesis" and item["validation_status"] == "unvalidated" for item in provenance))
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from validation_pipeline.studio_routes import studio_creative_router
+        app = FastAPI()
+        app.include_router(studio_creative_router(self.service, prefix="/api/v1/studio"))
+        with TestClient(app) as client:
+            response = client.post(f"/api/v1/studio/projects/{project_id}/creatives/{detail['creative_id']}/approve", json={
+                "base_sha256": detail["state_sha256"], "configuration": detail["configuration"],
+                "content": detail["content"], "change_note": "Numeric draft", "metric_provenance": provenance})
+        self.assertEqual(200, response.status_code, response.text)
+        approved = response.json()
+        version = self.service._workspace(detail["creative_id"]).version_detail(1)
+        self.assertEqual(provenance, version["metric_provenance"])
+        current = approved["creative"]
+        edited = deepcopy(current["content"])
+        edited["stats"][0] = {"value": "Owner wording", "label": "Keep editable"}
+        saved = self.service.checkpoint(project_id, detail["creative_id"], kind="save",
+            base_sha256=current["state_sha256"], configuration=current["configuration"], content=edited)["creative"]
+        self.assertEqual("owner_supplied", saved["generation"]["metric_provenance"][0]["origin"])
+        self.assertEqual(provenance, self.service._workspace(detail["creative_id"]).version_detail(1)["metric_provenance"])
+        clone, _ = self.service.clone_approved_version(project_id=project_id,
+            source_creative_id=detail["creative_id"], source_version=1, request_id=new_uuid7(), requested_by="test")
+        self.assertEqual(provenance, clone["generation"]["metric_provenance"])
+        self.service._workspaces.clear()
+        reloaded = self.service.detail(project_id, detail["creative_id"])
+        self.assertEqual("Owner wording", reloaded["generation"]["metric_provenance"][0]["value"])
+
+    def test_hotel_manual_request_carries_brief_settings_origin_and_reference(self):
+        project_id, _, detail = self.generate_creative()
+        suggestion = detail["assets"][0]["source"]["visual_direction"]
+        rerun = self.service.mutate(project_id, detail["creative_id"], "generate_phone_screen",
+            base_sha256=detail["state_sha256"], visual_direction=suggestion)
+        source = rerun["assets"][0]["source"]
+        self.assertEqual("generated", source["image_context"]["instruction"]["origin"])
+        owner = "A guest scans a QR card with a smartphone in a hotel room. Include the label SPA."
+        generated = self.service.mutate(project_id, detail["creative_id"], "generate_phone_screen",
+            base_sha256=rerun["state_sha256"], visual_direction="Guest scanning a hotel card",
+            instruction_context={"origin": "agent", "owner_instruction": owner}, enhance_current=True)
+        context = generated["assets"][0]["source"]["image_context"]
+        self.assertEqual(owner, context["instruction"]["owner_instruction"])
+        self.assertEqual(detail["source_brief_id"], context["brief"]["brief_id"])
+        self.assertEqual("enhance_current", context["operation"])
+        self.assertIn(owner, self.images.prompts[-1])
+        self.assertIsNotNone(self.images.references[-1])
 
     def approved_brief(self, name: str = "Project Alpha") -> tuple[str, str]:
         project_id, brief_id = new_uuid7(), new_uuid7()
@@ -454,10 +506,10 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual("draft", detail["status"])
         self.assertEqual("completed", detail["generation"]["phone_image"]["status"])
         self.assertEqual([None], self.images.references)
-        self.assertIn("Studio Phone Hero Generator", self.images.prompts[0])
-        self.assertIn("Active global creative spirit snapshot: null", self.images.prompts[0])
-        self.assertIn("Active Project creative rules snapshot: null", self.images.prompts[0])
-        self.assertIn("no readable text", self.images.prompts[0])
+        self.assertIn("ptw.domain-image.v1", self.images.prompts[0])
+        self.assertIn('"global":null', self.images.prompts[0])
+        self.assertIn('"project":null', self.images.prompts[0])
+        self.assertIn("Omit readable text", self.images.prompts[0])
         self.assertIsNone(detail["generation"]["project_skill_snapshot_id"])
         self.assertIsNone(detail["generation"]["global_skill_snapshot_id"])
         generation_call = next(
@@ -465,17 +517,17 @@ class StudioCreativeServiceTests(unittest.TestCase):
             if call["mode"] == "studio_creative_generation"
         )
         self.assertTrue(generation_call["idempotency_key"].endswith(
-            ":studio-creative-composer-v3"
+            ":studio-creative-composer-v4"
         ))
         self.assertEqual(
-            "studio-creative-composer-v3", generation_call["prompt_version"],
+            "studio-creative-composer-v4", generation_call["prompt_version"],
         )
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])
         self.assertIn("live_template_catalog", generation_call["input_payload"])
         self.assertEqual(PHONE_DIRECTION, generation_call["input_payload"]["creative_direction"])
         self.assertEqual(PHONE_DIRECTION, detail["generation"]["creative_direction"])
-        self.assertIn("Selected visual style", self.images.prompts[0])
+        self.assertIn("Default style", self.images.prompts[0])
         runs = [
             item for item in self.store.list("studio_generation_runs")
             if item["creative_id"] == detail["creative_id"]

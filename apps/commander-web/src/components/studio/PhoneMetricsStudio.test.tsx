@@ -188,6 +188,22 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('shows hypothesis provenance and sends owner edits with matching values', async () => {
+    const current = structuredClone(detail)
+    current.content.stats = [{ value: '+35%', label: 'More orders' }, { value: '−25%', label: 'Fewer calls' }, { value: '2×', label: 'Faster handling' }]
+    current.generation.metric_provenance = current.content.stats.map(stat => ({ ...stat, origin: 'ai_hypothesis', validation_status: 'unvalidated', evidence: '' }))
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()} />)
+    expect(screen.getByTestId('metric-1-provenance')).toHaveTextContent('AI hypothesis · unvalidated')
+    fireEvent.change(screen.getByLabelText('Metric 1 value'), { target: { value: 'Owner wording' } })
+    expect(screen.getByTestId('metric-1-provenance')).toHaveTextContent('Owner supplied · unvalidated')
+    expect(screen.getByTestId('metric-2-provenance')).toHaveTextContent('AI hypothesis · unvalidated')
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      metric_provenance: expect.arrayContaining([expect.objectContaining({ value: 'Owner wording', origin: 'owner_supplied', validation_status: 'unvalidated' })]),
+    }), expect.anything()))
+  })
+
   it('does not expose retired template replacement controls', () => {
     const { api } = studioApi()
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
@@ -783,6 +799,7 @@ describe('Phone & metrics Studio', () => {
       2, `${basePath}/phone-screen/generate`, {
         base_sha256: 'e'.repeat(64),
         visual_direction: 'Translucent glass steps in soft blue light with one lime accent.',
+        instruction_context: { origin: 'owner' },
         enhance_current: false,
       }, { deadlineMs: 360_000 },
     ))
@@ -815,6 +832,7 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/phone-screen/generate`, {
         base_sha256: 'a'.repeat(64),
         visual_direction: 'Keep the unicorn and improve the balloon material and lighting.',
+        instruction_context: { origin: 'owner' },
         enhance_current: true,
       }, { deadlineMs: 360_000 },
     ))
@@ -893,6 +911,8 @@ describe('Phone & metrics Studio', () => {
     await waitFor(() => expect(post).toHaveBeenNthCalledWith(
       2, `${basePath}/phone-screen/generate`, {
         base_sha256: 'a'.repeat(64),
+        instruction_context: { origin: 'legacy_unknown' },
+        changed_image_settings: ['style', 'background'],
         visual_direction: 'A colorful unicorn balloon on a soft field.',
         enhance_current: true,
       }, { deadlineMs: 360_000 },

@@ -29,6 +29,7 @@ class FakeBridge(StructuredBridge):
                     "creative_visual_analysis",
                 ],
                 "media_modes": ["content_non_human_graphic_generation"],
+                "image_generation_policies": ["ptw.domain-image.v1"],
                 "multimodal_modes": ["creative_visual_analysis", "studio_manual_edit"],
                 "max_request_bytes": 1000,
             }

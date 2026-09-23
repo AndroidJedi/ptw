@@ -44,7 +44,7 @@ template, preserve the off-white texture, upper-left Natal lock-up, left copy
 safe area, fused front-facing device, equal metric-button row with the cobalt
 filled/white-text/rounded reference default, full cobalt CTA band when CTA copy is nonempty (empty copy must remove the
 entire band without changing the upper canvas), a crisp
-upright Natal app shell, and a text-free generated hero-art contract. When
+upright Natal app shell, and the versioned owner-directed hero-art contract. When
 the post CTA changes, verify its saved visible and hidden states, label retention,
 bounded font sizing, configured background/text colours, and absence from both
 the resolved nodes and semantic roles when disabled. When
@@ -126,3 +126,9 @@ Templates Playwright suite with its disposable HTTP authority at desktop, 360px
 and iPhone WebKit. Check full-resolution preview links, current-version digest
 binding, stale request reconciliation, refresh/restart recovery, and gallery
 filter controls separately from the main Post/Landing navigation.
+
+Verify numeric Phone Metrics drafts show three digit-bearing values and editor
+provenance (AI hypothesis / Brief / owner, unvalidated). Labels must stay bound to
+the exact card copy after editing, Save, approval and reload. Generated image
+suggestions retain their origin after selection; changing presets alone must not
+promote the suggestion to an owner override.

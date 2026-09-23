@@ -128,7 +128,7 @@ background, optional outer identity, eyebrow, headline, supporting copy,
 front-facing iPhone or image-only artwork, optional full-width CTA, and three
 metric cards.
 
-The only mutable bitmap is text-free hero artwork inside the visual area. Direct
+The only mutable bitmap is owner-directed hero artwork inside the visual area. Direct
 owner upload to `phone_screen` is rejected; fixed Natal identity and the checked-
 in, digest-verified phone frame cannot be replaced. Generation keeps three
 selectable raw images and may enhance exactly the selected raw image. Reference
@@ -143,8 +143,46 @@ renderer-owned; only visibility and bounded symbol/name colors are editable.
 Phone and image-only modes share the artwork area. Compound agent requests must
 keep requested artwork visible: removing hardware while changing the picture
 uses image-only mode with the visual area enabled. The three lower cards keep
-value/label semantics; requests for more numbers use numeral-bearing values and
-must not fabricate performance claims.
+value/label semantics. Automatic composition supplies three numeral-bearing values
+with concise domain-specific labels. Brief-supported quantities take precedence;
+missing quantities become plausible, distinct benefit hypotheses. Slogans and
+numbered workflow steps are not the automatic fallback. Owners may explicitly
+replace, edit or hide cards. The content shape remains `{value, label}`;
+`generation.metric_provenance` binds each exact card to its origin
+(`owner_supplied`, `brief_supported`, `ai_hypothesis`, or historical
+`legacy_unknown`), evidence and unvalidated status. The editor labels those
+origins. Approval freezes metadata with the version; cloning and Landing source
+snapshots preserve it. Learning datasets explicitly exclude copy quantities as
+performance evidence. Historical drafts and versions are not rewritten.
+
+## Shared image generation policy
+
+`image_generation_policy.py` compiles `ptw.domain-image.v1` for automatic and
+manual Posts, Manual Agent actions, enhancement and both Landing slots. The
+priority is exact owner instruction → current settings → approved Brief →
+accepted Project rules → accepted global rules → template defaults. Style and
+isolation supply unspecified appearance; neither can delete requested people,
+devices or a complete interaction. Explicit scenery wins over isolation. Text,
+labels, numbers, charts, UI and logos are omitted by default and allowed inside
+artwork on request. Surrounding layout remains controlled by editor settings.
+
+The bounded context pins Brief fields/ID/digest, persisted settings/digest,
+template/mode/visible geometry, slot, accepted lessons, operation and state
+digest. It distinguishes exact owner text, generated suggestions, Manual Agent
+interpretation plus original owner message, and unknown legacy authorship.
+Editing a description marks it owner-authored; changing settings alone does not.
+Reference edits preserve unspecified characteristics; owner text and explicitly
+changed settings override the reference. Pending settings are saved before the
+image request. Optional `instruction_context` and `changed_image_settings` extend
+existing endpoints compatibly. No extra model call or visual acceptance gate is
+introduced. All technically valid outputs are applied, including unchanged
+edits; provider/file failures preserve the previous asset and history.
+
+Sources store policy version, exact context and its digest. Legacy text-free
+provenance remains readable. The existing bridge media mode name is retained,
+but new requests require the companion's `image_generation_policies` capability;
+no old worker can silently reinstate obsolete bans. See the
+[compatible release procedure](../operations/domain-image-release.md).
 
 ## Save, approval, and lineage
 

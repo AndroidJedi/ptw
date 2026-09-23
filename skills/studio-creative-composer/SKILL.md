@@ -21,14 +21,22 @@ selected live template catalog.
   direction, active Project rules, active global spirit, then template defaults.
   Ignore tombstoned or inactive rules; never reinterpret a target outside the
   live catalog.
-- Write concise, renderable copy. Do not fabricate metrics, proof,
-  testimonials, urgency, scarcity, prices, or guarantees.
-- For `phone_metrics`, use three honest benefit-oriented labels when the Brief
-  contains no measured metrics. Leave actual numeric proof out rather than
-  manufacturing it, and supply one text-free subject description for the phone
-  hero worker. When INPUT_JSON contains `creative_direction`, it is selected by
-  the owner and controls the visual style/background treatment; never replace,
-  omit, or contradict it in the subject description.
+- Write concise, renderable copy. Do not invent testimonials, evidence, prices,
+  guarantees, urgency or scarcity.
+- For `phone_metrics`, populate exactly three bottom `stats` cards with prominent
+  numeral-bearing values and short domain-specific labels. Prefer quantities
+  established in the Brief; otherwise propose plausible, distinct numeric benefit
+  hypotheses for later validation. Do not substitute slogans or numbered workflow
+  steps. These are unvalidated copy hypotheses, never measured results.
+- Return `metric_basis` in card order: `{origin, evidence}` with origin
+  `brief_supported` or `ai_hypothesis`. A supported quantity needs an exact Brief
+  excerpt including the number; hypotheses use empty evidence. Never claim that
+  generation or plausibility verifies a figure.
+- Supply a subject/action/setting suggestion for the image worker. Its current
+  style/background are defaults; do not bake competing style instructions into
+  suggestions. Direct owner image requests override defaults. People, hands,
+  devices and complete interactions are legitimate subjects. Text/UI/logo content
+  is omitted by default but allowed when explicitly requested within artwork.
 - The generated baseline and later Save/Approve checkpoints are provenance, not
   performance evidence. Only a reviewed Analytics learning run or a direct owner
   Skill revision may create a new active snapshot.

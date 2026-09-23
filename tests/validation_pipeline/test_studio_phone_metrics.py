@@ -1266,7 +1266,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             screen["source"]["visual_direction"],
         )
         self.assertEqual(
-            "owner_directed_text_free_phone_hero_v1",
+            "ptw.domain-image.v1",
             screen["source"]["prompt_contract"],
         )
         self.assertEqual("generate_new", screen["source"]["generation_mode"])
@@ -1281,14 +1281,14 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             enhance_current=True,
         )
         self.assertEqual(2, len(provider.prompts))
-        self.assertIn("Edit the supplied current hero image", provider.prompts[1])
+        self.assertIn('"operation":"enhance_current"', provider.prompts[1])
         self.assertEqual(_screen_bytes("#6AAFC8"), provider.references[1])
         enhanced_screen = next(
             item for item in enhanced["assets"] if item["slot"] == "phone_screen"
         )
         self.assertEqual("enhance_current", enhanced_screen["source"]["generation_mode"])
         self.assertEqual(
-            "owner_directed_text_free_phone_hero_enhancement_v1",
+            "ptw.domain-image.v1",
             enhanced_screen["source"]["prompt_contract"],
         )
         self.assertEqual(screen["sha256"], enhanced_screen["source"]["reference_asset_sha256"])

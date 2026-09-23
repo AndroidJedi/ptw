@@ -1,4 +1,4 @@
-"""Bounded creative directions for text-free Phone Metrics hero artwork."""
+"""Bounded appearance defaults for owner-directed Studio artwork."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ PHONE_HERO_CREATIVE_DIRECTION_SCHEMA = "ptw.studio.phone-hero-direction.v1"
 # stable identifiers and supplies its own localized labels.
 PHONE_HERO_STYLE_DIRECTIVES: dict[str, str] = {
     "business_professional": (
-        "Credible, polished commercial still life with precise composition, restrained "
+        "Credible, polished commercial imagery with precise composition, restrained "
         "premium colour, and clear professional lighting."
     ),
     "ultra_realistic_lifestyle": (
-        "High-fidelity natural product/lifestyle still life with authentic materials, "
-        "believable light, and calm everyday context; do not show people."
+        "High-fidelity natural product/lifestyle imagery with authentic materials, "
+        "believable light, and authentic everyday context."
     ),
     "cinematic": "Filmic light, confident depth, intentional framing, and restrained cinematic colour grading.",
     "premium_editorial": "Refined editorial art direction, luxury material detail, and a deliberate premium composition.",
@@ -25,17 +25,17 @@ PHONE_HERO_STYLE_DIRECTIVES: dict[str, str] = {
     "artistic_illustration": "Expressive premium illustration with a coherent crafted visual language and clean focal hierarchy.",
     "playful_balloons": "Optimistic inflated objects, buoyant balloon-like forms, and playful but polished colour.",
     "tactile_handmade": "Handmade tactile materials such as paper, clay, textile, or crafted collage, with premium finish.",
-    "futuristic_tech": "Abstract luminous technology forms and optical depth; never imitate UI, screens, or devices.",
+    "futuristic_tech": "Luminous technology styling and optical depth while preserving the requested subject.",
 }
 
 PHONE_HERO_BACKGROUND_DIRECTIVES: dict[str, str] = {
     "scene": (
         "Place the focal subject in a contextual but uncluttered supporting scene or backdrop; "
-        "keep the lower area calm enough to dissolve into the fixed screen surface."
+        "preserve the complete requested interaction within the visible crop."
     ),
     "isolated_key_element": (
-        "Show one isolated focal object on a clean off-white or brand-tinted tonal field, "
-        "with no additional objects or scenery behind it; do not use transparency."
+        "Show the complete focal subject or interaction on a clean off-white or brand-tinted tonal field, "
+        "without unnecessary scenery; retain every object needed for the action. Use a solid tonal field unless transparency is explicitly requested."
     ),
 }
 

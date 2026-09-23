@@ -477,7 +477,7 @@ def audit_phone_metrics(
             "full_bleed_phone_hero", "continuous_header_phone_hero",
             "lowered_phone_hero_subject", "image_derived_top_continuation",
             "eased_hero_to_content_transition",
-            "optional_phone_hero_texture", "optional_eyebrow_node", "no_generated_screen_text",
+            "optional_phone_hero_texture", "optional_eyebrow_node", "renderer_owned_screen_controls",
             "supporting_markup", "supporting_font_size", "supporting_word_colour",
         ],
     }
@@ -540,6 +540,23 @@ def main() -> None:
             phone_path.write_bytes(phone_preview["bytes"])
             phone_report["preview_path"] = str(phone_path.resolve())
         reports.append(phone_report)
+        # Copy hypotheses are explicitly fixtures, not measured hotel results.
+        for language, metric_labels in (("uk", ["запитів послуг", "дзвінків на рецепцію", "швидша обробка"]),
+                                        ("en", ["service requests", "reception calls", "faster handling"])):
+            numeric_content = copy.deepcopy(phone_content)
+            numeric_content["stats"] = [dict(value=value, label=label) for value, label in
+                                        zip(["+35%", "−25%", "2×"], metric_labels)]
+            numeric_preview = phone_workspace.render_preview(
+                state_sha256=phone["state_sha256"], configuration=reference_phone_config, content=numeric_content)
+            numeric_detail = {**phone, "configuration": reference_phone_config, "content": numeric_content}
+            numeric_name = f"phone_metrics_hypotheses_{language}"
+            numeric_report = audit_phone_metrics(numeric_preview, numeric_detail, name=numeric_name)
+            if output_dir is not None:
+                numeric_path = output_dir / f"{numeric_name}.png"
+                numeric_path.write_bytes(numeric_preview["bytes"])
+                numeric_report["preview_path"] = str(numeric_path.resolve())
+            reports.append(numeric_report)
+
         no_cta_content = {**phone_content, "cta": ""}
         no_cta_preview = phone_workspace.render_preview(
             state_sha256=phone["state_sha256"], configuration=reference_phone_config,

@@ -15,6 +15,7 @@ from .natal_brand import (
     NATAL_LOGO_PATH, natal_logo_bytes, natal_logo_colored_bytes,
     normalize_natal_logo_colors,
 )
+from .image_generation_policy import IMAGE_POLICY_VERSION, compile_image_prompt, image_provenance
 from .openai_images import phone_screen_art_prompt
 from .studio_phone_metrics import (
     PHONE_METRICS_TEMPLATE_ID,
@@ -741,8 +742,9 @@ class PostStudioWorkspace:
         if source.get("origin") not in {
             "codex_builtin_image_generation", "openai_image_api",
             "result_bridge_image_generation",
-        } or source.get("text_in_screen") != "prohibited_by_prompt":
-            raise ValueError("phone-screen artwork must carry verified text-free generation provenance")
+        } or (source.get("text_in_screen") != "prohibited_by_prompt"
+              and source.get("generation_policy_version") != IMAGE_POLICY_VERSION):
+            raise ValueError("phone-screen artwork must carry versioned generation provenance")
         previous = self._phone_screen_history_records()
         self._store_asset(
             "phone_screen", mime_type="image/png", data=data,
@@ -797,6 +799,7 @@ class PostStudioWorkspace:
         enhance_current: bool = False, skill_context: str = "",
         reference_image: bytes | None = None,
         creative_direction: Mapping[str, Any] | None = None,
+        image_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate or reference-edit one mutable, text-free phone hero artwork."""
 
@@ -813,7 +816,9 @@ class PostStudioWorkspace:
                 "Enhance current image requires an existing generated phone visual"
             )
         normalized_direction = " ".join(str(visual_direction or "").split())
-        prompt = phone_screen_art_prompt(
+        if not 8 <= len(normalized_direction) <= 600:
+            raise ValueError("phone-screen visual direction must contain 8-600 characters")
+        prompt = compile_image_prompt(image_context) if image_context is not None else phone_screen_art_prompt(
             normalized_direction, enhance_current=enhance_current,
             skill_context=skill_context, creative_direction=creative_direction,
         )
@@ -832,6 +837,8 @@ class PostStudioWorkspace:
         if generated.get("mime_type") != "image/png":
             raise RuntimeError("Phone-screen image generation did not return a PNG")
         source = dict(generated.get("source") or {})
+        if image_context is not None:
+            source.update(image_provenance(image_context))
         source.update({
             "visual_direction": normalized_direction,
             "visual_direction_sha256": hashlib.sha256(
@@ -843,14 +850,7 @@ class PostStudioWorkspace:
             ),
             **({"creative_direction": dict(creative_direction)}
                if creative_direction is not None else {}),
-            "prompt_contract": (
-                "owner_directed_text_free_phone_hero_enhancement_v2"
-                if enhance_current and creative_direction is not None else
-                "owner_directed_text_free_phone_hero_v2"
-                if creative_direction is not None else
-                "owner_directed_text_free_phone_hero_enhancement_v1"
-                if enhance_current else "owner_directed_text_free_phone_hero_v1"
-            ),
+            "prompt_contract": IMAGE_POLICY_VERSION,
         })
         if enhance_current and current_screen is not None:
             source.update({
@@ -894,7 +894,7 @@ class PostStudioWorkspace:
             raise ValueError("Studio version change note must contain 1 to 500 characters")
         return normalized
 
-    def approve_version(self, *, state_sha256: str, change_note: str) -> dict[str, Any]:
+    def approve_version(self, *, state_sha256: str, change_note: str, metric_provenance: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         self._assert_state(state_sha256)
         preview = self.render_preview(state_sha256=state_sha256)
         config, content = self._configuration(), self._content()
@@ -921,6 +921,7 @@ class PostStudioWorkspace:
             })
             clone_asset_bytes.append((filename, bytes(selected["bytes"])))
         record = {
+            **({"metric_provenance": metric_provenance} if metric_provenance is not None else {}),
             "schema": _TEMPLATE_VERSION_SCHEMA,
             "template_id": template_id,
             "template_reference": self._definition().identity.to_reference(),
@@ -960,6 +961,7 @@ class PostStudioWorkspace:
     def approve_configuration(
         self, *, base_sha256: str, configuration: Mapping[str, Any],
         content: Mapping[str, Any], change_note: str,
+        metric_provenance: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Save pending fields and one version as a single workspace mutation."""
 
@@ -976,7 +978,7 @@ class PostStudioWorkspace:
                 base_sha256=base_sha256, configuration=configuration, content=content,
             )
             return self.approve_version(
-                state_sha256=saved["state_sha256"], change_note=change_note,
+                state_sha256=saved["state_sha256"], change_note=change_note, metric_provenance=metric_provenance,
             )
         except Exception:
             for path, previous in (

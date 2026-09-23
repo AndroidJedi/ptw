@@ -406,6 +406,18 @@ export interface StudioTemplateSummary {
 
 export type StudioCreativeStatus = 'queued' | 'composing' | 'generating_image' | 'draft' | 'failed'
 
+export interface MetricProvenance {
+  value: string
+  label: string
+  origin: 'owner_supplied' | 'brief_supported' | 'ai_hypothesis' | 'legacy_unknown'
+  validation_status: 'unvalidated'
+  evidence: string
+}
+export interface ImageInstructionContext {
+  origin: 'owner' | 'generated' | 'agent' | 'legacy_unknown'
+  owner_instruction?: string
+}
+
 export interface StudioCreativeSummary {
   creative_id: string
   project_id: string
@@ -419,6 +431,7 @@ export interface StudioCreativeSummary {
   state_sha256: string | null
   approved_version_count: number
   generation: {
+    metric_provenance?: MetricProvenance[]
     stage?: StudioCreativeStatus
     error_type?: string
     error_message?: string
@@ -514,6 +527,8 @@ export interface StudioManualAgentImageAction {
 }
 
 export interface StudioManualAgentResult<Configuration, Content> {
+  owner_instruction?: string
+  metric_provenance?: MetricProvenance[]
   request_id: string
   base_sha256: string
   configuration: Configuration
@@ -650,7 +665,7 @@ export interface LandingVisualSummary {
   slot: 'hero_visual' | 'visual_break_visual'
   available: boolean
   sha256: string | null
-  history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean }>
+  history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean; instruction_context?: ImageInstructionContext }>
 }
 
 export interface LandingSummary {

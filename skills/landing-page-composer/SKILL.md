@@ -36,10 +36,12 @@ description: Populate one fixed private PTW Landing page from an approved Produc
   optional row details may describe inputs or categories. Do not invent availability,
   readings, results, prices, or capabilities. Leave unestablished values empty.
   The browser renders editable UI inside Post Studio's canonical phone frame. Hero
-  artwork is an atmospheric background; never generate phone hardware or UI pixels.
+  artwork follows the current visual mode. People and devices may be scene
+  subjects; outer phone hardware and controls remain renderer-owned.
 - The server preserves the current catalog theme, palette, typography, components,
   image-style selections, and phone-mockup layout. Subject directions describe only
-  what the artwork should show, never a replacement style, layout, UI, or brand.
+  the subject, action and setting. They are AI suggestions, not owner commands;
+  direct image requests override preset defaults.
 - Social proof is owner evidence. Return its heading and an empty `items` array; never
   invent quotes, customers, ratings, logos, results, credentials, or measurements.
 - Contacts are owner evidence. Return heading/supporting copy only and empty
@@ -48,7 +50,7 @@ description: Populate one fixed private PTW Landing page from an approved Produc
   username or social profile, and never route visitors to Commander's emergency
   Telegram bot.
 - Supply distinct 8-600-character subject directions for the hero and visual-break
-  artwork. They describe what to show, not the inherited visual style. Keep the Hero
+  artwork. They describe what to show; direct owner requests may also change style. Keep the Hero
   subject safe within a square or 4:3 crop; keep visual-break subjects within the
   central horizontal band for a shallow landscape crop. Avoid repeating the same scene.
 - Proof is optional and absent entries are hidden by the renderer. Never replace an
@@ -56,3 +58,7 @@ description: Populate one fixed private PTW Landing page from an approved Produc
 - The initial baseline and later Save/Approve checkpoints are provenance, not
   performance evidence. Only reviewed Analytics learning or a direct owner Skill
   revision may create an active immutable snapshot.
+
+Source Post metric_provenance may describe unvalidated AI numeric hypotheses.
+Do not turn these into facts, testimonials or evidence on the Landing. The Brief
+remains the source of product facts.

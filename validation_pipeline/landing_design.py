@@ -1,7 +1,7 @@
 """Landing component presets and shared Post image art directions."""
 from __future__ import annotations
 
-from .phone_hero_styles import PHONE_HERO_STYLE_DIRECTIVES
+from .phone_hero_styles import PHONE_HERO_STYLE_DIRECTIVES, PHONE_HERO_BACKGROUND_DIRECTIVES
 
 PHONE_MOCKUP_OPTIONS = {"theme": ["light", "dark", "glass"], "layout": ["overview", "booking", "checklist"]}
 DEFAULT_PHONE_MOCKUP = {"theme": "light", "layout": "overview"}
@@ -17,10 +17,8 @@ DEFAULT_IMAGE_DIRECTIONS = {
     slot: {"style": "premium_editorial", "background": "scene"}
     for slot in ("hero_visual", "visual_break_visual")
 }
-LANDING_BACKGROUND_DIRECTIVES = {
-    "scene": "Place the focal subject in a contextual, uncluttered supporting scene. Keep scenery subordinate to the focal subject.",
-    "isolated_key_element": "Show one isolated focal object on a clean off-white or brand-tinted tonal field, with no additional objects or scenery; do not use transparency.",
-}
+LANDING_BACKGROUND_DIRECTIVES = PHONE_HERO_BACKGROUND_DIRECTIVES
+
 COMPONENT_OPTIONS = {
     "button_style": ["filled", "outlined", "elevated", "text"],
     "button_shape": ["square", "rounded", "pill"],

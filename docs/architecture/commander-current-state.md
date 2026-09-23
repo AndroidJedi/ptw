@@ -1,12 +1,52 @@
 # Commander current state
 
-Updated: 2026-09-22
+Updated: 2026-09-23
 Branch: `candidate/ptw-prod-access-20260922`
 Deployment: the preserving release accepted code revision
 `529415435eae4a573ea1bb043f948806718bc1f9` with companion platform
 `57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced;
 Commander, Owner Gateway, GOD, Landing Hosting and Firebase auth-guard
 functions retained their prior versions. Owner Console Hosting audit passed.
+
+## Unified domain image policy and numeric metric cards — local candidate
+
+`ptw.domain-image.v1` now compiles all Post/Landing image paths using exact owner
+instructions, current saved settings, the pinned Brief, Project/global rules,
+and template defaults in that order. Generated suggestions retain a separate
+origin; Manual Agent actions preserve the original owner message. Presets and
+provider wrappers no longer erase requested people/devices, interaction, scenery,
+or explicitly requested text/UI. Post screen geometry, authored image slots,
+Landing phone backdrops and image-only crops carry their actual rendering context.
+Uploaded references and enhancements preserve unspecified characteristics while
+owner requests and explicitly changed settings take priority. One image call
+returns directly without a semantic gate; file/provider failure preserves history.
+
+Phone Metrics automatic composition now requires three numeric value/label cards.
+Brief-supported figures or domain-specific AI hypotheses carry per-card source
+and unvalidated status in generation metadata and the editor. Approval, reload,
+cloning, Landing source snapshots and analytics retain that distinction; copy
+quantities cannot become measured performance evidence. Explicit owner edits or
+hidden cards remain allowed. Existing records and render/template digests remain
+unchanged until an owner mutation.
+
+The independent companion patch is tracked at
+`patches/platform/domain-image-v1.patch`. It adds a capability handshake and a
+versioned worker branch that accepts unchanged edits while retaining legacy
+request behavior. Its apply/reverse check and 48 tests pass. The preserving
+[release procedure](../operations/domain-image-release.md) specifies separate
+revision freezing, capability checks, canaries and rollback. No deployment or
+live provider canary has run for this candidate; production remains at the
+revisions above.
+
+Verification: 356 Validation tests pass on the host and in the Linux runtime
+image; focused context/provenance checks accompany the final refinements.
+118 web tests and the production build pass. The affected browser suites cover
+45 cases across desktop, 360px mobile and iPhone WebKit, including real local
+Save/Approve/restart authority and mocked provider image flows. Ten native Studio
+geometry variants pass; Ukrainian/English numeric hypothesis PNGs were visually
+inspected at 1080×1350. Owner Gateway tests, Commander tests/demo, canonical skill
+verification and whitespace checks pass. Commander receiver-execution cases
+retain their existing isolated-container-only skips.
 
 ## Bokko v3 cutout and motif correction — deployed
 

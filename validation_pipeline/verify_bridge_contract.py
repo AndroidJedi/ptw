@@ -113,12 +113,14 @@ def main() -> None:
         )
 
         def validate_phone_composition(value):
-            if set(value) != {"configuration", "content", "visual_direction"}:
+            if set(value) != {"configuration", "content", "visual_direction", "metric_basis"}:
                 raise ValueError("Phone Metrics canary response fields are invalid")
             phone_workspace.component_settings(
                 state_sha256=phone_detail["state_sha256"],
                 configuration=value["configuration"], content=value["content"],
             )
+            from .metric_hypotheses import generated_metrics
+            generated_metrics(value["content"]["stats"], value["metric_basis"], base_document)
             direction = " ".join(str(value["visual_direction"]).split())
             if not 8 <= len(direction) <= 600:
                 raise ValueError("Phone Metrics canary visual direction is invalid")
@@ -148,8 +150,8 @@ def main() -> None:
                 },
             },
             output_schema=creative_generation_schema(phone_detail),
-            prompt_version="studio-creative-composer-v3",
-            idempotency_key=f"canary:{marker}:studio_phone_metrics:v3",
+            prompt_version="studio-creative-composer-v4",
+            idempotency_key=f"canary:{marker}:studio_phone_metrics:v4",
             response_validator=validate_phone_composition,
         )
         manual_artifacts = screenshot_artifacts([canary_png])
@@ -303,11 +305,11 @@ def main() -> None:
         settings.bridge_url, settings.bridge_token, settings.model,
     )
     generated = media.generate(
-        "Create a text-free polished translucent glass unicorn on a warm white field. "
+        "Show a guest's hand holding a smartphone and scanning a QR card in a modern hotel room. Include the small label SPA on the card. "
         f"Treat {marker} only as a nonvisual request nonce and never render it.",
     )
     enhanced = media.generate(
-        "Refine the same glass unicorn with cleaner lighting and material detail while "
+        "Refine the same hotel scanning scene with cleaner lighting and material detail while "
         f"preserving its composition. Treat {marker} only as a nonvisual request nonce.",
         reference_image=generated["bytes"],
     )

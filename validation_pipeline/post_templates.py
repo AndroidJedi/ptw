@@ -48,6 +48,8 @@ def _agent_catalog() -> dict[str, Any]:
     """Keep generation context descriptive; the output schema owns constraints."""
 
     catalog = phone_metrics_catalog()
+    slots = deepcopy(catalog["asset_slots"])
+    slots["phone_screen"]["description"] = "Owner-directed artwork in the selected visual mode; text and UI are omitted by default but allowed when requested."
     return {
         "schema": catalog["schema"],
         "template_id": catalog["template_id"],
@@ -59,7 +61,7 @@ def _agent_catalog() -> dict[str, Any]:
             "role": item["role"],
             "setting_ids": deepcopy(item["setting_ids"]),
         } for item in catalog["components"]],
-        "asset_slots": deepcopy(catalog["asset_slots"]),
+        "asset_slots": slots,
         "sha256": catalog["sha256"],
     }
 

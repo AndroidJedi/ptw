@@ -37,3 +37,8 @@ Analyze only the frozen dataset supplied in `INPUT_JSON`.
   never modify a skill, and never request publishing, ad mutation, or spend.
 - Do not include contact data, identities, raw URLs, referrers, IP addresses,
   user agents, copied images, or provider credentials.
+
+Post metric-card numbers are marketing copy, not measured performance. Their
+metric_provenance may mark AI hypotheses as unvalidated. Only supplied measured
+provider snapshots and first-party events support performance conclusions;
+never promote a card's claim into evidence or a verified product fact.

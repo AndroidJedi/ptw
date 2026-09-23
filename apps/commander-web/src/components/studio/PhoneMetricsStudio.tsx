@@ -13,11 +13,17 @@ import { StudioSection } from './StudioSection'
 import { PostTemplatePicker } from './PostTemplatePicker'
 import { translate, type Language } from '../../i18n'
 import type {
+  ImageInstructionContext, MetricProvenance,
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
   StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent,
   StudioCheckpointResponse, StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
   StudioFontFamily, StudioManualAgentResult, StudioPhoneTypographyRole,
 } from '../../types'
+
+function imageInstruction(source?: Record<string, unknown> | null): ImageInstructionContext {
+  const context = source?.image_context as { instruction?: ImageInstructionContext } | undefined
+  return context?.instruction ? { origin: context.instruction.origin, owner_instruction: context.instruction.owner_instruction } : { origin: 'legacy_unknown' }
+}
 
 function PhoneScreenHistoryOption({
   api, basePath, item, index, busy, label, retryLabel, currentLabel, onSelect,
@@ -110,6 +116,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     const source = initialScreenAsset?.source
     return typeof source?.visual_direction === 'string' ? source.visual_direction : ''
   })
+  const [instruction, setInstruction] = useState<ImageInstructionContext>(() => imageInstruction(initialScreenAsset?.source))
+  const [metricSources, setMetricSources] = useState<MetricProvenance[] | undefined>(initialDetail.generation?.metric_provenance)
+  const currentMetricSources = metricSources?.map((source, index) => {
+    const stat = content.stats[index]
+    return source.value === stat.value && source.label === stat.label ? source : { ...stat, origin: 'owner_supplied' as const, validation_status: 'unvalidated' as const, evidence: '' }
+  })
+  const metricPayload = currentMetricSources ? { metric_provenance: currentMetricSources } : {}
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   useEffect(() => { setReferenceImage(null) }, [basePath])
   const [enhanceCurrent, setEnhanceCurrent] = useState(Boolean(initialScreenAsset?.available))
@@ -219,6 +232,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
 
   const applyDetail = (next: StudioPhoneMetricsDetail) => {
     setDetail(next)
+    setMetricSources(next.generation?.metric_provenance)
     setConfiguration(structuredClone(next.configuration))
     setContent(structuredClone(next.content))
     onDetail(next)
@@ -227,7 +241,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     setBusy(true); setError(''); setNotice('')
     try {
       const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/save`, {
-        base_sha256: detail.state_sha256, configuration, content,
+        base_sha256: detail.state_sha256, configuration, content, ...metricPayload,
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
       applyDetail(next)
@@ -249,13 +263,18 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     try {
       const useCurrentAsReference = !referenceImage && enhanceCurrent && hasCurrentPhoneScreen
       const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
+      const changedImageSettings = [
+        ...(pendingCreativeDirection?.style && pendingCreativeDirection.style !== savedCreativeDirection?.style ? ['style'] : []),
+        ...(pendingCreativeDirection?.background && pendingCreativeDirection.background !== savedCreativeDirection?.background ? ['background'] : []),
+        ...(JSON.stringify(configuration.background) !== JSON.stringify(detail.configuration.background) ? ['palette'] : []),
+      ]
       let saved = detail
       if (
         JSON.stringify(configuration) !== JSON.stringify(saved.configuration)
         || JSON.stringify(content) !== JSON.stringify(saved.content)
       ) {
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
-          base_sha256: saved.state_sha256, configuration, content,
+          base_sha256: saved.state_sha256, configuration, content, ...metricPayload,
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
@@ -268,7 +287,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         setLegacyDirection({ style: '', background: '' })
       }
       const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
-        base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
+        base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(), instruction_context: instruction,
+        ...(changedImageSettings.length ? { changed_image_settings: changedImageSettings } : {}),
         enhance_current: useCurrentAsReference,
         ...(reference ? { reference_image: reference } : {}),
       }, { deadlineMs: 360_000 })
@@ -302,7 +322,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         || JSON.stringify(content) !== JSON.stringify(detail.content)
       ) {
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
-          base_sha256: detail.state_sha256, configuration, content,
+          base_sha256: detail.state_sha256, configuration, content, ...metricPayload,
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
@@ -311,6 +331,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       }, { deadlineMs: 60_000 })
       applyDetail(next); setEnhanceCurrent(true)
       const selected = next.phone_screen_history.find((item) => item.selected)
+      setInstruction(imageInstruction(selected?.source))
       const selectedDirection = selected?.source.visual_direction
       if (typeof selectedDirection === 'string') setScreenDirection(selectedDirection)
       setNotice(tr('Selected iPhone image applied.', 'Вибране зображення iPhone застосовано.'))
@@ -320,7 +341,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     setBusy(true); setError('')
     try {
       const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/approve`, {
-        base_sha256: detail.state_sha256, configuration, content,
+        base_sha256: detail.state_sha256, configuration, content, ...metricPayload,
         change_note: authored ? detail.template_name || 'Post creative' : 'Phone & metrics creative',
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
@@ -392,6 +413,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const nextConfiguration = structuredClone(result.configuration)
       const nextContent = structuredClone(result.content)
       setConfiguration(nextConfiguration); setContent(nextContent)
+      setMetricSources(result.metric_provenance)
       const nextDirection = result.creative_direction
       const directionChanged = Boolean(nextDirection) && JSON.stringify(nextDirection) !== JSON.stringify(detail.generation?.creative_direction || null)
       let saved = detail
@@ -399,6 +421,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
           base_sha256: saved.state_sha256,
           configuration: nextConfiguration, content: nextContent,
+          ...(result.metric_provenance ? { metric_provenance: result.metric_provenance } : {}),
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
@@ -408,6 +431,10 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
+      const changed = [
+        ...(['style', 'background'] as const).filter(key => nextDirection && nextDirection[key] !== detail.generation?.creative_direction?.[key]),
+        ...(JSON.stringify(nextConfiguration.background) !== JSON.stringify(detail.configuration.background) ? ['palette'] : []),
+      ]
       const action = result.image_actions[0]
       if (action) {
         const reference = action.reference_index > 0
@@ -415,10 +442,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
           base_sha256: saved.state_sha256,
           visual_direction: action.visual_direction,
+          ...(result.owner_instruction ? { instruction_context: { origin: 'agent', owner_instruction: result.owner_instruction } } : {}),
+          ...(changed.length ? { changed_image_settings: changed } : {}),
           enhance_current: action.enhance_current,
           ...(reference ? { reference_image: reference } : {}),
         }, { deadlineMs: 360_000 })
         setScreenDirection(action.visual_direction)
+        setInstruction(result.owner_instruction ? { origin: 'agent', owner_instruction: result.owner_instruction } : { origin: 'legacy_unknown' })
         setEnhanceCurrent(true)
         applyDetail(saved)
       } else {
@@ -640,6 +670,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             const card = configuration.metric_cards[index]
             return <div className="phone-metrics-stat-input" key={index}>
               <label className="studio-toggle"><input aria-label={tr(`Show metric ${index + 1}`, `Показувати метрику ${index + 1}`)} type="checkbox" checked={card.enabled !== false} onChange={(event) => setMetricCard(index, 'enabled', event.target.checked)} /><span>{index + 1} · {card.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
+              {currentMetricSources?.[index] && <p className="studio-section-note" data-testid={`metric-${index + 1}-provenance`}>{currentMetricSources[index].origin === 'ai_hypothesis'
+                ? tr('AI hypothesis · unvalidated', 'Гіпотеза ШІ · не перевірено')
+                : currentMetricSources[index].origin === 'brief_supported'
+                  ? tr('From Product Brief · unvalidated', 'З Product Brief · не перевірено')
+                  : currentMetricSources[index].origin === 'legacy_unknown'
+                    ? tr('Source unknown · unvalidated', 'Джерело невідоме · не перевірено')
+                    : tr('Owner supplied · unvalidated', 'Вказано власником · не перевірено')}</p>}
               {card.enabled !== false && <div className="phone-metric-fields">
                 <div className="studio-field-grid">
                   <label><span>{tr('Value', 'Значення')}</span><input aria-label={tr(`Metric ${index + 1} value`, `Значення метрики ${index + 1}`)} value={stat.value} maxLength={24} onChange={(event) => setStat(index, 'value', event.target.value)} /></label>
@@ -683,11 +720,12 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               }}><X />{tr('Cancel', 'Скасувати')}</button>}</div><p className="phone-hero-direction-note">{savedCreativeDirection
               ? tr('Choose a replacement direction. Save it without changing the current images, or generate to save and use it now.', 'Оберіть новий напрям. Збережіть його без зміни поточних зображень або запустіть генерацію, щоб одразу зберегти й застосувати його.')
               : tr('Choose one style and one background treatment. Save the direction, or generate to save and use it immediately.', 'Виберіть один стиль і один варіант фону. Збережіть напрям або запустіть генерацію, щоб одразу зберегти й застосувати його.')}</p></>}
+          <p className="studio-section-note">{tr('Your written image request overrides style and background defaults. Describe the subject, action and setting.', 'Ваш опис зображення має пріоритет над типовим стилем і фоном. Опишіть об’єкт, дію та оточення.')}</p>
           <label><span>{tr('What should be shown', 'Що має бути зображено')}</span><textarea
             aria-label={tr('iPhone visual direction', 'Опис візуалу iPhone')}
             rows={4} maxLength={600} value={screenDirection}
             placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
-            onChange={(event) => setScreenDirection(event.target.value)}
+            onChange={(event) => { setScreenDirection(event.target.value); setInstruction({ origin: 'owner' }) }}
           /></label>
           <ImageReferenceInput value={referenceImage} onChange={setReferenceImage} language={language}
             disabled={mutationBusy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />

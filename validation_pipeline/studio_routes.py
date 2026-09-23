@@ -140,7 +140,7 @@ def studio_creative_router(
     @router.post("/projects/{project_id}/creatives/{creative_id}/configuration")
     def configuration(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         fields(
-            request, {"base_sha256", "configuration", "content"},
+            {k: v for k, v in request.items() if k != "metric_provenance"}, {"base_sha256", "configuration", "content"},
             "Studio configuration fields are invalid",
         )
         if not isinstance(request["configuration"], Mapping) or not isinstance(request["content"], Mapping):
@@ -150,6 +150,7 @@ def studio_creative_router(
                 project_id, creative_id, "save_configuration",
                 base_sha256=str(request["base_sha256"]),
                 configuration=request["configuration"], content=request["content"],
+                **({"metric_provenance": request["metric_provenance"]} if "metric_provenance" in request else {}),
             )
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
@@ -170,7 +171,7 @@ def studio_creative_router(
     @router.post("/projects/{project_id}/creatives/{creative_id}/save")
     def save(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         fields(
-            request, {"base_sha256", "configuration", "content"},
+            {k: v for k, v in request.items() if k != "metric_provenance"}, {"base_sha256", "configuration", "content"},
             "Save creative fields are invalid",
         )
         try:
@@ -178,6 +179,7 @@ def studio_creative_router(
                 project_id, creative_id, kind="save",
                 base_sha256=str(request["base_sha256"]),
                 configuration=request["configuration"], content=request["content"],
+                **({"metric_provenance": request["metric_provenance"]} if "metric_provenance" in request else {}),
             )
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
@@ -269,7 +271,7 @@ def studio_creative_router(
     @router.post("/projects/{project_id}/creatives/{creative_id}/approve")
     def approve(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         fields(
-            request, {"base_sha256", "configuration", "content", "change_note"},
+            {k: v for k, v in request.items() if k != "metric_provenance"}, {"base_sha256", "configuration", "content", "change_note"},
             "Approve creative fields are invalid",
         )
         try:
@@ -277,6 +279,7 @@ def studio_creative_router(
                 project_id, creative_id, kind="approve",
                 base_sha256=str(request["base_sha256"]),
                 configuration=request["configuration"], content=request["content"],
+                **({"metric_provenance": request["metric_provenance"]} if "metric_provenance" in request else {}),
                 change_note=str(request["change_note"]),
             )
         except (KeyError, ValueError, RuntimeError, FileExistsError) as error:

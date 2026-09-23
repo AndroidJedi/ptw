@@ -18,6 +18,7 @@ from typing import Any, Mapping
 
 from .studio import inspect_media
 from .image_reference import generate_image
+from .image_generation_policy import image_provenance
 from .landing_design import (DEFAULT_APP_FEATURE, APP_FEATURE_LIMITS, DEFAULT_PHONE_MOCKUP, PHONE_MOCKUP_OPTIONS, DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, COMPONENT_OPTIONS, LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES, design_catalog)
 
 
@@ -539,6 +540,8 @@ class LandingWorkspace:
                 "slot": slot, "available": selected is not None,
                 "sha256": selected, "history": [
                     {key: value for key, value in item.items() if key != "source"} | {"selected": item["sha256"] == selected}
+                    | ({"instruction_context": {key: value for key, value in item["source"]["image_context"]["instruction"].items() if key != "subject_suggestion"}}
+                       if (item.get("source") or {}).get("image_context") else {})
                     for item in history
                 ],
             })
@@ -586,6 +589,7 @@ class LandingWorkspace:
     def generate_visual(
         self, *, base_sha256: str, slot: str, visual_direction: str, prompt: str,
         enhance_current: bool = False, reference_image: bytes | None = None,
+        image_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
         if slot not in LANDING_VISUAL_SLOTS:
@@ -601,7 +605,7 @@ class LandingWorkspace:
             if not selected:
                 raise ValueError("select a Landing visual before enhancement")
             reference = (self.assets / f"{selected}.png").read_bytes()
-        generated = generate_image(self.image_provider, prompt + "\n\nVisual direction: " + direction, reference_image=reference, uploaded_reference=reference_image is not None)
+        generated = generate_image(self.image_provider, prompt, reference_image=reference, uploaded_reference=reference_image is not None)
         data = bytes(generated["bytes"])
         inspected = inspect_media(data, str(generated.get("mime_type") or "image/png"))
         if inspected["mime_type"] != "image/png":
@@ -611,7 +615,8 @@ class LandingWorkspace:
         history = [item for item in self._history(slot) if item["sha256"] != digest]
         history.append({
             "sha256": digest, "mime_type": "image/png", "width": inspected["width"], "height": inspected["height"],
-            "visual_direction": direction, "source": dict(generated.get("source") or {}),
+            "visual_direction": direction, "source": {**dict(generated.get("source") or {}),
+                **(image_provenance(image_context) if image_context is not None else {}), "visual_direction": direction},
         })
         while len(history) > LANDING_VISUAL_HISTORY_LIMIT:
             evicted = history.pop(0)

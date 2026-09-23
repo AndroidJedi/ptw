@@ -49,7 +49,7 @@ class StudioManualAgentContractTests(unittest.TestCase):
             "screenshots": [_reference_payload()],
         })
 
-        self.assertEqual("Make the hierarchy calmer.", result["message"])
+        self.assertEqual("  Make   the hierarchy calmer.  ", result["message"])
         self.assertEqual([{"role": "assistant", "content": "Ready."}], result["history"])
         self.assertTrue(result["screenshots"][0].startswith(b"\x89PNG\r\n\x1a\n"))
         self.assertNotIn("bytes_base64", result)

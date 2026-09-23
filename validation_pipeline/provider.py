@@ -273,7 +273,11 @@ class StructuredBridge:
         if OPTIONAL_TEMPLATE_MODE in set(json_modes) | set(multimodal_modes):
             if reasoning_efforts.get(OPTIONAL_TEMPLATE_MODE) != TEMPLATE_CREATION_REASONING_EFFORT:
                 raise RuntimeError("Template creation requires explicit xhigh bridge support")
+        policies = value.get("image_generation_policies", [])
+        if "ptw.domain-image.v1" not in policies:
+            raise RuntimeError("Image generation requires the domain-image companion policy")
         return {
+            "image_generation_policies": list(policies),
             "json_modes": sorted(json_modes),
             "media_modes": sorted(media_modes),
             "multimodal_modes": sorted(multimodal_modes),

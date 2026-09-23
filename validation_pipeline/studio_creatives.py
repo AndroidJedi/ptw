@@ -13,7 +13,9 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from commander.ids import new_uuid7
 
+from .metric_hypotheses import metric_basis_schema, generated_metrics, reconcile_metrics
 from .agent_context import compact_active_skills
+from .image_generation_policy import build_image_context, resolve_instruction
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import sanitized
 from .natal_brand import (
@@ -55,7 +57,7 @@ TEMPLATE_IDS = frozenset(POST_TEMPLATE_REGISTRY.ids)
 ACTIVE_TEMPLATE_IDS = TEMPLATE_IDS
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
-STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v3"
+STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v4"
 
 
 def post_composition_payload(
@@ -229,6 +231,8 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         })
         content["phone_buttons"]["items"].update({"minLength": 1, "maxLength": 48})
         properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
+        properties["metric_basis"] = metric_basis_schema()
+        content["stats"]["items"]["properties"]["value"]["pattern"] = r"[0-9]"
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,
@@ -919,6 +923,11 @@ class StudioCreativeService:
         )
         if not created and creative.get("status") != "queued":
             return self.summary(str(creative["creative_id"])), False
+        if version_record.get("metric_provenance") is not None:
+            creative = self.authority.update_creative(str(creative["creative_id"]), generation={
+                **dict(creative.get("generation") or {}),
+                "metric_provenance": deepcopy(version_record["metric_provenance"]),
+            })
 
         destination = self._workspace(str(creative["creative_id"]))
         version_reference = version_record.get("template_reference") or POST_TEMPLATE_REGISTRY.get(version_record["template_id"]).identity.to_reference()
@@ -1161,6 +1170,14 @@ class StudioCreativeService:
                    if "creative_direction" in response else {}),
             },
         )
+        baseline_metrics = detail.get("generation", {}).get("metric_provenance") or [
+            {**stat, "origin": "legacy_unknown", "validation_status": "unvalidated", "evidence": ""}
+            for stat in editor_content["stats"]
+        ]
+        response["metric_provenance"] = reconcile_metrics(
+            response["content"]["stats"], baseline_metrics, owner_instruction=message,
+        )
+        response["owner_instruction"] = message
         response["request_id"] = request_id
         response["base_sha256"] = base_sha256
         return response
@@ -1183,15 +1200,41 @@ class StudioCreativeService:
             return result
         return {**result, "response": dict(response_validator(result["response"]))}
 
-    def _phone_skill_context(self, creative: Mapping[str, Any]) -> str:
-        """Build the bounded, model-independent context used by every hero call."""
-        skills = self._active_skills(str(creative["project_id"]))
-        compact_skills = compact_active_skills(skills, surface="post")
-        return "\n\n".join((
-            self.phone_skill,
-            "Active global creative spirit snapshot:\n" + _canonical(compact_skills["global"]),
-            "Active Project creative rules snapshot:\n" + _canonical(compact_skills["project"]),
-        ))[:6000]
+    def _image_context(self, creative: Mapping[str, Any], detail: Mapping[str, Any], *,
+                       visual_direction: str, enhance_current: bool = False,
+                       reference_image: bytes | None = None,
+                       instruction: Mapping[str, Any] | None = None,
+                       changed_image_settings: list[str] | None = None) -> dict[str, Any]:
+        source = next((asset.get("source") or {} for asset in detail.get("assets", [])
+                       if asset["slot"] == "phone_screen"), {})
+        config = detail["configuration"]
+        direction = self._creative_direction(creative) or {}
+        settings = {**direction, "palette": config.get("background", {})}
+        definition = self._workspace(str(creative["creative_id"]))._definition()
+        artwork_slots = [{key: item[key] for key in ("id", "type", "box", "mobile_box", "fit", "rotation", "enabled") if key in item}
+                         for item in getattr(definition, "document", {}).get("components", [])
+                         if item["type"] in {"image", "cutout_image", "phone"} and item.get("enabled", True)]
+        mode = config.get("visual_mode", "phone") if detail["template_id"] == PHONE_METRICS_TEMPLATE_ID else (
+            "phone" if artwork_slots and all(item["type"] == "phone" for item in artwork_slots) else "image")
+        return build_image_context(
+            direction=visual_direction,
+            instruction=resolve_instruction(visual_direction, requested=instruction, previous=source),
+            brief=self.authority.brief(str(creative["source_brief_id"])), settings=settings,
+            destination={"surface": "post", "template_id": detail["template_id"],
+                         "template_sha256": detail.get("template_sha256"), "slot": "phone_screen",
+                         "mode": mode, "artwork_slots": artwork_slots,
+                         "canvas": detail.get("catalog", {}).get("canvas"),
+                         "geometry": ({"screen_size": [832, 1792], "hero_box": [0, 0, 832, 1050],
+                                       "subject_offset_y": 220, "bottom_fade_y": [750, 1050],
+                                       "fit": "cover", "centering": [0.5, 0.44]}
+                                      if detail["template_id"] == PHONE_METRICS_TEMPLATE_ID and config.get("visual_mode", "phone") == "phone"
+                                      else {"fit": "per_artwork_slot" if artwork_slots else "contain", "source_aspect_ratio": "1:1"}),
+                         "visible_controls": {key: config.get(key) for key in ("phone_screen", "phone_buttons", "device")}},
+            operation="uploaded_reference" if reference_image is not None else "enhance_current" if enhance_current else "generate_new",
+            base_sha256=detail["state_sha256"],
+            lessons=compact_active_skills(self._active_skills(str(creative["project_id"])), surface="post"),
+            previous=source if enhance_current else None, changed_settings=changed_image_settings,
+        )
 
     def _active_skills(self, project_id: str) -> dict[str, Any]:
         if self.analytics is None:
@@ -1240,8 +1283,9 @@ class StudioCreativeService:
         try:
             next_detail = self._workspace(creative_id).generate_phone_screen(
                 base_sha256=str(detail["state_sha256"]), visual_direction=direction,
-                enhance_current=False, skill_context=self._phone_skill_context(creative),
-                creative_direction=creative_direction,
+                enhance_current=False, creative_direction=creative_direction,
+                image_context=self._image_context(creative, detail, visual_direction=direction,
+                                                  instruction={"origin": "generated"}),
             )
             active_asset = next(
                 item for item in next_detail["assets"]
@@ -1343,7 +1387,7 @@ class StudioCreativeService:
         def validate_composition(value: Mapping[str, Any]) -> Mapping[str, Any]:
             expected_fields = {"configuration", "content"}
             if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID:
-                expected_fields.add("visual_direction")
+                expected_fields.update({"visual_direction", "metric_basis"})
             if set(value) != expected_fields:
                 raise ValueError("Studio composer response fields are invalid")
             configuration, content = value["configuration"], value["content"]
@@ -1355,6 +1399,7 @@ class StudioCreativeService:
             )
             if "visual_direction" in value:
                 _compact(value["visual_direction"], "visual_direction", 8, 600)
+                generated_metrics(content["stats"], value["metric_basis"], brief["document"])
             return value
 
         try:
@@ -1375,10 +1420,13 @@ class StudioCreativeService:
             generation = {
                 **self.authority.get_creative(creative_id).get("generation", {}),
                 "composition": sanitized(result.get("invocation") or {}),
+                **({"metric_provenance": generated_metrics(response["content"]["stats"], response["metric_basis"], brief["document"])}
+                   if "metric_basis" in response else {}),
             }
             self.authority.record_generation(
                 creative_id=creative_id, stage="composition", status="completed",
-                provenance={**generation_context, "provider": generation["composition"]},
+                provenance={**generation_context, "provider": generation["composition"],
+                            "metric_provenance": generation.get("metric_provenance", [])},
             )
             if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID:
                 direction = _compact(response["visual_direction"], "visual_direction", 8, 600)
@@ -1478,12 +1526,34 @@ class StudioCreativeService:
             direction = self._creative_direction(creative)
             if direction is None:
                 raise ValueError("Select a Phone Metrics visual style before generating an image")
-            kwargs["skill_context"] = self._phone_skill_context(creative)
+            kwargs["image_context"] = self._image_context(
+                creative, detail, visual_direction=kwargs["visual_direction"],
+                enhance_current=kwargs.get("enhance_current", False),
+                reference_image=kwargs.get("reference_image"),
+                instruction=kwargs.pop("instruction_context", None),
+                changed_image_settings=kwargs.pop("changed_image_settings", None),
+            )
             kwargs["creative_direction"] = direction
-        value = target(*args, **kwargs)
+        metric_sources = kwargs.pop("metric_provenance", None)
+        generation = dict(detail.get("generation") or {})
+        if method == "save_configuration" and "stats" in kwargs.get("content", {}):
+            if metric_sources is not None or kwargs["content"]["stats"] != detail["content"].get("stats"):
+                generation["metric_provenance"] = reconcile_metrics(
+                    kwargs["content"]["stats"], generation.get("metric_provenance"), supplied=metric_sources)
+        try:
+            value = target(*args, **kwargs)
+        except Exception as error:
+            if method == "generate_phone_screen":
+                self.authority.record_generation(creative_id=creative_id, stage="phone_image", status="failed",
+                    provenance={"image_context": kwargs["image_context"]}, error=error)
+            raise
+        if method == "generate_phone_screen":
+            generated = next(asset for asset in value["assets"] if asset["slot"] == "phone_screen")
+            self.authority.record_generation(creative_id=creative_id, stage="phone_image", status="completed",
+                provenance={"asset_sha256": generated["sha256"], "provider": generated.get("source", {})})
         if isinstance(value, dict) and value.get("state_sha256"):
             self.authority.update_creative(
-                creative_id, state_sha256=value["state_sha256"],
+                creative_id, state_sha256=value["state_sha256"], generation=generation,
                 template_id=self._template_id(value),
                 template_version=value["catalog"]["template_version"],
                 template_sha256=value["template_sha256"],
@@ -1494,7 +1564,7 @@ class StudioCreativeService:
     def checkpoint(
         self, project_id: str, creative_id: str, *, kind: str,
         base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
-        change_note: str = "",
+        change_note: str = "", metric_provenance: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if kind not in {"save", "approve"}:
             raise ValueError("Studio checkpoint kind is invalid")
@@ -1514,6 +1584,9 @@ class StudioCreativeService:
             _canonical(candidate_configuration) != _canonical(current["configuration"])
             or _canonical(candidate_content) != _canonical(current["content"])
         )
+        generation = dict(creative.get("generation") or {})
+        if "stats" in candidate_content and (metric_provenance is not None or candidate_content["stats"] != current["content"].get("stats")):
+            generation["metric_provenance"] = reconcile_metrics(candidate_content["stats"], generation.get("metric_provenance"), supplied=metric_provenance)
         version_created = False
         if kind == "approve":
             versions = current.get("versions", [])
@@ -1522,6 +1595,7 @@ class StudioCreativeService:
                     base_sha256=base_sha256, configuration=candidate_configuration,
                     content=candidate_content,
                     change_note=_compact(change_note, "change_note", 1, 240),
+                    metric_provenance=generation.get("metric_provenance"),
                 )
                 version_created = True
         elif pending_changes or creative["state_sha256"] != current["state_sha256"]:
@@ -1539,7 +1613,7 @@ class StudioCreativeService:
         before_sha = sha256_json(before)
         if after_sha == before_sha:
             updated = self.authority.update_creative(
-                creative_id, state_sha256=current["state_sha256"],
+                creative_id, state_sha256=current["state_sha256"], generation=generation,
                 learning_baseline=after, learning_baseline_sha256=after_sha,
                 approved_version_count=len(current.get("versions", [])),
             )
@@ -1580,7 +1654,7 @@ class StudioCreativeService:
             checkpoint = self.authority.record_checkpoint(checkpoint)
         checkpoint_id = str(checkpoint["checkpoint_id"])
         self.authority.update_creative(
-            creative_id, state_sha256=current["state_sha256"],
+            creative_id, state_sha256=current["state_sha256"], generation=generation,
             learning_baseline=after, learning_baseline_sha256=after_sha,
             latest_checkpoint_id=checkpoint_id,
             approved_version_count=len(current.get("versions", [])),

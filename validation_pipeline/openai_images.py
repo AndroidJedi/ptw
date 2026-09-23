@@ -1,4 +1,4 @@
-"""Server-side boundaries for text-free Studio phone hero artwork.
+"""Server-side adapters for versioned, owner-directed Studio artwork.
 
 Local Studio prefers the built-in image-generation tool of the authenticated
 Codex CLI.  An explicitly configured Platform Images API remains available as
@@ -24,7 +24,8 @@ from typing import Any, Mapping
 import httpx
 
 from .studio import inspect_media
-from .phone_hero_styles import phone_hero_direction_prompt
+from .image_generation_policy import (IMAGE_POLICY, IMAGE_POLICY_VERSION, MAX_IMAGE_PROMPT_CHARS,
+    build_image_context, compile_image_prompt, instruction_context)
 from .provider import bridge_idempotency_key, bridge_request_fingerprint
 
 
@@ -35,7 +36,7 @@ PHONE_SCREEN_IMAGE_MODEL = "gpt-image-2"
 # source gives the compositor a stable focal crop inside its fixed app shell.
 PHONE_SCREEN_IMAGE_SIZE = "1024x1024"
 PHONE_SCREEN_IMAGE_QUALITY = "medium"
-PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS = 9_000
+PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS = MAX_IMAGE_PROMPT_CHARS
 CODEX_PHONE_SCREEN_TIMEOUT_SECONDS = 300
 RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS = 420
 RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
@@ -45,45 +46,18 @@ def phone_screen_art_prompt(
     visual_direction: str, *, enhance_current: bool = False,
     skill_context: str = "", creative_direction: Mapping[str, Any] | None = None,
 ) -> str:
-    """Expand one owner direction into the fixed text-free hero-art contract."""
-
+    """Compatibility entrypoint using the same domain-aware image policy."""
     normalized = " ".join(str(visual_direction or "").split())
     if not 8 <= len(normalized) <= 600:
         raise ValueError("phone-screen visual direction must contain 8-600 characters")
-    normalized_context = " ".join(str(skill_context or "").split())
-    if len(normalized_context) > 6000:
+    if len(skill_context) > 6000:
         raise ValueError("phone-screen skill context must contain at most 6000 characters")
-    enhancement = (
-        " Edit the supplied current hero image as the starting composition. Preserve its "
-        "recognizable subject, material character, palette, and spatial arrangement unless "
-        "the owner direction explicitly asks for a change. Improve finish, coherence, detail, "
-        "lighting, and polish rather than replacing the concept."
-        if enhance_current else ""
-    )
-    learned_context = (
-        f" Apply these accepted Studio rules when relevant: {normalized_context}."
-        if normalized_context else ""
-    )
-    style_context = (
-        f" {phone_hero_direction_prompt(creative_direction)}"
-        if creative_direction is not None else ""
-    )
-    return (
-        "Create one premium hero artwork for the upper portion of a vertical mobile app "
-        "screen. Treat the following owner description only as what should be shown; the "
-        "selected creative direction controls the visual style: "
-        f"{normalized}.{style_context}{enhancement}{learned_context} When the direction calls for a camera "
-        "scan or recognition, make it unmistakably a direct, first-person live camera view "
-        "of the subject being analysed. A non-textual computer-vision treatment is allowed: "
-        "subtle viewfinder corner brackets, scan lines, translucent silhouettes, body-area "
-        "markers, connection lines, and recognition highlights. These cues must describe the "
-        "scene itself, not imitate a complete app screen. Build a clear upper-middle focal "
-        "subject and keep the lower area calm enough to fade into white. Generate artwork only; "
-        "the server adds the Natal identity, "
-        "app chrome, owner copy, CTA, and iPhone frame afterward. Generated pixels must "
-        "contain no readable text, letters, numbers, logos, brand marks, labels, buttons, "
-        "charts, phones, other devices, or interactive app controls."
-    )
+    return compile_image_prompt(build_image_context(
+        direction=normalized, instruction=instruction_context(normalized, origin="owner"),
+        brief={}, settings=creative_direction or {}, destination={"mode": "phone", "slot": "phone_screen"},
+        operation="enhance_current" if enhance_current else "generate_new", base_sha256="",
+        lessons={"legacy_context": skill_context} if skill_context else {},
+    ))
 
 
 class LocalCodexPhoneScreenImageProvider:
@@ -156,9 +130,6 @@ class LocalCodexPhoneScreenImageProvider:
             f"{reference_instruction}\n"
             "ASSET_PROMPT_START\n"
             f"{prompt}\n"
-            "Non-negotiable output constraint: no readable text, letters, numbers, "
-            "logos, brand marks, labels, buttons, charts, or interactive app controls. "
-            "Non-textual camera-recognition overlays are allowed only when requested.\n"
             "ASSET_PROMPT_END\n"
         )
 
@@ -173,9 +144,9 @@ class LocalCodexPhoneScreenImageProvider:
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
-        normalized_prompt = " ".join(str(prompt).split())
+        normalized_prompt = str(prompt).strip()
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
-            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
+            raise ValueError("phone-screen image prompt must contain 24-24000 characters")
         with tempfile.TemporaryDirectory(prefix="ptw-codex-image-") as temporary:
             root = Path(temporary)
             output_path = root / "response.txt"
@@ -223,7 +194,8 @@ class LocalCodexPhoneScreenImageProvider:
                 "provider": "openai",
                 "transport": "authenticated_codex_cli",
                 "model": "codex-builtin-image-generation",
-                "text_in_screen": "prohibited_by_prompt",
+                "text_in_screen": "owner_directed",
+                "generation_policy_version": IMAGE_POLICY_VERSION,
                 "prompt_sha256": hashlib.sha256(normalized_prompt.encode()).hexdigest(),
                 "operation": "image_edit" if reference_image is not None else "image_generation",
                 **({
@@ -247,14 +219,10 @@ class OpenAIPhoneScreenImageProvider:
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
-        normalized_prompt = " ".join(str(prompt).split())
+        normalized_prompt = str(prompt).strip()
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
-            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
-        guarded_prompt = (
-            f"{normalized_prompt}\n\nNon-negotiable output constraint: no readable text, "
-            "letters, numbers, logos, brand marks, labels, buttons, charts, or interactive "
-            "app controls. Non-textual camera-recognition overlays are allowed only when requested."
-        )
+            raise ValueError("phone-screen image prompt must contain 24-24000 characters")
+        guarded_prompt = normalized_prompt
         payload = {
             "model": PHONE_SCREEN_IMAGE_MODEL,
             "prompt": guarded_prompt,
@@ -300,7 +268,8 @@ class OpenAIPhoneScreenImageProvider:
                 "model": PHONE_SCREEN_IMAGE_MODEL,
                 "size": PHONE_SCREEN_IMAGE_SIZE,
                 "quality": PHONE_SCREEN_IMAGE_QUALITY,
-                "text_in_screen": "prohibited_by_prompt",
+                "text_in_screen": "owner_directed",
+                "generation_policy_version": IMAGE_POLICY_VERSION,
                 "prompt_sha256": hashlib.sha256(normalized_prompt.encode()).hexdigest(),
                 "operation": "image_edit" if reference_image is not None else "image_generation",
                 **({
@@ -347,18 +316,18 @@ class ResultBridgePhoneScreenImageProvider:
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
-        normalized_prompt = " ".join(str(prompt).split())
+        normalized_prompt = str(prompt).strip()
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
-            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
+            raise ValueError("phone-screen image prompt must contain 24-24000 characters")
         prompt_digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
         reference_digest = None
-        system_prompt = (
-            "Create exactly one premium text-free non-human editorial hero artwork from "
-            "the supplied direction. Do not add people, human faces, text, logos, UI, devices, "
-            "numbers, charts, or watermarks."
-        )
+        capabilities = self._request("GET", f"{self.bridge_url}/capabilities").json()
+        if IMAGE_POLICY_VERSION not in capabilities.get("image_generation_policies", []):
+            raise RuntimeError("Image generation requires a compatible domain-image worker; update the companion bridge")
+        system_prompt = IMAGE_POLICY
         input_payload = {
             "visual_direction": normalized_prompt,
+            "generation_policy_version": IMAGE_POLICY_VERSION,
             "operation": "image_edit" if reference_image is not None else "image_generation",
         }
         output_schema = {
@@ -367,7 +336,7 @@ class ResultBridgePhoneScreenImageProvider:
             "properties": {"generated": {"type": "boolean", "const": True}},
             "required": ["generated"],
         }
-        prompt_version = "ptw_phone_screen_result_bridge_v1"
+        prompt_version = IMAGE_POLICY_VERSION
         request_document: dict[str, Any] = {
             "mode": RESULT_BRIDGE_PHONE_SCREEN_MODE,
             "system_prompt": system_prompt,
@@ -379,7 +348,6 @@ class ResultBridgePhoneScreenImageProvider:
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
         if reference_image is not None:
-            capabilities = self._request("GET", f"{self.bridge_url}/capabilities").json()
             if capabilities.get("image_reference_retention") != "ephemeral":
                 raise RuntimeError("Image references require a bridge with temporary input support")
             if len(reference_image) > 8 * 1024 * 1024:
@@ -463,7 +431,8 @@ class ResultBridgePhoneScreenImageProvider:
                 "provider": image.get("provider", "codex_chatgpt_imagegen"),
                 "transport": "authenticated_result_bridge",
                 "model": image.get("resolved_model") or image.get("requested_model"),
-                "text_in_screen": "prohibited_by_prompt",
+                "text_in_screen": "owner_directed",
+                "generation_policy_version": IMAGE_POLICY_VERSION,
                 "prompt_sha256": prompt_digest,
                 "request_fingerprint": request_fingerprint,
                 "operation": "image_edit" if reference_image is not None else "image_generation",

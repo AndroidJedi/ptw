@@ -46,6 +46,7 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
         "reasoning_efforts": {"template_creation": "xhigh"},
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
+        "image_generation_policies": ["ptw.domain-image.v1"],
     }
     for mode in (json_modes - MULTIMODAL_MODES) | MEDIA_MODES:
         validate_structured_llm_request({

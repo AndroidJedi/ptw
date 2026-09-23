@@ -80,6 +80,7 @@ def _codex_usage(stdout: str) -> dict[str, int]:
 
 def _persist_non_human_graphic(
     codex_home: Path, session_id: str, *, reference_digest: str | None = None,
+    policy_version: str | None = None,
 ) -> dict:
     if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
         raise RuntimeError("image generation returned an invalid session ID")
@@ -99,7 +100,7 @@ def _persist_non_human_graphic(
         if width != height or not 512 <= width <= 2048:
             raise RuntimeError("non-human graphic generation must return a bounded square image")
         digest = hashlib.sha256(content).hexdigest()
-        if reference_digest is not None and digest == reference_digest:
+        if policy_version is None and reference_digest is not None and digest == reference_digest:
             raise RuntimeError("non-human graphic edit returned the unchanged reference")
         asset_root = Path(
             os.environ.get("CONTENT_GRAPHIC_ASSET_DIR", "/var/lib/ptw/assets/content-graphics")
@@ -130,6 +131,8 @@ def _persist_non_human_graphic(
             "provider": "codex_chatgpt_imagegen",
             "request_id": session_id,
             "generation_policy": {
+                "version": policy_version, "content": "owner_directed", "visual_quality_gate": False,
+            } if policy_version else {
                 "non_human_graphics_only": True,
                 "synthetic_people": "prohibited",
                 "embedded_text": "prohibited",
@@ -355,7 +358,16 @@ def execute_structured_llm(parameters: dict) -> dict:
                 "to the supplied schema.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
-        if mode == "content_non_human_graphic_generation":
+        image_policy = parameters["input_payload"].get("generation_policy_version")
+        if image_policy not in {None, "ptw.domain-image.v1"}:
+            raise RuntimeError("unsupported image generation policy")
+        if mode == "content_non_human_graphic_generation" and image_policy:
+            prompt += (
+                "\nUse image generation or image editing exactly once to create one square PNG. "
+                "Follow the supplied versioned domain-image contract and its owner-first visual priority. "
+                "Do not add legacy content bans. Return the generated result as-is without visual review or retries."
+            )
+        elif mode == "content_non_human_graphic_generation":
             prompt += (
                 "\nUse image generation or image editing exactly once to create one square PNG "
                 "containing no people, faces, text, logos, UI, devices, numbers, charts, labels, "
@@ -422,14 +434,14 @@ def execute_structured_llm(parameters: dict) -> dict:
         if mode == "content_non_human_graphic_generation":
             reference_digest = attachment_mapping[0]["sha256"] if attachment_mapping else None
             result["image"] = _persist_non_human_graphic(
-                codex_home, session_id, reference_digest=reference_digest,
+                codex_home, session_id, reference_digest=reference_digest, policy_version=image_policy,
             )
             if attachment_mapping:
                 result["image"]["reference"] = {
                     "sha256": attachment_mapping[0]["sha256"],
                     "used": True,
                     "transport": "codex_cli_image_attachment",
-                    "evidence": "validated_cli_attachment_and_distinct_output",
+                    "evidence": "validated_cli_attachment" if image_policy else "validated_cli_attachment_and_distinct_output",
                 }
         return result
 

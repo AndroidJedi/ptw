@@ -357,3 +357,31 @@ def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_pa
 def test_worker_rejects_retired_structured_mode() -> None:
     with pytest.raises(RuntimeError, match="unsupported Result bridge mode"):
         execute_structured_llm(request("natal_landing_revision"))
+
+
+def test_domain_image_policy_preserves_request_and_accepts_unchanged_edit(monkeypatch, tmp_path):
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(tmp_path / "assets"))
+    reference = png_header(1024, 1024)
+    digest = hashlib.sha256(reference).hexdigest()
+    observed = []
+    def fake_run(command, **kwargs):
+        observed.append(kwargs["input"])
+        Path(command[command.index("--output-last-message") + 1]).write_text('{"generated":true}')
+        generated = codex_home / "generated_images" / "domain-scene"
+        generated.mkdir(parents=True)
+        (generated / "scene.png").write_bytes(reference)
+        return subprocess.CompletedProcess(command, 0, stdout=thread_output("domain-scene", image_call=True), stderr="")
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    value = execute_structured_llm(request("content_non_human_graphic_generation",
+        input_payload={"generation_policy_version": "ptw.domain-image.v1", "visual_direction": "A guest scanning a hotel QR card with a phone; label SPA"},
+        input_images=[{"mime_type": "image/png", "digest": digest, "width": 1024, "height": 1024, "bytes_base64": base64.b64encode(reference).decode()}]))
+    assert len(observed) == 1
+    assert "guest scanning a hotel QR card" in observed[0]
+    assert "containing no people" not in observed[0]
+    assert "review-gated" not in observed[0]
+    assert value["image"]["digest"] == digest
+    assert value["image"]["generation_policy"]["version"] == "ptw.domain-image.v1"
+    assert value["image"]["generation_policy"]["visual_quality_gate"] is False
+    assert value["image"]["reference"]["evidence"] == "validated_cli_attachment"

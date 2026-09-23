@@ -61,6 +61,9 @@ def validate_structured_llm_request(request: dict) -> None:
     for field in ("prompt_template_version", "context_hash", "model"):
         if field in request and not isinstance(request[field], str):
             raise ValueError("invalid structured LLM request")
+    image_policy = request["input_payload"].get("generation_policy_version")
+    if image_policy is not None and (request["mode"] not in MEDIA_MODES or image_policy != "ptw.domain-image.v1"):
+        raise ValueError("unsupported image generation policy")
     idempotency_key = request.get("idempotency_key")
     if (
         not isinstance(idempotency_key, str)
@@ -147,6 +150,7 @@ def structured_llm_capabilities() -> dict:
         "reasoning_efforts": {"template_creation": "xhigh"},
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
+        "image_generation_policies": ["ptw.domain-image.v1"],
     }
 
 

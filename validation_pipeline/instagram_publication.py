@@ -198,6 +198,7 @@ class LocalInstagramAuthority:
         value = next((item for item in self.list() if item['media_token_sha256'] == token_sha), None)
         if not value:
             raise KeyError('Media unavailable')
+        self.store.get('projects', value['project_id'])
         return value, base64.b64decode(value['delivery_base64'], validate=True)
 
 
@@ -281,7 +282,13 @@ class DatabaseInstagramAuthority(DatabaseMetaAdsAuthority):
 
     def delivery(self, token_sha: str) -> tuple[dict[str, Any], bytes]:
         with self.connection() as connection:
-            row = connection.execute('SELECT entity_id,delivery_jpeg FROM instagram_publications WHERE media_token_sha256=%s', (token_sha,)).fetchone()
+            row = connection.execute(
+                '''SELECT publication.entity_id,publication.delivery_jpeg
+                     FROM instagram_publications publication
+                     JOIN validation_projects project ON project.entity_id=publication.project_id
+                    WHERE publication.media_token_sha256=%s AND project.deleted_at IS NULL''',
+                (token_sha,),
+            ).fetchone()
         if row is None:
             raise KeyError('Media unavailable')
         return self.get(str(row[0])), bytes(row[1])

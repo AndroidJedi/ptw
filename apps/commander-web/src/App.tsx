@@ -133,7 +133,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     ? projectId
     : null
 
-  const refreshProjects = async (preferredId?: string) => {
+  const refreshProjects = async (preferredId?: string, resetChildren = false) => {
     const value = await api.get<{ items: ValidationProject[] }>('/api/v1/projects?limit=100')
     setProjects(value.items)
     const requested = preferredId || new URLSearchParams(window.location.search).get('project')
@@ -141,7 +141,15 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
       ? requested
       : value.items[0]?.project_id || null
     setProjectId(nextId)
-    writeConsoleLocation(page, nextId, page === 'posts' ? creativeId : null, page === 'landing' ? landingId : null)
+    if (resetChildren) {
+      setCreativeId(null)
+      setLandingId(null)
+    }
+    writeConsoleLocation(
+      page, nextId,
+      resetChildren ? null : page === 'posts' ? creativeId : null,
+      resetChildren ? null : page === 'landing' ? landingId : null,
+    )
     setProjectError('')
   }
 
@@ -188,6 +196,12 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     const project = await api.post<ValidationProject>(`/api/v1/projects/${changedProjectId}/rename`, { name })
     setProjects((items) => (items || []).map((item) => item.project_id === project.project_id ? project : item))
   }
+  const deleteProject = async (changedProjectId: string, requestId: string, confirmationName: string) => {
+    await api.post(`/api/v1/projects/${changedProjectId}/delete`, {
+      request_id: requestId, confirmation_name: confirmationName,
+    })
+    await refreshProjects(undefined, true)
+  }
   const newProject = () => {
     setPage('briefs')
     setProjectId(null)
@@ -221,7 +235,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   return <Shell page={page} onPage={navigate} language={language}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Це вікно використовує production-дані. Дії можуть змінювати робочі записи та запускати реальних провайдерів.' : 'This window uses production data. Actions can change live records and invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page !== 'settings' && page !== 'commander' && page !== 'templates' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {page !== 'settings' && page !== 'commander' && page !== 'templates' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} onDelete={deleteProject} language={language} />}
     {page !== 'settings' && page !== 'commander' && page !== 'templates' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView

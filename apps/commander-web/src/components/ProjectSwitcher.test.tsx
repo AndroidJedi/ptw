@@ -26,7 +26,8 @@ describe('ProjectSwitcher', () => {
     const onSelect = vi.fn()
     const onNew = vi.fn()
     const onRename = vi.fn().mockResolvedValue(undefined)
-    render(<ProjectSwitcher projects={projects} projectId={projects[0].project_id} onSelect={onSelect} onNew={onNew} onRename={onRename} language="en" />)
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+    render(<ProjectSwitcher projects={projects} projectId={projects[0].project_id} onSelect={onSelect} onNew={onNew} onRename={onRename} onDelete={onDelete} language="en" />)
 
     const selector = screen.getByLabelText('Existing Project')
     expect(selector).toHaveTextContent('Psychologist consultations · completed')
@@ -42,5 +43,34 @@ describe('ProjectSwitcher', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New Project' }))
     expect(onNew).toHaveBeenCalledOnce()
+  })
+
+  it('requires the exact Project name and keeps one deletion request id', async () => {
+    const requestId = '018f07ea-7f20-7000-8000-000000000099'
+    Object.defineProperty(globalThis.crypto, 'randomUUID', {
+      configurable: true, value: vi.fn(() => requestId),
+    })
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+    render(<ProjectSwitcher
+      projects={projects} projectId={projects[0].project_id}
+      onSelect={vi.fn()} onNew={vi.fn()} onRename={vi.fn()}
+      onDelete={onDelete} language="en"
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete “Psychologist consultations”?' })
+    expect(dialog).toHaveTextContent('Posts already published on external services are not removed there.')
+    const confirm = screen.getByLabelText('Type Psychologist consultations to confirm')
+    const submit = screen.getByRole('button', { name: 'Delete Project' })
+    expect(submit).toBeDisabled()
+    fireEvent.change(confirm, { target: { value: 'Psychologist' } })
+    expect(submit).toBeDisabled()
+    fireEvent.change(confirm, { target: { value: projects[0].name } })
+    fireEvent.click(submit)
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(
+      projects[0].project_id, requestId, projects[0].name,
+    ))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   })
 })

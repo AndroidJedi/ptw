@@ -44,7 +44,8 @@ class ValidationRepository:
                            WHERE brief.project_id=project.entity_id ORDER BY brief.created_at DESC LIMIT 1),
                          (SELECT brief.status FROM product_briefs brief
                            WHERE brief.project_id=project.entity_id ORDER BY brief.created_at DESC LIMIT 1),
-                         (SELECT count(*) FROM product_briefs brief WHERE brief.project_id=project.entity_id)
+                         (SELECT count(*) FROM product_briefs brief WHERE brief.project_id=project.entity_id),
+                         project.deleted_at,project.deleted_by,project.delete_request_id
                     FROM validation_projects project"""
 
     @staticmethod
@@ -62,7 +63,9 @@ class ValidationRepository:
     def get_project(self, project_id: str) -> dict[str, Any]:
         with self.connection() as connection:
             row = connection.execute(
-                self._project_select() + " WHERE project.entity_id=%s", (UUID(project_id),)
+                self._project_select()
+                + " WHERE project.entity_id=%s AND project.deleted_at IS NULL",
+                (UUID(project_id),),
             ).fetchone()
         if row is None:
             raise KeyError(project_id)
@@ -71,7 +74,8 @@ class ValidationRepository:
     def list_projects(self, limit: int = 100) -> list[dict[str, Any]]:
         with self.connection() as connection:
             rows = connection.execute(
-                self._project_select() + " ORDER BY project.updated_at DESC LIMIT %s",
+                self._project_select()
+                + " WHERE project.deleted_at IS NULL ORDER BY project.updated_at DESC LIMIT %s",
                 (min(100, max(1, limit)),),
             ).fetchall()
         return [self._project_row(row) for row in rows]
@@ -83,7 +87,7 @@ class ValidationRepository:
         with self.connection() as connection:
             changed = connection.execute(
                 """UPDATE validation_projects SET name=%s,name_source='owner',updated_at=clock_timestamp()
-                     WHERE entity_id=%s""",
+                     WHERE entity_id=%s AND deleted_at IS NULL""",
                 (normalized, UUID(project_id)),
             ).rowcount
             if changed != 1:
@@ -95,6 +99,117 @@ class ValidationRepository:
             )
         return self.get_project(project_id)
 
+    def delete_project(
+        self, project_id: str, *, request_id: str, confirmation_name: str,
+        requested_by: str,
+    ) -> dict[str, Any]:
+        """Tombstone one Project after exact confirmation and quiescence checks."""
+        from psycopg.types.json import Jsonb
+
+        project_uuid, request_uuid = UUID(project_id), UUID(request_id)
+        with self.connection() as connection:
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"project-delete:{project_uuid}",),
+            )
+            row = connection.execute(
+                """SELECT name,deleted_at,deleted_by,delete_request_id
+                     FROM validation_projects WHERE entity_id=%s FOR UPDATE""",
+                (project_uuid,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(project_id)
+            if row[1] is not None:
+                if row[3] == request_uuid:
+                    return {
+                        "project_id": str(project_uuid), "deleted": True,
+                        "deleted_at": row[1].isoformat(),
+                    }
+                raise KeyError(project_id)
+            if confirmation_name != row[0]:
+                raise ValueError("Project name confirmation does not match")
+            reused = connection.execute(
+                "SELECT entity_id FROM validation_projects WHERE delete_request_id=%s",
+                (request_uuid,),
+            ).fetchone()
+            if reused is not None and reused[0] != project_uuid:
+                raise ValueError("request_id was already used to delete another Project")
+            guard = connection.execute(
+                """SELECT operation_kind,operation_id FROM commander_operation_guard
+                     WHERE singleton AND operation_id IS NOT NULL"""
+            ).fetchone()
+            if guard is not None:
+                raise RuntimeError("A PTW generation operation is active; wait for it to finish before deleting the Project")
+            active = connection.execute(
+                """SELECT kind,entity_id FROM (
+                       SELECT 'Product Brief' AS kind,entity_id FROM product_briefs
+                        WHERE project_id=%s AND status IN ('queued','generating')
+                       UNION ALL
+                       SELECT 'Post',entity_id FROM universal_studio_workspaces
+                        WHERE project_id=%s AND status IN ('queued','composing','generating_image')
+                       UNION ALL
+                       SELECT 'Landing',entity_id FROM landing_workspaces
+                        WHERE project_id=%s AND status IN ('queued','composing','generating_images')
+                       UNION ALL
+                       SELECT 'Instagram publication',entity_id FROM instagram_publications
+                        WHERE project_id=%s AND state->>'status' IN ('queued','creating_container','preparing','publishing')
+                       UNION ALL
+                       SELECT 'Instagram test',test.entity_id FROM instagram_validation_tests test
+                        WHERE test.project_id=%s
+                          AND EXISTS (
+                              SELECT 1 FROM instagram_validation_test_events event
+                               WHERE event.test_id=test.entity_id AND event.action='activated'
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM instagram_validation_test_events event
+                               WHERE event.test_id=test.entity_id
+                                 AND event.action IN ('completed','abandoned')
+                          )
+                       UNION ALL
+                       SELECT 'TikTok publication',entity_id FROM tiktok_publications
+                        WHERE project_id=%s AND state->>'phase' IN ('queued','preparing','publishing')
+                       UNION ALL
+                       SELECT 'Meta deployment',entity_id FROM meta_ads_deployments
+                        WHERE project_id=%s AND status NOT IN ('staged','failed')
+                       UNION ALL
+                       SELECT 'Meta control',entity_id FROM meta_ads_control_actions
+                        WHERE project_id=%s AND state->>'status'='executing'
+                       UNION ALL
+                       SELECT 'Analytics learning',entity_id FROM creative_learning_runs
+                        WHERE project_id=%s AND status='running'
+                   ) active LIMIT 1""",
+                (project_uuid,) * 9,
+            ).fetchone()
+            if active is not None:
+                raise RuntimeError(
+                    f"{active[0]} {active[1]} is active; wait for it to finish before deleting the Project"
+                )
+            deleted = connection.execute(
+                """UPDATE validation_projects
+                      SET deleted_at=clock_timestamp(),deleted_by=%s,delete_request_id=%s,
+                          updated_at=clock_timestamp()
+                    WHERE entity_id=%s AND deleted_at IS NULL
+                    RETURNING deleted_at""",
+                (requested_by, request_uuid, project_uuid),
+            ).fetchone()
+            if deleted is None:
+                raise RuntimeError("Project deletion could not be finalized")
+            connection.execute(
+                """INSERT INTO commander_audit_events(id,actor,action,target_id,details)
+                   VALUES(%s,%s,'project.delete',%s,%s)""",
+                (
+                    UUID(new_uuid7()), requested_by, project_uuid,
+                    Jsonb({"request_id": str(request_uuid), "name": row[0]}),
+                ),
+            )
+        return {
+            "project_id": str(project_uuid), "deleted": True,
+            "deleted_at": deleted[0].isoformat(),
+        }
+
+    def assert_project_active(self, project_id: str) -> None:
+        self.get_project(project_id)
+
     @staticmethod
     def _brief_select() -> str:
         return """SELECT brief.entity_id,brief.project_id,project.name,brief.request_id,
@@ -105,7 +220,8 @@ class ValidationRepository:
                          EXISTS(SELECT 1 FROM product_brief_approvals approval
                                  WHERE approval.brief_id=brief.entity_id)
                     FROM product_briefs brief
-                    JOIN validation_projects project ON project.entity_id=brief.project_id
+                    JOIN validation_projects project
+                      ON project.entity_id=brief.project_id AND project.deleted_at IS NULL
                     JOIN commander_sources source ON source.entity_id=brief.owner_idea_source_id"""
 
     @staticmethod
@@ -144,6 +260,8 @@ class ValidationRepository:
                 self._project_select() + " WHERE project.request_id=%s", (request_uuid,)
             ).fetchone()
             if existing is not None:
+                if existing[11] is not None:
+                    raise ValueError("request_id belongs to a deleted Project")
                 value = self._project_row(existing)
                 if value["name"] != normalized:
                     raise ValueError("request_id was already used with a different Project name")
@@ -576,7 +694,7 @@ class ValidationRepository:
                 "SELECT operation_kind,operation_id,acquired_at FROM commander_operation_guard WHERE singleton"
             ).fetchone()
             counts = connection.execute(
-                """SELECT (SELECT count(*) FROM validation_projects),
+                """SELECT (SELECT count(*) FROM validation_projects WHERE deleted_at IS NULL),
                           (SELECT count(*) FROM product_briefs),
                           (SELECT count(*) FROM product_brief_approvals)"""
             ).fetchone()

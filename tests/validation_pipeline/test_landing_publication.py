@@ -212,6 +212,19 @@ class LandingPublicationTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.service.snapshot("ai", "asset-boundary")
 
+    def test_project_deletion_immediately_hides_a_published_landing(self) -> None:
+        self._publish(1, namespace="ai", slug="deleted-project")
+        project = self.store.get("projects", self.project_id)
+        self.store.append("projects", self.project_id, {
+            **project,
+            "deleted_at": utc_now(),
+            "deleted_by": "test-owner",
+            "delete_request_id": str(uuid4()),
+        })
+
+        with self.assertRaises(KeyError):
+            self.service.snapshot("ai", "deleted-project")
+
     def test_publication_and_permanent_reservation_survive_authority_restart(self) -> None:
         first = self._publish(1, namespace="la", slug="restart-proof")
         restarted_store = LocalBriefStore(Path(self.temporary.name))

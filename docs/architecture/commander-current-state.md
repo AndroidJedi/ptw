@@ -1,12 +1,32 @@
 # Commander current state
 
-Updated: 2026-09-22
-Branch: `candidate/ptw-prod-access-20260922`
+Updated: 2026-09-23
+Branch: `codex/project-delete-20260923`
 Deployment: the preserving release accepted code revision
 `529415435eae4a573ea1bb043f948806718bc1f9` with companion platform
 `57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Validation was replaced;
 Commander, Owner Gateway, GOD, Landing Hosting and Firebase auth-guard
 functions retained their prior versions. Owner Console Hosting audit passed.
+
+## Confirmed Project deletion — local candidate
+
+The Project switcher now exposes a destructive Delete action behind an exact-name
+confirmation dialog in English and Ukrainian. One stable request UUID reconciles
+an uncertain response. The dialog explains that PTW audit lineage remains and
+that already-published external provider content is outside the deletion boundary.
+
+Validation and loopback authorities write an immutable Project tombstone only
+after checking that Brief, Post, Landing, social-publication, manual Instagram
+test, Analytics learning, and preserved Meta work is quiescent. Deleted Projects
+disappear from active lists; direct Project, Brief, Studio, Landing, Instagram
+and Analytics access fails closed; published Landing reads and analytics
+ingestion return 404. Migration 015 adds only nullable tombstone authority and
+preserves every existing business value.
+
+Local verification passed the complete Validation, Commander, Owner Gateway,
+schema-preservation, skill, Owner unit/build, and 99-test cross-browser suites,
+plus a disposable PostgreSQL deletion/audit canary. Deployment and production
+verification remain pending.
 
 ## Bokko v3 cutout and motif correction — deployed
 

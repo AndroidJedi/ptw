@@ -115,17 +115,30 @@ class LocalBriefStore:
             previous = value["record_sha256"]
         return values
 
-    def get(self, kind: str, entity_id: str) -> dict[str, Any]:
+    def get(
+        self, kind: str, entity_id: str, *, include_deleted: bool = False,
+    ) -> dict[str, Any]:
         values = self.history(kind, entity_id)
         if not values:
             raise KeyError(f"local {kind} was not found")
-        return deepcopy(values[-1]["payload"])
+        value = deepcopy(values[-1]["payload"])
+        if kind == "projects" and value.get("deleted_at") and not include_deleted:
+            raise KeyError("local projects was not found")
+        return value
 
     def list(self, kind: str) -> list[dict[str, Any]]:
         root = self.records / self._kind(kind)
         if not root.is_dir():
             return []
-        values = [self.get(kind, path.name) for path in root.iterdir() if path.is_dir()]
+        values = []
+        for path in root.iterdir():
+            if not path.is_dir():
+                continue
+            try:
+                values.append(self.get(kind, path.name))
+            except KeyError:
+                if kind != "projects":
+                    raise
         return sorted(values, key=lambda item: str(item.get("created_at") or ""), reverse=True)
 
     def reserve_request(

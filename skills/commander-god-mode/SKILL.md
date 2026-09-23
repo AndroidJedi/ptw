@@ -179,3 +179,9 @@ Post, or Landing learning entities or cross their lesson namespaces.
   after an explicit persisted visitor choice, keep the Firebase CSP allowlist
   narrow, and verify both zero pre-consent requests and post-consent loading in
   desktop/mobile browser tests.
+- Project deletion is a tombstone boundary, not a graph cascade. Require the
+  exact current Project name and a stable request UUID, reject active domain or
+  provider work, hide the Project from every private scope, and make its public
+  Landing/analytics routes fail closed. Retain audit and graph lineage, and tell
+  the owner that PTW cannot remove content already published by an external
+  provider. Exercise response reconciliation and direct-ID access after deletion.

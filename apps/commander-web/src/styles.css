@@ -67,6 +67,8 @@ label { display: grid; gap: 7px; color: var(--soft); font-size: 12px; font-weigh
 .primary { border-color: var(--white); color: var(--black); background: var(--white); font-weight: 850; }
 .secondary { color: var(--white); background: transparent; }
 .ghost { border-color: transparent; background: transparent; }
+.danger { color: #d0d0d0; }
+.primary.danger { border-color: #9a9a9a; color: #111; background: #d7d7d7; }
 .large { min-height: 52px; }
 button svg { width: 17px; height: 17px; }
 
@@ -79,11 +81,20 @@ button svg { width: 17px; height: 17px; }
 .project-switcher-heading div { min-width: 0; display: grid; }
 .project-switcher-heading small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
 .project-switcher-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-switcher-actions { display: flex; gap: 7px; }
+.project-switcher-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .project-rename, .uuid-line, .project-switcher-error { grid-column: 1 / -1; }
 .project-rename { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: end; }
 .uuid-line { margin: 0; color: var(--muted); overflow-wrap: anywhere; font: 9px/1.5 ui-monospace, monospace; }
 .project-switcher-error { margin: 0; color: var(--white); }
+.project-delete-dialog { width: min(100%, 620px); max-height: calc(100dvh - 28px); overflow: auto; border-color: #9a9a9a; background: #0b0b0b; }
+.project-delete-dialog > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.project-delete-dialog header small { color: #d0d0d0; font-size: 8px; font-weight: 900; letter-spacing: .14em; }
+.project-delete-dialog h2 { margin: 4px 0 0; }
+.project-delete-dialog label { display: grid; gap: 7px; color: var(--soft); font-size: 10px; }
+.project-delete-dialog footer { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+.project-delete-warning { margin: 16px 0; padding: 12px; display: flex; align-items: start; gap: 10px; border: 1px solid #444; border-radius: 11px; background: #151515; }
+.project-delete-warning svg { flex: 0 0 auto; color: #d0d0d0; }
+.project-delete-warning p { margin: 0; color: var(--soft); font-size: 10px; line-height: 1.55; }
 
 .brief-create { display: grid; gap: 14px; }
 .brief-workspace { width: min(100%, 1040px); margin: 0 auto; display: grid; grid-template-columns: minmax(210px, .35fr) minmax(0, 1fr); gap: 14px; }
@@ -768,6 +779,7 @@ button svg { width: 17px; height: 17px; }
   .phone-hero-direction-actions button { width: 100%; }
   .modal-backdrop { padding: 0; place-items: stretch; }
   .brief-template-dialog, .studio-learning-dialog { width: 100%; max-height: 100dvh; margin: 0; border-width: 0; border-radius: 0; }
+  .project-delete-dialog { width: 100%; max-height: 100dvh; margin: 0; border-width: 0; border-radius: 0; }
   .studio-learning-dialog dl { grid-template-columns: 1fr; }
   .studio-learning-actions, .studio-learning-actions button { width: 100%; }
   .studio-creative-picker { grid-template-columns: 1fr; }

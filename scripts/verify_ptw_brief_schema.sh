@@ -72,12 +72,12 @@ INSERT INTO universal_studio_workspaces(entity_id,project_id,source_brief_id,ord
 VALUES('33333333-3333-4333-8333-333333333332','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333331',1,'brief_generation','universal'||'_'||'ad','draft','migration-test');
 SQL
 preserved_before=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
-  "SELECT md5(to_jsonb(project)::text) FROM validation_projects project WHERE entity_id='22222222-2222-4222-8222-222222222222'")
+  "SELECT md5(jsonb_build_array(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by,created_at,updated_at)::text) FROM validation_projects WHERE entity_id='22222222-2222-4222-8222-222222222222'")
 apply_migrations
 apply_migrations
 preserved_after=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
-  "SELECT md5(to_jsonb(project)::text) FROM validation_projects project WHERE entity_id='22222222-2222-4222-8222-222222222222'")
-[ "$preserved_before" = "$preserved_after" ] || { echo "migration 004 changed the existing Natal Service Project" >&2; exit 1; }
+  "SELECT md5(jsonb_build_array(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by,created_at,updated_at)::text) FROM validation_projects WHERE entity_id='22222222-2222-4222-8222-222222222222'")
+[ "$preserved_before" = "$preserved_after" ] || { echo "an additive migration changed existing Project values" >&2; exit 1; }
 retired_preserved=$(docker exec "$database_container" psql -X -qAt -U ptw_brief_test -d ptw_brief_test -c \
   "SELECT count(*) FROM universal_studio_workspaces WHERE entity_id='33333333-3333-4333-8333-333333333332'")
 [ "$retired_preserved" = 1 ] || { echo "active-template constraint rewrote a historical Post row" >&2; exit 1; }
@@ -211,6 +211,11 @@ BEGIN
         AND column_name='owner_idea_source_id') <> 'YES' THEN
     RAISE EXCEPTION 'empty Projects are not permitted after migration 004';
   END IF;
+  IF (SELECT count(*) FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='validation_projects'
+        AND column_name IN ('deleted_at','deleted_by','delete_request_id')) <> 3 THEN
+    RAISE EXCEPTION 'Project deletion tombstone columns are incomplete';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_connection_protected' AND NOT tgisinternal)
      OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_publications_protected' AND NOT tgisinternal)
      OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_attempts_immutable' AND NOT tgisinternal) THEN
@@ -270,7 +275,28 @@ BEGIN
       RAISE;
     END IF;
   END;
+  UPDATE validation_projects
+  SET deleted_at=clock_timestamp(),deleted_by='migration-test',
+      delete_request_id='88888888-8888-4888-8888-888888888888',updated_at=clock_timestamp()
+  WHERE entity_id='44444444-4444-4444-8444-444444444444';
+  IF NOT EXISTS (
+    SELECT 1 FROM validation_projects
+    WHERE entity_id='44444444-4444-4444-8444-444444444444'
+      AND deleted_at IS NOT NULL AND deleted_by='migration-test'
+      AND delete_request_id='88888888-8888-4888-8888-888888888888'
+  ) THEN
+    RAISE EXCEPTION 'Project deletion tombstone was not persisted';
+  END IF;
+  BEGIN
+    UPDATE validation_projects SET name='Restored Project'
+    WHERE entity_id='44444444-4444-4444-8444-444444444444';
+    RAISE EXCEPTION 'deleted Validation Project accepted a mutation';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'deleted Validation Project cannot change' THEN
+      RAISE;
+    END IF;
+  END;
 END $$;
 SQL
 
-echo "Verified Product Brief, Studio, public Landing, manual Instagram validation, preserved social history, and Analytics migrations."
+echo "Verified Product Brief, Project deletion, Studio, public Landing, manual Instagram validation, preserved social history, and Analytics migrations."

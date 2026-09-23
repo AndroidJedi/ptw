@@ -105,6 +105,18 @@ class InstagramPublicationTests(unittest.TestCase):
             self.service.media(token)
         self.assertEqual(2, len(self.authority.attempts(reserved['publication_id'])))
 
+    def test_deleted_project_immediately_disables_temporary_media(self):
+        reserved = self.reserve()
+        token = self.authority.get(reserved['publication_id'])['state']['media_token']
+        project = self.store.get('projects', PROJECT_ID)
+        self.store.append('projects', PROJECT_ID, {
+            **project, 'deleted_at': '2026-09-23T10:00:00Z',
+            'deleted_by': 'owner-test', 'delete_request_id': REQUEST_ID,
+        })
+
+        with self.assertRaises(KeyError):
+            self.service.media(token)
+
     def test_replay_and_changed_input(self):
         first = self.reserve()
         self.assertIn('media_expires_at', first)

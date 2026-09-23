@@ -156,13 +156,20 @@ function analyticsWorkspace(scope: 'project' | 'global', windowDays: number) {
 
 test.beforeEach(async ({ page }) => {
   let currentStudio = structuredClone(studioDetail)
+  let visibleProjects = [project]
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
     const json = (value: unknown, status = 200) => route.fulfill({
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
-    if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
+    if (url.pathname === '/api/v1/projects') return json({ items: visibleProjects, next_cursor: null })
+    if (url.pathname === `/api/v1/projects/${projectId}/delete` && method === 'POST') {
+      const body = route.request().postDataJSON()
+      if (body.confirmation_name !== project.name || !body.request_id) return json({ detail: 'invalid confirmation' }, 400)
+      visibleProjects = []
+      return json({ project_id: projectId, deleted: true, deleted_at: '2026-09-23T10:00:00Z' })
+    }
     if (url.pathname === `/api/v1/analytics/${projectId}/workspace`) return json(analyticsWorkspace('project', Number(url.searchParams.get('window') || 30)))
     if (url.pathname === '/api/v1/analytics/global/workspace') return json(analyticsWorkspace('global', Number(url.searchParams.get('window') || 30)))
     if (url.pathname === '/api/v1/studio/templates' && method === 'GET') return json({ items: [
@@ -485,4 +492,29 @@ test('separates new Project creation from the selected Project workspace', async
   await page.getByLabel('Existing Project').selectOption(projectId)
   await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
+})
+
+test('deletes a Project only after exact name confirmation', async ({ page }) => {
+  await page.goto('/?e2e=1')
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
+
+  await page.getByRole('button', { name: 'Delete' }).click()
+  const dialog = page.getByRole('alertdialog', { name: `Delete “${project.name}”?` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Delete Project' })).toBeDisabled()
+  await dialog.getByLabel(`Type ${project.name} to confirm`).fill(project.name)
+  const requestPromise = page.waitForRequest(request =>
+    request.url().endsWith(`/api/v1/projects/${projectId}/delete`) && request.method() === 'POST',
+  )
+  await dialog.getByRole('button', { name: 'Delete Project' }).click()
+  const request = await requestPromise
+  expect(request.postDataJSON()).toEqual({
+    request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    confirmation_name: project.name,
+  })
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'New Project' })).toBeVisible()
+  await expect(page.getByLabel('Existing Project')).toHaveCount(0)
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })

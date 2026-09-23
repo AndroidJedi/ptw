@@ -370,7 +370,7 @@ class DatabaseLandingPublicationAuthority:
                    JOIN landing_publication_events event ON event.entity_id=publication.current_event_id
                    JOIN landing_versions version ON version.entity_id=event.landing_version_id
                    WHERE publication.namespace=%s AND publication.slug=%s AND publication.status='published'
-                     AND event.action='publish'""",
+                     AND project.deleted_at IS NULL AND event.action='publish'""",
                 (namespace, slug),
             ).fetchone()
         if row is None:

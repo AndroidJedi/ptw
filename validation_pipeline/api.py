@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 import logging
+import re
 from typing import Any, Mapping
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 
 from .config import Settings
 from .openai_images import ResultBridgePhoneScreenImageProvider
@@ -206,28 +207,41 @@ def create_app(
         if not settings.owner_gateway_token or x_ptw_owner_gateway_token != settings.owner_gateway_token:
             raise HTTPException(status_code=401, detail="owner gateway authentication required")
 
+    def require_active_project(request: Request) -> None:
+        match = re.search(r"/projects/([0-9a-fA-F-]{36})(?:/|$)", request.url.path)
+        if match is None or not hasattr(repository, "assert_project_active"):
+            return
+        if request.url.path == f"/internal/v1/projects/{match.group(1)}/delete":
+            return
+        try:
+            repository.assert_project_active(str(UUID(match.group(1))))
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+
+    project_dependencies = [Depends(authorize), Depends(require_active_project)]
+
     app.include_router(template_router(template_authoring, prefix="/internal/v1/templates", dependencies=[Depends(authorize)]))
     app.include_router(studio_creative_router(
-        studio_creatives, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
+        studio_creatives, prefix="/internal/v1/studio", dependencies=project_dependencies,
     ))
     app.include_router(landing_page_router(
-        landing_pages, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
+        landing_pages, prefix="/internal/v1/landings", dependencies=project_dependencies,
     ))
     app.include_router(landing_publication_owner_router(
-        landing_publications, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
+        landing_publications, prefix="/internal/v1/landings", dependencies=project_dependencies,
     ))
     app.include_router(landing_publication_read_router(
         landing_publications, prefix="/internal/v1/public/landings",
         dependencies=[Depends(authorize)],
     ))
     app.include_router(instagram_router(
-        instagram_service, prefix="/internal/v1/instagram", dependencies=[Depends(authorize)],
+        instagram_service, prefix="/internal/v1/instagram", dependencies=project_dependencies,
     ))
     app.include_router(instagram_media_router(
         instagram_service, prefix="/internal/v1/public/instagram-media", dependencies=[Depends(authorize)],
     ))
     app.include_router(instagram_validation_router(
-        instagram_validation, prefix="/internal/v1/instagram-tests", dependencies=[Depends(authorize)],
+        instagram_validation, prefix="/internal/v1/instagram-tests", dependencies=project_dependencies,
     ))
     app.include_router(creative_analytics_owner_router(
         analytics, prefix="/internal/v1/analytics", dependencies=[Depends(authorize)],
@@ -303,7 +317,7 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.post("/internal/v1/projects/{project_id}/rename", dependencies=[Depends(authorize)])
+    @app.post("/internal/v1/projects/{project_id}/rename", dependencies=project_dependencies)
     def rename_project(
         project_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
@@ -318,9 +332,34 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
+    @app.post("/internal/v1/projects/{project_id}/delete", dependencies=project_dependencies)
+    def delete_project(
+        project_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
+    ) -> dict[str, Any]:
+        if set(request) != {"request_id", "confirmation_name"} or not all(
+            isinstance(request.get(field), str) for field in ("request_id", "confirmation_name")
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Project deletion requires request_id and exact confirmation_name",
+            )
+        try:
+            return repository.delete_project(
+                str(UUID(project_id)), request_id=str(UUID(str(request["request_id"]))),
+                confirmation_name=str(request["confirmation_name"]),
+                requested_by=x_ptw_actor[:200],
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
     @app.post(
         "/internal/v1/projects/{project_id}/briefs",
-        dependencies=[Depends(authorize)], status_code=202,
+        dependencies=project_dependencies, status_code=202,
     )
     async def create_brief(
         project_id: str, request: Mapping[str, Any],

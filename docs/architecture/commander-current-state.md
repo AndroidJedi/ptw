@@ -2,11 +2,13 @@
 
 Updated: 2026-09-23
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: serial release `project-delete-20260923-a21b421` accepted code
-revision `a21b4216b802cec3836aecfa3df7d69dd3acab1d` with companion platform
-`57a06e795296e180dcf8d0d8c6a258f4f37fee11`. Commander, Validation, Owner
-Gateway and Owner Console Hosting run the Project-deletion release. GOD and
-Firebase auth-guard functions retained their accepted versions.
+Deployment: serial release `domain-image-20260923-0b1aefe` accepted runtime code
+revision `0b1aefe589e5cdd271566f2c8022f7c710ab4414` with companion platform
+`8fc30c9a423255e1c43161edc691b84698b625e2`. Commander, Validation, Owner
+Gateway, Owner Console Hosting and public Landing Hosting run the combined
+domain-image and Project-deletion release. GOD and Firebase auth-guard functions
+retained their accepted versions. Test-only follow-up `0540150` is pushed above
+the runtime revision.
 
 ## Confirmed Project deletion — deployed
 
@@ -33,10 +35,10 @@ root-only pre-release backup is
 A fresh full structured/media/Pexels bridge canary, dependency audit, read-only
 Telegram identity check, 1 GB resource audit, all 99 browser tests, Firebase
 Hosting release, public Owner Console audit, and post-release dependency audit
-passed. All expected containers are healthy, and the 24-hour follow-up resource
-audit is scheduled for 2026-09-24 07:49 UTC.
+passed. All expected containers were healthy; the newer domain-image rollout
+below superseded its follow-up resource timer.
 
-## Unified domain image policy and numeric metric cards — local candidate
+## Unified domain image policy and numeric metric cards — deployed
 
 `ptw.domain-image.v1` now compiles all Post/Landing image paths using exact owner
 instructions, current saved settings, the pinned Brief, Project/global rules,
@@ -57,24 +59,35 @@ quantities cannot become measured performance evidence. Explicit owner edits or
 hidden cards remain allowed. Existing records and render/template digests remain
 unchanged until an owner mutation.
 
-The independent companion patch is tracked at
-`patches/platform/domain-image-v1.patch`. It adds a capability handshake and a
-versioned worker branch that accepts unchanged edits while retaining legacy
-request behavior. Its apply/reverse check and 48 tests pass. The preserving
-[release procedure](../operations/domain-image-release.md) specifies separate
-revision freezing, capability checks, canaries and rollback. No deployment or
-live provider canary has run for this candidate; production remains at the
-revisions above.
+The independent companion change is preserved as
+`patches/platform/domain-image-v1.patch` and committed separately at `8fc30c9`.
+It advertises `ptw.domain-image.v1`, accepts unchanged versioned edits and keeps
+legacy request behavior. The patch apply/reverse check and all 48 platform tests
+pass. The preserving [release procedure](../operations/domain-image-release.md)
+keeps the PTW and companion histories, artifacts and rollback references
+separate.
 
-Verification: 356 Validation tests pass on the host and in the Linux runtime
-image; focused context/provenance checks accompany the final refinements.
-118 web tests and the production build pass. The affected browser suites cover
-45 cases across desktop, 360px mobile and iPhone WebKit, including real local
-Save/Approve/restart authority and mocked provider image flows. Ten native Studio
-geometry variants pass; Ukrainian/English numeric hypothesis PNGs were visually
-inspected at 1080×1350. Owner Gateway tests, Commander tests/demo, canonical skill
-verification and whitespace checks pass. Commander receiver-execution cases
-retain their existing isolated-container-only skips.
+The serial rollout passed fresh attempt-one Product Brief/revision, Phone
+Metrics, Manual Agent, Landing composition, both learning, domain-image
+generation, unchanged-reference enhancement and Pexels canaries. Production
+advertises the exact image-policy capability; all three PTW and all three
+companion containers run `domain-image-20260923-0b1aefe` and are healthy. Every
+pre-existing Commander business row and approved Post PNG was preserved. The
+root-only pre-release backup is
+`/opt/ptw/backups/commander/20260923T124320Z-pre-domain-image-20260923-0b1aefe.dump`.
+Owner Hosting version `80454d73391dcc09` and public Landing Hosting version
+`8c596a09f5fa080a` are live; both public audits pass. The follow-up resource
+audit is active for 2026-09-24 12:48 UTC.
+
+Combined verification passed 363 Validation tests on the host and in the exact
+Linux/amd64 image, 19 Owner Gateway tests, 43 Commander tests plus the demo, 119
+Owner tests/build, all 99 desktop/360 px/iPhone WebKit browser tests, the
+disposable migration-preservation suite, canonical skill verification, and the
+native Studio visual audit. A post-cutover Templates unit run exposed an
+asynchronous focus assertion that had passed earlier; the runtime was already
+accepted but Owner Hosting remained withheld. Test-only commit `0540150` waits
+for the focus effect, passed five consecutive focused runs and the complete web
+and browser gates, after which Owner Hosting and its live audit completed.
 
 ## Bokko v3 cutout and motif correction — deployed
 

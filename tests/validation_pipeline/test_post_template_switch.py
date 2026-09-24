@@ -42,6 +42,27 @@ class PostTemplateSwitchTests(unittest.TestCase):
     def switch(self, request):
         return self.service.mutate(self.project, self.creative, 'switch_template', **request)
 
+    def test_catalog_uses_injected_registry_and_each_choice_is_applicable(self):
+        catalog = self.service.templates()
+        self.assertEqual({'phone_metrics', self.reference['template_id']}, {
+            item['template_id'] for item in catalog['items']
+        })
+        authored = next(
+            item for item in catalog['items']
+            if item['template_id'] == self.reference['template_id']
+        )
+        self.assertFalse(authored['capabilities']['supports_generation'])
+        exact_reference = {
+            'surface': 'post',
+            'template_id': authored['template_id'],
+            'template_version': authored['template_version'],
+            'template_sha256': authored['template_sha256'],
+        }
+        changed = self.switch(self.request(exact_reference))
+        self.assertEqual(exact_reference, changed['template_reference'])
+        restored = self.switch(self.request(self.detail['template_reference'], changed))
+        self.assertEqual(self.detail['template_reference'], restored['template_reference'])
+
     def test_apply_keeps_pending_copy_image_history_and_exact_version_across_restart(self):
         original = self.service.checkpoint(self.project, self.creative, kind='approve', base_sha256=self.detail['state_sha256'], configuration=self.detail['configuration'], content=self.detail['content'], change_note='Original')
         png = self.workspace.version_render(1)['bytes']

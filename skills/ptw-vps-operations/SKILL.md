@@ -324,6 +324,16 @@ built-in record. A fix must keep that exact GET readable with
 `preview_status: failed`, preserve wrong-digest 409 and unknown-ID 404, and let
 the owner retry the preview. Probe the exact Gateway route and query forwarding;
 do not mutate Project or template authority to repair the read.
+When an accepted Post exists in the production Templates gallery but is absent
+from a Project template picker, query both the authoritative Post gallery and
+the Studio catalog inside the same live Validation container. Compare exact
+identity/version/digest sets and confirm the service is using its injected
+database-backed Post registry instead of the static built-ins. After rollout,
+apply every listed choice to a disposable production-code workspace, reopen it,
+restart Validation and recheck the catalogs. Keep authored definitions marked
+`supports_generation: false`; initial Brief composition and arbitrary authored
+Landing promotion remain separate boundaries. Do not re-import, overwrite or
+delete template authority merely to repair catalog wiring.
 When a release retires or renames a navigation or provider surface, run the full
 Owner Playwright suite before the first cutover; a focused replacement spec is
 not sufficient. Search the remaining browser specs for the retired labels and

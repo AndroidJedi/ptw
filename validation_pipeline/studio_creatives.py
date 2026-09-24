@@ -816,7 +816,7 @@ class StudioCreativeService:
             **definition.summary(),
             **({"creative_direction_options": phone_hero_direction_options()}
                if definition.identity.template_id == PHONE_METRICS_TEMPLATE_ID else {}),
-        } for definition in POST_TEMPLATE_REGISTRY.all()]
+        } for definition in self.template_registry().all()]
         return {"schema": "ptw.studio.template-catalog.v1", "items": templates}
 
     def _workspace(self, creative_id: str) -> Any:

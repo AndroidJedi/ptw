@@ -373,9 +373,19 @@ before changing code or runtime state.
   regression that the older Project cannot overwrite the current editor. Read
   the project-scoped creative list before claiming a saved Post disappeared;
   never delete or rewrite authority to repair a client-state race.
-- `phone_metrics` is the only registered Post template. Unknown or retired IDs
-  must fail at the registry boundary for selection, clone, variant, and
-  template-replacement paths.
+- Initial Brief composition remains limited to native definitions whose
+  `supports_generation` capability is true; accepted authored Post definitions
+  are separately reusable through **Change template**. When Templates shows a
+  current accepted Post but a Project picker shows only an older built-in,
+  compare `/internal/v1/templates?surface=post` with
+  `/internal/v1/studio/templates` in the same Validation process. The Studio
+  service must enumerate its injected accepted registry, not the static built-in
+  registry. Match exact IDs, versions and digests, then exercise every listed
+  choice through the real template-apply route, reopen the workspace after a
+  Validation restart, and verify the same reference and render. Do not expose an
+  authored template as generation-capable or claim arbitrary authored Landing
+  definitions work in Project Landing composition. Unknown, wrong-digest and
+  cross-Project references must continue to fail without changing the Post.
 
 ## Release acceptance
 

@@ -284,7 +284,12 @@ production data transfer are separate owner-reviewed steps.
 Remaining bounds: galleries/version summaries return at most 200 records and
 run history at most 30. Exact historical identity reads remain available.
 Accepted Post templates are available in the existing Post editor through
-Change template. Initial Brief generation retains its established composer definitions. Landing
+Change template. The Studio catalog must enumerate the injected accepted Post
+registry rather than a static built-in registry, while the `supports_generation`
+capability keeps authored layouts out of initial Brief composition. Verify that
+the global Post gallery, Studio catalog and Change-template apply path resolve
+the same exact accepted identities after restart. Initial Brief generation
+retains its established composer definitions. Landing
 creation and approved variants select exact registered `project_landing` or
 `app_showcase` built-ins; arbitrary declarative Landing definitions are not
 automatically promoted into Project composition.

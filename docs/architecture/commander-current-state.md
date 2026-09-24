@@ -2,97 +2,43 @@
 
 Updated: 2026-09-24
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: serial in-place release `app-showcase-20260924-393924f` accepted
-runtime code revision `393924f08cee3c79644b0d67b502c8799d5937d9` with
-unchanged companion platform `8fc30c9a423255e1c43161edc691b84698b625e2`.
-Commander, Validation, Owner Gateway, Owner Console Hosting and public Landing
-Hosting run the direct-slug, template-switching and App Showcase v2 release.
-GOD and Firebase auth-guard functions retained their accepted versions.
+Deployment: preserving release `metric-template-recovery-20260924-00a051b`
+accepted runtime code revision `00a051bf96b93f0acac2a0d10b4aa473bc5937a9`
+with companion platform `35b8fa0eb6b0e9e56a6448f05db14b18d01414a3`.
+All seven PTW/application-companion containers are healthy. Owner Hosting version
+`d7bb3d729e427f46` and public Landing Hosting version `ad4b13c2006be094` are
+live. The full Astra structured/media/Pexels canaries, schema, authorization,
+independent worker, dependency, canonical skills, approved-Post persistence,
+1 GB resource and public/Owner audits passed; Owner passed 125 unit tests/build
+and all 114 cross-browser checks.
 
-Migrations 016 and 017 applied once with 64-character checksums and preserved
-every pre-existing Commander business row. The root-only pre-release backup is
-`/opt/ptw/backups/commander/20260924T093908Z-pre-app-showcase-20260924-393924f.dump`.
-All six PTW/application-companion containers are healthy on the release tag;
-Owner Hosting version `684ef0b1c220ec0b` and public Landing Hosting version
-`6553b5ad202bd082` are live. The real structured/media/Pexels canaries, schema,
-skills, approved-Post persistence, dependency, Telegram identity, 1 GB resource,
-public-shell and Owner Console audits passed. The exact amd64 Validation image
-passed 380 tests; Owner passed 124 unit tests/build and all 114 cross-browser
-checks. The 24-hour resource audit is scheduled for 2026-09-25 09:44 UTC.
+## Phone Metrics evidence recovery and accepted template catalog
 
-## Phone Metrics evidence recovery and today's accepted templates — candidate
+The accepted runtime now gives `brief_supported` and `ai_hypothesis` separate
+strict schema branches, requires an Arabic numeral in supported evidence,
+requires empty hypothesis evidence, retains the exact-substring/quantity
+validator, and uses composer namespace v5. Production Creative
+`01a0d423-5c82-7cde-b319-1f073381772a` remains the single preserved failed
+record pending one post-fix retry; completed bridge jobs 1042 and 1043 remain
+append-only.
 
-Production Creative `01a0d423-5c82-7cde-b319-1f073381772a` remains intact but
-failed composition after completed bridge jobs 1042 and 1043 both described
-digit-form cards as Brief-supported using a spelled-out excerpt. Runtime domain
-validation correctly rejected that provenance; the output schema had not yet
-expressed the same origin/evidence relation. The candidate gives
-`brief_supported` and `ai_hypothesis` separate strict schema branches, requires
-an Arabic numeral in supported evidence, requires empty hypothesis evidence,
-retains the exact-substring/quantity validator, and advances the composer
-namespace to v5 so the failed response cannot be replayed.
+Combined Template run `981ca558-9a9a-4298-bffb-fc8176719ea2`, Post
+`design_3eba6cc0fe34469b83ff` v1, Landing `design_1d56c213d83645669a64` v1,
+four request records and six immutable PNGs were imported under both maintenance
+locks after checksummed local and production backups. Exact postconditions pass:
+31 run revisions, four requests, two versions and six PNGs; no existing record
+was replaced. The production Post gallery now resolves `phone_metrics`, today's
+accepted Post and the older accepted `design_ee8759d1b6034ee2bffe` v3.
 
-Local combined Template run `981ca558-9a9a-4298-bffb-fc8176719ea2` is explicitly
-accepted and owns Post `design_3eba6cc0fe34469b83ff` v1 plus Landing
-`design_1d56c213d83645669a64` v1. Production still has only the three older
-authored Post versions, so the new accepted records and their six immutable PNGs
-need one backup-bearing append-only transfer after the compatible renderer
-release. No Project or existing template record will be replaced.
-
-Local verification passes 399 Validation tests, 44 Commander tests with seven
-expected environment skips, the Commander demo, focused provider/composition
-regressions, canonical skill verification, the deterministic Studio visual
-audit and whitespace checks. No production retry, import, reset or deletion has
-run yet.
-
-Two preserving rollout attempts stopped without accepting a candidate. The
-first stopped before cutover because the companion image archives retained an
-older tag; the archives were retagged and reverified. The second recreated the
-candidate services, then structured canary jobs 1040 and 1046 failed only on the
-explicit `gpt-6-astra` route and triggered a complete automatic rollback. The
-accepted marker remains `393924f08cee3c79644b0d67b502c8799d5937d9`, all active
-containers are healthy on that accepted tag, and PostgreSQL was not reset or
-migrated. A credential-safe direct probe exposed the exact prerequisite: the
-installed Codex CLI 0.147.0 rejected Astra until the CLI was upgraded. The
-supported updater installed 0.156.1 while retaining 0.147.0; a fresh isolated
-Astra probe now completes. The candidate mounts `standalone/current` instead of
-one obsolete release directory, uses the same Studio composer version in the
-runtime and deployment canary, and adds the incident guardrail. Verification is
-now 399 Validation tests and 44 Commander tests with seven expected environment
-skips. A fresh preserving rollout is still required before the template import
-and one retry of the same Creative.
-
-The next exact-revision rollout proved Astra composition past the former failure,
-then stopped before the Landing provider call because the expanded canonical
-Landing skill was 8,959 bytes against the shared 8 KiB compact prompt bound. Its
-automatic rollback again restored all accepted images and left the marker and
-database unchanged. The candidate now condenses duplicated visual prose to
-7,938 bytes without removing evidence, ownership, immutability or image-safety
-rules, and a regression loads the real production skill, Landing payload builder
-and output schema through the shared budget enforcer. Another preserving rollout
-is required.
-
-That rollout passed the complete Astra structured/media/Pexels suite plus schema,
-authorization, dependency, skills and 1 GB resource audits, then rolled back at
-the approved-Post access check. The reported Project `morning-coffee` is
-intentionally soft-deleted and therefore correctly returns 404, while its two
-immutable approved versions remain in PostgreSQL. The read-only canary had
-enumerated every Project and every approved version instead of only active
-Projects. The candidate now filters both sides of that comparison to
-`deleted_at IS NULL` and has a release-contract regression; it does not alter or
-remove the deleted Project or its retained history. Another preserving rollout
-is required before importing today's accepted template authority.
-
-The next rollout passed all eleven Astra structured/media jobs (1062–1072),
-Pexels and the Product Brief schema, then its post-canary authorization audit
-exposed a separate compatibility issue and rolled back cleanly. Codex CLI
-0.156.1 returned `thread/start` only when the auth service ran its working test
-inside the long-lived root Codex state directory; the identical credential and
-explicit Astra request passed from a fresh isolated home. Companion platform
-revision `35b8fa0` now copies only `auth.json` into a private temporary
-`CODEX_HOME` for that test and has a regression for excluding persistent state.
-The accepted production marker, image tags and PostgreSQL authority remain
-unchanged; today's templates still await the successful preserving rollout.
+The follow-up picker candidate fixes a catalog wiring defect: the Studio service
+was enumerating the static built-in registry even though the database-backed
+accepted registry had been injected. It now enumerates that injected registry;
+authored choices remain `supports_generation: false` and are applied only through
+Change template. The new regression proves catalog identity, exact-version apply,
+return to the native template and restart persistence. The exact amd64 Validation
+environment passes all 400 tests, canonical skill verification and whitespace
+checks. A preserving rollout, live three-choice apply canary, Validation restart
+and one retry of the preserved Creative are still required.
 
 ## Catalog-wide visual quality — implemented locally, proposal pending
 

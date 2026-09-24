@@ -68,3 +68,20 @@ supplied live surface contract.
 People, devices and interactions are allowed in artwork. Text, labels, charts,
 UI and logos are omitted by default but allowed when requested inside the image.
 The server carries the exact owner message alongside the generated interpretation.
+
+App Showcase Landing has three static `app_screen_1/2/3` image slots and a
+supporting `visual_break_visual`. Match each screen action to the corresponding
+`content.app_screens[index].visual_direction`. Editing text inside a screenshot
+requires an image action; changing its external caption does not change pixels.
+Use Enhance for a focused correction of a selected screen, preserving the rest
+of its UI. Page gradient, screen size/offset and captions use supplied scalar
+controls. Preserve the fixed three-screen structure and Natal identity.
+
+Landing marketing sections expose ten `gradient_id` presets, one `logo_color`
+for symbol and name, optional motifs, carousel motion, comparison row visibility,
+four workflow steps and service values. Preserve store/legal URLs like contact
+endpoints. Never turn attributed Bokko review examples into Natal evidence.
+`walkthrough_visual` includes complete phone mockups; individual `app_screen_*`
+images remain screen interiors. Describe edits to depicted text as image actions;
+external captions remain ordinary bounded copy. Missing claims stay blank for
+owner completion or can be explicitly hidden; never fill gaps with invented facts.

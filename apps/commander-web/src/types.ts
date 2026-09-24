@@ -626,7 +626,29 @@ export interface LandingThemePreset {
 export interface LandingPhoneMockup { theme: 'light' | 'dark' | 'glass'; layout: 'overview' | 'booking' | 'checklist' }
 export interface LandingAppFeature { title: string; description: string; action_label: string; items: Array<{ label: string; value: string }> }
 
+export type LandingVisualSlot = 'hero_visual' | 'visual_break_visual' | 'app_screen_1' | 'app_screen_2' | 'app_screen_3' | 'walkthrough_visual'
+export interface LandingTemplateReference { template_id: string; template_version: number; template_sha256: string }
+
+export interface LandingMarketingConfiguration {
+  gradient_id: string; logo_color: string; motifs_enabled: boolean; motif_opacity: number
+  carousel_enabled: boolean; carousel_autoplay: boolean; carousel_speed: number
+  comparison_enabled: boolean; walkthrough_enabled: boolean; benefits_enabled: boolean
+  reference_reviews_enabled: boolean; cta_enabled: boolean; footer_enabled: boolean
+  downloads_enabled: boolean; missing_store_target: 'contacts' | 'hide'
+}
+export interface LandingMarketingContent {
+  introduction: string; comparison_heading: string; comparison_rows: Array<{ text: string; enabled: boolean }>
+  walkthrough_heading: string; walkthrough_steps: Array<{ title: string; description: string; enabled: boolean }>
+  walkthrough_visual_direction: string; benefits_heading: string; benefits_supporting: string
+  benefit_highlight_title: string; benefit_highlight_text: string
+  values: Array<{ title: string; description: string; enabled: boolean }>
+  cta_heading: string; cta_text: string; store_label: string
+  apple_url: string; google_url: string; privacy_url: string; terms_url: string
+}
+export interface LandingGradient { id: string; en: string; uk: string; start: string; end: string }
 export interface LandingConfiguration {
+  marketing?: LandingMarketingConfiguration
+  showcase?: { gradient_end: string; screen_scale: number; screen_offset: number }
   visual_mode?: 'phone' | 'image'
   phone_mockup?: LandingPhoneMockup
   components?: LandingComponents
@@ -651,6 +673,8 @@ export interface LandingConfiguration {
 }
 
 export interface LandingContent {
+  marketing?: LandingMarketingContent
+  app_screens?: Array<{ title: string; description: string; visual_direction: string }>
   app_feature?: LandingAppFeature
   schema: 'ptw.landing.content.v1'
   hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string }
@@ -662,7 +686,7 @@ export interface LandingContent {
 }
 
 export interface LandingVisualSummary {
-  slot: 'hero_visual' | 'visual_break_visual'
+  slot: LandingVisualSlot
   available: boolean
   sha256: string | null
   history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean; instruction_context?: ImageInstructionContext }>
@@ -687,8 +711,9 @@ export interface LandingSummary {
 
 export interface LandingDetail extends LandingSummary {
   schema: 'ptw.landing.workspace.v1'
-  template_id: 'project_landing'
-  catalog: { section_order: string[]; font_families: StudioFontFamily[]; theme_presets?: LandingThemePreset[] }
+  template_id: 'project_landing' | 'app_showcase'
+  template_reference?: LandingTemplateReference
+  catalog: { marketing_defaults?: LandingMarketingConfiguration; gradient_presets?: LandingGradient[]; section_order: string[]; font_families: StudioFontFamily[]; theme_presets?: LandingThemePreset[] }
   state_sha256: string
   configuration: LandingConfiguration
   content: LandingContent

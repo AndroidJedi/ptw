@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-23
+Updated: 2026-09-24
 Branch: `candidate/ptw-prod-access-20260922`
 Deployment: serial release `domain-image-20260923-0b1aefe` accepted runtime code
 revision `0b1aefe589e5cdd271566f2c8022f7c710ab4414` with companion platform
@@ -9,6 +9,77 @@ Gateway, Owner Console Hosting and public Landing Hosting run the combined
 domain-image and Project-deletion release. GOD and Firebase auth-guard functions
 retained their accepted versions. Test-only follow-up `0540150` is pushed above
 the runtime revision.
+
+## Landing marketing sections / App Showcase v2 — local, not deployed
+
+App Showcase v2 adds ten domain gradients, a single inherited Natal logo/name
+color, optional small Natal motifs, animated benefit cards, six comparison rows,
+a four-step generated mockup section, photo/benefit composition, reference-review
+cards, four service benefits, repeated store buttons and a matching footer.
+The original Landing exposes the same optional sections. Old pages and the v1
+exact reference remain unchanged. Empty comparison/benefit items keep Studio
+completion hints and per-item hide controls; approval requires completion or
+hiding. Public rendering omits Studio hints. Copied review text/avatars retain
+explicit Bokko attribution as design examples, separate from Natal owner evidence.
+
+The local contact follow-up sets new Landing defaults to `welcome@natal-service.com`
+and `+380 93 725 64 69`, with an explicit Studio action for existing drafts.
+The shared footer bundles source-pinned Bokko phone/email and Telegram, Instagram,
+Threads icons. Unconfigured social icons are noninteractive; existing owner links
+remain usable. Both local previews use the supplied Natal endpoints.
+
+Store buttons use owner App Store/Google Play URLs or configurable contact/hide
+fallbacks; footer legal URLs are owner input. Landing Agent can tune the new
+bounded fields and Generate/Enhance `walkthrough_visual`, a complete phone-mockup
+composition distinct from the three hardware-free screen interiors. Migration
+017 preserves rows and extends only image/generation slot constraints.
+
+Verification: 380 backend tests, Owner/Public unit suites and builds, affected
+Landing/Templates/Public browser checks at desktop/tablet/360px/iPhone WebKit,
+Commander tests/demo, deterministic Studio visual audit and skills/whitespace.
+Disposable PostgreSQL confirms legacy approved-version preservation through 017,
+authenticated five-slot generation/enhancement, restart and exact public bytes.
+A real provider composed Ukrainian sections and generated the mockup; a real
+Agent then changed the gradient and enhanced only that mockup, preserving all
+three previous screen digests. Both complete templates were visually inspected.
+Review fixtures are in `.local/app-showcase-v2/`, served by the existing local
+preview at port 42739 (original template: `/original.html`). No production
+migration, deployment, owner approval or publication was performed.
+
+## App Showcase Landing — implemented locally, not deployed
+
+`app_showcase` v1 is a second built-in Landing template with a native gallery
+preview and exact-reference Project creation/approved-variant picker. Its shared
+editor/fullscreen/public renderer uses Natal identity, blue-to-teal gradients,
+three generated static screen interiors in the existing phone frame, benefits,
+walkthrough, supporting photograph, optional evidence, contact CTA, FAQs and
+footer. Four generic Bokko SVG assets and one optional photograph are bundled
+with source URLs and SHA-256 provenance; no Bokko identity or evidence is copied.
+
+Screen inspectors and the existing Landing Agent support individual generation,
+enhancement, temporary references and three-image histories. Composition uses
+the pinned Brief's language and a shared screen style. Failed generation retains
+completed images and owner edits; retry fills incomplete slots. Approval requires
+all four selected images. Exact template identity and selected asset digests
+survive restart, approval and public snapshots. Migration 016 preserves existing
+records/digests, adds nullable template identity and four-slot storage, and scopes
+asset uniqueness by slot. Existing landings keep their renderer and behavior.
+
+Verification includes backend/Owner/Public suites and builds, Commander host and
+container tests plus demo, disposable PostgreSQL migration preservation and HTTP
+approval/publication canaries, cross-browser Landing/Templates/Public checks,
+skills and Studio visual audit. An isolated real-provider canary composed and
+generated all four images, enhanced screen 2 through the Agent while retaining
+other images, and localized external copy to Ukrainian. Complete generated pages
+were inspected at 1280, 768, 360 and iPhone WebKit widths. Local review artifacts
+are under `.local/app-showcase-preview/`; no owner Project was approved or
+published. Production migration, deployment and publication remain separate.
+
+The local screen-fit follow-up removes side/bottom letterbox gaps in hero and
+walkthrough phones while retaining the full generated UI below the camera.
+Real generated previews were inspected at desktop, tablet, 360px and iPhone
+WebKit; focused browser geometry checks, App Showcase backend tests, Landing
+editor tests, Owner build and deterministic Studio visual audit pass.
 
 ## Confirmed Project deletion — deployed
 

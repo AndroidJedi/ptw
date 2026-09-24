@@ -1,0 +1,178 @@
+{
+  "configuration": {
+    "gradient_id": "ocean",
+    "logo_color": "#ffffff",
+    "motifs_enabled": true,
+    "motif_opacity": 0.09,
+    "carousel_enabled": true,
+    "carousel_autoplay": true,
+    "carousel_speed": 6,
+    "comparison_enabled": true,
+    "walkthrough_enabled": true,
+    "benefits_enabled": true,
+    "reference_reviews_enabled": true,
+    "cta_enabled": true,
+    "footer_enabled": true,
+    "downloads_enabled": true,
+    "missing_store_target": "contacts"
+  },
+  "content": {
+    "introduction": "",
+    "comparison_heading": "",
+    "comparison_rows": [
+      {
+        "text": "",
+        "enabled": true
+      },
+      {
+        "text": "",
+        "enabled": true
+      },
+      {
+        "text": "",
+        "enabled": true
+      },
+      {
+        "text": "",
+        "enabled": true
+      },
+      {
+        "text": "",
+        "enabled": true
+      },
+      {
+        "text": "",
+        "enabled": true
+      }
+    ],
+    "walkthrough_heading": "",
+    "walkthrough_steps": [
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      }
+    ],
+    "walkthrough_visual_direction": "",
+    "benefits_heading": "",
+    "benefits_supporting": "",
+    "benefit_highlight_title": "",
+    "benefit_highlight_text": "",
+    "values": [
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      },
+      {
+        "title": "",
+        "description": "",
+        "enabled": true
+      }
+    ],
+    "cta_heading": "",
+    "cta_text": "",
+    "store_label": "",
+    "apple_url": "",
+    "google_url": "",
+    "privacy_url": "",
+    "terms_url": ""
+  },
+  "gradients": [
+    {
+      "id": "ocean",
+      "en": "Ocean · clear & connected",
+      "uk": "Океан · ясність і зв’язок",
+      "start": "#347ff0",
+      "end": "#08cdb3"
+    },
+    {
+      "id": "aurora",
+      "en": "Aurora · calm & mindful",
+      "uk": "Аврора · спокій і увага",
+      "start": "#7562c6",
+      "end": "#51b8ae"
+    },
+    {
+      "id": "forest",
+      "en": "Forest · natural & grounded",
+      "uk": "Ліс · природа й рівновага",
+      "start": "#27785c",
+      "end": "#81b875"
+    },
+    {
+      "id": "sunrise",
+      "en": "Sunrise · warm & welcoming",
+      "uk": "Світанок · тепло і турбота",
+      "start": "#da6e45",
+      "end": "#efa663"
+    },
+    {
+      "id": "rose",
+      "en": "Rose · gentle & personal",
+      "uk": "Троянда · ніжність і турбота",
+      "start": "#bd4f83",
+      "end": "#e7a08d"
+    },
+    {
+      "id": "electric",
+      "en": "Electric · bold & inventive",
+      "uk": "Електрик · сміливість і новизна",
+      "start": "#514bea",
+      "end": "#b560da"
+    },
+    {
+      "id": "sky",
+      "en": "Sky · open & reliable",
+      "uk": "Небо · відкритість і довіра",
+      "start": "#176eac",
+      "end": "#55b7d0"
+    },
+    {
+      "id": "earth",
+      "en": "Earth · crafted & enduring",
+      "uk": "Земля · майстерність і сталість",
+      "start": "#986748",
+      "end": "#c7a77c"
+    },
+    {
+      "id": "midnight",
+      "en": "Midnight · precise & premium",
+      "uk": "Північ · точність і якість",
+      "start": "#263751",
+      "end": "#577c8d"
+    },
+    {
+      "id": "citrus",
+      "en": "Citrus · fresh & energetic",
+      "uk": "Цитрус · свіжість і енергія",
+      "start": "#64893d",
+      "end": "#b8be51"
+    }
+  ]
+}

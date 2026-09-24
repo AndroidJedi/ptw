@@ -11,7 +11,8 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 from .local_brief_store import utc_now
-from .landing_workspace import normalize_configuration, normalize_content
+from .landing_workspace import normalize_configuration, normalize_content, ALL_LANDING_VISUAL_SLOTS
+from .landing_templates import LANDING_TEMPLATE_REGISTRY
 
 
 PUBLICATION_SCHEMA = "ptw.landing.publication.v1"
@@ -50,15 +51,19 @@ def normalized_uuid(value: str, name: str) -> str:
 
 
 def selected_assets(record: Mapping[str, Any]) -> dict[str, str]:
+    reference = record.get("template_reference")
+    definition = LANDING_TEMPLATE_REGISTRY.resolve_reference(reference) if reference else LANDING_TEMPLATE_REGISTRY.get("project_landing")
+    from .landing_marketing import required_slots
+    slots = required_slots(definition.capabilities.image_slots, record["configuration"])
     result: dict[str, str] = {}
     for item in record.get("assets") or []:
         if not isinstance(item, Mapping):
             continue
         slot, digest = item.get("slot"), item.get("sha256")
-        if slot in VISUAL_SLOTS and isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest):
+        if slot in slots and isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest):
             result[str(slot)] = digest
-    if set(result) != set(VISUAL_SLOTS):
-        raise RuntimeError("Published Landing version does not contain both selected visuals")
+    if set(result) != set(slots):
+        raise RuntimeError("Published Landing version does not contain all template visuals")
     return result
 
 
@@ -72,6 +77,7 @@ def public_snapshot(publication: Mapping[str, Any], project_name: str, event: Ma
     return {
         "canonical_url": f"https://natal-service.com/{namespace}/{slug}",
         "project_name": project_name,
+        **({"template_reference": record["template_reference"]} if record.get("template_reference") else {}),
         "configuration": configuration,
         "content": content,
         "assets": {
@@ -387,7 +393,7 @@ class DatabaseLandingPublicationAuthority:
         return public_snapshot(publication, project_name, event, record)
 
     def asset(self, namespace: str, slug: str, version_sha256: str, slot: str, digest: str) -> dict[str, Any]:
-        if slot not in VISUAL_SLOTS or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        if slot not in ALL_LANDING_VISUAL_SLOTS or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise KeyError("Published Landing asset was not found")
         publication, event, _project_name, record = self._active(namespace, slug)
         if event["landing_version_sha256"] != version_sha256 or selected_assets(record).get(slot) != digest:

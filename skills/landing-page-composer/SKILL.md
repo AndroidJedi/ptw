@@ -1,6 +1,6 @@
 ---
 name: landing-page-composer
-description: Populate one fixed private PTW Landing page from an approved Product Brief and immutable approved Post version. Use only bounded Landing fields and never fabricate social proof or contacts.
+description: Populate one selected bounded private PTW Landing template from an approved Product Brief and immutable approved Post version. Use only bounded Landing fields and never fabricate social proof or contacts.
 ---
 
 # Landing page composer
@@ -30,7 +30,7 @@ description: Populate one fixed private PTW Landing page from an approved Produc
   canonical Natal logo/name; never derive a new brand from a Brief product description
   or generate branding into artwork. Page themes do not replace the Natal identity.
 - Every offering is experienced through a Natal app, including physical services.
-  Populate `app_feature` with one Brief-grounded task: a consumption interface for
+  For `project_landing`, populate `app_feature` with one Brief-grounded task: a consumption interface for
   solar optimization, a booking interface for a safari, or an inventory for medicine.
   Write a concise screen title, description, action label, and three UI row labels;
   optional row details may describe inputs or categories. Do not invent availability,
@@ -62,3 +62,40 @@ description: Populate one fixed private PTW Landing page from an approved Produc
 Source Post metric_provenance may describe unvalidated AI numeric hypotheses.
 Do not turn these into facts, testimonials or evidence on the Landing. The Brief
 remains the source of product facts.
+
+## App Showcase
+
+When the supplied catalog selects `app_showcase`, its exact schema replaces
+`app_feature` with three `app_screens` entries. Each has a short title, caption
+and 8–600-character visual direction. Describe three related tasks grounded in
+the Brief, with a consistent UI palette and language. These are static generated
+screen interiors, not live functionality. Describe crisp readable UI, without
+phone hardware or a new logo; the renderer supplies the frame and Natal identity.
+Screen values are illustrative inputs, never fabricated results or evidence.
+The supporting photograph uses `visual_break`; hero.visual_direction is retained
+as a bounded thematic description but no hero backdrop is generated. Keep the
+three features, three FAQs, empty proof and owner contact boundaries above.
+
+## Optional marketing sections
+
+When the schema includes `content.marketing`, populate its introduction,
+comparison heading and six rows, four walkthrough steps, photo/benefit copy,
+four service values and CTA copy in the Brief's language. Reuse supported Brief
+benefits; never invent prices, legal protection, response times or availability.
+Keep unsupported items as empty strings with `enabled: true`: Studio provides
+manual-completion hints and individual hide controls. Do not drop items.
+Store and legal URL fields stay empty; the owner supplies destinations.
+Reference reviews are fixed, visibly attributed Bokko design examples and never
+Natal evidence. Do not generate or adapt testimonials.
+
+`walkthrough_visual_direction` describes one cohesive 4:3 image containing three
+or four complete, staggered, front-facing phone mockups with coherent readable
+UI for these steps. Keep hardware entirely inside safe margins, UI language and
+palette consistent, and avoid perspective distortion or duplicate frames.
+This slot includes hardware; `app_screen_1/2/3` still contain only screen interiors.
+Do not generate store badges, external captions, Natal logos or evidence inside
+this image. Generate/Enhance uses the existing slot history and reference flow.
+
+Owner-authorized Natal contact defaults are injected by the service after response
+validation. Keep generated endpoints empty; never copy reference-site contacts.
+Social icons without owner profile URLs remain noninteractive, never `#` links.

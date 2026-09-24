@@ -72,3 +72,7 @@ snapshot in `scripts/review_template_extension.py`, its source allowlist,
 focused tests, geometry audit and owner inspection of the full PNG. Browser
 output cannot register code; restart and resume only after reviewed source is
 applied. No deployment is implied.
+
+App Showcase v2 shares Landing sections and complete mockup generation. Keep
+reference asset digests and review attribution; never turn Bokko examples into
+Natal evidence. Preserve older exact references and hardware-free screen slots.

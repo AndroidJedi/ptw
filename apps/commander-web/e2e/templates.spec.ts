@@ -44,7 +44,9 @@ test('opens the built-in Landing template through its exact version route', asyn
   test.setTimeout(120000)
   await page.goto('/?page=templates')
   await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
-  const card = page.locator('.template-gallery .template-card')
+  const cards = page.locator('.template-gallery .template-card')
+  await expect(cards).toHaveCount(2, { timeout: 30000 })
+  const card = cards.filter({ hasText: 'Project landing' })
   await expect(card).toHaveCount(1, { timeout: 30000 })
   await expect(card).toContainText('Project landing')
   const detailResponse = page.waitForResponse(response =>
@@ -84,7 +86,7 @@ test('failed draft preview survives restart and resumes without being hidden', a
   await expect(page.getByText('Check the preview. Accepting creates an immutable version and makes it available in Projects.')).toBeVisible()
   await page.getByRole('button', { name: 'Accept template version' }).click()
   await expect(page.getByRole('heading', { name: 'Drafts' })).toHaveCount(0)
-  await expect(page.locator('.template-gallery .template-card')).toHaveCount(3)
+  await expect(page.locator('.template-gallery .template-card')).toHaveCount(4)
 })
 
 test('authoritative gallery, all three scopes, immutable review and restart', async ({ page, backend }, info) => {
@@ -92,12 +94,12 @@ test('authoritative gallery, all three scopes, immutable review and restart', as
   await page.goto('/?page=templates')
   await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Phone & metrics' })).toBeVisible({ timeout: 30000 })
-  await expect(page.locator('.template-gallery img')).toHaveCount(2)
+  await expect(page.locator('.template-gallery img')).toHaveCount(3)
   await expect(page.locator('.project-switcher')).toHaveCount(0)
   await expect(page.locator('.template-gallery img').first()).toHaveJSProperty('complete', true)
   await page.screenshot({ path: info.outputPath('templates-gallery.png'), fullPage: true })
   await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
-  await expect(page.locator('.template-card')).toHaveCount(1)
+  await expect(page.locator('.template-card')).toHaveCount(2)
   await page.getByRole('button', { name: 'All templates' }).click()
   for (const scope of ['post', 'landing', 'combined']) {
     await page.getByRole('button', { name: 'Create Template Agent', exact: true }).click()
@@ -173,4 +175,19 @@ test('two SVG assets are rasterized, ordered, and passed to the Template Agent',
   await expect(page.locator('.template-workspace-preview img')).toHaveJSProperty('complete', true)
   await expect.poll(() => page.locator('.template-workspace-preview img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
   await page.close()
+})
+
+
+test('App Showcase has native desktop/mobile previews and an exact built-in identity', async ({ page }) => {
+  test.setTimeout(120000)
+  await page.goto('/?page=templates')
+  await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
+  const card = page.locator('.template-gallery .template-card').filter({ hasText: 'App Showcase' })
+  await expect(card.locator('img')).toBeVisible({ timeout: 30000 })
+  const response = page.waitForResponse(r => r.url().includes('/landing/app_showcase/versions/2?sha256='))
+  await card.getByRole('button', { name: 'Open template' }).click()
+  const body = await (await response).json()
+  expect(body).toMatchObject({ template_id: 'app_showcase', template_version: 2, builtin: true })
+  expect(Object.keys(body.previews)).toEqual(expect.arrayContaining(['desktop', 'mobile']))
+  await expect(page.locator('.template-detail')).toContainText('App Showcase · v2')
 })

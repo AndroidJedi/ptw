@@ -16,7 +16,7 @@ class TemplateRegistryTests(unittest.TestCase):
         self.assertEqual("post", POST_TEMPLATE_REGISTRY.surface)
         self.assertEqual(("phone_metrics",), POST_TEMPLATE_REGISTRY.ids)
         self.assertEqual("landing", LANDING_TEMPLATE_REGISTRY.surface)
-        self.assertEqual(("project_landing",), LANDING_TEMPLATE_REGISTRY.ids)
+        self.assertEqual(("project_landing", "app_showcase"), LANDING_TEMPLATE_REGISTRY.ids)
         with self.assertRaisesRegex(ValueError, "Post template is not registered"):
             POST_TEMPLATE_REGISTRY.get("project_landing")
         with self.assertRaisesRegex(ValueError, "Landing template is not registered"):

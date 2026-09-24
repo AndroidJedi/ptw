@@ -1,9 +1,11 @@
+import natalContacts from '../../../../validation_pipeline/studio_assets/natal-contacts.json'
+import { MarketingInspector } from './MarketingInspector'
 import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
 import { EditableColorField } from '../components/EditableColorField'
 import { ImageReferenceInput } from '../components/ImageReferenceInput'
 import { VisualModeSelect } from '../components/VisualModeSelect'
 import { useId, type CSSProperties } from 'react'
-import type { LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
+import type { LandingVisualSlot, LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
 import { PhoneHeroDirectionPicker, styles as imageStyles, backgrounds as imageBackgrounds } from '../components/studio/PhoneHeroDirectionPicker'
 import { phoneDefaults, resolvedAppFeature, appFeatureLimits, defaults, componentDefaults, imageDirectionDefaults, type Issue, type Section } from './model'
 
@@ -12,10 +14,11 @@ type Props = {
   onConfiguration: (value: LandingConfiguration) => void; onContent: (value: LandingContent) => void
   language: 'en' | 'uk'; busy: boolean; issues: Issue[]; imageUrls: Record<string, string>
   referenceImage: File | null; onReferenceImage: (file: File | null) => void
-  onGenerate: (slot: 'hero_visual' | 'visual_break_visual', enhance?: boolean) => void
-  onSelectImage: (slot: 'hero_visual' | 'visual_break_visual', sha: string) => void
+  onGenerate: (slot: LandingVisualSlot, enhance?: boolean) => void
+  onReuseImage: () => void
+  onSelectImage: (slot: LandingVisualSlot, sha: string) => void
 }
-export function LandingInspector({ section, configuration: c, content: v, detail, onConfiguration, onContent, language, busy, issues, imageUrls, onGenerate, onSelectImage, referenceImage, onReferenceImage }: Props) {
+export function LandingInspector({ section, configuration: c, content: v, detail, onConfiguration, onContent, language, busy, issues, imageUrls, onGenerate, onReuseImage, onSelectImage, referenceImage, onReferenceImage }: Props) {
   const tr = (en: string, uk: string) => language === 'uk' ? uk : en
   const phone = c.phone_mockup || phoneDefaults
   const feature = resolvedAppFeature(v, c.presentation?.language || 'uk')
@@ -43,33 +46,40 @@ export function LandingInspector({ section, configuration: c, content: v, detail
     <p className="landing-field-hint">{tr('Outlined and text buttons use the button color for their text.', 'Контурна й текстова кнопки використовують колір кнопки для тексту.')}</p>
   </div>
   const cardControls = () => componentSelect('card_style', tr('Card style', 'Стиль карток'), [['filled', tr('Filled', 'Заливка')], ['outlined', tr('Outlined', 'Контур')], ['elevated', tr('Elevated', 'Тінь')], ['minimal', tr('Minimal', 'Мінімальний')]])
-  const visuals = (slot: 'hero_visual' | 'visual_break_visual') => {
+  const visuals = (slot: LandingVisualSlot) => {
     const hero = slot === 'hero_visual'; const focusKey = hero ? 'hero_focus' : 'visual_break_focus'
     const asset = detail.assets.find(a => a.slot === slot)
-    const direction = hero ? v.hero.visual_direction : v.visual_break.visual_direction
+    const screenIndex = slot.startsWith('app_screen_') ? Number(slot.slice(-1)) - 1 : -1
+    const direction = slot === 'walkthrough_visual' ? v.marketing?.walkthrough_visual_direction || '' : screenIndex >= 0 ? v.app_screens![screenIndex].visual_direction : hero ? v.hero.visual_direction : v.visual_break.visual_direction
     return <div className="landing-image-editor">
       {imageUrls[slot] && <img className="landing-current-image" src={imageUrls[slot]} alt={tr('Selected artwork', 'Обране зображення')} />}
-      <details className="landing-direction-picker"><summary>{tr('Image style & background', 'Стиль зображення та фон')}<small>{imageStyles.find(item => item.id === directions[slot].style)?.[language]} · {imageBackgrounds.find(item => item.id === directions[slot].background)?.[language]}</small></summary>
+      {(slot === 'hero_visual' || slot === 'visual_break_visual') && <details className="landing-direction-picker"><summary>{tr('Image style & background', 'Стиль зображення та фон')}<small>{imageStyles.find(item => item.id === directions[slot].style)?.[language]} · {imageBackgrounds.find(item => item.id === directions[slot].background)?.[language]}</small></summary>
         <PhoneHeroDirectionPicker language={language} idPrefix={`landing-${slot}`} value={directions[slot]} disabled={busy} onChange={value => { if (value.style && value.background) onConfiguration({ ...c, image_directions: { ...directions, [slot]: { style: value.style, background: value.background } } }) }} />
-      </details>
+      </details>}
       <p className="landing-field-hint">{tr('Your written request overrides these style and background defaults. Existing artwork changes only after Generate or Enhance.', 'Ваш опис має пріоритет над типовим стилем і фоном. Зображення зміниться лише після створення або покращення.')}</p>
-      {field(tr('Visual direction', 'Напрям зображення'), direction, 600, value => onContent(hero ? { ...v, hero: { ...v.hero, visual_direction: value } } : { ...v, visual_break: { visual_direction: value } }), undefined, true)}
+      {field(tr('Visual direction', 'Напрям зображення'), direction, 600, value => onContent(slot === 'walkthrough_visual' ? { ...v, marketing: { ...v.marketing!, walkthrough_visual_direction: value } } : screenIndex >= 0 ? { ...v, app_screens: v.app_screens!.map((item, i) => i === screenIndex ? { ...item, visual_direction: value } : item) } : hero ? { ...v, hero: { ...v.hero, visual_direction: value } } : { ...v, visual_break: { visual_direction: value } }), undefined, true)}
       {direction.length > 0 && direction.trim().length < 8 && <p className="landing-field-error">{tr('Use at least 8 characters.', 'Введіть щонайменше 8 символів.')}</p>}
       <ImageReferenceInput value={referenceImage} onChange={onReferenceImage} language={language} disabled={busy || !detail.image_generation_available} />
       <div className="landing-visual-actions"><button className="secondary" disabled={busy || !detail.image_generation_available || direction.trim().length < 8} onClick={() => onGenerate(slot)}><ImagePlus />{tr('Generate', 'Створити')}</button><button className="secondary" disabled={busy || Boolean(referenceImage) || !detail.image_generation_available || !asset?.available || direction.trim().length < 8} onClick={() => onGenerate(slot, true)}><RefreshCcw />{tr('Enhance', 'Покращити')}</button></div>
       {!detail.image_generation_available && <p className="landing-field-hint">{tr('Image generation is unavailable.', 'Генерація зображень недоступна.')}</p>}
       {asset && asset.history.length > 0 && <div className="landing-image-history" aria-label={tr('Image history', 'Історія зображень')}>{asset.history.map((item, index) => <button key={item.sha256} className={item.selected ? 'active' : ''} disabled={busy || item.selected} aria-label={`${tr('Select image', 'Обрати зображення')} ${index + 1}`} aria-pressed={item.selected} onClick={() => onSelectImage(slot, item.sha256)}>{imageUrls[item.sha256] && <img src={imageUrls[item.sha256]} alt="" />}<span>{item.selected ? tr('Selected', 'Обрано') : index + 1}</span></button>)}</div>}
-      <h3>{tr('Crop focus', 'Центр кадрування')}</h3>
+      {screenIndex < 0 && slot !== 'walkthrough_visual' && <><h3>{tr('Crop focus', 'Центр кадрування')}</h3>
       {range(tr('Horizontal focus', 'Горизонтальний центр'), presentation[focusKey].x, 0, 100, 1, value => setP(focusKey, { ...presentation[focusKey], x: value }))}
-      {range(tr('Vertical focus', 'Вертикальний центр'), presentation[focusKey].y, 0, 100, 1, value => setP(focusKey, { ...presentation[focusKey], y: value }))}
+      {range(tr('Vertical focus', 'Вертикальний центр'), presentation[focusKey].y, 0, 100, 1, value => setP(focusKey, { ...presentation[focusKey], y: value }))}</>}
     </div>
   }
   return <fieldset className="landing-inspector-fields" disabled={busy}>
-    {(section === 'hero' || section === 'app_feature') && <>
+    <MarketingInspector recommended={detail.catalog.marketing_defaults} section={section} configuration={c} content={v} language={language} onConfiguration={onConfiguration} onContent={onContent} visual={section === 'walkthrough' ? visuals('walkthrough_visual') : null} />
+    {!c.showcase && (section === 'hero' || section === 'app_feature') && <>
       <VisualModeSelect language={language} value={c.visual_mode} onChange={visual_mode => onConfiguration({ ...c, visual_mode })} />
       {c.visual_mode === 'image' && <p className="landing-field-hint">{tr('The hero shows only the selected image. App screen settings are kept for switching back.', 'Перший екран показує лише обране зображення. Налаштування екрана застосунку зберігаються для повернення.')}</p>}
     </>}
     {section === 'theme' && <>
+      {c.showcase && <>
+        {!c.marketing && <EditableColorField className="landing-field" label={tr('Gradient end', 'Другий колір градієнта')} value={c.showcase.gradient_end} onChange={value => onConfiguration({ ...c, showcase: { ...c.showcase!, gradient_end: value } })} />}
+        {range(tr('Screen scale', 'Масштаб екранів'), c.showcase.screen_scale, .8, 1.15, .05, value => onConfiguration({ ...c, showcase: { ...c.showcase!, screen_scale: value } }))}
+        {range(tr('Phone offset', 'Зсув телефонів'), c.showcase.screen_offset, 0, 64, 1, value => onConfiguration({ ...c, showcase: { ...c.showcase!, screen_offset: value } }))}
+      </>}
       <p className="landing-field-hint">{tr('All apps use the canonical Natal logo and name. Themes style the page components.', 'Усі застосунки використовують канонічний логотип і назву Natal. Теми змінюють вигляд компонентів сторінки.')}</p>
       <div className="landing-theme-presets" aria-label={tr('Page themes', 'Теми сторінки')}>
         {detail.catalog.theme_presets?.map(preset => <button key={preset.id} className="landing-theme-preset" aria-pressed={Object.entries(preset.theme).every(([key, value]) => c.theme[key as keyof typeof c.theme] === value) && Object.entries(preset.components).every(([key, value]) => components[key as keyof typeof components] === value) && c.faq.style === preset.faq.style} onClick={() => onConfiguration({ ...c, theme: { ...preset.theme }, components: { ...preset.components }, faq: { ...preset.faq } })}>
@@ -100,7 +110,18 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {buttonControls()}
       {alignment('hero')}
       {select(tr('Image placement', 'Розташування зображення'), c.hero.image_position, [['right', tr('Right', 'Праворуч')], ['left', tr('Left', 'Ліворуч')], ['below', tr('Below', 'Знизу')]], value => onConfiguration({ ...c, hero: { ...c.hero, image_position: value as LandingConfiguration['hero']['image_position'] } }))}
-      {visuals('hero_visual')}
+      {!c.showcase && visuals('hero_visual')}
+    </>}
+    {c.showcase && (section === 'app_screens' || section.startsWith('app_screen_')) && <>
+      <p className="landing-field-hint">{tr('Static app screenshots. To change text inside an image, describe the change and use Enhance.', 'Статичні зображення застосунку. Щоб змінити текст усередині зображення, опишіть зміну та натисніть Покращити.')}</p>
+      {(section === 'app_screens' ? [0, 1, 2] : [Number(section.slice(-1)) - 1]).map(index => {
+        const screen = v.app_screens![index]
+        return <div key={index} className="landing-repeater"><h3>{tr('Screen', 'Екран')} {index + 1}</h3>
+          {field(tr('Screen title', 'Назва екрана'), screen.title, 90, value => onContent({ ...v, app_screens: v.app_screens!.map((item, i) => i === index ? { ...item, title: value } : item) }), `app_screens.${index}.title`)}
+          {field(tr('Screen caption', 'Опис екрана'), screen.description, 300, value => onContent({ ...v, app_screens: v.app_screens!.map((item, i) => i === index ? { ...item, description: value } : item) }), `app_screens.${index}.description`, true)}
+          {visuals(`app_screen_${index + 1}` as LandingVisualSlot)}
+        </div>
+      })}
     </>}
     {section === 'app_feature' && <>
       <p className="landing-field-hint">{tr('Show the task people use your app for. Edit the screen directly; its artwork style is controlled in Hero. This is an interface preview, and its action uses the page CTA destination.', 'Покажіть завдання, яке люди виконують у застосунку. Редагуйте екран; стиль зображення задається в першому екрані. Це прев’ю інтерфейсу, його кнопка використовує адресу головної дії сторінки.')}</p>
@@ -128,8 +149,10 @@ export function LandingInspector({ section, configuration: c, content: v, detail
     {section === 'visual_break' && <>
       {select(tr('Image height', 'Висота зображення'), c.visual_break.height, [['small', tr('Shallow', 'Низьке')], ['medium', tr('Balanced', 'Збалансоване')], ['large', tr('Tall', 'Високе')]], value => onConfiguration({ ...c, visual_break: { height: value as LandingConfiguration['visual_break']['height'] } }))}
       {visuals('visual_break_visual')}
+      {c.showcase && <button className="secondary" onClick={onReuseImage}>{tr('Use reference interior photo', 'Використати фото інтер’єру зі зразка')}</button>}
     </>}
     {section === 'contacts' && <>
+      <button className="secondary" onClick={() => onContent({ ...v, contacts: { ...v.contacts, ...natalContacts } })}>{tr('Use Natal contacts', 'Використати контакти Natal')}</button>
       {componentSelect('contact_style', tr('Panel style', 'Стиль панелі'), [['contrast', tr('Contrast', 'Контрастний')], ['surface', tr('Light surface', 'Світла поверхня')], ['accent', tr('Accent', 'Акцентний')]])}
       {field(tr('Contact heading', 'Заголовок контактів'), v.contacts.heading, 120, value => onContent({ ...v, contacts: { ...v.contacts, heading: value } }), 'contacts.heading')}
       {field(tr('Next step', 'Наступний крок'), v.contacts.supporting_text, 300, value => onContent({ ...v, contacts: { ...v.contacts, supporting_text: value } }), 'contacts.supporting_text', true)}

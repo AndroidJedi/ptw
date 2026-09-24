@@ -416,6 +416,17 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     """
 
     declarations = _SURFACE_COMPONENT_CONTRACTS.get(surface)
+    if surface == "landing:app_showcase":
+        declarations = {key: value for key, value in _SURFACE_COMPONENT_CONTRACTS["landing:project_landing"].items() if key != "project_landing.app_feature"}
+        declarations["app_showcase.screens"] = {
+            "purpose": "Three static AI-generated screen interiors and their visible captions. Each app_screen_1/2/3 has independent generation, enhancement and history. These images are not working apps.",
+            "dependencies": ["Use content.app_screens[index].visual_direction for each corresponding image action. Changing text inside a screen requires Generate or Enhance; caption edits alone do not modify pixels.", "Shared palette, configuration.showcase gradient_end, screen_scale and screen_offset tune the page. Preserve Natal identity and the Brief's claims."],
+        }
+    if declarations is not None and any(item.get("component_id") == "landing.marketing" for item in catalog.get("components", [])):
+        declarations = {**declarations, "landing.marketing": {
+            "purpose": "Optional gradient sections, a single Natal logo/name color, decorative symbols, carousel, six comparison rows, four workflow steps, four values, attributed reference reviews, store buttons and footer.",
+            "dependencies": ["Use one of the ten gradient_id presets for domain mood. Preserve the single logo_color and optional motifs. Each comparison row/step/value has an independent enabled toggle; leave unsupported text empty and visible for owner completion.", "walkthrough_visual is a complete multi-phone mockup composition; app_screen slots remain hardware-free interiors. Use content.marketing.walkthrough_visual_direction in its image action. Editing depicted UI requires generation/enhancement.", "Never invent store or legal URLs, evidence or testimonials. Bokko reference reviews remain visibly attributed to Bokko. Their visibility can change, but their meaning cannot become Natal evidence."],
+        }}
     if declarations is None:
         raise ValueError(f"Studio Agent surface contract is unavailable: {surface}")
     catalog_components = list(catalog.get("components") or [])
@@ -693,6 +704,7 @@ def manual_agent_editable_values(
     immutable = (
         "content.social_proof", "content.contacts.email", "content.contacts.phone",
         "content.contacts.url", "content.contacts.instagram",
+        "content.marketing.apple_url", "content.marketing.google_url", "content.marketing.privacy_url", "content.marketing.terms_url",
     )
     return {
         path: flattened[path]

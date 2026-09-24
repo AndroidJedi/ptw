@@ -1,14 +1,14 @@
 import type { LandingComponents, LandingImageDirections, LandingConfiguration, LandingContent, LandingPresentation, LandingVisualSummary } from '../types'
 
-export type Section = 'theme' | 'hero' | 'app_feature' | 'features' | 'social_proof' | 'visual_break' | 'contacts' | 'faq'
+export type Section = 'comparison' | 'walkthrough' | 'values' | 'cta' | 'downloads' | 'app_screens' | 'app_screen_1' | 'app_screen_2' | 'app_screen_3' | 'theme' | 'hero' | 'app_feature' | 'features' | 'social_proof' | 'visual_break' | 'contacts' | 'faq'
 export const sections: Section[] = ['theme', 'hero', 'app_feature', 'features', 'social_proof', 'visual_break', 'contacts', 'faq']
 export const defaults: LandingPresentation = {
   language: 'uk', cta_target: 'contacts', heading_scale: 1, spacing: 'comfortable',
   hero_focus: { x: 50, y: 50 }, visual_break_focus: { x: 50, y: 50 },
 }
 export const labels = {
-  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open Telegram bot', instagram: 'Instagram', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
-  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити Telegram-бота', instagram: 'Instagram', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
+  en: { comparison: 'Comparison', walkthrough: 'How it works', values: 'Service benefits', cta: 'CTA panel', downloads: 'Store buttons & footer', app_screens: 'App walkthrough', app_screen_1: 'Screen 1', app_screen_2: 'Screen 2', app_screen_3: 'Screen 3', app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open Telegram bot', instagram: 'Instagram', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
+  uk: { comparison: 'Порівняння', walkthrough: 'Як це працює', values: 'Переваги сервісу', cta: 'Панель CTA', downloads: 'Кнопки магазинів і футер', app_screens: 'Огляд застосунку', app_screen_1: 'Екран 1', app_screen_2: 'Екран 2', app_screen_3: 'Екран 3', app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити Telegram-бота', instagram: 'Instagram', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
 }
 export function telegramBotUsername(value: string) {
   try {
@@ -61,7 +61,18 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   const target = configuration.presentation?.cta_target || 'contacts'
   if (target !== 'contacts' && !validContact(target, content.contacts[target])) issues.push({ section: 'hero', path: 'hero.cta_target', en: 'Configure the selected button destination in Contacts', uk: 'Налаштуйте обрану адресу кнопки в Контактах' })
   content.faq.forEach((v, i) => { required('faq', `faq.${i}.question`, v.question, `Question ${i + 1} is missing`, `Додайте запитання ${i + 1}`); required('faq', `faq.${i}.answer`, v.answer, `Answer ${i + 1} is missing`, `Додайте відповідь ${i + 1}`) })
-  for (const [slot, section] of [['hero_visual', 'hero'], ['visual_break_visual', 'visual_break']] as const) if (!assets.some(a => a.slot === slot && a.available)) issues.push({ section, path: `${section}.visual`, en: 'Generate this section’s artwork', uk: 'Створіть зображення для цієї секції' })
+  for (const [slot, section] of (content.app_screens ? [['app_screen_1', 'app_screen_1'], ['app_screen_2', 'app_screen_2'], ['app_screen_3', 'app_screen_3'], ['visual_break_visual', 'visual_break']] : [['hero_visual', 'hero'], ['visual_break_visual', 'visual_break']]) as Array<[string, Section]>) if (!assets.some(a => a.slot === slot && a.available)) issues.push({ section, path: `${section}.visual`, en: 'Generate this section’s artwork', uk: 'Створіть зображення для цієї секції' })
+  const marketing = configuration.marketing, extra = content.marketing
+  if (marketing && extra) {
+    for (const [flag, key, section, fields] of [
+      ['comparison_enabled', 'comparison_rows', 'comparison', ['text']],
+      ['walkthrough_enabled', 'walkthrough_steps', 'walkthrough', ['title', 'description']],
+      ['benefits_enabled', 'values', 'values', ['title', 'description']],
+    ] as const) if (marketing[flag]) extra[key].forEach((item, i) => {
+      if (item.enabled && fields.some(field => !(item as unknown as Record<string, unknown>)[field])) issues.push({ section, path: `marketing.${key}.${i}`, en: `Complete or hide item ${i + 1}`, uk: `Заповніть або приховайте пункт ${i + 1}` })
+    })
+    if (marketing.walkthrough_enabled && !assets.some(a => a.slot === 'walkthrough_visual' && a.available)) issues.push({ section: 'walkthrough', path: 'marketing.walkthrough_visual', en: 'Generate the walkthrough mockup', uk: 'Створіть мокап огляду' })
+  }
   const bounded = (section: Section, path: string, value: string, max: number, min = 1) => {
     if (value.trim() && (value.length > max || value.trim().length < min)) issues.push({ section, path, en: `Use ${min}–${max} characters`, uk: `Введіть ${min}–${max} символів` })
   }
@@ -90,6 +101,13 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
       for (const key of ['label', 'value'] as const) bounded('app_feature', `app_feature.items.${index}.${key}`, item[key], appFeatureLimits[key])
     })
   }
+  content.app_screens?.forEach((screen, index) => {
+    const section = `app_screen_${index + 1}` as Section
+    for (const [key, maximum] of [['title', 90], ['description', 300], ['visual_direction', 600]] as const) {
+      required(section, `app_screens.${index}.${key}`, screen[key], 'Complete this app screen', 'Заповніть цей екран')
+      bounded(section, `app_screens.${index}.${key}`, screen[key], maximum, key === 'visual_direction' ? 8 : 1)
+    }
+  })
   return issues
 }
 

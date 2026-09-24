@@ -623,6 +623,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_post(project_id: str, landing_id: str, suffix: str, request: Mapping[str, Any], identity: OwnerIdentity, *, timeout: float = 90) -> dict[str, Any]:
         return (await validation_bridge("POST", landing_path(project_id, landing_id, suffix), body=request, actor=actor(identity), timeout=timeout)).json()
 
+    @app.get("/api/v1/landings/templates")
+    async def landing_templates(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/landings/templates", timeout=60)).json()
+
     @app.get("/api/v1/landings/projects/{project_id}/source-posts")
     async def landing_sources(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", f"/internal/v1/landings/projects/{project_id}/source-posts", timeout=60)).json()
@@ -658,6 +662,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate")
     async def landing_visual_generate(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, f"/visuals/{slot}/generate", request, identity, timeout=480)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/reuse")
+    async def landing_reuse_visual(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/visuals/{slot}/reuse", request, identity, timeout=60)
 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/select")
     async def landing_visual_select(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

@@ -284,7 +284,24 @@ production data transfer are separate owner-reviewed steps.
 Remaining bounds: galleries/version summaries return at most 200 records and
 run history at most 30. Exact historical identity reads remain available.
 Accepted Post templates are available in the existing Post editor through
-Change template. Initial Brief generation and Landing template selection retain
-their established composer definitions.
+Change template. Initial Brief generation retains its established composer definitions. Landing
+creation and approved variants select exact registered `project_landing` or
+`app_showcase` built-ins; arbitrary declarative Landing definitions are not
+automatically promoted into Project composition.
 Source extensions require local owner review. Production inference additionally
 requires the companion bridge to advertise `template_creation`.
+
+
+App Showcase is a second registered native Landing built-in. Its gallery preview
+uses the shared responsive React renderer with explicitly neutral copy and
+reference-photo provenance; real Project screens are generated independently.
+The existing Project Landing identity/digest and accepted historical PNGs are
+unchanged. Adding this built-in does not migrate existing Projects or authorize
+publication.
+
+App Showcase v2 extends the native Landing gallery preview with shared marketing
+sections, domain gradients, optional motifs and complete generated walkthrough
+mockups. V1 remains resolvable by its exact identity. Existing original Landing
+pages can enable these sections explicitly in Studio without replacing their
+base template. Reference reviews are clearly attributed design examples; they
+are never supplied as project customer evidence by composition.

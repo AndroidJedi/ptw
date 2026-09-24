@@ -132,3 +132,21 @@ provenance (AI hypothesis / Brief / owner, unvalidated). Labels must stay bound 
 the exact card copy after editing, Save, approval and reload. Generated image
 suggestions retain their origin after selection; changing presets alone must not
 promote the suggestion to an owner override.
+
+For App Showcase, inspect all three raw screen images and the framed result.
+Fit the full generated UI edge to edge below a camera safe area without cropping
+text. Check side and bottom gutters in both hero and walkthrough phones;
+contain fitting inside a padded aperture can introduce unwanted letterboxing.
+Check decorative icon sizes and the full-width hero wave: shared `.lp-page img`
+and `svg` rules can override a less-specific template selector. Test each screen
+inspector, missing-image approval feedback, and desktop/tablet/360px/WebKit page
+geometry. Native gallery, editor and public output must share the same renderer.
+
+For shared Landing marketing sections, verify card/review/value grids by actual
+child widths, not just page overflow. Do not reuse an inner grid class on its
+section wrapper. CSS masks using Vite inline SVG URLs need quoted `url("…")`;
+assert computed maskImage is not `none` and inspect icon silhouettes. Test all
+three preview widths plus iPhone WebKit, gradient propagation, inherited single
+logo color, optional motifs, carousel focus/hover/reduced-motion behavior,
+per-item visibility and store fallback navigation. Private completion hints must
+not reach public pages. Reference reviews keep visible source attribution.

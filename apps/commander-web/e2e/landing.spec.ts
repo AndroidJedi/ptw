@@ -27,8 +27,14 @@ function fixture(): LandingDetail {
     image_generation_available: true, versions: [],
   }
 }
-async function setup(page: Page) {
+async function setup(page: Page, showcase = false) {
   let current = fixture()
+  if (showcase) {
+    current.template_id = 'app_showcase'
+    current.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+    current.content.app_screens = [1, 2, 3].map(i => ({ title: `Екран застосунку ${i}`, description: 'Додавайте та впорядковуйте речі у власному просторі.', visual_direction: `A clean app screen ${i}` }))
+    current.assets = (['app_screen_1', 'app_screen_2', 'app_screen_3', 'visual_break_visual'] as const).map(slot => ({ ...current.assets[0], slot }))
+  }
   current.catalog.theme_presets = (['studio', 'editorial', 'soft'] as const).map((id, i) => ({
     id, en: ['Studio', 'Editorial', 'Soft bloom'][i], uk: ['Студія', 'Редакційна', 'М’якість'][i], description_en: 'Coordinated components', description_uk: 'Узгоджені компоненти',
     theme: { ...current.configuration.theme, background_color: ['#f7f8fc', '#f7f3eb', '#f0f6f2'][i], corner_radius: [20, 4, 32][i] },
@@ -42,7 +48,10 @@ async function setup(page: Page) {
     if (path.endsWith('/pages')) return json({ items: [current] })
     if (path === base) return json(current)
     if (path.includes('/history/')) return route.fulfill({ contentType: 'image/png', body: bytes, headers: { 'Cache-Control': 'private, no-store', 'X-PTW-Content-SHA256': sha } })
-    if (path.endsWith('/generate')) return json(current)
+    if (path.endsWith('/generate')) {
+      if (path.includes('/walkthrough_visual/')) current.assets.push({ ...current.assets[0], slot: 'walkthrough_visual' })
+      return json(current)
+    }
     if (path.endsWith('/configuration') || path.endsWith('/save') || path.endsWith('/approve')) {
       const body = route.request().postDataJSON()
       current = { ...current, configuration: body.configuration, content: body.content, state_sha256: 'c'.repeat(64) }
@@ -363,4 +372,102 @@ test('switches between the phone and image-only hero and retains the saved mode'
   await mode.selectOption('phone')
   await page.getByRole('button', { name: 'View Landing' }).click()
   await expect(dialog.locator('.lp-phone')).toBeVisible()
+})
+
+
+test('App Showcase uses static screens with individual inspectors and responsive walkthrough', async ({ page }) => {
+  await setup(page, true)
+  await page.getByLabel('Button style', { exact: true }).selectOption('outlined')
+  await editorSection(page, 'Get in touch').click()
+  await page.getByLabel('Panel style', { exact: true }).selectOption('surface')
+  await editorSection(page, 'Screen 2').click()
+  await expect(page.getByLabel('Screen title', { exact: true })).toHaveValue('Екран застосунку 2')
+  await page.getByLabel('Screen title', { exact: true }).fill('Дуже довга назва екрана застосунку для перевірки перенесення українського тексту')
+  await expect(page.getByRole('button', { name: 'Enhance', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'View Landing' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.locator('.as-phone')).toHaveCount(5)
+  await expect(dialog.locator('.lp-phone-row')).toHaveCount(0)
+  await expect(dialog.locator('.as-cta').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(dialog.locator('.as-contact')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  for (const [name, width] of [['Desktop', 1280], ['Tablet', 768], ['Mobile', 360]] as const) {
+    await dialog.getByRole('button', { name: `${name} ${width}` }).click()
+    const bounds = await dialog.locator('.as-page').evaluate(root => ({ width: root.clientWidth, scroll: root.scrollWidth, steps: getComputedStyle(root.querySelector('.as-steps')!).gridTemplateColumns.split(' ').length }))
+    expect(bounds.scroll).toBeLessThanOrEqual(bounds.width)
+    expect(bounds.steps).toBe(width === 360 ? 1 : 3)
+    await expect(dialog.locator('.as-arrow').first()).toHaveCSS('width', '32px')
+    await expect(dialog.locator('.as-icon').first()).toHaveCSS('height', '40px')
+    await expect(dialog.locator('.as-wave')).toHaveCSS('height', '65px')
+    // All hero/walkthrough interiors fill the aperture below the camera.
+    // Contain fitting in this padded box used to leave white side gutters.
+    const screens = await dialog.locator('.as-screen > img').evaluateAll(images => images.map(image => {
+      const aperture = image.parentElement!.getBoundingClientRect()
+      const pixels = image.getBoundingClientRect()
+      return { fit: getComputedStyle(image).objectFit, left: pixels.left - aperture.left,
+        right: aperture.right - pixels.right, bottom: aperture.bottom - pixels.bottom,
+        camera: pixels.top - aperture.top }
+    }))
+    expect(screens).toHaveLength(5)
+    for (const screen of screens) {
+      expect(screen.fit).toBe('fill')
+      expect(Math.abs(screen.left)).toBeLessThan(1)
+      expect(Math.abs(screen.right)).toBeLessThan(1)
+      expect(Math.abs(screen.bottom)).toBeLessThan(1)
+      expect(screen.camera).toBeGreaterThan(0)
+    }
+    await expect(dialog.locator('[data-section=social_proof]')).toHaveCount(0)
+  }
+  await dialog.locator('.as-cta').first().click()
+  await expect(dialog.locator('[data-section=contacts]')).toBeFocused()
+  await dialog.locator('.as-faq summary').first().click()
+  await expect(dialog.locator('.as-faq details').first()).toHaveAttribute('open', '')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+
+for (const showcase of [false, true]) test(`Marketing sections work in ${showcase ? 'App Showcase' : 'original Landing'}`, async ({ page }) => {
+  await setup(page, showcase)
+  await editorSection(page, 'Page design').click()
+  await page.getByRole('button', { name: 'Enable showcase sections' }).click()
+  await expect(page.getByRole('button', { name: /Aurora · calm/ })).toBeVisible()
+  await page.getByRole('button', { name: /Aurora · calm/ }).click()
+  await page.getByLabel(/Logo.*HEX/).fill('#ffffff')
+  await page.getByLabel('Small Natal logos').uncheck()
+  await expect(page.locator('.mk-motifs')).toHaveCount(0)
+  await page.getByLabel('Small Natal logos').check()
+  await editorSection(page, 'Comparison').click()
+  await expect(page.getByText('Provide this item manually in Landing Studio, or hide it.').first()).toBeVisible()
+  await page.getByLabel('Comparison item 4', { exact: true }).fill('Перевірений власником пункт із довгим українським текстом для перевірки перенесення')
+  await page.getByLabel('Show row 5', { exact: true }).uncheck()
+  await page.getByLabel('Show row 6', { exact: true }).uncheck()
+  await editorSection(page, 'How it works').click()
+  await page.getByLabel('Step 1 · title').fill('Додайте річ')
+  const generated = page.waitForRequest(r => r.url().includes('/walkthrough_visual/generate'))
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
+  expect((await generated).postDataJSON().visual_direction).toContain('phone mockups')
+  await editorSection(page, 'CTA panel').click()
+  await page.getByLabel('Show CTA panel').uncheck()
+  await expect(page.locator('.mk-section-cta, .as-banner')).toHaveCount(0)
+  await page.getByLabel('Show CTA panel').check()
+  await editorSection(page, 'Store buttons & footer').click()
+  await page.getByLabel('Store button label', { exact: true }).fill('Спробувати Natal')
+  await page.getByLabel('App Store URL', { exact: true }).fill('https://apps.apple.com/app/id123456')
+  await page.getByRole('button', { name: 'View Landing' }).click()
+  const dialog = page.getByRole('dialog')
+  for (const [name, width] of [['Desktop', 1280], ['Tablet', 768], ['Mobile', 360]] as const) {
+    await dialog.getByRole('button', { name: `${name} ${width}` }).click()
+    await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
+    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
+    await expect(dialog.locator('.mk-mockup img')).toHaveCount(1)
+    await expect(dialog.locator('.mk-reference-note')).toContainText('Це не відгуки про Natal.')
+    await expect(dialog.getByRole('link', { name: 'App Store · Спробувати Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
+    const geometry = await dialog.locator('.lp-page').evaluate(root => ({ width: root.clientWidth, scroll: root.scrollWidth, gradient: getComputedStyle(root).getPropertyValue('--mk-start').trim(), icons: [...root.querySelectorAll('.mk-icon:not(img)')].map(el => ({ width: el.getBoundingClientRect().width, mask: getComputedStyle(el).maskImage })), reviews: [...root.querySelectorAll<HTMLElement>('.mk-reviews blockquote')].map(el => el.clientWidth) }))
+    expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)
+    expect(geometry.gradient).toBe('#7562c6')
+    expect(geometry.icons.every(icon => icon.width > 0 && icon.width <= 44 && icon.mask !== 'none')).toBe(true)
+    expect(geometry.reviews.every(width => width > 150)).toBe(true)
+    await expect(dialog.getByText('Заповніть вручну в Landing Studio', { exact: false }).first()).toBeVisible()
+  }
+  await dialog.getByRole('link', { name: 'Google Play · Спробувати Natal' }).first().click()
+  await expect(dialog.locator('.mk-footer')).toBeFocused()
 })

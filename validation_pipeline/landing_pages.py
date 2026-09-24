@@ -18,11 +18,13 @@ from .agent_context import compact_active_skills
 from .landing_workspace import (
     DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION,
     LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA, LANDING_TEMPLATE_ID,
-    LANDING_VISUAL_SLOTS, LandingWorkspace,
+    LandingWorkspace,
     canonical_json, normalize_composed_content, normalize_configuration,
     normalize_content, sha256_json,
 )
 from .landing_templates import LANDING_TEMPLATE_REGISTRY
+from .landing_showcase import SCREEN_SLOTS, screen_direction, DEFAULT_SCREENS
+from .landing_workspace import ALL_LANDING_VISUAL_SLOTS
 from .landing_design import (
     APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_COMPONENTS,
     DEFAULT_IMAGE_DIRECTIONS, DEFAULT_PHONE_MOCKUP,
@@ -87,7 +89,15 @@ def _snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def landing_generation_schema() -> dict[str, Any]:
+def _assert_template_request(page, reference):
+    if reference is None:
+        return
+    existing = page.get("template_reference") or {key: value for key, value in LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID).identity.to_reference().items() if key != "surface"}
+    if dict(reference) != existing:
+        raise RuntimeError("Landing already uses another template; approve it and create a variant")
+
+
+def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketing: bool = False) -> dict[str, Any]:
     """Return only the bounded AI-owned portion of a Landing composition."""
     result = {
         "type": "object",
@@ -128,6 +138,25 @@ def landing_generation_schema() -> dict[str, Any]:
         content["faq"]["items"]["properties"][field].update({
             "minLength": minimum, "maxLength": maximum,
         })
+    if template_id == "app_showcase":
+        content.pop("app_feature")
+        result["properties"]["content"]["required"].remove("app_feature")
+        content["app_screens"] = _json_schema(DEFAULT_SCREENS)
+        content["app_screens"].update(minItems=3, maxItems=3)
+        for key, maximum in (("title", 90), ("description", 300), ("visual_direction", 600)):
+            content["app_screens"]["items"]["properties"][key].update(minLength=8 if key == "visual_direction" else 1, maxLength=maximum)
+        result["properties"]["content"]["required"].append("app_screens")
+    if marketing:
+        from .landing_marketing import DEFAULT_CONTENT as MARKETING, TEXT_LIMITS, URL_FIELDS
+        content["marketing"] = _json_schema(MARKETING)
+        m = content["marketing"]["properties"]
+        for key, limit in TEXT_LIMITS.items():
+            m[key].update(maxLength=limit)
+        for key in URL_FIELDS:
+            m[key]["enum"] = [""]
+        for key, count in (("comparison_rows", 6), ("walkthrough_steps", 4), ("values", 4)):
+            m[key].update(minItems=count, maxItems=count)
+        result["properties"]["content"]["required"].append("marketing")
     return result
 
 
@@ -143,7 +172,7 @@ def landing_composition_payload(
     active_creative_skills: Mapping[str, Any], live_landing_catalog: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the one canonical, bounded payload used by runtime and canaries."""
-    definition = LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID)
+    definition = LANDING_TEMPLATE_REGISTRY.get(str(live_landing_catalog.get("template_id")))
     if live_landing_catalog.get("template_id") != definition.identity.template_id:
         raise ValueError("Landing generation catalog is not registered")
     post_reference = {
@@ -165,7 +194,7 @@ def landing_composition_payload(
         "template_content_defaults": {
             "content": deepcopy(dict(content_defaults)),
         },
-        "live_landing_catalog": definition.agent_catalog(),
+        "live_landing_catalog": {**definition.agent_catalog(), "components": deepcopy(live_landing_catalog.get("components", []))},
         "active_creative_skills": compact_active_skills(
             active_creative_skills, surface="landing",
         ),
@@ -242,8 +271,12 @@ class LocalLandingAuthority:
                 })
         return sorted(items, key=lambda item: (item["creative_id"], item["version"]), reverse=True)
 
-    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False) -> tuple[dict[str, Any], bool]:
+    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
         project_id = _uuid(project_id, "project_id")
+        if template_reference is not None:
+            if not isinstance(template_reference, Mapping):
+                raise ValueError("Landing template reference must be an object")
+            LANDING_TEMPLATE_REGISTRY.resolve_reference(template_reference)
         source = self._source_version(project_id, source_creative_id, source_version)
         with self._lock:
             siblings = sorted(
@@ -251,6 +284,7 @@ class LocalLandingAuthority:
                 key=lambda item: int(item["ordinal"]),
             )
             if siblings and not additional:
+                _assert_template_request(siblings[0], template_reference)
                 return siblings[0], False
             if additional and (not siblings or int(siblings[-1].get("approved_version_count") or 0) < 1):
                 raise ValueError("approve the current Landing before creating another variant")
@@ -263,6 +297,7 @@ class LocalLandingAuthority:
                 "status": "queued", "state_sha256": None, "generation": {}, "learning_baseline": None,
                 "learning_baseline_sha256": None, "approved_version_count": 0, "requested_by": requested_by,
                 "created_at": now, "updated_at": now,
+                **({"template_reference": dict(template_reference)} if template_reference else {}),
             }
             self.store.append("landing_pages", landing_id, value)
             self.store.edge(source_id=project_id, relation="contains", target_id=landing_id, evidence={"member": "landing_page", "ordinal": value["ordinal"]})
@@ -326,7 +361,7 @@ class LocalLandingAuthority:
         return dict(value)
 
     def record_generation_run(self, *, landing_id: str, stage: str, status: str, input_sha256: str, output_sha256: str | None, prompt_version: str, invocation: Mapping[str, Any] | None = None, error: Exception | None = None) -> dict[str, Any]:
-        if stage not in {"composition", "hero_visual", "visual_break_visual"} or status not in {"completed", "failed"}:
+        if stage not in {"composition", *ALL_LANDING_VISUAL_SLOTS} or status not in {"completed", "failed"}:
             raise ValueError("Landing generation run is invalid")
         run = {
             "generation_run_id": new_uuid7(), "landing_id": _uuid(landing_id, "landing_id"),
@@ -344,16 +379,16 @@ class LocalLandingAuthority:
         """Append local asset/version lineage for the durable workspace bytes."""
         landing_id = _uuid(landing_id, "landing_id")
         known_assets = {
-            item["content_sha256"]: item for item in self.store.list("landing_assets")
+            (item["slot"], item["content_sha256"]): item for item in self.store.list("landing_assets")
             if item.get("landing_id") == landing_id
         }
-        asset_ids: dict[str, str] = {
+        asset_ids: dict[tuple[str, str], str] = {
             digest: str(item["asset_id"]) for digest, item in known_assets.items()
         }
-        for slot in LANDING_VISUAL_SLOTS:
+        for slot in workspace.visual_slots:
             for item in workspace._history(slot):
                 digest = item["sha256"]
-                if digest in asset_ids:
+                if (slot, digest) in asset_ids:
                     continue
                 asset = {
                     "asset_id": new_uuid7(), "landing_id": landing_id, "slot": slot,
@@ -362,7 +397,7 @@ class LocalLandingAuthority:
                 }
                 self.store.append("landing_assets", asset["asset_id"], asset)
                 self.store.edge(source_id=landing_id, relation="contains", target_id=asset["asset_id"], evidence={"member": "landing_asset", "slot": slot, "sha256": digest})
-                asset_ids[digest] = asset["asset_id"]
+                asset_ids[(slot, digest)] = asset["asset_id"]
         known_versions = {
             int(item["version"]): item for item in self.store.list("landing_versions")
             if item.get("landing_id") == landing_id
@@ -381,8 +416,8 @@ class LocalLandingAuthority:
             self.store.edge(source_id=landing_id, relation="contains", target_id=snapshot["version_id"], evidence={"member": "landing_version", "version": version})
             for asset in record["assets"]:
                 digest = asset.get("sha256") if isinstance(asset, Mapping) else None
-                if isinstance(digest, str) and digest in asset_ids:
-                    self.store.edge(source_id=snapshot["version_id"], relation="derived_from", target_id=asset_ids[digest], evidence={"input": "selected_landing_visual", "slot": asset.get("slot")})
+                if isinstance(digest, str) and (asset.get("slot"), digest) in asset_ids:
+                    self.store.edge(source_id=snapshot["version_id"], relation="derived_from", target_id=asset_ids[(asset["slot"], digest)], evidence={"input": "selected_landing_visual", "slot": asset.get("slot")})
 
     def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any]:
         return {**self.store.get("landing_checkpoints", checkpoint_id), "status": "saved"}
@@ -421,10 +456,11 @@ class LocalLandingAuthority:
 class DatabaseLandingWorkspace:
     """Database-backed cache wrapper for one Landing workspace's files."""
 
-    _mutating = frozenset({"save_configuration", "generate_visual", "select_visual", "approve_configuration"})
+    _mutating = frozenset({"save_configuration", "generate_visual", "select_visual", "reuse_visual", "approve_configuration"})
 
     def __init__(self, workspace: LandingWorkspace, authority: "DatabaseLandingAuthority", landing_id: str) -> None:
         self.workspace, self.authority, self.landing_id = workspace, authority, _uuid(landing_id, "landing_id")
+        self.workspace.template_reference = authority.get_page(self.landing_id).get("template_reference")
         self._loaded = False
         self._lock = threading.RLock()
 
@@ -520,6 +556,7 @@ class DatabaseLandingAuthority:
             "learning_baseline": None if row[12] is None else dict(row[12]), "learning_baseline_sha256": row[13],
             "approved_version_count": int(row[14]), "requested_by": row[15],
             "created_at": row[16].isoformat(), "updated_at": row[17].isoformat(),
+            **({"template_reference": dict(row[18])} if row[18] else {}),
         }
 
     @staticmethod
@@ -528,7 +565,7 @@ class DatabaseLandingAuthority:
                     page.source_version,page.source_version_sha256,page.source_post_snapshot,page.ordinal,
                     page.origin,page.status,page.state_sha256,page.generation,page.learning_baseline,
                     page.learning_baseline_sha256,(SELECT count(*) FROM landing_versions version WHERE version.landing_id=page.entity_id),
-                    page.requested_by,page.created_at,page.updated_at FROM landing_workspaces page"""
+                    page.requested_by,page.created_at,page.updated_at,page.template_reference FROM landing_workspaces page"""
 
     def get_page(self, landing_id: str) -> dict[str, Any]:
         with self.connection() as connection:
@@ -581,24 +618,30 @@ class DatabaseLandingAuthority:
             ).fetchall()
         return [{"creative_id": str(row[0]), "version": int(row[1]), "version_sha256": row[2], "template_id": row[3], "source_brief_id": str(row[4])} for row in rows]
 
-    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False) -> tuple[dict[str, Any], bool]:
+    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
         project_id = _uuid(project_id, "project_id")
+        if template_reference is not None:
+            if not isinstance(template_reference, Mapping):
+                raise ValueError("Landing template reference must be an object")
+            LANDING_TEMPLATE_REGISTRY.resolve_reference(template_reference)
         source = self._source_version(project_id, source_creative_id, source_version)
         with self.connection() as connection:
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-source:{source_creative_id}:{source_version}",))
             siblings = connection.execute("SELECT entity_id FROM landing_workspaces WHERE source_creative_id=%s AND source_version=%s ORDER BY ordinal", (UUID(source_creative_id), source_version)).fetchall()
             if siblings and not additional:
-                return self.get_page(str(siblings[0][0])), False
+                existing = self.get_page(str(siblings[0][0]))
+                _assert_template_request(existing, template_reference)
+                return existing, False
             if additional:
                 if not siblings or connection.execute("SELECT 1 FROM landing_versions WHERE landing_id=%s LIMIT 1", (siblings[-1][0],)).fetchone() is None:
                     raise ValueError("approve the current Landing before creating another variant")
             landing_id = new_uuid7()
             connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_workspace',%s)", (UUID(landing_id), Jsonb({"schema_version": 1, "project_id": project_id})))
             connection.execute(
-                """INSERT INTO landing_workspaces(entity_id,project_id,source_brief_id,source_creative_id,source_version,source_version_sha256,source_post_snapshot,ordinal,origin,status,requested_by)
-                     VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s)""",
-                (UUID(landing_id), UUID(project_id), UUID(source["source_brief_id"]), UUID(source_creative_id), source_version, source["version_sha256"], Jsonb(source), len(siblings)+1, "approved_variant" if additional else "post_generation", requested_by),
+                """INSERT INTO landing_workspaces(entity_id,project_id,source_brief_id,source_creative_id,source_version,source_version_sha256,source_post_snapshot,ordinal,origin,status,requested_by,template_reference)
+                     VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s,%s)""",
+                (UUID(landing_id), UUID(project_id), UUID(source["source_brief_id"]), UUID(source_creative_id), source_version, source["version_sha256"], Jsonb(source), len(siblings)+1, "approved_variant" if additional else "post_generation", requested_by, Jsonb(dict(template_reference)) if template_reference else None),
             )
             self._edge(connection, project_id, "contains", landing_id, {"member": "landing_page", "ordinal": len(siblings)+1})
             self._edge(connection, landing_id, "derived_from", source["source_brief_id"], {"input": "approved_product_brief"})
@@ -647,13 +690,13 @@ class DatabaseLandingAuthority:
                 connection.execute("""INSERT INTO landing_workspace_files(landing_id,relative_path,content_sha256,content) VALUES(%s,%s,%s,%s)
                                       ON CONFLICT(landing_id,relative_path) DO UPDATE SET content_sha256=excluded.content_sha256,content=excluded.content,updated_at=clock_timestamp()""", (UUID(landing_id), relative, hashlib.sha256(content).hexdigest(), content))
             connection.execute("DELETE FROM landing_workspace_files WHERE landing_id=%s AND NOT(relative_path=ANY(%s))", (UUID(landing_id), list(files) or ["__none__"]))
-            asset_ids: dict[str, str] = {}
+            asset_ids: dict[tuple[str, str], str] = {}
             for relative, content in files.items():
                 if not relative.startswith("assets/") or not relative.endswith(".history.json"):
                     continue
                 slot = relative.removeprefix("assets/").removesuffix(".history.json")
                 history = json.loads(content.decode("utf-8"))
-                if slot not in {"hero_visual", "visual_break_visual"} or not isinstance(history, list):
+                if slot not in ALL_LANDING_VISUAL_SLOTS or not isinstance(history, list):
                     raise RuntimeError("Landing persisted visual history is invalid")
                 for item in history:
                     if not isinstance(item, Mapping) or not isinstance(item.get("sha256"), str):
@@ -662,7 +705,7 @@ class DatabaseLandingAuthority:
                     image = files.get(f"assets/{digest}.png")
                     if image is None or hashlib.sha256(image).hexdigest() != digest:
                         raise RuntimeError("Landing persisted visual asset digest mismatch")
-                    existing = connection.execute("SELECT entity_id FROM landing_assets WHERE landing_id=%s AND content_sha256=%s", (UUID(landing_id), digest)).fetchone()
+                    existing = connection.execute("SELECT entity_id FROM landing_assets WHERE landing_id=%s AND slot=%s AND content_sha256=%s", (UUID(landing_id), slot, digest)).fetchone()
                     if existing is None:
                         asset_id = new_uuid7()
                         connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_asset',%s)", (UUID(asset_id), Jsonb({"schema_version": 1, "slot": slot, "content_sha256": digest})))
@@ -670,7 +713,7 @@ class DatabaseLandingAuthority:
                         self._edge(connection, landing_id, "contains", asset_id, {"member": "landing_asset", "slot": slot, "sha256": digest})
                     else:
                         asset_id = str(existing[0])
-                    asset_ids[digest] = asset_id
+                    asset_ids[(slot, digest)] = asset_id
             for version in detail["versions"]:
                 record_path = root / "versions" / f"v{version['version']}.json"
                 if record_path.is_file():
@@ -682,12 +725,12 @@ class DatabaseLandingAuthority:
                         connection.execute("INSERT INTO landing_versions(entity_id,landing_id,version,version_sha256,state_sha256,record) VALUES(%s,%s,%s,%s,%s,%s)", (version_id, UUID(landing_id), version["version"], version["version_sha256"], version["state_sha256"], Jsonb(record)))
                         self._edge(connection, landing_id, "contains", str(version_id), {"member": "landing_version", "version": version["version"]})
                         for asset in record.get("assets", []):
-                            if isinstance(asset, Mapping) and isinstance(asset.get("sha256"), str) and asset["sha256"] in asset_ids:
-                                self._edge(connection, str(version_id), "derived_from", asset_ids[asset["sha256"]], {"input": "selected_landing_visual", "slot": asset.get("slot")})
+                            if isinstance(asset, Mapping) and isinstance(asset.get("sha256"), str) and (asset["slot"], asset["sha256"]) in asset_ids:
+                                self._edge(connection, str(version_id), "derived_from", asset_ids[(asset["slot"], asset["sha256"])], {"input": "selected_landing_visual", "slot": asset.get("slot")})
 
     def record_generation_run(self, *, landing_id: str, stage: str, status: str, input_sha256: str, output_sha256: str | None, prompt_version: str, invocation: Mapping[str, Any] | None = None, error: Exception | None = None) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
-        if stage not in {"composition", "hero_visual", "visual_break_visual"} or status not in {"completed", "failed"}:
+        if stage not in {"composition", *ALL_LANDING_VISUAL_SLOTS} or status not in {"completed", "failed"}:
             raise ValueError("Landing generation run is invalid")
         run_id = new_uuid7()
         with self.connection() as connection:
@@ -810,16 +853,19 @@ class LandingService:
 
     def _workspace(self, landing_id: str) -> Any:
         landing_id = _uuid(landing_id, "landing_id")
-        self.authority.get_page(landing_id)
+        page = self.authority.get_page(landing_id)
         if landing_id not in self._workspaces:
-            self._workspaces[landing_id] = self.workspace_factory(self.pages_root / landing_id)
+            workspace = self.workspace_factory(self.pages_root / landing_id)
+            if isinstance(workspace, LandingWorkspace):
+                workspace.template_reference = page.get("template_reference")
+            self._workspaces[landing_id] = workspace
         return self._workspaces[landing_id]
 
     def source_versions(self, project_id: str) -> dict[str, Any]:
         return {"items": self.authority.source_versions(project_id), "next_cursor": None}
 
-    def reserve_from_post(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False) -> tuple[dict[str, Any], bool]:
-        page, created = self.authority.create_page(project_id=project_id, source_creative_id=source_creative_id, source_version=source_version, requested_by=requested_by, additional=additional)
+    def reserve_from_post(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+        page, created = self.authority.create_page(project_id=project_id, source_creative_id=source_creative_id, source_version=source_version, requested_by=requested_by, additional=additional, template_reference=template_reference)
         if created:
             detail = self._workspace(page["landing_id"]).detail()
             self.authority.update_page(page["landing_id"], state_sha256=detail["state_sha256"], learning_baseline=_snapshot(detail), learning_baseline_sha256=sha256_json(_snapshot(detail)))
@@ -835,7 +881,11 @@ class LandingService:
         page = self.authority.get_page(landing_id)
         if page["project_id"] != _uuid(project_id, "project_id"):
             raise KeyError("Landing was not found in this Project")
-        return {**self._workspace(landing_id).detail(), **self.summary(landing_id)}
+        value = {**self._workspace(landing_id).detail(), **self.summary(landing_id)}
+        from .landing_marketing import initial_design
+        brief = self.authority.brief(page["source_brief_id"])
+        value["catalog"]["marketing_defaults"] = initial_design(brief.get("document") or {}, page.get("source_post_snapshot") or {})
+        return value
 
     def manual_agent_edit(
         self, project_id: str, landing_id: str, *, request_id: str,
@@ -852,6 +902,7 @@ class LandingService:
             raise RuntimeError("Landing changed; reload before using Agent mode")
         editor_configuration = normalize_configuration(configuration)
         editor_content = normalize_content(content)
+        self._workspace(landing_id).validate_template_content(editor_configuration, editor_content)
         agent_configuration = deepcopy(editor_configuration)
         effective_configuration_defaults = {
             "visual_mode": "phone",
@@ -863,7 +914,7 @@ class LandingService:
         for field, default in effective_configuration_defaults.items():
             agent_configuration.setdefault(field, deepcopy(default))
         agent_content = deepcopy(editor_content)
-        if "app_feature" not in agent_content:
+        if "app_feature" not in agent_content and "app_screens" not in agent_content:
             language = agent_configuration["presentation"]["language"]
             agent_content["app_feature"] = {
                 "title": editor_content["features"][0]["title"][:APP_FEATURE_LIMITS["title"]],
@@ -874,13 +925,13 @@ class LandingService:
                 } for item in editor_content["features"]],
             }
         artifacts = screenshot_artifacts(screenshots)
-        image_slots = list(LANDING_VISUAL_SLOTS) if detail.get("image_generation_available") else []
+        image_slots = list(detail["catalog"]["visual_slots"]) if detail.get("image_generation_available") else []
         current_images = [
             str(item["slot"]) for item in detail.get("assets", [])
             if item.get("available") and item.get("slot") in image_slots
         ]
         payload = manual_agent_payload(
-            surface="landing:project_landing", entity_id=landing_id,
+            surface=f"landing:{detail['template_id']}", entity_id=landing_id,
             message=message, history=history,
             configuration=agent_configuration, content=agent_content,
             catalog=detail["catalog"], screenshot_artifact_values=artifacts,
@@ -907,7 +958,7 @@ class LandingService:
                     next_configuration.pop(field)
             expanded_content = normalize_content(edited["content"])
             next_content = deepcopy(expanded_content)
-            if "app_feature" not in editor_content and next_content["app_feature"] == agent_content["app_feature"]:
+            if "app_feature" not in editor_content and "app_feature" in next_content and next_content["app_feature"] == agent_content["app_feature"]:
                 next_content.pop("app_feature")
             contact_fields = ("email", "phone", "url", "instagram")
             if any(
@@ -915,20 +966,20 @@ class LandingService:
                 for field in contact_fields
             ):
                 raise ValueError("Studio Agent cannot invent or change contact endpoints")
+            from .landing_marketing import URL_FIELDS
+            if any(next_content.get("marketing", {}).get(field, "") != editor_content.get("marketing", {}).get(field, "") for field in URL_FIELDS):
+                raise ValueError("Studio Agent cannot change store or legal endpoints")
             if next_content["social_proof"] != editor_content["social_proof"]:
                 raise ValueError("Studio Agent cannot invent or change social proof")
             actions = validate_image_actions(
                 value["image_actions"], slots=image_slots,
                 screenshot_count=len(screenshots), available_slots=set(current_images),
             )
-            directions = {
-                "hero_visual": next_content["hero"]["visual_direction"],
-                "visual_break_visual": next_content["visual_break"]["visual_direction"],
-            }
+            directions = {slot: screen_direction(next_content, slot) for slot in image_slots}
             if any(action["visual_direction"] != directions[action["slot"]] for action in actions):
                 raise ValueError("Studio Agent image action must use the matching Landing visual direction")
             validate_manual_agent_semantics(
-                surface="landing:project_landing",
+                surface=f"landing:{detail['template_id']}",
                 constraints=payload["request_constraints"],
                 configuration=expanded_configuration, content=expanded_content,
                 image_actions=actions,
@@ -984,7 +1035,7 @@ class LandingService:
             **record,
             "landing_id": page["landing_id"],
             "project_id": page["project_id"],
-            "template_id": LANDING_TEMPLATE_ID,
+            "template_id": self._workspace(landing_id).definition.identity.template_id,
             "generation": deepcopy(page.get("generation") or {}),
         }
 
@@ -1016,8 +1067,10 @@ class LandingService:
                        enhance_current: bool = False, reference_image: bytes | None = None,
                        instruction: Mapping[str, Any] | None = None,
                        changed_image_settings: list[str] | None = None) -> dict[str, Any]:
-        if slot not in LANDING_VISUAL_SLOTS:
+        definition = LANDING_TEMPLATE_REGISTRY.resolve_reference(page["template_reference"]) if page.get("template_reference") else LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID)
+        if slot not in (*definition.capabilities.image_slots, *(("walkthrough_visual",) if "marketing" in configuration else ())):
             raise ValueError("Landing visual slot is invalid")
+        from .landing_marketing import GRADIENTS
         config = normalize_configuration(configuration)
         workspace = self._workspace(str(page["landing_id"]))
         history = workspace._history(slot)
@@ -1029,18 +1082,20 @@ class LandingService:
                 instruction = {"origin": "generated"}
             else:
                 # A stored legacy description is context, not evidence of authorship.
-                field = "hero" if slot == "hero_visual" else "visual_break"
-                previous = {"visual_direction": workspace._content()[field]["visual_direction"]}
-        selected = config.get("image_directions", DEFAULT_IMAGE_DIRECTIONS)[slot]
+                previous = {"visual_direction": screen_direction(workspace._content(), slot)}
+        selected = config.get("image_directions", DEFAULT_IMAGE_DIRECTIONS).get(slot, {"style": "premium_editorial", "background": "isolated_key_element"})
         skills = self.analytics.active_skills(str(page["project_id"])) if self.analytics else {}
         return build_image_context(
             direction=direction, instruction=resolve_instruction(direction, requested=instruction, previous=previous),
             brief=self.authority.brief(str(page["source_brief_id"])),
-            settings={**selected, "palette": {k: v for k, v in config["theme"].items() if k.endswith("_color")}},
-            destination={"surface": "landing", "template_id": page.get("template_id"),
-                         "slot": slot, "mode": config.get("visual_mode", "phone") if slot == "hero_visual" else "image",
+            settings={**selected, "palette": {k: v for k, v in config["theme"].items() if k.endswith("_color")}, **({"primary_gradient": next(g for g in GRADIENTS if g["id"] == config["marketing"]["gradient_id"]), "logo_color": config["marketing"]["logo_color"]} if "marketing" in config else {})},
+            destination={"surface": "landing", "template_id": definition.identity.template_id,
+                         "slot": slot, "mode": "app_mockup" if slot == "walkthrough_visual" else "app_screen" if slot in SCREEN_SLOTS else config.get("visual_mode", "phone") if slot == "hero_visual" else "image",
+                         "screen_language": config.get("presentation", DEFAULT_PRESENTATION)["language"],
+                         **({"screen_series": workspace._content()["app_screens"], "aspect_ratio": "9:19.5"} if slot in SCREEN_SLOTS else {}),
+                         **({"aspect_ratio": "4:3", "steps": workspace._content().get("marketing", {}).get("walkthrough_steps", [])} if slot == "walkthrough_visual" else {}),
                          "presentation": config.get("presentation", {}),
-                         "crop": {"fit": "cover", "focus": config.get("presentation", {}).get("hero_focus" if slot == "hero_visual" else "visual_break_focus", {"x": 50, "y": 50}),
+                         "crop": {"fit": "fill" if slot in SCREEN_SLOTS else "contain" if slot == "walkthrough_visual" else "cover", "focus": {"x": 50, "y": 0} if slot in SCREEN_SLOTS else config.get("presentation", {}).get("hero_focus" if slot == "hero_visual" else "visual_break_focus", {"x": 50, "y": 50}),
                                   "height": config.get("visual_break", {}).get("height") if slot == "visual_break_visual" else None,
                                   "responsive": True},
                          "phone_mockup": config.get("phone_mockup", {}) if slot == "hero_visual" else {}},
@@ -1072,6 +1127,15 @@ class LandingService:
             raise ValueError("Landing generation requires an approved complete Product Brief")
         workspace = self._workspace(landing_id)
         detail = workspace.detail()
+        if detail["template_id"] == "app_showcase" and not detail["content"]["hero"]["title"]:
+            language = brief["document"].get("language", "uk")
+            if language in {"en", "uk"}:
+                configuration = deepcopy(detail["configuration"])
+                configuration["presentation"]["language"] = language
+                if "marketing" in configuration:
+                    from .landing_marketing import initial_design
+                    configuration["marketing"] = initial_design(brief["document"], page["source_post_snapshot"])
+                detail = workspace.save_configuration(base_sha256=detail["state_sha256"], configuration=configuration, content=detail["content"])
         skills = (
             self.analytics.active_skills(str(page["project_id"]))
             if self.analytics is not None else
@@ -1087,9 +1151,10 @@ class LandingService:
             "global_skill_snapshot_id": None if global_skill is None else global_skill["skill_snapshot_id"],
             "global_skill_sha256": None if global_skill is None else global_skill["rules_sha256"],
         }
+        resume_images = bool((page.get("generation") or {}).get("composition_complete"))
         self.authority.update_page(
-            landing_id, status="composing",
-            generation={"stage": "composing", **skill_provenance},
+            landing_id, status="generating_images" if resume_images else "composing",
+            generation={**(page.get("generation") or {}), "stage": "generating_images" if resume_images else "composing", **skill_provenance},
         )
         payload = landing_composition_payload(
             landing_id=landing_id,
@@ -1097,7 +1162,7 @@ class LandingService:
             source_post_snapshot=page["source_post_snapshot"],
             content_defaults={
                 **detail["content"],
-                "app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE),
+                **({"app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE)} if detail["template_id"] != "app_showcase" else {}),
             },
             active_creative_skills=skills,
             live_landing_catalog=detail["catalog"],
@@ -1105,22 +1170,37 @@ class LandingService:
         stage = "composition"
         stage_input = sha256_json(payload)
         try:
-            result = self._provider_call(
-                mode="studio_creative_generation", system_prompt=self.composer_skill,
-                input_payload=payload, output_schema=landing_generation_schema(),
-                idempotency_key=f"landing-page:{landing_id}", prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
-                response_validator=validate_landing_composition,
-            )
-            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version=LANDING_COMPOSER_PROMPT_VERSION, invocation=sanitized(result.get("invocation") or {}))
-            composed = workspace.save_configuration(
-                base_sha256=detail["state_sha256"],
-                configuration=detail["configuration"],
-                content=result["response"]["content"],
-            )
-            self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "subject_suggestions": {"hero_visual": composed["content"]["hero"]["visual_direction"], "visual_break_visual": composed["content"]["visual_break"]["visual_direction"]}, **skill_provenance, "composition": sanitized(result.get("invocation") or {})})
-            for slot, direction in (("hero_visual", composed["content"]["hero"]["visual_direction"]), ("visual_break_visual", composed["content"]["visual_break"]["visual_direction"])):
+            if resume_images:
+                composed = detail
+                result = {"invocation": (page.get("generation") or {}).get("composition", {})}
+            else:
+                result = self._provider_call(
+                    mode="studio_creative_generation", system_prompt=self.composer_skill,
+                    input_payload=payload, output_schema=landing_generation_schema(detail["template_id"], marketing="marketing" in detail["configuration"]),
+                    idempotency_key=f"landing-page:{landing_id}", prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
+                    response_validator=validate_landing_composition,
+                )
+                self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version=LANDING_COMPOSER_PROMPT_VERSION, invocation=sanitized(result.get("invocation") or {}))
+                # Owner-supplied defaults enter saved content, never AI output or
+                # render-time fallbacks that could rewrite an approved snapshot.
+                composed_content = deepcopy(result["response"]["content"])
+                natal_contacts = json.loads((Path(__file__).parent / "studio_assets" / "natal-contacts.json").read_text())
+                composed_content["contacts"].update(natal_contacts)
+                composed = workspace.save_configuration(
+                    base_sha256=detail["state_sha256"],
+                    configuration=detail["configuration"],
+                    content=composed_content,
+                )
+            suggestions = (page.get("generation") or {}).get("subject_suggestions", {}) if resume_images else {slot: screen_direction(composed["content"], slot) for slot in workspace.visual_slots}
+            self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "composition_complete": True, "subject_suggestions": suggestions, **skill_provenance, "composition": sanitized(result.get("invocation") or {})})
+            for slot in workspace.visual_slots:
+                if slot == "walkthrough_visual" and not composed["configuration"].get("marketing", {}).get("walkthrough_enabled"):
+                    continue
+                if any(asset["slot"] == slot and asset["available"] for asset in composed["assets"]):
+                    continue
+                direction = screen_direction(composed["content"], slot)
                 context = self._image_context(page, slot, direction, composed["configuration"],
-                                              base_sha256=composed["state_sha256"], instruction={"origin": "generated"})
+                                              base_sha256=composed["state_sha256"], instruction={"origin": "generated" if suggestions.get(slot) == direction else "owner"})
                 stage, prompt = slot, compile_image_prompt(context)
                 stage_input = sha256_json({"base_sha256": composed["state_sha256"], "slot": slot, "visual_direction": direction, "prompt": prompt})
                 composed = workspace.generate_visual(base_sha256=composed["state_sha256"], slot=slot, visual_direction=direction, prompt=prompt, image_context=context)
@@ -1131,7 +1211,7 @@ class LandingService:
         except Exception as error:
             self._synchronize_workspace(landing_id, workspace)
             self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version=LANDING_COMPOSER_PROMPT_VERSION if stage == "composition" else IMAGE_POLICY_VERSION, error=error)
-            self.authority.update_page(landing_id, status="failed", generation={**(self.authority.get_page(landing_id).get("generation") or {}), "stage": "failed", "error_type": type(error).__name__, "error_message": str(error)[:1000]})
+            self.authority.update_page(landing_id, status="failed", state_sha256=workspace.state_sha256(), generation={**(self.authority.get_page(landing_id).get("generation") or {}), "stage": "failed", "error_type": type(error).__name__, "error_message": str(error)[:1000]})
         return self.summary(landing_id)
 
     def retry_generation(self, project_id: str, landing_id: str) -> dict[str, Any]:
@@ -1164,10 +1244,10 @@ class LandingService:
         try:
             result = getattr(workspace, method)(**kwargs)
         except Exception as error:
-            if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
+            if method == "generate_visual" and kwargs.get("slot") in workspace.visual_slots:
                 self._record_generation(landing_id=landing_id, stage=str(kwargs.get("slot")), status="failed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs.get("slot"), "visual_direction": kwargs.get("visual_direction"), "prompt": kwargs.get("prompt"), "reference_image_sha256": reference_digest}), output_sha256=None, prompt_version=IMAGE_POLICY_VERSION, invocation={**image_provenance(kwargs["image_context"]), "enhance_current": bool(kwargs.get("enhance_current", False)), **({"reference_image_sha256": reference_digest} if reference_digest else {})}, error=error)
             raise
-        if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
+        if method == "generate_visual" and kwargs.get("slot") in workspace.visual_slots:
             self._record_generation(landing_id=landing_id, stage=str(kwargs["slot"]), status="completed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs["slot"], "visual_direction": kwargs["visual_direction"], "prompt": kwargs["prompt"], "reference_image_sha256": reference_digest}), output_sha256=result["state_sha256"], prompt_version=IMAGE_POLICY_VERSION, invocation={**image_provenance(kwargs["image_context"]), "enhance_current": bool(kwargs.get("enhance_current", False)), **({"reference_image_sha256": reference_digest} if reference_digest else {})})
         self._synchronize_workspace(landing_id, workspace)
         self.authority.update_page(landing_id, state_sha256=result["state_sha256"])

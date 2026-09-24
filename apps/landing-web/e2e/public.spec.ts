@@ -80,3 +80,60 @@ test('uses the branded visual 404 while the SPA response remains successful', as
   await expect(page.getByText('This Natal page is unavailable.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go to Natal' })).toHaveAttribute('href', '/')
 })
+
+test('publishes the App Showcase screens through the shared renderer and preserves CTA analytics', async ({ page }) => {
+  const events: Array<{ event_type: string; target: string }> = []
+  await page.route('**/api/v1/public/landing-analytics/events', async route => {
+    events.push(route.request().postDataJSON())
+    await route.fulfill({ status: 202, json: {} })
+  })
+  await page.route('**/api/v1/public/landings/ai/showcase', route => route.fulfill({ json: {
+    canonical_url: 'https://natal-service.com/ai/showcase', project_name: 'Showcase', version_sha256: digest,
+    published_at: '2026-09-23T00:00:00Z',
+    template_reference: { template_id: 'app_showcase', template_version: 1, template_sha256: 'b'.repeat(64) },
+    configuration: { ...configuration, showcase: { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 } },
+    content: { ...content, app_screens: [1, 2, 3].map(i => ({ title: `Task ${i}`, description: 'A project-specific app screen.', visual_direction: 'A static app screenshot' })) },
+    assets: Object.fromEntries(['app_screen_1', 'app_screen_2', 'app_screen_3', 'visual_break_visual'].map(slot => [slot, `/api/v1/public/landings/ai/showcase/versions/${digest}/assets/${slot}/${digest}.png`])),
+  } }))
+  await page.goto('/ai/showcase')
+  await expect(page.locator('.as-phone')).toHaveCount(5)
+  await expect(page.locator('.as-screen > img').first()).toHaveAttribute('src', new RegExp(`/versions/${digest}/assets/app_screen_1/${digest}.png$`))
+  await expect(page.locator('.as-cta').first()).toHaveAttribute('href', 'mailto:hello@example.com')
+  await page.locator('.as-cta').first().click()
+  await expect.poll(() => events.some(event => event.event_type === 'primary_cta_click' && event.target === 'email')).toBe(true)
+  await expect(page.locator('.as-edit')).toHaveCount(0)
+  await expect(page.locator('.lp-phone-row')).toHaveCount(0)
+  expect(await page.locator('.as-page').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+})
+
+test('public marketing sections use exact mockup bytes, store links and attributed reviews', async ({ page }) => {
+  const { default: defaults } = await import('../../commander-web/src/landing/marketing-defaults.json', { with: { type: 'json' } })
+  const marketing = structuredClone(defaults.content)
+  marketing.apple_url = 'https://apps.apple.com/app/id123456'
+  marketing.store_label = 'Explore Natal'
+  marketing.walkthrough_heading = 'A complete app workflow'
+  marketing.walkthrough_steps.forEach((item, i) => { item.title = `Step ${i+1}`; item.description = 'An illustrative task' })
+  await page.route('**/api/v1/public/landings/ai/marketing', route => route.fulfill({ json: {
+    canonical_url: 'https://natal-service.com/ai/marketing', project_name: 'Marketing', version_sha256: digest,
+    published_at: '2026-09-24T00:00:00Z',
+    configuration: { ...configuration, marketing: { ...defaults.configuration, gradient_id: 'aurora' } },
+    content: { ...content, contacts: { ...content.contacts, email: 'welcome@natal-service.com', phone: '+380 93 725 64 69', url: '', instagram: '' }, marketing },
+    assets: Object.fromEntries(['hero_visual', 'visual_break_visual', 'walkthrough_visual'].map(slot => [slot, `/api/v1/public/landings/ai/marketing/versions/${digest}/assets/${slot}/${digest}.png`])),
+  } }))
+  await page.goto('/ai/marketing')
+  await expect(page.locator('.mk-mockup img')).toHaveAttribute('src', new RegExp(`/versions/${digest}/assets/walkthrough_visual/${digest}.png$`))
+  await expect(page.getByRole('link', { name: 'App Store · Explore Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
+  await expect(page.locator('.mk-reference-note')).toContainText('These are not reviews of Natal.')
+  await expect(page.getByText('Complete manually in Landing Studio', { exact: false })).toHaveCount(0)
+  expect(await page.locator('.lp-page').evaluate(root => root.scrollWidth <= root.clientWidth)).toBe(true)
+  await page.getByRole('link', { name: 'Google Play · Explore Natal' }).first().click()
+  await expect(page.locator('.mk-footer')).toBeFocused()
+  await expect(page.locator('.mk-footer a[href="mailto:welcome@natal-service.com"]')).toBeVisible()
+  await expect(page.locator('.mk-footer a[href="tel:+380937256469"]')).toBeVisible()
+  await expect(page.locator('.mk-socials img')).toHaveCount(3)
+  for (const icon of await page.locator('.mk-contact-link img').all()) {
+    const box = await icon.boundingBox(); expect(box?.width).toBe(22); expect(box?.height).toBe(22)
+  }
+  await expect(page.locator('.mk-socials a, .mk-socials button')).toHaveCount(0)
+  for (const name of ['Telegram', 'Instagram', 'Threads']) await expect(page.locator('.mk-socials').getByRole('img', { name, exact: true })).toBeVisible()
+})

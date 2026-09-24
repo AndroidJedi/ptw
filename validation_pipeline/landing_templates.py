@@ -31,10 +31,10 @@ def _content() -> dict:
     return normalize_content(deepcopy(DEFAULT_CONTENT))
 
 
-def _agent_catalog() -> dict[str, Any]:
+def _agent_catalog(template_id=LANDING_TEMPLATE_ID) -> dict[str, Any]:
     """Expose only composition-relevant Landing metadata to the text agent."""
 
-    catalog = landing_catalog()
+    catalog = landing_catalog() if template_id == LANDING_TEMPLATE_ID else landing_showcase.catalog()
     return {
         "schema": catalog["schema"],
         "template_id": catalog["template_id"],
@@ -96,8 +96,30 @@ PROJECT_LANDING_DEFINITION = TemplateDefinition(
     editor_key="landing.project_landing.react",
 )
 
+from . import landing_showcase
+
+APP_SHOWCASE_DEFINITION = TemplateDefinition(
+    identity=TemplateIdentity("landing", "app_showcase", 1, landing_showcase.catalog()["sha256"]),
+    name="App Showcase", description="Three project-generated app screens in a gradient Natal landing.",
+    canvas=None, catalog=landing_showcase.catalog, agent_catalog=lambda: _agent_catalog("app_showcase"),
+    default_configuration=landing_showcase.configuration, default_content=landing_showcase.content,
+    normalize_configuration=normalize_configuration, normalize_content=normalize_content,
+    component_settings=lambda configuration, content: {"configuration": normalize_configuration(configuration), "content": normalize_content(content)},
+    capabilities=TemplateCapabilities(image_slots=landing_showcase.VISUAL_SLOTS),
+    renderer_key="landing.app_showcase.react", editor_key="landing.app_showcase.react",
+)
+
+from dataclasses import replace
+APP_SHOWCASE_V2_DEFINITION = replace(APP_SHOWCASE_DEFINITION,
+    identity=TemplateIdentity("landing", "app_showcase", 2, landing_showcase.enhanced_catalog()["sha256"]),
+    catalog=landing_showcase.enhanced_catalog, agent_catalog=landing_showcase.enhanced_catalog,
+    capabilities=TemplateCapabilities(image_slots=(*landing_showcase.VISUAL_SLOTS, "walkthrough_visual")),
+    default_configuration=landing_showcase.enhanced_configuration,
+    default_content=landing_showcase.enhanced_content,
+)
+
 LANDING_TEMPLATE_REGISTRY = TemplateRegistry(
-    "landing", (PROJECT_LANDING_DEFINITION,),
+    "landing", (PROJECT_LANDING_DEFINITION, APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V2_DEFINITION),
 )
 
 

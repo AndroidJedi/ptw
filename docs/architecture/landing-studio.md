@@ -11,7 +11,7 @@ Landing still has no forms, lead storage, or public Project directory.
 
 ## Bounded page contract
 
-The sole v4 page template keeps this semantic order: Hero, three feature cards,
+The default `project_landing` template keeps this semantic order: Hero, three feature cards,
 social proof, a generated visual break, contacts, and three FAQs. The owner can
 edit bounded content and theme/layout controls but cannot add HTML, CSS,
 scripts, arbitrary sections, or reorder the composition. Hero and visual-break
@@ -215,3 +215,111 @@ New declarative Landing templates can be authored independently or alongside a
 separately versioned Post definition. Their optional exact Post-template reference
 contains no Project content or approved-version data. Existing Landing pages,
 approvals, assets, publication and analytics retain their current behavior.
+
+
+## App Showcase template — local implementation
+
+The optional `app_showcase` v1 built-in provides the Bokko-inspired gradient
+hero, two staggered phones, three feature cards and their checklist, a three-step
+walkthrough, supporting photograph, optional owner evidence, repeated CTA, three
+FAQs and contact footer. Natal identity and validated contact routing remain fixed.
+The shared React dispatcher renders editor, fullscreen, native gallery and public
+pages. Screen images use the registered iPhone aperture with a camera safe area
+and full-width fitting below the camera: the complete image fits the remaining
+height without cropping labels or leaving side/bottom letterbox gaps.
+
+`GET /api/v1/landings/templates` supplies exact registered identities. Creation
+and approved-variant requests optionally include `{template_id, template_version,
+template_sha256}` as `template_reference`. Missing references retain the legacy
+contract; explicit references are persisted and bound into new state/version
+hashes. Repeating the first reservation with a different explicit identity
+conflicts. Existing pages change templates through the approved-variant path.
+
+The new template stores exactly three `content.app_screens` records (title,
+description, visual_direction) and bounded `configuration.showcase` controls
+(gradient_end, screen_scale, screen_offset). Its image slots are `app_screen_1`,
+`app_screen_2`, `app_screen_3` and `visual_break_visual`; it has no generated hero
+backdrop. Composition derives language from the Brief and creates three related
+static screen interiors. The image policy explicitly requests readable UI and
+keeps renderer-owned hardware outside the generated image. Nothing in the
+screens operates an account or transaction.
+
+The existing Landing Agent can tune the page and individual screens. Changing
+text depicted inside a screen requires an image action. Generate, Enhance,
+temporary references and newest-three history controls are independently scoped
+to each screen. The server validates the template's slots and preserves contact
+endpoints and evidence. Approval requires all four selected images and complete
+screen captions/directions. Composition completion is persisted; image retries
+reuse completed composition and images. Late provider results recheck the state
+digest before modifying workspace bytes.
+
+Selected reference icons and the optional interior photograph are bundled under
+`validation_pipeline/studio_assets/app-showcase`, with source URLs and SHA-256
+manifest entries. The supporting-image inspector can select the fixed photograph
+through the bounded `/visuals/visual_break_visual/reuse` route with
+`asset_id=bokko_lifestyle`; selection persists pending edits first. The backend
+checks its source digest and records the resulting PNG through normal asset
+history and graph lineage. No remote hotlink, Bokko identity, testimonial or
+contact is included.
+
+Migration 016 adds nullable template-reference metadata and extends image/run
+slot constraints. Asset identity includes the slot so equal PNG bytes in two
+slots retain separate lineage. Existing rows and historical version digests
+remain unchanged. Public snapshots resolve the approved template and expose only
+its selected image URLs. Archived approval images remain available after draft
+history eviction. `scripts/verify_app_showcase.py` verifies real authenticated
+HTTP, disposable PostgreSQL, approval, fresh-cache restart and public image bytes;
+`verify_ptw_brief_schema.sh` verifies migration preservation. Deployment and owner
+publication are separate from this local implementation.
+
+## Shared marketing sections and App Showcase v2
+
+`app_showcase` v2 enables the optional `configuration.marketing` and
+`content.marketing` blocks. V1 remains registered with its original identity.
+The original Project Landing also exposes **Enable showcase sections**; old
+stored pages acquire nothing on read. One saved logo color masks the canonical
+Natal symbol and name without changing their geometry. New v2 composition takes
+the source Post's symbol color (name color fallback), otherwise white. Ten named
+gradients select a domain mood; an unspecified domain uses the nearest chromatic
+logo hue or Ocean for neutral logos. The Studio chooser can override this.
+
+Shared React components supply the animated benefit-card rail, six comparison
+rows, four-step walkthrough with a separate complete mockup image, photo/benefit
+panel, reference-review cards, four service values, motif CTA and contact/footer
+columns. Native copied icons are CSS masks tinted by the selected gradient;
+store SVGs retain their source colors. Eight optional Natal symbol decorations
+have bounded opacity. Carousel playback pauses on focus/hover and respects
+reduced motion. All new controls and bounded copy are available to Landing Agent.
+
+Comparison rows, steps and values retain fixed item counts and per-item enabled
+flags. Missing Brief support leaves empty text. Editor and private fullscreen
+show manual-completion hints; public rendering never shows Studio instructions.
+Approval requires completing or hiding visible unfinished items. The three
+reference reviews/avatars from the supplied screenshots are bundled with source
+SHA-256 metadata and explicitly labelled as Bokko design examples, never Natal
+customer evidence. Their visibility is optional; real owner evidence remains the
+existing immutable evidence block, outside Agent edit authority.
+
+Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
+Empty destinations route to contacts or hide the individual button, according to
+an explicit setting. Privacy/terms links require owner HTTPS URLs. Composition
+and Agent cannot invent or change these endpoints. No download URLs are copied
+from the reference site. Save, Approve and Publish remain separate.
+
+`walkthrough_visual` uses the existing Generate/Enhance/reference/history and
+provenance lifecycle. Unlike `app_screen_*`, its policy requests an entire 4:3
+composition with three/four complete phone mockups and readable UI. The renderer
+uses contain fit; generated store badges, surrounding captions and new logos are
+excluded. Its asset is required/published only while the walkthrough is enabled;
+hiding it retains private image history and older approved selection. Preserving
+migration 017 extends only slot/stage constraints. Migration, authenticated HTTP,
+fresh-cache restart and exact published image bytes are verified with disposable
+PostgreSQL by `scripts/verify_app_showcase.py`.
+
+New Landing composition receives the owner-authorized Natal email and phone from
+`studio_assets/natal-contacts.json` after validating the endpoint-free AI response.
+These are persisted editable content, never render-time overrides. Existing drafts
+can apply **Use Natal contacts**; enabling showcase sections fills only empty email
+and phone fields. The shared footer uses locally pinned Bokko contact/social SVGs.
+Telegram, Instagram and Threads remain icons without links when unconfigured;
+existing Telegram/Instagram endpoints still work. Approved snapshots are untouched.

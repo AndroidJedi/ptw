@@ -96,7 +96,11 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
     settings = context.get("settings") or {}
     destination = context.get("destination") or {}
     guidance = "Keep the requested interaction inside the destination's visible crop."
-    if destination.get("mode") == "phone" and destination.get("surface") == "landing":
+    if destination.get("mode") == "app_mockup":
+        guidance += " Generate ONE polished 4:3 composition of three or four staggered front-facing phone mockups illustrating the supplied steps. This slot includes complete phone hardware, unlike app_screen interiors. Keep every device inside the canvas with generous margins; no cut-off corners, duplicated frames, warped screens or illegible microtext. Use coherent readable UI in screen_language and the current palette, with short labels grounded in the Brief. Use a clean neutral background or transparent alpha if supported. Do not copy another app's UI or logo; do not generate store badges, external captions, testimonials, fabricated claims, or a replacement Natal logo. The renderer uses contain fitting and supplies all surrounding copy and store buttons. For enhancement preserve devices and unchanged screen contents unless explicitly requested."
+    elif destination.get("mode") == "app_screen":
+        guidance += " This owner-selected template explicitly requests readable app UI and labels. Generate a polished static app-screen INTERIOR in portrait 9:19.5, edge to edge. Include crisp UI text in screen_language and coherent controls for the Brief-grounded task. Match the shared palette and screen_series. Do not paint phone hardware, perspective, an outer background, or a new brand logo: the renderer supplies Natal identity and hardware. Keep labels short; use illustrative inputs rather than invented results, prices, availability or testimonials."
+    elif destination.get("mode") == "phone" and destination.get("surface") == "landing":
         guidance += " This artwork is the backdrop behind a renderer-owned phone overlay, not its screen. Keep requested subjects visible around the central overlay."
     elif destination.get("mode") == "phone":
         guidance += " The surrounding phone and app controls are renderer-owned; keep the focal action clear of their reserved areas."

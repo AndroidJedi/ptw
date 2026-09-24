@@ -114,7 +114,7 @@ it('refreshes an in-progress Landing until it reaches a terminal state', async (
   expect(screen.getByText('Building the Landing')).toBeInTheDocument()
 
   await act(async () => { await vi.advanceTimersByTimeAsync(2_500) })
-  expect(api.get).toHaveBeenCalledTimes(4)
+  expect(vi.mocked(api.get).mock.calls.filter(([path]) => path.includes('/pages/'))).toHaveLength(2)
 
   view.unmount()
   vi.useRealTimers()
@@ -315,4 +315,35 @@ it('republishes old approved events and unpublishes without releasing the URL', 
     `/api/v1/landings/projects/${projectId}/publication/unpublish`,
     expect.objectContaining({ request_id: expect.any(String) }),
   ))
+})
+
+
+it('shows three static app screens and targets the selected screen for generation', async () => {
+  const detail = landingDetail()
+  detail.template_id = 'app_showcase'
+  detail.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  detail.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A project-specific task', visual_direction: `A polished app interface ${i}` }))
+  const api = landingApi(detail)
+  vi.mocked(api.post).mockImplementation(async () => detail as never)
+  const view = render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  await screen.findByLabelText('Hero title')
+  expect(view.container.querySelectorAll('.as-phone')).toHaveLength(5)
+  expect(view.container.querySelector('.lp-phone-row')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Screen 2' }))
+  fireEvent.change(screen.getByLabelText('Visual direction'), { target: { value: 'A new inventory screen with an Add photo action' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/visuals/app_screen_2/generate'), expect.objectContaining({ visual_direction: 'A new inventory screen with an Add photo action' }), expect.anything()))
+  expect(vi.mocked(api.post).mock.calls[0][0]).toContain('/configuration')
+})
+
+it('passes the exact selected template reference when reserving a Landing', async () => {
+  const reference = { template_id: 'app_showcase', template_version: 1, template_sha256: 'c'.repeat(64) }
+  const api = {
+    get: vi.fn(async (path: string) => path.endsWith('/templates') ? { items: [{ ...reference, name: 'App Showcase' }] } : path.endsWith('/source-posts') ? { items: [{ creative_id: creativeId, version: 1, version_sha256: 'a'.repeat(64), template_id: 'phone_metrics' }] } : { items: [] }),
+    post: vi.fn(async () => ({ landing: { landing_id: landingId } })), image: vi.fn(),
+  } as unknown as ApiClient
+  render(<LandingView api={api} language="en" projectId={projectId} />)
+  fireEvent.change(await screen.findByLabelText('Landing template'), { target: { value: 'app_showcase' } })
+  fireEvent.click(screen.getByRole('button', { name: /phone_metrics/ }))
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/pages'), expect.objectContaining({ template_reference: reference })))
 })

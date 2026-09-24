@@ -29,6 +29,7 @@ LANDING_CONFIGURATION_SCHEMA = "ptw.landing.configuration.v1"
 LANDING_CONTENT_SCHEMA = "ptw.landing.content.v1"
 LANDING_VERSION_SCHEMA = "ptw.landing.version.v1"
 LANDING_VISUAL_SLOTS = ("hero_visual", "visual_break_visual")
+ALL_LANDING_VISUAL_SLOTS = (*LANDING_VISUAL_SLOTS, "app_screen_1", "app_screen_2", "app_screen_3", "walkthrough_visual")
 LANDING_VISUAL_HISTORY_LIMIT = 3
 LANDING_FONT_FAMILIES = (
     "Inter", "Roboto Condensed", "Manrope", "Montserrat", "Source Sans 3",
@@ -213,7 +214,7 @@ def _color(value: Any, field: str) -> str:
 
 
 def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup", "visual_mode"} != set(DEFAULT_CONFIGURATION):
+    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup", "visual_mode", "showcase", "marketing"} != set(DEFAULT_CONFIGURATION):
         raise ValueError("Landing configuration fields are invalid")
     root = value
     if root.get("schema") != LANDING_CONFIGURATION_SCHEMA:
@@ -221,6 +222,12 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
     theme = _object(root["theme"], set(DEFAULT_CONFIGURATION["theme"]), "theme")
     fonts = {"font_family", "heading_font_family"}
     result = _copy(DEFAULT_CONFIGURATION)
+    if "marketing" in root:
+        from .landing_marketing import normalize_configuration as normalize_marketing
+        result["marketing"] = normalize_marketing(root["marketing"])
+    if "showcase" in root:
+        from .landing_showcase import normalize_showcase
+        result["showcase"] = normalize_showcase(root["showcase"])
     if "visual_mode" in root:
         if root["visual_mode"] not in ("phone", "image"):
             raise ValueError("Landing visual_mode is invalid")
@@ -270,7 +277,7 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) - {"app_feature"} != set(DEFAULT_CONTENT):
+    if not isinstance(value, Mapping) or set(value) - {"app_feature", "app_screens", "marketing"} != set(DEFAULT_CONTENT):
         raise ValueError("Landing content fields are invalid")
     root = value
     if root.get("schema") != LANDING_CONTENT_SCHEMA:
@@ -328,6 +335,12 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
             for item in proof_items
         ],
     }
+    if "marketing" in root:
+        from .landing_marketing import normalize_content as normalize_marketing
+        result["marketing"] = normalize_marketing(root["marketing"])
+    if "app_screens" in root:
+        from .landing_showcase import normalize_screens
+        result["app_screens"] = normalize_screens(root["app_screens"])
     result["visual_break"] = {"visual_direction": bounded(visual_break["visual_direction"], "visual_break.visual_direction", "visual-break direction")}
     email = bounded(contacts["email"], "contacts.email", "contact email")
     phone = bounded(contacts["phone"], "contacts.phone", "contact phone")
@@ -357,8 +370,12 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
 def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
     """Accept only AI's non-factual page copy; proof and endpoints remain owner input."""
     result = normalize_content(value)
-    if "app_feature" not in result:
+    if "app_feature" not in result and "app_screens" not in result:
         raise ValueError("Landing AI must provide the app feature screen")
+    if "marketing" in result:
+        from .landing_marketing import URL_FIELDS
+        if any(result["marketing"][field] for field in URL_FIELDS):
+            raise ValueError("Landing AI must not invent store or legal URLs")
     if result["social_proof"]["items"]:
         raise ValueError("Landing AI must not invent social proof")
     if any(result["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
@@ -371,6 +388,8 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
     if "app_feature" in result:
         required.extend(result["app_feature"][key] for key in ("title", "description", "action_label"))
         required.extend(item["label"] for item in result["app_feature"]["items"])
+    if "app_screens" in result:
+        required.extend(all(item.values()) for item in result["app_screens"])
     required.extend(item["title"] and item["description"] for item in result["features"])
     required.extend(item["question"] and item["answer"] for item in result["faq"])
     if not all(required):
@@ -478,9 +497,26 @@ class LandingWorkspace:
         self.assets = self.root / "assets"
         self.versions = self.root / "versions"
         self.image_provider = image_provider
+        self.template_reference = None
         self.root.mkdir(parents=True, exist_ok=True)
         self.assets.mkdir(parents=True, exist_ok=True)
         self.versions.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def definition(self):
+        from .landing_templates import LANDING_TEMPLATE_REGISTRY
+        return (LANDING_TEMPLATE_REGISTRY.resolve_reference(self.template_reference) if self.template_reference
+                else LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID))
+
+    @property
+    def visual_slots(self):
+        base = self.definition.capabilities.image_slots
+        return tuple(dict.fromkeys((*base, "walkthrough_visual"))) if "marketing" in self._configuration() else base
+
+    def validate_template_content(self, configuration, content):
+        showcase = self.definition.identity.template_id == "app_showcase"
+        if ("app_screens" in content) != showcase or ("showcase" in configuration) != showcase:
+            raise ValueError("Landing content does not match its selected template")
 
     @staticmethod
     def _atomic_json(path: Path, value: Any) -> None:
@@ -498,14 +534,14 @@ class LandingWorkspace:
 
     def _configuration(self) -> dict[str, Any]:
         path = self.root / "configuration.json"
-        return normalize_configuration(json.loads(path.read_text(encoding="utf-8"))) if path.is_file() else _copy(DEFAULT_CONFIGURATION)
+        return normalize_configuration(json.loads(path.read_text(encoding="utf-8"))) if path.is_file() else self.definition.default_configuration()
 
     def _content(self) -> dict[str, Any]:
         path = self.root / "content.json"
-        return normalize_content(json.loads(path.read_text(encoding="utf-8"))) if path.is_file() else _copy(DEFAULT_CONTENT)
+        return normalize_content(json.loads(path.read_text(encoding="utf-8"))) if path.is_file() else self.definition.default_content()
 
     def _history(self, slot: str) -> list[dict[str, Any]]:
-        if slot not in LANDING_VISUAL_SLOTS:
+        if slot not in self.visual_slots:
             raise ValueError("Landing visual slot is invalid")
         path = self.assets / f"{slot}.history.json"
         if not path.is_file():
@@ -533,7 +569,7 @@ class LandingWorkspace:
 
     def _asset_summaries(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        for slot in LANDING_VISUAL_SLOTS:
+        for slot in self.visual_slots:
             history = self._history(slot)
             selected = self._selected(slot)
             items.append({
@@ -548,7 +584,7 @@ class LandingWorkspace:
         return items
 
     def state_sha256(self) -> str:
-        return sha256_json({"configuration": self._configuration(), "content": self._content(), "assets": self._asset_summaries()})
+        return sha256_json({"configuration": self._configuration(), "content": self._content(), "assets": self._asset_summaries(), **({"template_reference": self.template_reference} if self.template_reference else {})})
 
     def _versions(self) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
@@ -563,9 +599,13 @@ class LandingWorkspace:
         return result
 
     def detail(self) -> dict[str, Any]:
+        from .landing_marketing import extend_catalog
+        catalog = extend_catalog(self.definition.catalog())
+        catalog["visual_slots"] = list(self.visual_slots)
         return {
-            "schema": LANDING_SCHEMA, "template_id": LANDING_TEMPLATE_ID,
-            "catalog": landing_catalog(), "state_sha256": self.state_sha256(),
+            "schema": LANDING_SCHEMA, "template_id": self.definition.identity.template_id,
+            **({"template_reference": self.template_reference} if self.template_reference else {}),
+            "catalog": catalog, "state_sha256": self.state_sha256(),
             "configuration": self._configuration(), "content": self._content(),
             "assets": self._asset_summaries(), "image_generation_available": self.image_provider is not None,
             "versions": [{
@@ -582,6 +622,7 @@ class LandingWorkspace:
         self._assert_state(base_sha256)
         normalized_configuration = normalize_configuration(configuration)
         normalized_content = normalize_content(content)
+        self.validate_template_content(normalized_configuration, normalized_content)
         self._atomic_json(self.root / "configuration.json", normalized_configuration)
         self._atomic_json(self.root / "content.json", normalized_content)
         return self.detail()
@@ -592,7 +633,7 @@ class LandingWorkspace:
         image_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
-        if slot not in LANDING_VISUAL_SLOTS:
+        if slot not in self.visual_slots:
             raise ValueError("Landing visual slot is invalid")
         if self.image_provider is None:
             raise RuntimeError("Landing image generation is unavailable")
@@ -606,6 +647,19 @@ class LandingWorkspace:
                 raise ValueError("select a Landing visual before enhancement")
             reference = (self.assets / f"{selected}.png").read_bytes()
         generated = generate_image(self.image_provider, prompt, reference_image=reference, uploaded_reference=reference_image is not None)
+        # The provider can outlive an editor turn; reject a stale result before writing bytes.
+        self._assert_state(base_sha256)
+        return self._store_visual(slot, direction, generated, image_context)
+
+    def reuse_visual(self, *, base_sha256: str, slot: str, asset_id: str) -> dict[str, Any]:
+        self._assert_state(base_sha256)
+        if self.definition.identity.template_id != "app_showcase" or slot != "visual_break_visual" or asset_id != "bokko_lifestyle":
+            raise ValueError("This reference asset is not available for the selected slot")
+        from .landing_showcase import reference_photo
+        direction = self._content()["visual_break"]["visual_direction"] or "Owner-selected interior photograph from the reference asset library"
+        return self._store_visual(slot, direction, reference_photo(), None)
+
+    def _store_visual(self, slot, direction, generated, image_context):
         data = bytes(generated["bytes"])
         inspected = inspect_media(data, str(generated.get("mime_type") or "image/png"))
         if inspected["mime_type"] != "image/png":
@@ -620,7 +674,10 @@ class LandingWorkspace:
         })
         while len(history) > LANDING_VISUAL_HISTORY_LIMIT:
             evicted = history.pop(0)
-            (self.assets / f"{evicted['sha256']}.png").unlink(missing_ok=True)
+            protected = {a["sha256"] for v in self._versions() for a in v.get("assets", [])}
+            protected.update(item["sha256"] for other in self.visual_slots if other != slot for item in self._history(other))
+            if evicted["sha256"] not in protected:
+                (self.assets / f"{evicted['sha256']}.png").unlink(missing_ok=True)
         self._atomic_json(self.assets / f"{slot}.history.json", history)
         self._atomic_json(self.assets / f"{slot}.selected.json", {"sha256": digest})
         return self.detail()
@@ -643,6 +700,9 @@ class LandingWorkspace:
     def approval_ready(self, detail: Mapping[str, Any] | None = None) -> None:
         value = self.detail() if detail is None else detail
         content = value["content"]
+        self.validate_template_content(value["configuration"], content)
+        if "app_screens" in content and any(not all(item.values()) for item in content["app_screens"]):
+            raise ValueError("Complete all three app screen captions and directions before approval")
         required = [
             content["hero"]["title"], content["hero"]["supporting_text"], content["hero"]["cta_label"],
             content["contacts"]["heading"], content["contacts"]["supporting_text"],
@@ -664,8 +724,11 @@ class LandingWorkspace:
             raise ValueError("Landing features must be completed before approval")
         if any(not item["question"] or not item["answer"] for item in content["faq"]):
             raise ValueError("Landing FAQs must be completed before approval")
-        if any(not item["available"] for item in value["assets"]):
-            raise ValueError("Landing hero and visual-break artwork must be generated before approval")
+        from .landing_marketing import approval_ready, required_slots
+        approval_ready(value["configuration"], content)
+        required_images = required_slots(self.definition.capabilities.image_slots, value["configuration"])
+        if any(not item["available"] for item in value["assets"] if item["slot"] in required_images):
+            raise ValueError("Landing template artwork must be generated before approval")
 
     def approve_configuration(self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str) -> dict[str, Any]:
         self._assert_state(base_sha256)
@@ -678,6 +741,7 @@ class LandingWorkspace:
             "schema": LANDING_VERSION_SCHEMA, "version": version, "state_sha256": saved["state_sha256"],
             "configuration": saved["configuration"], "content": saved["content"], "assets": saved["assets"],
             "change_note": note,
+            **({"template_reference": self.template_reference} if self.template_reference else {}),
         }
         record["version_sha256"] = sha256_json(record)
         self._atomic_json(self.versions / f"v{version}.json", record)

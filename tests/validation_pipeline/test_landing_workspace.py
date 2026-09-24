@@ -486,6 +486,9 @@ class LandingDesignTests(unittest.TestCase):
             def get_page(self, _landing_id):
                 return self.page
 
+            def brief(self, _brief_id):
+                return {"document": {"language": "en"}}
+
         class Provider:
             change_contact = False
             change_optional_controls = False
@@ -677,7 +680,9 @@ class LandingDesignTests(unittest.TestCase):
             service.generate(landing_id)
 
             self.assertEqual(configuration, workspace.detail()["configuration"])
-            self.assertEqual(generated, workspace.detail()["content"])
+            expected_content = deepcopy(generated)
+            expected_content["contacts"].update(email="welcome@natal-service.com", phone="+380 93 725 64 69")
+            self.assertEqual(expected_content, workspace.detail()["content"])
             self.assertEqual("draft", authority.page["status"])
             self.assertEqual(LANDING_COMPOSER_PROMPT_VERSION, provider.kwargs["prompt_version"])
             self.assertEqual({"content"}, set(provider.kwargs["output_schema"]["properties"]))

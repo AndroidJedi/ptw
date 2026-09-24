@@ -9,7 +9,7 @@ export type PublicLanding = {
   project_name: string
   configuration: LandingConfiguration
   content: LandingContent
-  assets: Record<'hero_visual' | 'visual_break_visual', string>
+  assets: Record<string, string>
   version_sha256: string
   published_at: string
 }

@@ -26,6 +26,10 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         if set(request) != expected:
             raise HTTPException(status_code=400, detail=message)
 
+    @router.get("/templates")
+    def templates() -> dict[str, Any]:
+        return service.templates()
+
     @router.get("/projects/{project_id}/source-posts")
     def source_posts(project_id: str) -> dict[str, Any]:
         try:
@@ -41,13 +45,15 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
             raise fail(error) from error
 
     def reserve(project_id: str, request: Mapping[str, Any], background: BackgroundTasks, *, additional: bool) -> dict[str, Any]:
-        fields(request, {"source_creative_id", "source_version"}, "Landing creation fields are invalid")
+        if set(request) not in ({"source_creative_id", "source_version"}, {"source_creative_id", "source_version", "template_reference"}):
+            raise HTTPException(status_code=400, detail="Landing creation fields are invalid")
         if isinstance(request["source_version"], bool) or not isinstance(request["source_version"], int):
             raise HTTPException(status_code=400, detail="Landing source Post version is invalid")
         try:
             page, created = service.reserve_from_post(
                 project_id=project_id, source_creative_id=str(request["source_creative_id"]),
                 source_version=request["source_version"], requested_by="owner-web", additional=additional,
+                template_reference=request.get("template_reference"),
             )
             if created:
                 background.add_task(service.generate, page["landing_id"])
@@ -108,6 +114,14 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         try:
             options = generation_request(request)
             return service.mutate(project_id, landing_id, "generate_visual", slot=slot, **options)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/pages/{landing_id}/visuals/{slot}/reuse")
+    def reuse_visual(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        fields(request, {"base_sha256", "asset_id"}, "Landing asset selection fields are invalid")
+        try:
+            return service.mutate(project_id, landing_id, "reuse_visual", base_sha256=str(request["base_sha256"]), slot=slot, asset_id=str(request["asset_id"]))
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

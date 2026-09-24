@@ -780,7 +780,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
             service=TemplateAuthoringService(TemplateStore(Path(directory)/'templates.sqlite3'),ScriptedTemplateProvider(),asynchronous=False)
             try:
                 gallery=service.gallery()
-                self.assertEqual({'phone_metrics','project_landing'},{v['template_id'] for v in gallery['items']})
+                self.assertEqual({'phone_metrics','project_landing','app_showcase'},{v['template_id'] for v in gallery['items']})
                 statuses={v['surface']:v['preview_status'] for v in gallery['items']}
                 self.assertEqual('ready',statuses['post'])
                 # The source-only CI test runs before npm installs Playwright and
@@ -792,7 +792,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
                 self.assertEqual('ready' if has_landing_renderer else 'failed',statuses['landing'])
                 self.assertEqual(['post'],[v['surface'] for v in service.gallery('post')['items']])
                 for item in gallery['items']:
-                    self.assertEqual(next(b['template_sha256'] for b in builtins() if b['surface']==item['surface']),item['template_sha256'])
+                    self.assertEqual(next(b['template_sha256'] for b in builtins() if b['surface']==item['surface'] and b['template_id']==item['template_id']),item['template_sha256'])
                 before=deepcopy(gallery)
                 post=next(v for v in gallery['items'] if v['surface']=='post')
                 ref={k:post[k] for k in ('surface','template_id','template_version','template_sha256')}

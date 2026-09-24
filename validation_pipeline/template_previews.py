@@ -27,20 +27,32 @@ def builtins() -> list[dict]:
             for registry in (POST_TEMPLATE_REGISTRY, LANDING_TEMPLATE_REGISTRY) for definition in registry.all()]
 
 
-def landing_fixture() -> dict:
-    definition = LANDING_TEMPLATE_REGISTRY.all()[0]
+def landing_fixture(template_id="project_landing") -> dict:
+    definition = LANDING_TEMPLATE_REGISTRY.get(template_id)
     content = definition.default_content()
     content["hero"].update(title="Template title", supporting_text="Supporting text placeholder", cta_label="Action")
     content["features"] = [{"title": "Section title", "description": "Body text placeholder"} for _ in range(3)]
     content["contacts"].update(heading="Contact section", supporting_text="Owner contact details appear here")
     content["faq"] = [{"question": "Question placeholder", "answer": "Answer placeholder"} for _ in range(3)]
     content["app_feature"] = {"title": "Feature title", "description": "Feature description", "action_label": "Action", "items": [{"label": "Label", "value": "Value"} for _ in range(3)]}
+    if template_id == "app_showcase":
+        content.pop("app_feature", None)
+        content["app_screens"] = [{"title": f"Step {i + 1}", "description": "Project-specific app screen", "visual_direction": "Neutral interface preview"} for i in range(3)]
+    if "marketing" in content:
+        m = content["marketing"]
+        m.update(introduction="Your app, everyday possibilities.", comparison_heading="A simpler way with Natal", walkthrough_heading="How it works", benefits_heading="Made for everyday tasks", benefits_supporting="A clear, connected experience", benefit_highlight_title="Your next step", benefit_highlight_text="Project-specific benefit", cta_heading="Explore the app", cta_text="Start with one simple step")
+        m["comparison_rows"] = [{"text": f"Project benefit {i+1}", "enabled": True} for i in range(6)]
+        m["walkthrough_steps"] = [{"title": f"Step {i+1}", "description": "Project-specific instructions", "enabled": True} for i in range(4)]
+        m["values"] = [{"title": f"Benefit {i+1}", "description": "Brief-grounded description", "enabled": True} for i in range(4)]
     configuration = definition.default_configuration()
     configuration["presentation"] = {"language": "en", "cta_target": "contacts", "heading_scale": 1, "spacing": "comfortable", "hero_focus": {"x": 50, "y": 50}, "visual_break_focus": {"x": 50, "y": 50}}
     # Native phone demo defaults are labels, not claims; no contact or proof is invented.
     image = "data:image/png;base64," + base64.b64encode(placeholder_image()).decode()
-    return {"configuration": configuration, "content": content,
-            "imageUrls": {"hero_visual": image, "visual_break_visual": image}}
+    images = {slot: image for slot in definition.capabilities.image_slots}
+    if template_id == "app_showcase":
+        from .landing_showcase import reference_photo
+        images["visual_break_visual"] = "data:image/png;base64," + base64.b64encode(reference_photo()["bytes"]).decode()
+    return {"configuration": configuration, "content": content, "imageUrls": images}
 
 
 def render_builtin(record: dict, *, mobile=False) -> dict:
@@ -59,7 +71,7 @@ def render_builtin(record: dict, *, mobile=False) -> dict:
         process = subprocess.Popen(["node", str(ROOT / "apps/commander-web/scripts/render-template-landing.mjs")],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         try:
-            stdout, _stderr = process.communicate(json.dumps({"fixture": landing_fixture(), "width": 360 if mobile else 1280}), timeout=45)
+            stdout, _stderr = process.communicate(json.dumps({"fixture": landing_fixture(record["template_id"]), "width": 360 if mobile else 1280}), timeout=45)
         except subprocess.TimeoutExpired as error:
             os.killpg(process.pid, signal.SIGKILL)
             process.communicate()

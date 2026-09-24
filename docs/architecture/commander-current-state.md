@@ -2,15 +2,25 @@
 
 Updated: 2026-09-24
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: serial release `domain-image-20260923-0b1aefe` accepted runtime code
-revision `0b1aefe589e5cdd271566f2c8022f7c710ab4414` with companion platform
-`8fc30c9a423255e1c43161edc691b84698b625e2`. Commander, Validation, Owner
-Gateway, Owner Console Hosting and public Landing Hosting run the combined
-domain-image and Project-deletion release. GOD and Firebase auth-guard functions
-retained their accepted versions. Test-only follow-up `0540150` is pushed above
-the runtime revision.
+Deployment: serial in-place release `app-showcase-20260924-393924f` accepted
+runtime code revision `393924f08cee3c79644b0d67b502c8799d5937d9` with
+unchanged companion platform `8fc30c9a423255e1c43161edc691b84698b625e2`.
+Commander, Validation, Owner Gateway, Owner Console Hosting and public Landing
+Hosting run the direct-slug, template-switching and App Showcase v2 release.
+GOD and Firebase auth-guard functions retained their accepted versions.
 
-## Direct Landing slugs and Natal-only template copy — local, not deployed
+Migrations 016 and 017 applied once with 64-character checksums and preserved
+every pre-existing Commander business row. The root-only pre-release backup is
+`/opt/ptw/backups/commander/20260924T093908Z-pre-app-showcase-20260924-393924f.dump`.
+All six PTW/application-companion containers are healthy on the release tag;
+Owner Hosting version `684ef0b1c220ec0b` and public Landing Hosting version
+`6553b5ad202bd082` are live. The real structured/media/Pexels canaries, schema,
+skills, approved-Post persistence, dependency, Telegram identity, 1 GB resource,
+public-shell and Owner Console audits passed. The exact amd64 Validation image
+passed 380 tests; Owner passed 124 unit tests/build and all 114 cross-browser
+checks. The 24-hour resource audit is scheduled for 2026-09-25 09:44 UTC.
+
+## Direct Landing slugs and Natal-only template copy — deployed
 
 Public Landing URLs now use `https://natal-service.com/<slug>`. First Publish
 asks only for one permanent slug; owner, Gateway, public snapshot, asset and
@@ -32,7 +42,7 @@ whitespace. Disposable PostgreSQL verifies persistence, approval and exact
 public bytes with direct slugs. The refreshed local runtime exposes no retired
 route selector or reference-brand text in either Landing template.
 
-## Landing template switching and simpler editor — local, not deployed
+## Landing template switching and simpler editor — deployed
 
 Landing now exposes two main actions, **Change template** and **Save**. A visual
 chooser applies an exact registered template to a new draft from the existing
@@ -58,9 +68,10 @@ the provider completed all five images, and the resulting private draft was
 inspected at desktop, tablet, 360px and iPhone WebKit widths. Generation and
 local visual review artifacts are in
 `.local/landing-template-refactor/`. PTW runs on 5174 with the refreshed API on
-8088. No production deployment, approval or publication was performed.
+8088 before the accepted production release above. No owner Project was approved
+or published during deployment.
 
-## Landing marketing sections / App Showcase v2 — local, not deployed
+## Landing marketing sections / App Showcase v2 — deployed
 
 App Showcase v2 adds ten domain gradients, a single inherited Natal logo/name
 color, optional small Natal motifs, animated benefit cards, six comparison rows,
@@ -96,10 +107,11 @@ A real provider composed Ukrainian sections and generated the mockup; a real
 Agent then changed the gradient and enhanced only that mockup, preserving all
 three previous screen digests. Both complete templates were visually inspected.
 Review fixtures are in `.local/app-showcase-v2/`, served by the existing local
-preview at port 42739 (original template: `/original.html`). No production
-migration, deployment, owner approval or publication was performed.
+preview at port 42739 (original template: `/original.html`). The accepted
+production release above applied migration 017 without approving or publishing
+an owner Project.
 
-## App Showcase Landing — implemented locally, not deployed
+## App Showcase Landing — deployed
 
 `app_showcase` v1 is a second built-in Landing template with a native gallery
 preview and exact-reference Project creation/variant picker. Its shared
@@ -126,7 +138,8 @@ generated all four images, enhanced screen 2 through the Agent while retaining
 other images, and localized external copy to Ukrainian. Complete generated pages
 were inspected at 1280, 768, 360 and iPhone WebKit widths. Local review artifacts
 are under `.local/app-showcase-preview/`; no owner Project was approved or
-published. Production migration, deployment and publication remain separate.
+published. The accepted production release above applied migration 016 while
+preserving all existing records and immutable versions.
 
 The local screen-fit follow-up removes side/bottom letterbox gaps in hero and
 walkthrough phones while retaining the full generated UI below the camera.

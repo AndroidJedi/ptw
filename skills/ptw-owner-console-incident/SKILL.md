@@ -113,6 +113,12 @@ before changing code or runtime state.
 - Do not accept `codex login status` as provider readiness. Check the root-owned
   auth file only by metadata and run the token-safe working Codex test. A
   credential can look logged in while model execution is revoked or times out.
+- Run the auth service's working request from a fresh mode-0700 temporary
+  `CODEX_HOME` containing only a mode-0600 copy of `auth.json`; never execute
+  the probe against the long-lived root Codex state directory. Newer CLIs can
+  reject `thread/start` from stale local state even though the same credential
+  completes a clean worker request. If the isolated worker probe passes, repair
+  the auth probe isolation rather than asking the owner to authorize again.
 - When ordinary auth verification and health look green but a bridge job fails,
   run the token-safe schema-bound worker probe from
   `scripts/audit_vps_owner_dependencies.sh`. `unauthorized` on the same

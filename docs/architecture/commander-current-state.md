@@ -83,6 +83,17 @@ Projects. The candidate now filters both sides of that comparison to
 remove the deleted Project or its retained history. Another preserving rollout
 is required before importing today's accepted template authority.
 
+The next rollout passed all eleven Astra structured/media jobs (1062–1072),
+Pexels and the Product Brief schema, then its post-canary authorization audit
+exposed a separate compatibility issue and rolled back cleanly. Codex CLI
+0.156.1 returned `thread/start` only when the auth service ran its working test
+inside the long-lived root Codex state directory; the identical credential and
+explicit Astra request passed from a fresh isolated home. Companion platform
+revision `35b8fa0` now copies only `auth.json` into a private temporary
+`CODEX_HOME` for that test and has a regression for excluding persistent state.
+The accepted production marker, image tags and PostgreSQL authority remain
+unchanged; today's templates still await the successful preserving rollout.
+
 ## Catalog-wide visual quality — implemented locally, proposal pending
 
 The review now covers all four current Post/Landing designs and seven retained

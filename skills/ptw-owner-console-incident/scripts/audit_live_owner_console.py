@@ -122,6 +122,8 @@ def main() -> None:
         "draft-bound phone preview state": "Updating preview…",
         "recent-image credential coalescing": "firebase-token-coalescing-v1",
         "optional Landing Instagram contact": "Instagram profile link",
+        "nonblocking template previews": "Preparing preview. This template is available to use.",
+        "recoverable Landing template catalog": "Reload templates",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (

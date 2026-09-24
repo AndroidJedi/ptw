@@ -27,6 +27,8 @@ function suggestedSlug(name: string) {
 
 export function LandingView({ api, language, projectId = null, projectName = '', landingId = null, onLanding = () => {} }: { api: ApiClient; language: Language; projectId?: string | null; projectName?: string; landingId?: string | null; onLanding?: (landingId: string) => void }) {
   const [templates, setTemplates] = useState<Array<LandingTemplateReference & { name: string }>>([])
+  const [templateError, setTemplateError] = useState('')
+  const [templateRetry, setTemplateRetry] = useState(0)
   const [templateId, setTemplateId] = useState('project_landing')
   const [templateOpen, setTemplateOpen] = useState(false)
   const [panel, setPanel] = useState<'history' | 'publication' | null>(null)
@@ -59,14 +61,16 @@ export function LandingView({ api, language, projectId = null, projectName = '',
 
   useEffect(() => {
     let active = true
-    api.get<{ items: Array<LandingTemplateReference & { name: string }> }>('/api/v1/landings/templates').then(value => { if (active) setTemplates(value.items) }).catch(() => { /* Existing template remains available during a rolling update. */ })
+    setTemplateError('')
+    api.get<{ items: Array<LandingTemplateReference & { name: string }> }>('/api/v1/landings/templates').then(value => { if (active) setTemplates(value.items) }).catch((cause: Error) => { if (active) setTemplateError(cause.message) })
     return () => { active = false }
-  }, [api])
+  }, [api, templateRetry])
   const templateReference = () => {
     const template = templates.find(item => item.template_id === templateId)
     return template ? { template_id: template.template_id, template_version: template.template_version, template_sha256: template.template_sha256 } : undefined
   }
-  const templatePicker = <label className="landing-field"><span>{tr('Landing template', 'Шаблон лендінгу')}</span><select aria-label={tr('Landing template', 'Шаблон лендінгу')} value={templateId} disabled={busy} onChange={event => setTemplateId(event.target.value)}>{templates.length ? templates.map(item => <option key={item.template_id} value={item.template_id}>{item.name}</option>) : <option value="project_landing">Project landing</option>}</select></label>
+  const templateCatalogError = templateError && <div className="landing-inline-error" role="alert">{templateError}<button className="secondary" onClick={() => setTemplateRetry(value => value + 1)}>{tr('Reload templates', 'Оновити шаблони')}</button></div>
+  const templatePicker = <>{templateCatalogError}<label className="landing-field"><span>{tr('Landing template', 'Шаблон лендінгу')}</span><select aria-label={tr('Landing template', 'Шаблон лендінгу')} value={templateId} disabled={busy || !templates.length} onChange={event => setTemplateId(event.target.value)}>{templates.length ? templates.map(item => <option key={item.template_id} value={item.template_id}>{item.name}</option>) : <option value="project_landing">{tr('Loading templates…', 'Завантаження шаблонів…')}</option>}</select></label></>
   const draftKey = (id: string) => `ptw:landing-draft:${projectId}:${id}`
   const stashDraft = () => {
     if (!detail || !configuration || !content || !dirty) return
@@ -389,6 +393,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
         <button disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); setPanel('publication') }}><Globe2 />{tr('Approve & publish', 'Затвердити й опублікувати')}</button>
       </div></details>
     </div></header>
+    {templateCatalogError}
     {error && <div className="landing-inline-error" role="alert">{error}<button className="ghost" onClick={() => setError('')}>{tr('Dismiss', 'Закрити')}</button></div>}
     {templateChooser}
     {panel === 'history' && <LandingDialog title={tr('Landing history', 'Історія лендінгів')} onClose={() => setPanel(null)} className="landing-history-dialog"><div className="landing-history-list">{pages.map(item => <button key={item.landing_id} aria-current={item.landing_id === detail.landing_id ? 'true' : undefined} disabled={busy} onClick={() => { stashDraft(); setPanel(null); if (item.landing_id !== detail.landing_id) onLanding(item.landing_id) }}><strong>{templateName(item)}</strong><span>{tr('Draft', 'Варіант')} {item.ordinal} · {item.status === 'failed' ? tr('Needs retry', 'Потрібен повтор') : item.approved_version_count ? tr('Has approved version', 'Є затверджена версія') : tr('Not approved', 'Не затверджено')}{item.landing_id === detail.landing_id ? ` · ${tr('Current', 'Поточний')}` : ''}</span></button>)}</div></LandingDialog>}

@@ -34,6 +34,23 @@ it('loads authenticated gallery previews, filters surfaces, and opens immutable 
   expect(screen.getByLabelText('Creation scope')).toBeDisabled()
 })
 
+it('opens App Showcase while its preview is pending and loads the completed preview automatically', async () => {
+  const landing = { ...item, surface: 'landing', template_id: 'app_showcase', template_version: 2, name: 'App Showcase', preview_status: 'pending', previews: {} }
+  let ready = false
+  const api = client()
+  api.get.mockImplementation(async path => path.endsWith('/runs') ? { items: [] } : path.includes('/versions/')
+    ? { ...landing, ...(ready ? { preview_status: 'ready', previews: { desktop: preview } } : {}) }
+    : { items: [{ ...landing, ...(ready ? { preview_status: 'ready', previews: { desktop: preview } } : {}) }] })
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Open template' }))
+  expect(await screen.findByText('Preparing preview. This template is available to use.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Edit template' })).toBeEnabled()
+  ready = true
+  await waitFor(() => expect(api.image).toHaveBeenCalledWith('/api/v1/templates/media/' + preview.sha256, 'image/png', preview.sha256), { timeout: 3500 })
+  await waitFor(() => expect(screen.queryByText('Preparing preview. This template is available to use.')).not.toBeInTheDocument(), { timeout: 3500 })
+  expect(api.post).not.toHaveBeenCalled()
+})
+
 it('keeps a built-in Landing available when its preview renderer fails', async () => {
   const landing = { ...item, surface: 'landing', template_id: 'project_landing', template_version: 5,
     template_sha256: '6bd068332255e5bf294341f85f46d31f3708b933282cb4bf09497b3511466d7a',

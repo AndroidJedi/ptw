@@ -65,6 +65,7 @@ function landingDetail(status: LandingDetail['status'] = 'draft'): LandingDetail
 function landingApi(detail: LandingDetail) {
   return {
     get: vi.fn(async (path: string) => {
+      if (path.endsWith('/landings/templates')) return { items: [] }
       if (path.endsWith('/pages')) return { items: [detail] }
       if (path.endsWith('/source-posts')) return { items: [] }
       if (path.endsWith(`/pages/${landingId}`)) return detail
@@ -152,6 +153,30 @@ it('keeps pending copy when Save fails and displays an inline error', async () =
   expect(screen.getByLabelText('Hero title')).toHaveValue('My unsaved headline')
 })
 
+it('shows a failed template catalog and reloads App Showcase without losing pending edits', async () => {
+  const detail = landingDetail()
+  const api = landingApi(detail)
+  const originalGet = vi.mocked(api.get).getMockImplementation()!
+  let unavailable = true
+  vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path.endsWith('/landings/templates')) {
+      if (unavailable) throw new Error('Template list temporarily unavailable')
+      return { items: [{ template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64), name: 'App Showcase' }] } as never
+    }
+    return originalGet(path)
+  })
+  render(<LandingView api={api as unknown as ApiClient} language="en" projectId={projectId} landingId={landingId} />)
+  fireEvent.change(await screen.findByLabelText('Hero title'), { target: { value: 'Keep this draft' } })
+  expect(screen.getByRole('alert')).toHaveTextContent('Template list temporarily unavailable')
+  unavailable = false
+  fireEvent.click(screen.getByRole('button', { name: 'Reload templates' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Change template' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Change template' }))
+  expect(screen.getByRole('button', { name: 'App Showcase' })).toBeEnabled()
+  expect(screen.getByLabelText('Hero title')).toHaveValue('Keep this draft')
+  expect(api.post).not.toHaveBeenCalled()
+})
+
 it('reconciles an equivalent completed save after a stale-state response', async () => {
   const detail = landingDetail()
   const saved = {
@@ -160,6 +185,7 @@ it('reconciles an equivalent completed save after a stale-state response', async
   }
   const api = landingApi(detail)
   vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path.endsWith('/landings/templates')) return { items: [] } as never
     if (path.endsWith('/pages')) return { items: [detail] } as never
     if (path.endsWith('/source-posts')) return { items: [] } as never
     if (path.endsWith(`/pages/${landingId}`)) return saved as never
@@ -189,6 +215,7 @@ it('keeps owner input and the original conflict when the latest Landing differs'
   })
   vi.mocked(api.post).mockRejectedValue(conflict)
   vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path.endsWith('/landings/templates')) return { items: [] } as never
     if (path.endsWith('/pages')) return { items: [detail] } as never
     if (path.endsWith('/source-posts')) return { items: [] } as never
     if (path.endsWith(`/pages/${landingId}`)) return {

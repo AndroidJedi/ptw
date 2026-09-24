@@ -70,8 +70,14 @@ bundle with `npm --prefix apps/commander-web run build:template-preview`; the
 local launcher and Validation image build do this automatically. No separate
 mock gallery artwork exists. Browser failure yields an explicit preview retry.
 Built-in identities remain readable when native preview rendering is temporarily
-unavailable: the gallery and exact-version detail both expose the registered
-template with `preview_status: failed`, and a later read can retry the preview.
+unavailable. Production gallery and exact-version reads queue one background
+preview per identity and return `preview_status: pending` immediately; gallery,
+detail and Landing chooser poll until ready. Failed rendering returns `failed`
+with a bounded retry cooldown. Version history enumerates registered immutable
+identities without starting previews. Chromium uses disposable writable XDG
+configuration/cache directories, including under the unprivileged container user.
+App Showcase retains its original gradient/app-screen layout after reference
+branding removal and, as a built-in, requires no authoring acceptance.
 Creating a derivative from an unavailable built-in preview may use the owner's
 instruction without attaching preview pixels. A wrong immutable digest still
 conflicts, and an unknown template still returns 404.

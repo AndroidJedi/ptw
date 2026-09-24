@@ -13,6 +13,32 @@ Owner Hosting version `d7bb3d729e427f46` and public Landing Hosting version
 canonical skills, approved-Post persistence, 1 GB resource and public/Owner
 audits passed.
 
+## App Showcase preview/access recovery — release verification
+
+The original reference-inspired gradient/app-screen Landing remains registered
+as `app_showcase` v2; branding removal did not delete its definition or layout.
+Production's native Chromium preview failed under the unprivileged user because
+its XDG configuration directory was unavailable. Synchronous preview retries and
+a shared render lock delayed catalog/detail/history reads beyond the browser's
+15-second deadline. A hidden Landing-catalog failure could also leave the owner
+seeing only a fallback choice.
+
+The candidate supplies disposable writable browser XDG directories, coalesces
+built-in previews on one background worker, and returns exact template identities
+with pending/ready/failed preview status immediately. Gallery/detail/chooser poll
+pending previews; version history returns both App Showcase versions without
+rendering. Landing catalog errors expose Reload templates. The shell cache is v15.
+No template acceptance, Project mutation, migration or publication is needed.
+
+Verified locally: 402 Validation tests, 127 Owner unit tests, 19 Gateway tests,
+Commander tests/demo, unprivileged read-only container native previews, and
+real HTTP/disposable PostgreSQL template apply/save, all five image slots,
+approval, immutable public bytes and fresh-cache restart. App Showcase detail,
+desktop/mobile native previews and v1/v2 history pass desktop/360px/iPhone browser
+checks. Full browser/container release gates and production rollout are pending.
+The incident skill records the diagnosis and guards against treating label removal
+or preview failure as permission to remove a template.
+
 ## Phone Metrics evidence recovery and accepted template catalog
 
 The accepted runtime now gives `brief_supported` and `ai_hypothesis` separate

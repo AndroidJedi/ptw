@@ -105,10 +105,21 @@ export function TemplatesView({ api, language }: { api: ApiClient; language: Lan
   }, [api, filter])
   useEffect(() => { setItems(null); setError(''); void refresh() }, [refresh])
   useEffect(() => {
-    if (!runs.some(item => activeStates.includes(item.status))) return
+    if (!runs.some(item => activeStates.includes(item.status)) && !items?.some(item => item.preview_status === 'pending')) return
     const timer = setTimeout(() => void refresh(), 1500)
     return () => clearTimeout(timer)
-  }, [runs, refresh])
+  }, [runs, items, refresh])
+  useEffect(() => {
+    if (selected?.preview_status !== 'pending') return
+    let active = true
+    const current = generation.current
+    const timer = setTimeout(() => {
+      void api.get<Template>(`${versionPath(selected)}?sha256=${selected.template_sha256}`).then(value => {
+        if (active && mounted.current && current === generation.current) setSelected(value)
+      }).catch((cause: Error) => { if (active && current === generation.current) setError(cause.message) })
+    }, 1500)
+    return () => { active = false; clearTimeout(timer) }
+  }, [api, selected])
 
   const openRun = useCallback(async (id: string) => {
     const current = ++generation.current
@@ -322,6 +333,7 @@ export function TemplatesView({ api, language }: { api: ApiClient; language: Lan
     {selected && <section className="template-detail"><h2>{selected.name} · v{selected.template_version}</h2><p>{selected.description}</p><p>{selected.builtin ? tr('Built-in · edits create a derivative', 'Вбудований · редагування створює похідний шаблон') : tr('Immutable registered version', 'Незмінна зареєстрована версія')}</p><small className="template-id">{selected.template_id} · {selected.template_sha256}</small>
       {versions.length > 1 && <label>{tr('Version', 'Версія')}<select value={selected.template_version} onChange={event => { const item = versions.find(v => v.template_version === Number(event.target.value)); if (item) void inspect(item) }}>{versions.map(item => <option key={item.template_version} value={item.template_version}>v{item.template_version}</option>)}</select></label>}
       {selected.preview_status === 'failed' && Object.keys(selected.previews).length === 0 && <div className="notice" role="status"><p>{tr('This template is available, but its preview could not be rendered. Retry the preview or edit from your instruction.', 'Шаблон доступний, але прев’ю не вдалося створити. Повторіть спробу або редагуйте за своїм описом.')}</p><button className="secondary" disabled={busy} onClick={() => void inspect(selected)}>{tr('Retry preview', 'Повторити прев’ю')}</button></div>}
+      {selected.preview_status === 'pending' && <p role="status">{tr('Preparing preview. This template is available to use.', 'Готуємо прев’ю. Шаблон уже доступний для використання.')}</p>}
       <div className="template-preview-grid">{Object.entries(selected.previews).map(([key, preview]) => <figure key={key}><TemplateImage api={api} preview={preview} label={`${selected.name} ${key}`} language={language} /><figcaption>{key}</figcaption></figure>)}</div>
       {selected.document && <details><summary>{tr('Structured components', 'Структуровані компоненти')}</summary><ul>{selected.document.components.map(c => <li key={c.id}>{c.id} · {c.type} · {c.role}</li>)}</ul></details>}
       {selected.post_reference && <p className="template-id">Post: {selected.post_reference.template_id} · v{selected.post_reference.template_version} · {selected.post_reference.template_sha256}</p>}

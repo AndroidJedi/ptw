@@ -28,10 +28,16 @@ export function LandingTemplatePicker({ api, language, items, currentId, request
       }
     } catch { /* Session storage is optional; the same mounted attempt still retries safely. */ }
     let active = true
-    void api.get<{ items: Array<LandingTemplateChoice & { previews: Record<string, Preview> }> }>('/api/v1/templates?surface=landing', { deadlineMs: 120_000 }).then(value => {
-      if (active) setPreviews(Object.fromEntries(value.items.filter(item => item.previews?.desktop).map(item => [item.template_sha256, item.previews.desktop])))
-    }).catch(() => { /* Catalog choices remain usable when a preview is unavailable. */ })
-    return () => { active = false }
+    let timer: ReturnType<typeof setTimeout>
+    const loadPreviews = () => {
+      void api.get<{ items: Array<LandingTemplateChoice & { preview_status?: string; previews: Record<string, Preview> }> }>('/api/v1/templates?surface=landing').then(value => {
+        if (!active) return
+        setPreviews(Object.fromEntries(value.items.filter(item => item.previews?.desktop).map(item => [item.template_sha256, item.previews.desktop])))
+        if (value.items.some(item => item.preview_status === 'pending')) timer = setTimeout(loadPreviews, 1500)
+      }).catch(() => { /* Catalog choices remain usable when a preview is unavailable. */ })
+    }
+    loadPreviews()
+    return () => { active = false; clearTimeout(timer) }
   }, [api, requestKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const apply = async () => {
     if (!selected && !pending) return

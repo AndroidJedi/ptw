@@ -10,6 +10,7 @@ from .template_authoring import TemplateAuthoringService, uuid
 from . import template_agent
 from .template_extensions import handoff
 from .template_store import TemplateConflict
+from .template_previews import builtins
 
 
 def _public_failure(failure: Any) -> dict[str, Any] | None:
@@ -217,7 +218,7 @@ def template_router(service: TemplateAuthoringService, *, prefix: str, dependenc
 
     @router.get("/{surface}/{template_id}/versions")
     def versions(surface: str, template_id: str):
-        items = service.ensure_builtins() + service.store.list("version", 200)
+        items = builtins(all_versions=True) + service.store.list("version", 200)
         return {"items": [{k: item[k] for k in ("surface", "template_id", "template_version", "template_sha256")} for item in items if item["surface"] == surface and item["template_id"] == template_id]}
 
     @router.get("/{surface}/{template_id}/versions/{version}")

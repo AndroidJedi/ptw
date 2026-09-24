@@ -24,9 +24,10 @@ def builtin_record(definition) -> dict:
             "component_roles": [{"type": item["component_id"], "role": item["role"]} for item in definition.catalog()["components"]]}
 
 
-def builtins() -> list[dict]:
+def builtins(*, all_versions=False) -> list[dict]:
     return [builtin_record(definition)
-            for registry in (POST_TEMPLATE_REGISTRY, LANDING_TEMPLATE_REGISTRY) for definition in registry.all()]
+            for registry in (POST_TEMPLATE_REGISTRY, LANDING_TEMPLATE_REGISTRY)
+            for definition in (registry.registered_versions() if all_versions else registry.all())]
 
 
 def landing_fixture(template_id="project_landing", *, reference=None) -> dict:
@@ -69,6 +70,7 @@ def builtin_preview_contract(record: dict) -> str:
     paths = [Path(__file__), ROOT / "validation_pipeline/template_demo_assets.py"]
     reference = {key: record[key] for key in ("template_id", "template_version", "template_sha256")}
     if record["surface"] == "landing":
+        paths.append(ROOT / "apps/commander-web/scripts/render-template-landing.mjs")
         bundle = Path(os.environ.get("PTW_TEMPLATE_PREVIEW_BUNDLE", str(ROOT / ".local/template-preview")))
         paths.extend(sorted(path for path in bundle.rglob("*") if path.is_file()))
         fixture = sha(landing_fixture(reference=reference))

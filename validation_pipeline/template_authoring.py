@@ -255,11 +255,15 @@ class TemplateAuthoringService:
         self._active: set[str] = set()
         self._stopping = threading.Event()
         self._preview_lock = threading.Lock()
+        self._preview_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="template-preview")
+        self._preview_jobs: dict = {}
+        self._preview_retry_at: dict[str, float] = {}
 
     def close(self):
         self._stopping.set()
         self.references.clear()
         self._executor.shutdown(wait=False, cancel_futures=True)
+        self._preview_executor.shutdown(wait=False, cancel_futures=True)
 
     def recover_interrupted(self):
         # Never replay provider work or a mutation after a process restart.
@@ -275,38 +279,63 @@ class TemplateAuthoringService:
             return tx.append("run", run["run_id"], {**run, **changes}, expected=run["state_sha256"])
 
     def _builtin_preview(self, builtin: dict) -> dict:
+        if not self.asynchronous:
+            return self._render_builtin_preview(builtin)
+        # Never run Chromium, compute fixtures, or wait for another rendering
+        # request on a catalog/detail GET. One worker coalesces identical reads.
+        key = reference_key({field: builtin[field] for field in
+                             ("surface", "template_id", "template_version", "template_sha256")})
+        with self._preview_lock:
+            job = self._preview_jobs.get(key)
+            if job is not None and job.done():
+                result = job.result()
+                if result["preview_status"] == "ready":
+                    return deepcopy(result)
+                retry_at = self._preview_retry_at.setdefault(key, time.monotonic() + 30)
+                if time.monotonic() < retry_at:
+                    return deepcopy(result)
+                self._preview_retry_at.pop(key, None)
+                job = None
+            if job is None and not self._stopping.is_set():
+                self._preview_jobs[key] = self._preview_executor.submit(self._render_builtin_preview, builtin)
+        return {**builtin, "previews": {}, "preview_status": "pending"}
+
+    def _render_builtin_preview(self, builtin: dict) -> dict:
+        try:
+            return self._load_or_render_builtin_preview(builtin)
+        except (RuntimeError, TimeoutError, OSError, ValueError):
+            return {**builtin, "previews": {}, "preview_status": "failed",
+                "preview_error": "Authoritative preview unavailable. Retry after the renderer is ready."}
+
+    def _load_or_render_builtin_preview(self, builtin: dict) -> dict:
         contract = builtin_preview_contract(builtin)
         # Append a new cache entry after renderer/fixture changes. Old gallery
         # PNGs, accepted versions and publication records remain byte-identical.
         key = "preview:" + contract
-        with self._preview_lock:
+        with self.store.transaction() as tx:
+            saved = tx.get("builtin", key)
+        if saved is not None:
+            return saved
+        previews = {}
+        for viewport in (["desktop", "mobile"] if builtin["surface"] == "landing" else ["desktop"]):
+            result = render_builtin(builtin, mobile=viewport == "mobile")
+            observations, failures = geometry(result)
             with self.store.transaction() as tx:
-                saved = tx.get("builtin", key)
-            if saved is not None:
-                return saved
-            try:
-                previews = {}
-                for viewport in (["desktop", "mobile"] if builtin["surface"] == "landing" else ["desktop"]):
-                    result = render_builtin(builtin, mobile=viewport == "mobile")
-                    observations, failures = geometry(result)
-                    with self.store.transaction() as tx:
-                        digest = tx.media(result["bytes"])
-                    previews[viewport] = {"sha256": digest, "definition_sha256": builtin["template_sha256"],
-                        "render_contract_sha256": contract, "geometry": observations, "failures": failures}
-                with self.store.transaction() as tx:
-                    return tx.get("builtin", key) or tx.append("builtin", key,
-                        {**builtin, "previews": previews, "preview_status": "ready"})
-            except (RuntimeError, TimeoutError, OSError):
-                return {**builtin, "previews": {}, "preview_status": "failed",
-                    "preview_error": "Authoritative preview unavailable. Retry after the renderer is ready."}
+                digest = tx.media(result["bytes"])
+            previews[viewport] = {"sha256": digest, "definition_sha256": builtin["template_sha256"],
+                "render_contract_sha256": contract, "geometry": observations, "failures": failures}
+        with self.store.transaction() as tx:
+            return tx.get("builtin", key) or tx.append("builtin", key,
+                {**builtin, "previews": previews, "preview_status": "ready"})
 
-    def ensure_builtins(self) -> list[dict]:
-        return [self._builtin_preview(builtin) for builtin in builtins()]
+    def ensure_builtins(self, surface: str | None = None) -> list[dict]:
+        return [self._builtin_preview(builtin) for builtin in builtins()
+                if surface is None or builtin["surface"] == surface]
 
     def gallery(self, surface: str | None = None) -> dict:
         if surface not in {None, "post", "landing"}:
             raise ValueError("Template surface is invalid")
-        items = {f"{v['surface']}:{v['template_id']}": v for v in self.ensure_builtins()}
+        items = {f"{v['surface']}:{v['template_id']}": v for v in self.ensure_builtins(surface)}
         for v in self.store.list("version", 200):
             key = f"{v['surface']}:{v['template_id']}"
             if key not in items or items[key]["template_version"] < v["template_version"]:

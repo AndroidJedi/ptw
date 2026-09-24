@@ -10,6 +10,8 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
@@ -744,6 +746,79 @@ class TemplateAuthoringTests(unittest.TestCase):
 
 
 class BuiltinTemplateGalleryTests(unittest.TestCase):
+    def test_slow_preview_never_blocks_catalog_detail_or_history_and_survives_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = TemplateStore(Path(directory) / 'templates.sqlite3')
+            service = TemplateAuthoringService(store, ScriptedTemplateProvider())
+            entered, release = threading.Event(), threading.Event()
+            reference = next({k: value[k] for k in ('surface', 'template_id', 'template_version', 'template_sha256')}
+                             for value in builtins() if value['template_id'] == 'app_showcase')
+            def render_slowly(*args, **kwargs):
+                entered.set()
+                if not release.wait(5):
+                    raise TimeoutError('test worker not released')
+                return {'bytes': base64.b64decode(image_input()['bytes_base64']), 'geometry': []}
+            def owner():
+                pass
+            app = FastAPI()
+            app.include_router(template_router(service, prefix='/templates', dependencies=[Depends(owner)]))
+            client = TestClient(app)
+            path = '/templates/landing/app_showcase/versions/2'
+            try:
+                with patch('validation_pipeline.template_authoring.builtin_preview_contract', return_value='a' * 64), patch('validation_pipeline.template_authoring.render_builtin', side_effect=render_slowly) as renderer:
+                    started = time.monotonic()
+                    first = client.get(path, params={'sha256': reference['template_sha256']})
+                    self.assertEqual(200, first.status_code)
+                    self.assertEqual('pending', first.json()['preview_status'])
+                    self.assertTrue(entered.wait(1))
+                    for _ in range(3):
+                        self.assertEqual('pending', client.get(path, params={'sha256': reference['template_sha256']}).json()['preview_status'])
+                    gallery = client.get('/templates?surface=landing').json()['items']
+                    self.assertEqual({'project_landing', 'app_showcase'}, {item['template_id'] for item in gallery})
+                    history = client.get('/templates/landing/app_showcase/versions').json()['items']
+                    self.assertEqual({1, 2}, {item['template_version'] for item in history})
+                    self.assertEqual(409, client.get(path, params={'sha256': '0' * 64}).status_code)
+                    self.assertEqual(404, client.get(path.replace('app_showcase', 'unknown_landing'), params={'sha256': reference['template_sha256']}).status_code)
+                    self.assertLess(time.monotonic() - started, 2)
+                    self.assertEqual(1, renderer.call_count)
+                    release.set()
+                    service._preview_executor.shutdown(wait=True)
+                    ready = service.read(reference)
+                    self.assertEqual('ready', ready['preview_status'])
+                    for preview in ready['previews'].values():
+                        self.assertEqual(preview['sha256'], hashlib.sha256(service.preview(preview['sha256'])).hexdigest())
+                    restarted = TemplateAuthoringService(store, ScriptedTemplateProvider(), asynchronous=False)
+                    try:
+                        renderer.reset_mock()
+                        self.assertEqual(ready, restarted.read(reference))
+                        renderer.assert_not_called()
+                    finally:
+                        restarted.close()
+            finally:
+                release.set()
+                service._preview_executor.shutdown(wait=True)
+                service.close()
+
+    def test_failed_async_preview_is_coalesced_and_retry_is_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = TemplateAuthoringService(TemplateStore(Path(directory) / 'templates.sqlite3'), ScriptedTemplateProvider())
+            reference = next({k: value[k] for k in ('surface', 'template_id', 'template_version', 'template_sha256')}
+                             for value in builtins() if value['template_id'] == 'app_showcase')
+            try:
+                with patch('validation_pipeline.template_authoring.builtin_preview_contract', return_value='b' * 64), patch('validation_pipeline.template_authoring.render_builtin', side_effect=RuntimeError('browser unavailable')) as renderer:
+                    self.assertEqual('pending', service.read(reference)['preview_status'])
+                    service._preview_jobs['landing:app_showcase:2'].result(timeout=2)
+                    for _ in range(5):
+                        self.assertEqual('failed', service.read(reference)['preview_status'])
+                    self.assertEqual(1, renderer.call_count)
+                    service._preview_retry_at['landing:app_showcase:2'] = 0
+                    self.assertEqual('pending', service.read(reference)['preview_status'])
+                    service._preview_jobs['landing:app_showcase:2'].result(timeout=2)
+                    self.assertEqual(2, renderer.call_count)
+            finally:
+                service._preview_executor.shutdown(wait=True)
+                service.close()
+
     def test_builtin_version_remains_readable_when_preview_renderer_is_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:
             service = TemplateAuthoringService(

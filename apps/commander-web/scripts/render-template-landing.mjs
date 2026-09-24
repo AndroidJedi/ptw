@@ -1,15 +1,22 @@
 // Fixed renderer only: stdin is validated fixture data, never code or HTML.
 import { chromium } from 'playwright'
-import { readFileSync, realpathSync } from 'node:fs'
-import { resolve, extname, sep } from 'node:path'
+import { readFileSync, realpathSync, mkdtempSync, rmSync } from 'node:fs'
+import { resolve, extname, sep, join } from 'node:path'
+import { tmpdir } from 'node:os'
 const chunks = []
 let size = 0
 for await (const chunk of process.stdin) { size += chunk.length; if (size > 24 * 1024 * 1024) throw Error('Fixture too large'); chunks.push(chunk) }
 const { fixture, width } = JSON.parse(Buffer.concat(chunks).toString())
 if (![360, 1280].includes(width)) throw Error('Unsupported viewport')
 const root = realpathSync(process.env.PTW_TEMPLATE_PREVIEW_BUNDLE || new URL('../../../.local/template-preview', import.meta.url).pathname)
-const browser = await chromium.launch({ headless: true, ...(process.env.PTW_TEMPLATE_CHROMIUM ? { executablePath: process.env.PTW_TEMPLATE_CHROMIUM } : {}) })
+// The unprivileged production user has no writable home. Chromium's crashpad
+// needs writable XDG directories even with its ordinary disposable profile.
+const runtime = mkdtempSync(join(tmpdir(), 'ptw-template-browser-'))
+let browser
 try {
+  browser = await chromium.launch({ headless: true,
+    env: { ...process.env, XDG_CONFIG_HOME: runtime, XDG_CACHE_HOME: runtime },
+    ...(process.env.PTW_TEMPLATE_CHROMIUM ? { executablePath: process.env.PTW_TEMPLATE_CHROMIUM } : {}) })
   const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' })
   await page.addInitScript(value => { window.templateFixture = value }, fixture)
   await page.route('**/*', async route => {
@@ -31,4 +38,6 @@ try {
   })
   const bytes = await page.locator('.lp-page').screenshot({ animations: 'disabled', timeout: 20000 })
   process.stdout.write(JSON.stringify({ png: bytes.toString('base64'), geometry }))
-} finally { await browser.close() }
+} finally {
+  try { await browser?.close() } finally { rmSync(runtime, { recursive: true, force: true }) }
+}

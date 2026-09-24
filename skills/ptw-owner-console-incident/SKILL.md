@@ -56,6 +56,22 @@ before changing code or runtime state.
   conflicts and unknown-template 404s distinct. Test the actual Gateway path
   and the Validation read while forcing the preview renderer to fail; editing
   from an instruction must not require unavailable preview bytes.
+- When App Showcase has a blank preview or an exact-version GET exceeds the
+  browser deadline, compare the native Landing catalog before inferring deletion
+  or missing approval. App Showcase is the preserved gradient/app-screen design;
+  removing reference-brand labels does not authorize removing its layout,
+  definition, assets, or versions. Built-ins require no authoring acceptance.
+  Run the native renderer as the deployed unprivileged user. Chromium's
+  `chrome_crashpad_handler: --database is required` indicates unavailable writable
+  browser configuration; supply disposable XDG config/cache directories and test
+  with a read-only filesystem. Do not change owner credentials or shared homes.
+  Catalog, exact detail and version history must return without waiting for
+  Chromium. Coalesce background preview work, poll pending previews in gallery,
+  detail and chooser, and keep exact template selection available while rendering.
+  Surface catalog failures with a reload action instead of silently showing one
+  fallback choice. Verify cold and warm live GET latency, digest-bound desktop and
+  mobile PNGs, both App Showcase versions, apply/save/reopen and restart. Preserve
+  accepted PNGs and Project approvals/publications; update only preview caches.
 - When a locally authored template appears missing, verify which process owns
   the browser and API ports and which database the API opened. The Templates
   browser canary serves a disposable database; a `proposed` run appears under

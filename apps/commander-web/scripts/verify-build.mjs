@@ -33,6 +33,8 @@ const requiredMarkers = {
   'manual campaign handoff': 'Open Meta Ads Manager',
   'publication uncertainty': 'Outcome uncertain',
   'visible failed Creative Save': 'Save was not confirmed. Your edits are still in the editor.',
+  'nonblocking template previews': 'Preparing preview. This template is available to use.',
+  'recoverable Landing template catalog': 'Reload templates',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -69,7 +71,7 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-brief-studio-landing-ads-v14")) {
+if (!worker.includes("ptw-shell-brief-studio-landing-ads-v15")) {
   throw new Error('Unsafe Owner Console service worker; cache version is stale')
 }
 

@@ -22,6 +22,7 @@ from psycopg.types.json import Jsonb
 from common.database import apply_migrations, database_url
 from common.events import append_event
 from common.image_references import EphemeralImageReferences, persistable_image_request
+from common.image_output import IMAGE_OUTPUT_VERSION, normalize_output_specification
 from common.secrets import EnvironmentSecretStore
 
 
@@ -64,6 +65,10 @@ def validate_structured_llm_request(request: dict) -> None:
     image_policy = request["input_payload"].get("generation_policy_version")
     if image_policy is not None and (request["mode"] not in MEDIA_MODES or image_policy != "ptw.domain-image.v1"):
         raise ValueError("unsupported image generation policy")
+    if "output_spec" in request["input_payload"]:
+        if request["mode"] not in MEDIA_MODES or image_policy != "ptw.domain-image.v1":
+            raise ValueError("image output specification requires the domain image policy")
+        normalize_output_specification(request["input_payload"]["output_spec"])
     idempotency_key = request.get("idempotency_key")
     if (
         not isinstance(idempotency_key, str)
@@ -151,6 +156,7 @@ def structured_llm_capabilities() -> dict:
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
         "image_generation_policies": ["ptw.domain-image.v1"],
+        "image_output_specs": [IMAGE_OUTPUT_VERSION],
     }
 
 

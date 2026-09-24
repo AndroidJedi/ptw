@@ -385,3 +385,37 @@ def test_domain_image_policy_preserves_request_and_accepts_unchanged_edit(monkey
     assert value["image"]["generation_policy"]["version"] == "ptw.domain-image.v1"
     assert value["image"]["generation_policy"]["visual_quality_gate"] is False
     assert value["image"]["reference"]["evidence"] == "validated_cli_attachment"
+
+
+@pytest.mark.parametrize("mode,size", [("app_screen", (864,1872)), ("app_mockup", (1536,1152))])
+def test_image_output_spec_reaches_worker_without_square_override(monkeypatch, tmp_path, mode, size):
+    from common.image_output import output_specification
+    home=tmp_path/'codex'; observed=[]
+    monkeypatch.setenv('CODEX_HOME',str(home))
+    monkeypatch.setenv('CONTENT_GRAPHIC_ASSET_DIR',str(tmp_path/'assets'))
+    spec=output_specification({'mode':mode})
+    def run(command, **kwargs):
+        observed.append((command,kwargs['input']))
+        Path(command[command.index('--output-last-message')+1]).write_text('{"generated":true}')
+        output=home/'generated_images'/'portrait';output.mkdir(parents=True)
+        (output/'image.png').write_bytes(png_header(*size))
+        return subprocess.CompletedProcess(command,0,stdout=thread_output('portrait',image_call=True),stderr='')
+    monkeypatch.setattr('worker.main.subprocess.run',run)
+    result=execute_structured_llm(request('content_non_human_graphic_generation',model='gpt-6-astra',input_payload={
+        'generation_policy_version':'ptw.domain-image.v1','output_spec':spec,'visual_direction':'Realistic hotel app screens'}))
+    assert len(observed)==1
+    assert 'square PNG' not in observed[0][1]
+    assert f'{size[0]}x{size[1]}' in observed[0][1]
+    assert result['image']['output_spec']==spec
+    assert result['invocation']['model']=='gpt-6-astra'
+    assert result['image']['resolved_model'] is None
+
+
+def test_portrait_output_rejects_square_pixels_and_cleans_temporary_files(tmp_path,monkeypatch):
+    from common.image_output import output_specification
+    from worker.main import _persist_non_human_graphic
+    output=tmp_path/'generated_images'/'square';output.mkdir(parents=True)
+    (output/'image.png').write_bytes(png_header(1024,1024))
+    with pytest.raises(ValueError,match='aspect ratio'):
+        _persist_non_human_graphic(tmp_path,'square',policy_version='ptw.domain-image.v1',output_spec=output_specification({'mode':'app_screen'}))
+    assert not output.exists()

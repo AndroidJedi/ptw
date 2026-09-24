@@ -47,6 +47,7 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
         "image_generation_policies": ["ptw.domain-image.v1"],
+        "image_output_specs": ["ptw.image-output.v1"],
     }
     for mode in (json_modes - MULTIMODAL_MODES) | MEDIA_MODES:
         validate_structured_llm_request({
@@ -207,3 +208,22 @@ def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
     request.pop(missing)
     with pytest.raises(ValueError, match="invalid structured LLM request"):
         validate_structured_llm_request(request)
+
+
+def test_output_contract_requires_media_policy_and_valid_safe_areas():
+    from copy import deepcopy
+    from common.image_output import output_specification
+    spec = output_specification({'mode': 'app_screen'})
+    request = {
+        'mode': 'content_non_human_graphic_generation',
+        'system_prompt': 'Generate one app screen',
+        'input_payload': {'generation_policy_version': 'ptw.domain-image.v1', 'output_spec': spec},
+        'output_schema': {'type': 'object'}, 'idempotency_key': 'output-contract',
+    }
+    validate_structured_llm_request(request)
+    for update in ({'generation_policy_version': None}, {'output_spec': {**spec, 'width': 1023}},
+                   {'output_spec': {**spec, 'safe_area': {**spec['safe_area'], 'top': float('nan')}}}):
+        invalid = deepcopy(request)
+        invalid['input_payload'].update(update)
+        with pytest.raises(ValueError): validate_structured_llm_request(invalid)
+    with pytest.raises(ValueError): validate_structured_llm_request({**request, 'mode': 'product_brief'})

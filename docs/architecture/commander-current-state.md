@@ -62,6 +62,16 @@ now 399 Validation tests and 44 Commander tests with seven expected environment
 skips. A fresh preserving rollout is still required before the template import
 and one retry of the same Creative.
 
+The next exact-revision rollout proved Astra composition past the former failure,
+then stopped before the Landing provider call because the expanded canonical
+Landing skill was 8,959 bytes against the shared 8 KiB compact prompt bound. Its
+automatic rollback again restored all accepted images and left the marker and
+database unchanged. The candidate now condenses duplicated visual prose to
+7,938 bytes without removing evidence, ownership, immutability or image-safety
+rules, and a regression loads the real production skill, Landing payload builder
+and output schema through the shared budget enforcer. Another preserving rollout
+is required.
+
 ## Catalog-wide visual quality — implemented locally, proposal pending
 
 The review now covers all four current Post/Landing designs and seven retained

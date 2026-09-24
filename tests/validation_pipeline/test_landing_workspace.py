@@ -207,9 +207,10 @@ class LandingAuthorityTests(unittest.TestCase):
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:
-        from validation_pipeline.landing_pages import landing_composition_payload
+        from validation_pipeline.landing_pages import landing_composition_payload, landing_generation_schema
         from validation_pipeline.landing_workspace import landing_catalog
         from validation_pipeline.post_templates import POST_TEMPLATE_REGISTRY
+        from validation_pipeline.provider import enforce_structured_contract_budget
         identity = POST_TEMPLATE_REGISTRY.get("phone_metrics").identity
         skills = {
             "project": {"skill_snapshot_id": "project", "rules": []},
@@ -243,6 +244,15 @@ class LandingAuthorityTests(unittest.TestCase):
         )
         self.assertEqual([], payload["active_creative_skills"]["project"]["rules"])
         self.assertEqual(0, payload["active_creative_skills"]["global"]["omitted_rule_count"])
+        prompt = (
+            Path(__file__).resolve().parents[2]
+            / "skills" / "landing-page-composer" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        budget = enforce_structured_contract_budget(
+            mode="studio_creative_generation", system_prompt=prompt,
+            input_payload=payload, output_schema=landing_generation_schema(),
+        )
+        self.assertLessEqual(budget["system_prompt"], 8 * 1024)
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_save_approve_learning_entrypoint_is_retired(self):

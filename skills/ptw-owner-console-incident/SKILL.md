@@ -203,6 +203,12 @@ before changing code or runtime state.
   affected containers. Require the explicit-model probe and the full structured
   canary to pass before accepting the rollout; never silently fall back to a
   different model.
+- If that canary advances and then rejects a compact prompt before queueing a
+  job, measure the exact UTF-8 skill bytes against the shared per-mode budget.
+  Condense duplicated prose without weakening evidence, ownership or safety
+  rules, and add a test that loads the production skill plus real payload/schema
+  builders through `enforce_structured_contract_budget`. Do not raise the bound
+  merely to accommodate instruction drift.
 - When a browser Studio mutation returns 404, compare the exact method/path at
   all three boundaries before inspecting the provider: built/live Owner
   Console call, public Owner Gateway route, and internal Validation route. A

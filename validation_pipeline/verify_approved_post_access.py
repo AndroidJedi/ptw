@@ -10,10 +10,14 @@ from .config import Settings
 def main() -> None:
     settings = Settings.from_environment()
     with psycopg.connect(settings.database_url) as connection:
-        projects = [str(row[0]) for row in connection.execute('SELECT entity_id FROM validation_projects')]
+        projects = [str(row[0]) for row in connection.execute(
+            'SELECT entity_id FROM validation_projects WHERE deleted_at IS NULL'
+        )]
         rows = connection.execute('''SELECT workspace.project_id,workspace.entity_id,version.version,version.render_sha256
             FROM universal_studio_versions version JOIN universal_studio_workspaces workspace
-            ON workspace.entity_id=version.workspace_id''').fetchall()
+            ON workspace.entity_id=version.workspace_id
+            JOIN validation_projects project ON project.entity_id=workspace.project_id
+            WHERE project.deleted_at IS NULL''').fetchall()
     expected = {(str(row[0]), str(row[1]), int(row[2])): row[3] for row in rows}
     with httpx.Client(base_url='http://127.0.0.1:8080', timeout=30,
                      headers={'X-PTW-Owner-Gateway-Token': settings.owner_gateway_token}) as client:
@@ -34,7 +38,7 @@ def main() -> None:
                 if response.status_code != 200 or hashlib.sha256(response.content).hexdigest() != digest:
                     raise RuntimeError(f'Approved PNG verification failed for Creative {creative_id} version {version}')
     print(
-        f'Approved Post access verified: {len(projects)} Projects, {len(expected)} immutable PNGs; '
+        f'Approved Post access verified: {len(projects)} active Projects, {len(expected)} accessible immutable PNGs; '
         'organic and manual Instagram sources match PostgreSQL.'
     )
 

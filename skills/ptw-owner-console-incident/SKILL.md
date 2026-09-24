@@ -209,6 +209,10 @@ before changing code or runtime state.
   rules, and add a test that loads the production skill plus real payload/schema
   builders through `enforce_structured_contract_budget`. Do not raise the bound
   merely to accommodate instruction drift.
+- Approved-Post access canaries must enumerate only active Projects and approved
+  versions belonging to them. Soft-deleted Projects intentionally return 404
+  while their immutable version rows remain retained; do not undelete, delete or
+  rewrite that history to make a read-only release audit pass.
 - When a browser Studio mutation returns 404, compare the exact method/path at
   all three boundaries before inspecting the provider: built/live Owner
   Console call, public Owner Gateway route, and internal Validation route. A

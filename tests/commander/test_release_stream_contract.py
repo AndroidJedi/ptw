@@ -216,6 +216,8 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("('instagram', 'instagram-tests')", canary)
         self.assertNotIn("('ads', 'instagram')", canary)
         self.assertIn("organic and manual Instagram sources match PostgreSQL", canary)
+        self.assertEqual(2, canary.count("deleted_at IS NULL"))
+        self.assertIn("active Projects", canary)
 
     def test_skill_verifier_ignores_generated_python_cache_artifacts(self) -> None:
         script = ROOT / "scripts/verify_ptw_skills.py"

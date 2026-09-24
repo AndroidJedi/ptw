@@ -72,6 +72,17 @@ rules, and a regression loads the real production skill, Landing payload builder
 and output schema through the shared budget enforcer. Another preserving rollout
 is required.
 
+That rollout passed the complete Astra structured/media/Pexels suite plus schema,
+authorization, dependency, skills and 1 GB resource audits, then rolled back at
+the approved-Post access check. The reported Project `morning-coffee` is
+intentionally soft-deleted and therefore correctly returns 404, while its two
+immutable approved versions remain in PostgreSQL. The read-only canary had
+enumerated every Project and every approved version instead of only active
+Projects. The candidate now filters both sides of that comparison to
+`deleted_at IS NULL` and has a release-contract regression; it does not alter or
+remove the deleted Project or its retained history. Another preserving rollout
+is required before importing today's accepted template authority.
+
 ## Catalog-wide visual quality — implemented locally, proposal pending
 
 The review now covers all four current Post/Landing designs and seven retained

@@ -2,15 +2,16 @@
 
 Updated: 2026-09-24
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: preserving release `metric-template-recovery-20260924-00a051b`
-accepted runtime code revision `00a051bf96b93f0acac2a0d10b4aa473bc5937a9`
+Deployment: preserving release `template-picker-recovery-20260924-6e10735`
+accepted runtime code revision `6e10735f1e379be5a2c091313a72c596204a66d2`
 with companion platform `35b8fa0eb6b0e9e56a6448f05db14b18d01414a3`.
-All seven PTW/application-companion containers are healthy. Owner Hosting version
-`d7bb3d729e427f46` and public Landing Hosting version `ad4b13c2006be094` are
-live. The full Astra structured/media/Pexels canaries, schema, authorization,
-independent worker, dependency, canonical skills, approved-Post persistence,
-1 GB resource and public/Owner audits passed; Owner passed 125 unit tests/build
-and all 114 cross-browser checks.
+Validation runs the picker recovery image; the other six application/companion
+containers retain the accepted metric-template release and all are healthy.
+Owner Hosting version `d7bb3d729e427f46` and public Landing Hosting version
+`ad4b13c2006be094` remain live. The full Astra structured/media/Pexels canaries
+(jobs 1084–1094), schema, authorization, independent worker, dependency,
+canonical skills, approved-Post persistence, 1 GB resource and public/Owner
+audits passed.
 
 ## Phone Metrics evidence recovery and accepted template catalog
 
@@ -18,9 +19,11 @@ The accepted runtime now gives `brief_supported` and `ai_hypothesis` separate
 strict schema branches, requires an Arabic numeral in supported evidence,
 requires empty hypothesis evidence, retains the exact-substring/quantity
 validator, and uses composer namespace v5. Production Creative
-`01a0d423-5c82-7cde-b319-1f073381772a` remains the single preserved failed
-record pending one post-fix retry; completed bridge jobs 1042 and 1043 remain
-append-only.
+`01a0d423-5c82-7cde-b319-1f073381772a` was retried exactly once and is now the
+single draft for its Brief with completed composition and phone image. Original
+failed composition run 1 and completed bridge jobs 1042/1043 remain append-only;
+runs 2–3 and bridge jobs 1095/1096 completed. Its three metric provenance
+records satisfy the strict origin/evidence contract.
 
 Combined Template run `981ca558-9a9a-4298-bffb-fc8176719ea2`, Post
 `design_3eba6cc0fe34469b83ff` v1, Landing `design_1d56c213d83645669a64` v1,
@@ -30,15 +33,16 @@ locks after checksummed local and production backups. Exact postconditions pass:
 was replaced. The production Post gallery now resolves `phone_metrics`, today's
 accepted Post and the older accepted `design_ee8759d1b6034ee2bffe` v3.
 
-The follow-up picker candidate fixes a catalog wiring defect: the Studio service
+The accepted picker recovery fixes a catalog wiring defect: the Studio service
 was enumerating the static built-in registry even though the database-backed
-accepted registry had been injected. It now enumerates that injected registry;
-authored choices remain `supports_generation: false` and are applied only through
-Change template. The new regression proves catalog identity, exact-version apply,
-return to the native template and restart persistence. The exact amd64 Validation
-environment passes all 400 tests, canonical skill verification and whitespace
-checks. A preserving rollout, live three-choice apply canary, Validation restart
-and one retry of the preserved Creative are still required.
+accepted registry had been injected. Both live catalog endpoints now return the
+same three exact Post identities. A production-code disposable canary applied,
+rendered and reopened every choice, including today's `Astra — Ad`; two Validation
+restarts retained all identities, the recovered Creative state and its selected
+phone-image digest. Authored choices remain `supports_generation: false` and are
+applied only through Change template. The exact amd64 Validation environment
+passes all 400 tests, canonical skill verification and whitespace checks. There
+are zero queued/composing/image-generation recovery records.
 
 ## Catalog-wide visual quality — implemented locally, proposal pending
 

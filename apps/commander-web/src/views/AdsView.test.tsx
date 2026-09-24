@@ -21,7 +21,7 @@ function workspace(withTest = false) {
     sources, landing: {
       publication_id: '33333333-3333-4333-8333-333333333333',
       event_id: '44444444-4444-4444-8444-444444444444', landing_version: 1,
-      landing_version_sha256: 'a'.repeat(64), canonical_url: 'https://natal-service.com/ai/idea',
+      landing_version_sha256: 'a'.repeat(64), canonical_url: 'https://natal-service.com/idea',
     },
     ads_manager_url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns',
     tests: withTest ? [{
@@ -32,8 +32,8 @@ function workspace(withTest = false) {
         arm_id: `${index + 5}1111111-1111-4111-8111-111111111111`, ordinal: index + 1,
         source_creative_id: source.creative_id, source_version: 1,
         ad_name: `PTW-test-AD-0${index + 1}`, headline: source.defaults.headline,
-        primary_text: `${source.defaults.instagram_caption}\n\nhttps://natal-service.com/ai/idea?ptw_attribution=token${index}`,
-        tracked_url: `https://natal-service.com/ai/idea?ptw_attribution=token${index}`,
+        primary_text: `${source.defaults.instagram_caption}\n\nhttps://natal-service.com/idea?ptw_attribution=token${index}`,
+        tracked_url: `https://natal-service.com/idea?ptw_attribution=token${index}`,
         paid: {}, funnel: { landing_view: index + 2, primary_cta_click: index, contact_click: 0 },
         cost_per_primary_cta_minor: null,
       })),

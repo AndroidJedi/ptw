@@ -108,25 +108,25 @@ class LandingPublicationTests(unittest.TestCase):
         request_id = str(uuid4())
         first = self.service.publish(
             project_id=self.project_id, request_id=request_id,
-            landing_id=self.landing_id, version=1, namespace="ai", slug="owner-project",
+            landing_id=self.landing_id, version=1, slug="owner-project",
             requested_by="test-owner",
         )
         repeated = self.service.publish(
             project_id=self.project_id, request_id=request_id,
-            landing_id=self.landing_id, version=1, namespace="ai", slug="owner-project",
+            landing_id=self.landing_id, version=1, slug="owner-project",
             requested_by="test-owner",
         )
 
         self.assertTrue(first["created"])
         self.assertFalse(repeated["created"])
         self.assertEqual(first["event"]["event_id"], repeated["event"]["event_id"])
-        self.assertEqual("https://natal-service.com/ai/owner-project", first["publication"]["canonical_url"])
+        self.assertEqual("https://natal-service.com/owner-project", first["publication"]["canonical_url"])
 
     def test_active_test_guard_blocks_mutation_but_not_idempotent_replay(self) -> None:
         request_id = str(uuid4())
         first = self.service.publish(
             project_id=self.project_id, request_id=request_id,
-            landing_id=self.landing_id, version=1, namespace="ai", slug="guarded",
+            landing_id=self.landing_id, version=1, slug="guarded",
             requested_by="test-owner",
         )
         def blocked(_project_id: str) -> None:
@@ -135,7 +135,7 @@ class LandingPublicationTests(unittest.TestCase):
         self.service.mutation_guard = blocked
         replay = self.service.publish(
             project_id=self.project_id, request_id=request_id,
-            landing_id=self.landing_id, version=1, namespace="ai", slug="guarded",
+            landing_id=self.landing_id, version=1, slug="guarded",
             requested_by="test-owner",
         )
         self.assertFalse(replay["created"])
@@ -143,12 +143,12 @@ class LandingPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "active Instagram test"):
             self.service.publish(
                 project_id=self.project_id, request_id=str(uuid4()),
-                landing_id=self.landing_id, version=2, namespace=None, slug=None,
+                landing_id=self.landing_id, version=2, slug=None,
                 requested_by="test-owner",
             )
 
     def test_collision_and_cross_project_versions_fail_closed(self) -> None:
-        self._publish(1, namespace="la", slug="stable-path")
+        self._publish(1, slug="stable-path")
         other_project = self._project("Other")
         other_landing = str(uuid4())
         self.store.append("landing_pages", other_landing, {
@@ -158,23 +158,23 @@ class LandingPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "already reserved"):
             other.publish(
                 project_id=other_project, request_id=str(uuid4()), landing_id=other_landing,
-                version=1, namespace="la", slug="stable-path", requested_by="test-owner",
+                version=1, slug="stable-path", requested_by="test-owner",
             )
         with self.assertRaisesRegex(ValueError, "from this Project"):
             self.service.publish(
                 project_id=other_project, request_id=str(uuid4()), landing_id=self.landing_id,
-                version=1, namespace="wa", slug="cross-project", requested_by="test-owner",
+                version=1, slug="cross-project", requested_by="test-owner",
             )
 
     def test_republish_rolls_forward_and_back_without_changing_url(self) -> None:
-        first = self._publish(1, namespace="wa", slug="rollback-demo")
-        second = self._publish(2, namespace=None, slug=None)
-        rollback = self._publish(1, namespace=None, slug=None)
+        first = self._publish(1, slug="rollback-demo")
+        second = self._publish(2, slug=None)
+        rollback = self._publish(1, slug=None)
 
         self.assertEqual(1, first["event"]["sequence"])
         self.assertEqual(2, second["event"]["sequence"])
         self.assertEqual(3, rollback["event"]["sequence"])
-        snapshot = self.service.snapshot("wa", "rollback-demo")
+        snapshot = self.service.snapshot("rollback-demo")
         self.assertEqual(
             {
                 "canonical_url", "project_name", "configuration", "content",
@@ -190,18 +190,18 @@ class LandingPublicationTests(unittest.TestCase):
         self.assertNotIn("provider_invocation", snapshot)
 
     def test_only_current_selected_assets_are_public_and_unpublish_is_404(self) -> None:
-        first = self._publish(1, namespace="ai", slug="asset-boundary")
-        snapshot = self.service.snapshot("ai", "asset-boundary")
+        first = self._publish(1, slug="asset-boundary")
+        snapshot = self.service.snapshot("asset-boundary")
         hero_url = snapshot["assets"]["hero_visual"]
         hero_digest = hero_url.rsplit("/", 1)[1].removesuffix(".png")
         asset = self.service.asset(
-            "ai", "asset-boundary", snapshot["version_sha256"], "hero_visual", hero_digest,
+            "asset-boundary", snapshot["version_sha256"], "hero_visual", hero_digest,
         )
         self.assertEqual(b"hero one", asset["bytes"])
-        self._publish(2, namespace=None, slug=None)
+        self._publish(2, slug=None)
         with self.assertRaises(KeyError):
             self.service.asset(
-                "ai", "asset-boundary", first["event"]["landing_version_sha256"],
+                "asset-boundary", first["event"]["landing_version_sha256"],
                 "hero_visual", hero_digest,
             )
         result = self.service.unpublish(
@@ -210,10 +210,10 @@ class LandingPublicationTests(unittest.TestCase):
         self.assertTrue(result["created"])
         self.assertEqual([3, 2, 1], [event["sequence"] for event in result["publication"]["events"]])
         with self.assertRaises(KeyError):
-            self.service.snapshot("ai", "asset-boundary")
+            self.service.snapshot("asset-boundary")
 
     def test_project_deletion_immediately_hides_a_published_landing(self) -> None:
-        self._publish(1, namespace="ai", slug="deleted-project")
+        self._publish(1, slug="deleted-project")
         project = self.store.get("projects", self.project_id)
         self.store.append("projects", self.project_id, {
             **project,
@@ -223,16 +223,16 @@ class LandingPublicationTests(unittest.TestCase):
         })
 
         with self.assertRaises(KeyError):
-            self.service.snapshot("ai", "deleted-project")
+            self.service.snapshot("deleted-project")
 
     def test_publication_and_permanent_reservation_survive_authority_restart(self) -> None:
-        first = self._publish(1, namespace="la", slug="restart-proof")
+        first = self._publish(1, slug="restart-proof")
         restarted_store = LocalBriefStore(Path(self.temporary.name))
         restarted = LocalLandingPublicationAuthority(
             restarted_store, lambda landing_id: FakeWorkspace(self.assets[landing_id]),
         )
 
-        snapshot = restarted.snapshot("la", "restart-proof")
+        snapshot = restarted.snapshot("restart-proof")
         self.assertEqual(first["event"]["landing_version_sha256"], snapshot["version_sha256"])
         unpublish_request_id = str(uuid4())
         first_unpublish = restarted.unpublish(
@@ -244,7 +244,7 @@ class LandingPublicationTests(unittest.TestCase):
             lambda landing_id: FakeWorkspace(self.assets[landing_id]),
         )
         publication = after_unpublish.get(self.project_id)
-        self.assertEqual("la", publication["namespace"])
+        self.assertNotIn("namespace", publication)
         self.assertEqual("restart-proof", publication["slug"])
         self.assertEqual("unpublished", publication["status"])
         repeated_unpublish = after_unpublish.unpublish(
@@ -256,7 +256,7 @@ class LandingPublicationTests(unittest.TestCase):
             first_unpublish["event"]["event_id"], repeated_unpublish["event"]["event_id"],
         )
         with self.assertRaises(KeyError):
-            after_unpublish.snapshot("la", "restart-proof")
+            after_unpublish.snapshot("restart-proof")
 
 
 if __name__ == "__main__":

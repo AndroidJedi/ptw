@@ -1,13 +1,20 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
 import type { LandingDetail, LandingPublication } from '../types'
 import { LandingView } from './LandingView'
 import { LandingPage } from '../landing/LandingPage'
 
+vi.mock('../firebase', () => ({ appCheck: {} }))
+
 const projectId = '11111111-1111-4111-8111-111111111111'
 const creativeId = '22222222-2222-4222-8222-222222222222'
 const landingId = '33333333-3333-4333-8333-333333333333'
+beforeEach(() => sessionStorage.clear())
+async function openPublication() {
+  fireEvent.click(await screen.findByLabelText('More actions'))
+  fireEvent.click(screen.getByRole('button', { name: 'Approve & publish' }))
+}
 
 it('renders the hero image without phone controls in both editor and public image mode', () => {
   const detail = landingDetail()
@@ -251,7 +258,8 @@ it('validates and confirms the complete permanent URL before first Publish', asy
   } as unknown as ApiClient
   render(<LandingView api={api} language="en" projectId={projectId} projectName="Sample Project" landingId={landingId} />)
 
-  expect(await screen.findByText('https://natal-service.com/ai/sample-project')).toBeVisible()
+  await openPublication()
+  expect(await screen.findByText('https://natal-service.com/sample-project')).toBeVisible()
   const publish = screen.getByRole('button', { name: 'Publish approved version' })
   expect(publish).toBeDisabled()
   fireEvent.change(screen.getByLabelText('Latin slug'), { target: { value: 'Bad Slug' } })
@@ -263,7 +271,7 @@ it('validates and confirms the complete permanent URL before first Publish', asy
 
   await waitFor(() => expect(post).toHaveBeenCalledWith(
     `/api/v1/landings/projects/${projectId}/publication/publish`,
-    expect.objectContaining({ landing_id: landingId, version: 1, namespace: 'ai', slug: 'valid-slug' }),
+    expect.objectContaining({ landing_id: landingId, version: 1, slug: 'valid-slug' }),
   ))
 })
 
@@ -276,8 +284,8 @@ it('republishes old approved events and unpublishes without releasing the URL', 
   ]
   const publication: LandingPublication = {
     schema: 'ptw.landing.publication.v1', publication_id: 'publication', project_id: projectId,
-    namespace: 'wa', slug: 'stable-page', status: 'published', current_event_id: 'event-2',
-    canonical_url: 'https://natal-service.com/wa/stable-page', requested_by: 'owner',
+    slug: 'stable-page', status: 'published', current_event_id: 'event-2',
+    canonical_url: 'https://natal-service.com/stable-page', requested_by: 'owner',
     created_at: '2026-09-08T00:00:00Z', updated_at: '2026-09-08T00:00:00Z',
     events: [{
       event_id: 'event-2', publication_id: 'publication', request_id: 'request-2', sequence: 2,
@@ -301,6 +309,7 @@ it('republishes old approved events and unpublishes without releasing the URL', 
   } as unknown as ApiClient
   render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
 
+  await openPublication()
   expect(await screen.findByRole('link', { name: /stable-page/ })).toHaveAttribute('href', publication.canonical_url)
   const restore = screen.getAllByRole('button', { name: 'Restore' })
   expect(restore).toHaveLength(2)
@@ -329,7 +338,7 @@ it('shows three static app screens and targets the selected screen for generatio
   await screen.findByLabelText('Hero title')
   expect(view.container.querySelectorAll('.as-phone')).toHaveLength(5)
   expect(view.container.querySelector('.lp-phone-row')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Screen 2' }))
+  fireEvent.change(screen.getByLabelText('Page section'), { target: { value: 'app_screen_2' } })
   fireEvent.change(screen.getByLabelText('Visual direction'), { target: { value: 'A new inventory screen with an Add photo action' } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/visuals/app_screen_2/generate'), expect.objectContaining({ visual_direction: 'A new inventory screen with an Add photo action' }), expect.anything()))
@@ -346,4 +355,86 @@ it('passes the exact selected template reference when reserving a Landing', asyn
   fireEvent.change(await screen.findByLabelText('Landing template'), { target: { value: 'app_showcase' } })
   fireEvent.click(screen.getByRole('button', { name: /phone_metrics/ }))
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/pages'), expect.objectContaining({ template_reference: reference })))
+})
+
+it('tries a selected template from an incomplete draft without Save or Approve and restores pending edits from history', async () => {
+  const old = landingDetail()
+  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  const next = { ...landingDetail(), landing_id: '55555555-5555-4555-8555-555555555555', ordinal: 2, template_reference: reference, template_id: 'app_showcase' as const }
+  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  next.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A task', visual_direction: 'A readable app screen' }))
+  let created = false
+  const api = {
+    get: vi.fn(async (path: string) => {
+      if (path.endsWith('/landings/templates')) return { items: [{ ...reference, name: 'App Showcase' }] }
+      if (path.endsWith('/pages')) return { items: created ? [next, old] : [old] }
+      if (path.endsWith(`/pages/${old.landing_id}`)) return old
+      if (path.endsWith(`/pages/${next.landing_id}`)) return next
+      return { items: [] }
+    }),
+    post: vi.fn(async () => { created = true; return { landing: next, created: true } }), image: vi.fn(),
+  } as unknown as ApiClient
+  const onLanding = vi.fn()
+  const view = render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} onLanding={onLanding} />)
+  fireEvent.change(await screen.findByLabelText('Hero title'), { target: { value: 'Keep this unfinished copy' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Change template' }))
+  fireEvent.click(screen.getByRole('button', { name: 'App Showcase' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Apply template' }))
+  await waitFor(() => expect(onLanding).toHaveBeenCalledWith(next.landing_id))
+  expect(api.post).toHaveBeenCalledTimes(1)
+  expect(api.post).toHaveBeenCalledWith(expect.stringMatching(/\/pages\/variants$/), {
+    request_id: expect.any(String), source_creative_id: creativeId, source_version: old.source_version, template_reference: reference,
+  })
+  view.rerender(<LandingView api={api} language="en" projectId={projectId} landingId={next.landing_id} onLanding={onLanding} />)
+  await waitFor(() => expect(view.container.querySelector('.as-page')).not.toBeNull())
+  expect(screen.getByRole('heading', { name: 'App Showcase', level: 1 })).toBeVisible()
+  view.rerender(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} onLanding={onLanding} />)
+  expect(await screen.findByLabelText('Hero title')).toHaveValue('Keep this unfinished copy')
+  expect(api.post).toHaveBeenCalledTimes(1)
+})
+
+it('retries an uncertain template change with the identical request after reopening the chooser', async () => {
+  const old = landingDetail()
+  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  const api = landingApi(old)
+  const originalGet = api.get
+  api.get = vi.fn(async (path: string) => path.endsWith('/landings/templates') ? { items: [{ ...reference, name: 'App Showcase' }] } : path.startsWith('/api/v1/templates?') ? { items: [] } : originalGet(path)) as ApiClient['get']
+  vi.mocked(api.post).mockRejectedValueOnce(new Error('Response lost')).mockResolvedValueOnce({ landing: { landing_id: 'new-page' } })
+  const onLanding = vi.fn()
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} onLanding={onLanding} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Change template' }))
+  fireEvent.click(screen.getByRole('button', { name: 'App Showcase' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Apply template' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Response lost')
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: false, cancelable: true }))
+  fireEvent.click(screen.getByRole('button', { name: 'Change template' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(onLanding).toHaveBeenCalledWith('new-page'))
+  expect(vi.mocked(api.post).mock.calls[1]).toEqual(vi.mocked(api.post).mock.calls[0])
+})
+
+it('does not navigate into an old project when a template response arrives after switching projects', async () => {
+  const old = landingDetail()
+  const otherProject = '66666666-6666-4666-8666-666666666666'
+  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  let complete!: (value: unknown) => void
+  const api = {
+    get: vi.fn(async (path: string) => {
+      if (path.endsWith('/landings/templates')) return { items: [{ ...reference, name: 'App Showcase' }] }
+      if (path.includes(otherProject)) return { items: [] }
+      if (path.endsWith('/pages')) return { items: [old] }
+      if (path.endsWith(`/pages/${landingId}`)) return old
+      return { items: [] }
+    }),
+    post: vi.fn(() => new Promise(resolve => { complete = resolve })), image: vi.fn(),
+  } as unknown as ApiClient
+  const onLanding = vi.fn()
+  const view = render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} onLanding={onLanding} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Change template' }))
+  fireEvent.click(screen.getByRole('button', { name: 'App Showcase' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Apply template' }))
+  view.rerender(<LandingView api={api} language="en" projectId={otherProject} onLanding={onLanding} />)
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith(`/api/v1/landings/projects/${otherProject}/pages`))
+  await act(async () => complete({ landing: { landing_id: 'old-project-result' } }))
+  expect(onLanding).not.toHaveBeenCalled()
 })

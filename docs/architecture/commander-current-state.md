@@ -10,6 +10,56 @@ domain-image and Project-deletion release. GOD and Firebase auth-guard functions
 retained their accepted versions. Test-only follow-up `0540150` is pushed above
 the runtime revision.
 
+## Direct Landing slugs and Natal-only template copy — local, not deployed
+
+Public Landing URLs now use `https://natal-service.com/<slug>`. First Publish
+asks only for one permanent slug; owner, Gateway, public snapshot, asset and
+Analytics contracts no longer expose a lane or path prefix. Slug availability is
+global. Retired two-segment browser and API paths return 404. The existing
+database column is written with one private fixed value, so this hard cut needs
+no migration and adds no compatibility route.
+
+The App Showcase renderer, inspector, Agent contracts, tests, asset metadata,
+skills and documentation contain no reference-brand name or link. The optional
+review block is explicitly sample layout content and cannot present itself as
+Natal evidence. Existing image bytes remain locally bundled and digest checked.
+
+Verification passes across 380 validation tests, 19 Owner Gateway tests, 124
+Owner Console tests/build, the public-shell unit suite/build, 69 Landing/Shell
+browser checks, 28 public browser checks at desktop/tablet/360px/iPhone WebKit,
+Commander tests/demo, deterministic Studio visual audit, skill verification and
+whitespace. Disposable PostgreSQL verifies persistence, approval and exact
+public bytes with direct slugs. The refreshed local runtime exposes no retired
+route selector or reference-brand text in either Landing template.
+
+## Landing template switching and simpler editor — local, not deployed
+
+Landing now exposes two main actions, **Change template** and **Save**. A visual
+chooser applies an exact registered template to a new draft from the existing
+approved Post, without saving or approving the current Landing. History and
+Approve/Publish live behind More; a single section selector replaces the button
+wall, with compact Agent/preview tools beside the page. History identifies each
+design and restores tab-local pending edits with their original stale digest.
+
+Local and PostgreSQL authorities accept variants of unfinished drafts. A stable,
+Project-scoped request UUID reconciles lost responses and restarts without
+duplicate pages or generation. Existing pages, immutable approvals and published
+versions stay unchanged; no migration is needed. Late responses cannot navigate
+into a different Project. Long Project names no longer overflow native Safari
+selects, and tablet workspaces switch between editor and usable preview panes.
+
+Verification: 124 Owner unit tests/build, 69 Landing/Shell browser checks,
+focused Landing/backend suites, Commander tests/demo, deterministic Studio visual
+audit, skills and whitespace. Disposable PostgreSQL verifies authenticated HTTP
+creation from unapproved drafts, invalid-request rejection, one generation on
+retry, fresh-authority retry, immutable version preservation and public bytes.
+The real local project was switched through the new UI to App Showcase v2;
+the provider completed all five images, and the resulting private draft was
+inspected at desktop, tablet, 360px and iPhone WebKit widths. Generation and
+local visual review artifacts are in
+`.local/landing-template-refactor/`. PTW runs on 5174 with the refreshed API on
+8088. No production deployment, approval or publication was performed.
+
 ## Landing marketing sections / App Showcase v2 — local, not deployed
 
 App Showcase v2 adds ten domain gradients, a single inherited Natal logo/name
@@ -20,13 +70,16 @@ The original Landing exposes the same optional sections. Old pages and the v1
 exact reference remain unchanged. Empty comparison/benefit items keep Studio
 completion hints and per-item hide controls; approval requires completion or
 hiding. Public rendering omits Studio hints. Copied review text/avatars retain
-explicit Bokko attribution as design examples, separate from Natal owner evidence.
+explicit sample-layout labels, separate from Natal owner evidence.
 
 The local contact follow-up sets new Landing defaults to `welcome@natal-service.com`
 and `+380 93 725 64 69`, with an explicit Studio action for existing drafts.
-The shared footer bundles source-pinned Bokko phone/email and Telegram, Instagram,
+The shared footer bundles source-pinned phone/email and Telegram, Instagram,
 Threads icons. Unconfigured social icons are noninteractive; existing owner links
-remain usable. Both local previews use the supplied Natal endpoints.
+remain usable. Small Privacy Policy and Terms labels now remain visible below the
+Natal logo while their URLs are empty; they become links independently when the
+owner later supplies each policy URL. Both local previews use the supplied Natal
+endpoints.
 
 Store buttons use owner App Store/Google Play URLs or configurable contact/hide
 fallbacks; footer legal URLs are owner input. Landing Agent can tune the new
@@ -49,12 +102,12 @@ migration, deployment, owner approval or publication was performed.
 ## App Showcase Landing — implemented locally, not deployed
 
 `app_showcase` v1 is a second built-in Landing template with a native gallery
-preview and exact-reference Project creation/approved-variant picker. Its shared
+preview and exact-reference Project creation/variant picker. Its shared
 editor/fullscreen/public renderer uses Natal identity, blue-to-teal gradients,
 three generated static screen interiors in the existing phone frame, benefits,
 walkthrough, supporting photograph, optional evidence, contact CTA, FAQs and
-footer. Four generic Bokko SVG assets and one optional photograph are bundled
-with source URLs and SHA-256 provenance; no Bokko identity or evidence is copied.
+footer. Four generic reference SVG assets and one optional photograph are bundled
+with local source records and SHA-256 provenance; no third-party identity or evidence is copied.
 
 Screen inspectors and the existing Landing Agent support individual generation,
 enhancement, temporary references and three-image histories. Composition uses
@@ -160,9 +213,9 @@ accepted but Owner Hosting remained withheld. Test-only commit `0540150` waits
 for the focus effect, passed five consecutive focused runs and the complete web
 and browser gates, after which Owner Hosting and its live audit completed.
 
-## Bokko v3 cutout and motif correction — deployed
+## Gradient Post v3 cutout and motif correction — deployed
 
-The production Post using Bokko v2 exposed its raw opaque white-shirt image in
+The production Post using Gradient Post v2 exposed its raw opaque white-shirt image in
 the `cutout_image` slot. The gallery's transparent fixture had hidden this
 Project path. Validation now segments opaque cutout images offline with a
 bundled, SHA-pinned U²-Netp model while preserving raw Post image/history and
@@ -172,7 +225,7 @@ count/placement for small Natal marks; older documents default to one mark.
 Renderer contract v6 binds the model digest and revised motif layering.
 
 Local `xhigh` Template Agent run `fdb69b91-db1f-47f9-aaeb-ce63cce9eb09`
-accepted revision 27 as Bokko Post v3, template digest
+accepted revision 27 as Gradient Post v3, template digest
 `17467591f85341cd072b7f432ea58fb9aa1a7d5a7277b4d5545693745af7e75c`,
 preview digest `34848ad9a598a6dca677f81b813f68b7e1778388431fcfefcb118586b72bc7fd`.
 Only the two motif regions, count ranges and opacity differ from v2; their
@@ -199,7 +252,7 @@ skill verification and Studio visual audit passed before release.
 Append-only production import registered the exact accepted v3 digest and PNG;
 the authenticated gallery, version, run and media APIs verified both digests.
 Root-owned pre-import PostgreSQL backup
-`.local/template-bokko-v3-import-20260922/pre-v3-import.dump` has SHA-256
+the local pre-v3 import backup has SHA-256
 `6d58b45189f1b6228f3421fd2e22de8b59808c50e669f0ab8735169831736100`.
 The existing production draft Post `01a07f55-20a5-755c-bbec-17a3f158ef4b`
 in Project `01a07c66-b00a-7364-8fda-7de87c12a907` now selects v3. Its
@@ -209,10 +262,10 @@ were preserved. Full-size production preview digest
 shows the shirt without its white rectangle and five small marks behind copy.
 The same template reference, draft state and PNG digest persisted after a
 Validation restart. Root-owned pre-restart backup
-`.local/template-bokko-v3-import-20260922/pre-v3-restart.dump` has SHA-256
+the local pre-v3 restart backup has SHA-256
 `4fbba7bb84ab4558e836846a799db3438634a015aaa49844d9528cb0c4901bc1`.
 
-## Bokko badge edit recovery — v2 deployed and accepted
+## Store-badge edit recovery — v2 deployed and accepted
 
 Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` failed twice while composing the
 owner's badge-size correction. The first structured response was invalid; local
@@ -226,7 +279,7 @@ result of an unfinished correction.
 
 Both owner badge assets already contain their own black button and border.
 Declarative `store_badge.badge_surface` now supports `asset_only`; historical
-documents default to `slot_pill`. The accepted Bokko v1 re-rendered byte-for-byte
+documents default to `slot_pill`. The accepted Gradient Post v1 re-rendered byte-for-byte
 at its original PNG digest
 `76c373897ec451d86463e5d8860b0f1f1acfcaff4b080f58d4e6752e5b56ad1b`.
 The same saved correction was retried through the real local `xhigh` Template
@@ -248,7 +301,7 @@ structured/media/Pexels canaries, dependency and resource audits, 117 web tests,
 production build, and 96 browser tests passed. A separate production
 `template_creation` bridge call succeeded at `xhigh` on attempt one without
 creating a Project or template run. A root-owned pre-import PostgreSQL
-backup at `.local/template-bokko-v2-import-20260922/pre-v2-import.dump` has SHA-256
+local pre-v2 import backup has SHA-256
 `4eb50ca8f906d15bc7075e3e63d07a7079228622d01d91be6945c3adb836a6c8`.
 The guarded import appended 46 run revisions, six request receipts, one immutable
 v2 record and three new PNGs; v1 records and media remained unchanged. The
@@ -266,7 +319,7 @@ reach analysis and comparison, and correction references also reach compose.
 Only digest metadata enters append-only state. Two owner-supplied SVG Repo badge
 files are preserved as source assets and registered as separate digest-pinned
 raster fixtures; earlier official badge assets and accepted template v1 remain
-unchanged. A real local `xhigh` Template Agent edit of Bokko v1 used both SVGs,
+unchanged. A real local `xhigh` Template Agent edit of Gradient Post v1 used both SVGs,
 selected `owner_app_store_badge_v1` and `owner_google_play_badge_v1`, rendered
 the first proposal at revision 15, and reported zero unresolved differences.
 Compared with accepted v1, that revision changed only the two badge `asset_id`
@@ -274,13 +327,13 @@ values. Later owner corrections produced revision 45 described above; its
 unchanged document and preview were accepted in revision 46. The exact v2
 authority is available locally and in production.
 
-## Bokko template authority restored — local and production
+## Gradient template authority restored — local and production
 
-The finished local Bokko run was intact in `.local/template-authoring.sqlite3`,
+The finished local Gradient Post run was intact in `.local/template-authoring.sqlite3`,
 but the API on port 8088 was a disposable Templates browser canary using another
 database. Port 5173 belonged to a different project. The real run was also only
 `proposed`, which excludes it from the reusable gallery. Production had the
-renderer/assets but no Bokko run, version or media records; source deployment
+renderer/assets but no Gradient Post run, version or media records; source deployment
 does not transfer template authority.
 
 The owner-directed recovery backed up the local SQLite authority, accepted the
@@ -1063,7 +1116,7 @@ Meta requests before consent and an external Meta request after Allow. Preservin
 release `4bf3c92` changed no application container, retained every health and
 authority check, and published Firebase public-Landing version
 `7daa02c978069292`. The apex audit and real headless-browser checks passed on
-both `/` and `/la/natal-service`: each sent zero pre-consent Meta requests, then
+both `/` and `/natal-service`: each sent zero pre-consent Meta requests, then
 loaded the exact Pixel and contacted Meta after Allow. The Pixel remains listed
 under production Ad Account `509909256695612` without exposing its token.
 
@@ -1355,7 +1408,7 @@ authorization, dependency, resource, source-access, and Hosting audits. All prio
 business rows remain unchanged. The root-only PostgreSQL backup precedes schema
 005; the 24-hour resource audit is scheduled. Actual production reads verify one
 Project, both immutable approved PNGs, and the current published Landing at
-`https://natal-service.com/la/natal-service`. The temporary media origin is ready.
+`https://natal-service.com/natal-service`. The temporary media origin is ready.
 Meta credentials remain absent, so export is available but no real Instagram
 publication/permalink or paused website ad has been accepted in Meta. No reset
 was performed. Runtime revision: `a4af6b286ecb51f4ee07bedbb9584f1b2f511240`;
@@ -1914,14 +1967,14 @@ the new publication tables are empty until an owner explicitly publishes an
 approved Landing. Real provider, generate/enhance, Pexels, dependency,
 Telegram, and 1 GB canaries passed, and the persistent follow-up audit is due
 2026-09-09 11:22 UTC. Owner Hosting version `57692ac4789cc5d0` and public
-Hosting version `185107aab38614ab` are live. Public root/lane rendering,
+Hosting version `185107aab38614ab` are live. Public root and deep-link rendering,
 noindex/robots/CSP, exact CORS, public 404s, private 401s, backup checksum, and
 all six healthy versioned services were independently rechecked.
 
 The Firebase/GoDaddy apex cutover completed at 2026-09-08 13:34 UTC. The exact
 ownership TXT now names `natal-landings-86123`, while the existing Firebase apex
 A record and all mail records remain unchanged. The apex has valid TLS and
-passes the public root, all three lane rewrites, CSP, robots, and noindex audit.
+passes the public root, direct slug rewrite, CSP, robots, and noindex audit.
 The owner explicitly declined the optional `www` attachment, so its historical
 certificate mismatch is outside the supported apex-only release. The legacy
 `natal-dashboard-dev` Hosting site remains intact during the soak.
@@ -1977,7 +2030,7 @@ the apex has completed its 24-hour soak and the owner separately authorizes
 retirement. `www` is intentionally outside the supported release by owner
 decision and does not block the soak. The next public workflow is owner review
 and approval of the existing Post, creation and approval of its Landing, and an
-explicit first Publish with a permanent lane/slug reservation.
+explicit first Publish with a permanent slug reservation.
 
 The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
 account are assigned. The owner must rotate the token disclosed during setup and

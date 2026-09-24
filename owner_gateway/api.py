@@ -696,12 +696,12 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/landings/projects/{project_id}/publication/availability")
     async def landing_publication_availability(
-        project_id: str, namespace: str, slug: str,
+        project_id: str, slug: str,
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "GET", f"/internal/v1/landings/projects/{project_id}/publication/availability",
-            params={"namespace": namespace, "slug": slug}, timeout=60,
+            params={"slug": slug}, timeout=60,
         )).json()
 
     @app.post("/api/v1/landings/projects/{project_id}/publication/publish")
@@ -722,10 +722,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             body=request, actor=actor(identity), timeout=60,
         )).json()
 
-    @app.api_route("/api/v1/public/landings/{namespace}/{slug}", methods=["GET", "HEAD"])
-    async def public_landing(namespace: str, slug: str) -> Response:
+    @app.api_route("/api/v1/public/landings/{slug}", methods=["GET", "HEAD"])
+    async def public_landing(slug: str) -> Response:
         response = await validation_bridge(
-            "GET", f"/internal/v1/public/landings/{namespace}/{slug}", timeout=60,
+            "GET", f"/internal/v1/public/landings/{slug}", timeout=60,
         )
         return Response(
             content=response.content,
@@ -814,12 +814,12 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             body=request, actor=actor(identity), timeout=60,
         )).json()
 
-    @app.api_route("/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
+    @app.api_route("/api/v1/public/landings/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
     async def public_landing_asset(
-        namespace: str, slug: str, version_sha256: str, slot: str, sha256: str,
+        slug: str, version_sha256: str, slot: str, sha256: str,
     ) -> Response:
         response = await validation_bridge(
-            "GET", f"/internal/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
+            "GET", f"/internal/v1/public/landings/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
             timeout=60,
         )
         return Response(

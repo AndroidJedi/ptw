@@ -970,7 +970,7 @@ class CreativeAnalyticsService:
         if not valid_semantics:
             raise ValueError("Landing analytics event surface and target do not match")
         route = str(request["route"])
-        if not re.fullmatch(r"/(?:ai|la|wa)/[a-z0-9]+(?:-[a-z0-9]+)*", route) or len(route) > 80:
+        if not re.fullmatch(r"/[a-z0-9]+(?:-[a-z0-9]+)*", route) or len(route) > 64:
             raise ValueError("Landing analytics route is invalid")
         digest = str(request["landing_version_sha256"])
         if not DIGEST.fullmatch(digest):
@@ -985,8 +985,8 @@ class CreativeAnalyticsService:
 
     def record_landing_event(self, request: Mapping[str, Any]) -> dict[str, Any]:
         payload = self._event_payload(request)
-        namespace, slug = payload["route"].strip("/").split("/", 1)
-        publication, event, _project_name, _record = self.landing_publications._active(namespace, slug)
+        slug = payload["route"].strip("/")
+        publication, event, _project_name, _record = self.landing_publications._active(slug)
         if event["landing_version_sha256"] != payload["landing_version_sha256"]:
             raise ValueError("Landing analytics version is no longer current")
         attribution = None

@@ -228,7 +228,7 @@ PTW creates `OUTCOME_TRAFFIC` / `LANDING_PAGE_VIEWS` / `WEBSITE` with a native
 
 Open [Meta Events Manager](https://business.facebook.com/events_manager2/list),
 select **Natal Service Website**, then **Test events**. Enter the published URL,
-for example `https://natal-service.com/la/natal-service`, and open it through the
+for example `https://natal-service.com/natal-service`, and open it through the
 test control.
 
 On the Landing page, choose **Allow** in the analytics consent panel. PTW sends

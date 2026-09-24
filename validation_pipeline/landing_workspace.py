@@ -653,7 +653,7 @@ class LandingWorkspace:
 
     def reuse_visual(self, *, base_sha256: str, slot: str, asset_id: str) -> dict[str, Any]:
         self._assert_state(base_sha256)
-        if self.definition.identity.template_id != "app_showcase" or slot != "visual_break_visual" or asset_id != "bokko_lifestyle":
+        if self.definition.identity.template_id != "app_showcase" or slot != "visual_break_visual" or asset_id != "showcase_lifestyle":
             raise ValueError("This reference asset is not available for the selected slot")
         from .landing_showcase import reference_photo
         direction = self._content()["visual_break"]["visual_direction"] or "Owner-selected interior photograph from the reference asset library"

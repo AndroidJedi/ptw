@@ -693,6 +693,7 @@ export interface LandingVisualSummary {
 }
 
 export interface LandingSummary {
+  template_reference?: LandingTemplateReference
   landing_id: string
   project_id: string
   source_brief_id: string
@@ -712,7 +713,6 @@ export interface LandingSummary {
 export interface LandingDetail extends LandingSummary {
   schema: 'ptw.landing.workspace.v1'
   template_id: 'project_landing' | 'app_showcase'
-  template_reference?: LandingTemplateReference
   catalog: { marketing_defaults?: LandingMarketingConfiguration; gradient_presets?: LandingGradient[]; section_order: string[]; font_families: StudioFontFamily[]; theme_presets?: LandingThemePreset[] }
   state_sha256: string
   configuration: LandingConfiguration
@@ -740,7 +740,6 @@ export interface LandingPublication {
   schema: 'ptw.landing.publication.v1'
   publication_id: string
   project_id: string
-  namespace: 'ai' | 'la' | 'wa'
   slug: string
   status: 'published' | 'unpublished'
   current_event_id: string | null

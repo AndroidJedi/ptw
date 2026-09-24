@@ -71,7 +71,7 @@ The public `POST /api/v1/public/landing-analytics/events` body contains exactly:
 {
   "event_id": "uuid",
   "visit_id": "ephemeral uuid",
-  "route": "/ai/example",
+  "route": "/example",
   "landing_version_sha256": "64 lowercase hex characters",
   "event_type": "landing_view",
   "surface": "page",

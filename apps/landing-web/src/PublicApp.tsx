@@ -14,7 +14,7 @@ export type PublicLanding = {
   published_at: string
 }
 
-const routePattern = /^\/(ai|la|wa)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/
+const routePattern = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/
 export const PUBLIC_API_ORIGIN = (import.meta.env.VITE_PUBLIC_API_ORIGIN || 'https://commander.proove-them-wrong.com').replace(/\/$/, '')
 
 function setMetadata(snapshot?: PublicLanding) {
@@ -48,7 +48,7 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
   const root = path === '/' || path === ''
   const visitId = useRef(crypto.randomUUID())
   const viewedDigest = useRef<string | undefined>(undefined)
-  const analyticsRoute = match ? `/${match[1]}/${match[2]}` : ''
+  const analyticsRoute = match ? `/${match[1]}` : ''
   const attributionToken = new URLSearchParams(window.location.search).get('ptw_attribution')
   const emit = useCallback((eventType: 'landing_view' | 'primary_cta_click' | 'contact_click', surface: 'page' | 'hero' | 'phone' | 'telegram' | 'instagram' | 'email', target: 'page' | 'contacts' | 'telegram' | 'instagram' | 'email' | 'phone') => {
     if (!snapshot || !analyticsRoute) return
@@ -70,14 +70,14 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
     if (root) { setMetadata(); return }
     if (!match) { setFailed(true); return }
     const controller = new AbortController()
-    const [namespace, slug] = match.slice(1)
-    fetch(`${apiOrigin}/api/v1/public/landings/${namespace}/${slug}`, {
+    const slug = match[1]
+    fetch(`${apiOrigin}/api/v1/public/landings/${slug}`, {
       method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store',
       headers: { Accept: 'application/json' }, signal: controller.signal,
     }).then(async response => {
       if (!response.ok) throw new Error('unavailable')
       const value = await response.json() as PublicLanding
-      if (value.canonical_url !== `https://natal-service.com/${namespace}/${slug}`) throw new Error('invalid public snapshot')
+      if (value.canonical_url !== `https://natal-service.com/${slug}`) throw new Error('invalid public snapshot')
       const assets = Object.fromEntries(Object.entries(value.assets).map(([slot, url]) => [slot, `${apiOrigin}${url}`])) as PublicLanding['assets']
       const next = { ...value, assets }
       setSnapshot(next); setMetadata(value)

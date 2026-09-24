@@ -45,15 +45,21 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
             raise fail(error) from error
 
     def reserve(project_id: str, request: Mapping[str, Any], background: BackgroundTasks, *, additional: bool) -> dict[str, Any]:
-        if set(request) not in ({"source_creative_id", "source_version"}, {"source_creative_id", "source_version", "template_reference"}):
+        allowed = [{"source_creative_id", "source_version"}, {"source_creative_id", "source_version", "template_reference"}]
+        if additional:
+            allowed.append({"source_creative_id", "source_version", "template_reference", "request_id"})
+        if set(request) not in allowed:
             raise HTTPException(status_code=400, detail="Landing creation fields are invalid")
         if isinstance(request["source_version"], bool) or not isinstance(request["source_version"], int):
             raise HTTPException(status_code=400, detail="Landing source Post version is invalid")
+        if "request_id" in request and not isinstance(request["request_id"], str):
+            raise HTTPException(status_code=400, detail="Landing request ID must be a UUID")
         try:
             page, created = service.reserve_from_post(
                 project_id=project_id, source_creative_id=str(request["source_creative_id"]),
                 source_version=request["source_version"], requested_by="owner-web", additional=additional,
                 template_reference=request.get("template_reference"),
+                **({"request_id": request["request_id"]} if "request_id" in request else {}),
             )
             if created:
                 background.add_task(service.generate, page["landing_id"])

@@ -27,7 +27,7 @@ function fixture(): LandingDetail {
     image_generation_available: true, versions: [],
   }
 }
-async function setup(page: Page, showcase = false) {
+async function setup(page: Page, showcase = false, projectName = 'Landing visual test') {
   let current = fixture()
   if (showcase) {
     current.template_id = 'app_showcase'
@@ -43,7 +43,7 @@ async function setup(page: Page, showcase = false) {
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const json = (value: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(value) })
-    if (path === '/api/v1/projects') return json({ items: [{ project_id: project, name: 'Landing visual test', created_at: '', updated_at: '' }] })
+    if (path === '/api/v1/projects') return json({ items: [{ project_id: project, name: projectName, created_at: '', updated_at: '' }] })
     if (path.endsWith('/source-posts')) return json({ items: [] })
     if (path.endsWith('/pages')) return json({ items: [current] })
     if (path === base) return json(current)
@@ -65,7 +65,61 @@ async function setup(page: Page, showcase = false) {
   await page.reload()
   await expect(page.getByLabel('Hero title')).toBeVisible()
 }
-const editorSection = (page: Page, name: string) => page.getByRole('navigation', { name: 'Page sections' }).getByRole('button', { name, exact: true })
+const editorSection = (page: Page, name: string) => ({ click: () => page.getByRole('combobox', { name: 'Page section', exact: true }).selectOption({ label: name }) })
+const openPublication = async (page: Page) => {
+  await page.getByLabel('More actions', { exact: true }).click()
+  await page.getByRole('button', { name: 'Approve & publish', exact: true }).click()
+}
+
+test('changes template directly from an unsaved unapproved draft and returns through history', async ({ page }) => {
+  await setup(page, false, 'Застосунок для обліку домашньої аптечки за фото упаковок ліків')
+  const original = fixture()
+  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  const next = fixture()
+  next.landing_id = '018f07ea-7f20-7000-8000-000000000099'
+  next.ordinal = 2; next.template_id = 'app_showcase'; next.template_reference = reference
+  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  next.content.app_screens = [1, 2, 3].map(i => ({ title: `Екран ${i}`, description: 'Завдання застосунку', visual_direction: 'A clear app screen' }))
+  next.assets = []
+  let created = false
+  const writes: string[] = []
+  page.on('request', request => { if (request.method() === 'POST') writes.push(new URL(request.url()).pathname) })
+  await page.route('**/api/v1/landings/templates', route => route.fulfill({ json: { items: [{ ...reference, name: 'App Showcase' }] } }))
+  await page.route(`**/api/v1/landings/projects/${project}/pages`, route => route.fulfill({ json: { items: created ? [next, original] : [original] } }))
+  await page.route(`**/api/v1/landings/projects/${project}/pages/${next.landing_id}`, route => route.fulfill({ json: next }))
+  await page.route(`**/api/v1/landings/projects/${project}/pages/variants`, route => {
+    const body = route.request().postDataJSON()
+    expect(body.template_reference).toEqual(reference)
+    expect(body.request_id).toMatch(/^[a-f0-9-]{36}$/)
+    created = true
+    return route.fulfill({ status: 202, json: { landing: next, created: true } })
+  })
+  await page.reload()
+  await page.getByLabel('Hero title').fill('Збережіть цю незавершену думку')
+  await expect(page.locator('.landing-actions > button')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Approve Landing' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Change template' }).click()
+  const chooser = page.getByRole('dialog', { name: 'Change template', exact: true })
+  await chooser.getByRole('button', { name: 'App Showcase', exact: true }).click()
+  expect(await chooser.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await chooser.getByRole('button', { name: 'Apply template', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(next.landing_id))
+  await expect(page.getByRole('heading', { name: 'App Showcase', exact: true })).toBeVisible()
+  await expect(page.locator('.as-page')).toHaveCount(1)
+  expect(writes).toEqual([`/api/v1/landings/projects/${project}/pages/variants`])
+  await page.getByLabel('More actions', { exact: true }).click()
+  await page.getByRole('button', { name: 'History', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Landing history' }).getByRole('button', { name: /Project landing/ }).click()
+  await expect(page.getByLabel('Hero title')).toHaveValue('Збережіть цю незавершену думку')
+  await page.reload()
+  await expect(page.getByLabel('Hero title')).toHaveValue('Збережіть цю незавершену думку')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.setViewportSize({ width: 768, height: 1024 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await expect(page.locator('.landing-workbench.is-edit .landing-preview-area')).toBeHidden()
+  await page.getByRole('button', { name: 'Preview', exact: true }).click()
+  await expect(page.locator('.landing-preview-area')).toBeVisible()
+})
 
 test('renders at each device width with loaded fonts, bounded images, and no placeholder proof', async ({ page }) => {
   await setup(page)
@@ -115,10 +169,14 @@ test('offers actual page interactions and keeps console and page languages indep
 
 test('validates all CTA destinations and approves without evidence', async ({ page }) => {
   await setup(page)
+  await openPublication(page)
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeDisabled()
+  await page.keyboard.press('Escape')
   await editorSection(page, 'Get in touch').click()
   await page.getByLabel('Telegram bot link').fill('https://example.test/book')
+  await openPublication(page)
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeDisabled()
+  await page.keyboard.press('Escape')
   await page.getByLabel('Telegram bot link').fill('https://t.me/natal_helper_bot')
   await page.getByLabel('Instagram profile link').fill('https://www.instagram.com/natal_service/')
   await page.getByLabel('Email', { exact: true }).fill('owner@example.test')
@@ -138,8 +196,11 @@ test('validates all CTA destinations and approves without evidence', async ({ pa
   await expect(instagram).toContainText('@natal_service')
   await expect(instagram.locator('svg')).toHaveCount(1)
   await page.keyboard.press('Escape')
+  await openPublication(page)
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeEnabled()
   await page.getByRole('button', { name: 'Approve Landing' }).click()
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('Landing approved')
+  await page.keyboard.press('Escape')
   await expect(page.getByRole('status')).toContainText('Landing approved')
 })
 
@@ -452,6 +513,7 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
   await editorSection(page, 'Store buttons & footer').click()
   await page.getByLabel('Store button label', { exact: true }).fill('Спробувати Natal')
   await page.getByLabel('App Store URL', { exact: true }).fill('https://apps.apple.com/app/id123456')
+  await page.getByLabel('Privacy policy URL', { exact: true }).fill('https://natal-service.com/privacy')
   await page.getByRole('button', { name: 'View Landing' }).click()
   const dialog = page.getByRole('dialog')
   for (const [name, width] of [['Desktop', 1280], ['Tablet', 768], ['Mobile', 360]] as const) {
@@ -459,7 +521,12 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
     await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
     await expect(dialog.locator('.mk-mockup img')).toHaveCount(1)
-    await expect(dialog.locator('.mk-reference-note')).toContainText('Це не відгуки про Natal.')
+    await expect(dialog.locator('.mk-reference-note')).toContainText('Це не відгуки клієнтів Natal.')
+    await expect(dialog.locator('.mk-legal')).toContainText('Політика конфіденційності')
+    await expect(dialog.locator('.mk-legal')).toContainText('Публічна оферта')
+    await expect(dialog.locator('.mk-legal a')).toHaveCount(1)
+    await expect(dialog.locator('.mk-legal a')).toHaveAttribute('href', 'https://natal-service.com/privacy')
+    await expect(dialog.locator('.mk-legal .mk-policy-pending')).toHaveCount(1)
     await expect(dialog.getByRole('link', { name: 'App Store · Спробувати Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
     const geometry = await dialog.locator('.lp-page').evaluate(root => ({ width: root.clientWidth, scroll: root.scrollWidth, gradient: getComputedStyle(root).getPropertyValue('--mk-start').trim(), icons: [...root.querySelectorAll('.mk-icon:not(img)')].map(el => ({ width: el.getBoundingClientRect().width, mask: getComputedStyle(el).maskImage })), reviews: [...root.querySelectorAll<HTMLElement>('.mk-reviews blockquote')].map(el => el.clientWidth) }))
     expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)

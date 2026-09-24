@@ -1,122 +1,122 @@
 {
-  "source": "https://www.bokko.in.ua/",
-  "usage": "Owner-requested reference assets. Review avatars belong only to attributed Bokko reference examples; never represent Natal customer evidence. No license grant inferred.",
+  "source": "owner-supplied landing references",
+  "usage": "Owner-supplied reference assets used only by the App Showcase layout. Sample review content never represents Natal customer evidence. No license grant inferred.",
   "assets": [
     {
       "file": "lifestyle.jpg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/benefits.jpg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/lifestyle.jpg",
       "sha256": "086e049cda576b426c7126efc79d1ce734fee42c4c6a777c58b02f9bf0ca1ee8"
     },
     {
       "file": "arrow.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/arrow-top-right.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/arrow.svg",
       "sha256": "65f79b2365a8386ecaa65dd976c86ab1d641a66d7fea928efbf73875220f7c83"
     },
     {
       "file": "office.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/office-icon.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/office.svg",
       "sha256": "4683baf62ccecbdebba2e2d5fa2a021bbf34d402147d4d0c6202d5acc68f8623"
     },
     {
       "file": "message.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/send-mail-icon.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/message.svg",
       "sha256": "ca1cfc36f258dccabdaa342b8fdf025649ae366d9baa6c6bf93717a634c24372"
     },
     {
       "file": "time.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/lets-icons_time-progress-light.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/time.svg",
       "sha256": "e7468ca83fbd18aae748a493ee340bb5cb6e47fdcf4edcf396918850ad0c0c83"
     },
     {
       "file": "call.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/call-icon.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/call.svg",
       "sha256": "bc4832dc8359e60f32afee0b6c6d50656c3412b2d0881eea664cbb4554d8d088"
     },
     {
       "file": "user.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/solar_user-check-broken.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/user.svg",
       "sha256": "5bf348be10d0fbdc9b672d2efd24dcb8eec8d1ad3f5c114fee52a4e37ce80fa5"
     },
     {
       "file": "safe.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/hugeicons_safe.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/safe.svg",
       "sha256": "61a3dd00c3f3895df9ad4eaaeb143fbcea085aa6159a512b706481c1be051d3c"
     },
     {
       "file": "lock.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/mdi-light_lock.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/lock.svg",
       "sha256": "96d5543aa642c10df8a8250afb068c12ede30a134191d88e5e25736ee0de5900"
     },
     {
       "file": "review.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/review.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/review.svg",
       "sha256": "2121b564ce5be07940d854ac561e86f03a8c8ed98b77670203dce79c6f98de96"
     },
     {
       "file": "comment.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/comment.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/comment.svg",
       "sha256": "4dab9b29f499394146b7087b86b292a73274078c8784104f75ef0b2fd240ba83"
     },
     {
       "file": "requirements.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/requeriments.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/requirements.svg",
       "sha256": "1495d5b6d45308c0b4c7fa874631c393176363e393ba3672fb0868fcfacd2547"
     },
     {
       "file": "employment.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/employment.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/employment.svg",
       "sha256": "9e0de7609a1409a85dde6f283826c5355d7323cbf32472746bcd0f598ed1c458"
     },
     {
       "file": "support.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/06/support.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/support.svg",
       "sha256": "0b0aa5f17cfb2411c4723774ea079b1f783411930f1cfa81a1a577c1d981482f"
     },
     {
       "file": "iryna.png",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/rectangle-32.png",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/iryna.png",
       "sha256": "d2c578d0797d888273992a6c0324075420cf70b6eefc7e355dff5c5a9160b4c5"
     },
     {
       "file": "mykyta.png",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/rectangle-35.png",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/mykyta.png",
       "sha256": "97155dea08891987b69a650fcb085cd338120ffc0923e7a352f16e6002cdd23e"
     },
     {
       "file": "maryna.png",
-      "source_url": "https://www.bokko.in.ua/wp-content/uploads/2025/07/rectangle-33.png",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/maryna.png",
       "sha256": "f46a7b5bf716662b5ea2801ccfb65ba000b62a0a3e7a5b97ff13ed76d95101b4"
     },
     {
       "file": "download.png",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/main/download.png",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/download.png",
       "sha256": "9a3215b6be804fb846213d6171a41d473ed630f8e57fe9c99725c93c4c5be54c"
     },
     {
       "file": "star.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/star.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/star.svg",
       "sha256": "d41a6b71522bf50856acf58317fdf9a946121a6124a27683a1441ba60ee707bd"
     },
     {
       "file": "good.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/good.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/good.svg",
       "sha256": "db541e3c200b06927db0df6cf7e77bb7eef3344f2995133186257e699fa53fb8"
     },
     {
       "file": "apple.svg",
-      "source_url": "https://www.bokko.in.ua/",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/apple.svg",
       "source_element": "first js-apple inline SVG",
       "sha256": "51a0b077cb7c7364206cb5e8fa4824e7ce87243f0860af009bc17b87710e347b"
     },
     {
       "file": "google.svg",
-      "source_url": "https://www.bokko.in.ua/",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/google.svg",
       "source_element": "first js-google inline SVG",
       "sha256": "657d1ca0336e203923481359e96f4b69a09720555054713492ea6d0cbef98b2d"
     },
     {
       "file": "line-decor.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/line-decor.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/line-decor.svg",
       "sha256": "d2a64776fd665e84d210c502d556e4fb7a018c3662b5130e9fe50a9bb376964d"
     },
     {
@@ -127,27 +127,27 @@
     },
     {
       "file": "email.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/email.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/email.svg",
       "sha256": "c0409292ad55be8245cdc01c78b532b6ac164166b2dd7d4bc8021680abd5a8ae"
     },
     {
       "file": "telegram.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/telegram.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/telegram.svg",
       "sha256": "79bbc294a5fca1cb4fa59be5cf096385d5c5c08fefd6ecd4842847211a969497"
     },
     {
       "file": "instagram.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/instagram.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/instagram.svg",
       "sha256": "4f0fe044e34d2f9595104b85fa1d9ce530e45d01fd3d1e0ae726d8c70997704e"
     },
     {
       "file": "threads-icon.svg",
-      "source_url": "https://www.bokko.in.ua/wp-content/themes/bokko/img/icons/threads-icon.svg",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/threads-icon.svg",
       "sha256": "36df8acc7a6b30d6d55e70fd48d9cf5b0bc4e0d00c515675f77286cec85e364d"
     },
     {
       "file": "phone.svg",
-      "source_url": "https://www.bokko.in.ua/",
+      "source_url": "repo:validation_pipeline/studio_assets/app-showcase/phone.svg",
       "source_element": "footer telephone inline SVG",
       "sha256": "45b4b3a4649a7abb6dcd013c0293524f35cf74511008994fa5d9a4103018c945"
     }

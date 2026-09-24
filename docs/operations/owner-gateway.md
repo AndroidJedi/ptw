@@ -129,7 +129,7 @@ availability, Publish, Republish, rollback, and Unpublish remain owner-only and
 Firebase/Auth/App Check protected.
 
 The authentication exceptions are bounded `GET`/`HEAD` below
-`/api/v1/public/landings/{namespace}/{slug}` and strict JSON-only
+`/api/v1/public/landings/{slug}` and strict JSON-only
 `POST /api/v1/public/landing-analytics/events` from an allowed Landing origin.
 Public Landing reads return a sanitized current
 snapshot or one exact selected digest-addressed PNG. Unknown, malformed,

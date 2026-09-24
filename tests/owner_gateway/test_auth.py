@@ -190,8 +190,8 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/landings/projects/{project_id}/publication/availability",
             "/api/v1/landings/projects/{project_id}/publication/publish",
             "/api/v1/landings/projects/{project_id}/publication/unpublish",
-            "/api/v1/public/landings/{namespace}/{slug}",
-            "/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
+            "/api/v1/public/landings/{slug}",
+            "/api/v1/public/landings/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
             "/api/v1/instagram-tests/projects/{project_id}",
             "/api/v1/instagram-tests/projects/{project_id}/manual-packages",
             "/api/v1/instagram-tests/projects/{project_id}/manual-packages/{package_id}/{action}",
@@ -526,16 +526,16 @@ class OwnerClaimsTests(unittest.TestCase):
 
         upstream = httpx.Response(
             200,
-            json={"schema": "ptw.public-landing.v1", "canonical_url": "https://natal-service.com/ai/example"},
-            request=httpx.Request("GET", "http://validation/internal/v1/public/landings/ai/example"),
+            json={"schema": "ptw.public-landing.v1", "canonical_url": "https://natal-service.com/example"},
+            request=httpx.Request("GET", "http://validation/internal/v1/public/landings/example"),
         )
         request = AsyncMock(return_value=upstream)
         with patch("httpx.AsyncClient.request", request):
             with TestClient(create_app(self.settings, verifier=Verifier())) as client:
-                public = client.get("/api/v1/public/landings/ai/example")
-                public_head = client.head("/api/v1/public/landings/ai/example")
+                public = client.get("/api/v1/public/landings/example")
+                public_head = client.head("/api/v1/public/landings/example")
                 private = client.get("/api/v1/projects")
-                public_write = client.post("/api/v1/public/landings/ai/example")
+                public_write = client.post("/api/v1/public/landings/example")
 
         self.assertEqual(200, public.status_code)
         self.assertEqual("no-store", public.headers["cache-control"])

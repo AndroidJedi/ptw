@@ -10,7 +10,7 @@ const versions = [1, 2].map(version => ({ version, change_note: `Approved ${vers
 const workspace = (ready: boolean, publications: InstagramPublication[] = []): InstagramWorkspace => ({
   connection: { configured: ready, verified: ready, media_ready: ready, graph_version: 'v26.0', instagram: ready ? { id: '789', username: 'example' } : undefined },
   sources: versions.map(item => ({ ...item, creative_id: creativeId, creative_ordinal: 1, template_id: 'phone_metrics', version_sha256: 'a'.repeat(64), defaults: { headline: `Title ${item.version}`, primary_text: 'Approved copy', welcome_message: '' } })),
-  publications, landing: { publication_id: 'landing', event_id: 'event', landing_version: 1, landing_version_sha256: 'b'.repeat(64), canonical_url: 'https://natal-service.com/la/example' },
+  publications, landing: { publication_id: 'landing', event_id: 'event', landing_version: 1, landing_version_sha256: 'b'.repeat(64), canonical_url: 'https://natal-service.com/example' },
 })
 function setup(ready = true, publications: InstagramPublication[] = []) {
   const get = vi.fn(async (path: string) => path.endsWith('/publications') ? { items: publications } : workspace(ready, publications))
@@ -43,11 +43,11 @@ it('keeps export and landing-copy available without publishing credentials', asy
   await waitFor(() => expect(screen.getByRole('button', { name: 'Download image' })).toBeEnabled())
   expect(screen.getByRole('button', { name: 'Publish now' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Copy landing URL' }))
-  expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://natal-service.com/la/example')
+  expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://natal-service.com/example')
   expect(post).not.toHaveBeenCalled()
 })
 it('shows the exact tracked Landing URL appended to the direct publication caption', async () => {
-  const trackedUrl = 'https://natal-service.com/la/example?ptw_attribution=opaque-token'
+  const trackedUrl = 'https://natal-service.com/example?ptw_attribution=opaque-token'
   const publication: InstagramPublication = {
     publication_id: '33333333-3333-4333-8333-333333333333', project_id: projectId,
     request_id: '44444444-4444-4444-8444-444444444444', publish_started: true,
@@ -76,7 +76,7 @@ it('reuses the request ID after an uncertain HTTP response', async () => {
 })
 it('creates one tracked manual Post package, copies it, and records publication', async () => {
   const { post } = setup(false)
-  const trackedUrl = 'https://natal-service.com/la/example?ptw_attribution=manual-token'
+  const trackedUrl = 'https://natal-service.com/example?ptw_attribution=manual-token'
   post.mockImplementation(async (path: string) => {
     if (path.endsWith('/manual-packages')) return { package: {
       package_id: '55555555-5555-4555-8555-555555555555',

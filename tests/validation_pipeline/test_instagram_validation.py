@@ -74,7 +74,7 @@ class Sources:
         self.project(project_id)
         return {"publication_id": str(uuid4()), "event_id": str(uuid4()), "landing_version_id": str(uuid4()),
                 "landing_version": 1, "landing_version_sha256": "c" * 64,
-                "canonical_url": "https://natal-service.com/ai/idea"}
+                "canonical_url": "https://natal-service.com/idea"}
 
     def source(self, project_id, creative_id, version):
         self.project(project_id); index = self.creative_ids.index(creative_id)

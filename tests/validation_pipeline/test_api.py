@@ -126,10 +126,10 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         class Publication:
             @staticmethod
-            def snapshot(namespace, slug):
+            def snapshot(slug):
                 return {
                     "schema": "ptw.public-landing.v1",
-                    "canonical_url": f"https://natal-service.com/{namespace}/{slug}",
+                    "canonical_url": f"https://natal-service.com/{slug}",
                 }
 
             @staticmethod
@@ -141,7 +141,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
             landing_publication_service=Publication(), meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
-        path = "/internal/v1/public/landings/ai/example"
+        path = "/internal/v1/public/landings/example"
         with TestClient(app) as client:
             self.assertEqual(401, client.get(path).status_code)
             response = client.get(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})

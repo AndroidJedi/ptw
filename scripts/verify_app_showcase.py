@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess, sys, tempfile
 from uuid import uuid4
+from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import psycopg
@@ -32,7 +33,7 @@ def verify(url, root):
     legacy, _ = authority.create_page(project_id=project, source_creative_id=creative, source_version=1, requested_by='test')
     active.detail(project, legacy['landing_id'])
     authority.update_page(legacy['landing_id'], status='draft')
-    # Reserve a different Post source ordinal through the existing approved-variant gate.
+    # Preserve an immutable legacy version before trying a new template.
     old_ws = active._workspace(legacy['landing_id'])
     from tests.validation_pipeline.test_landing_workspace import complete_content
     old = old_ws.save_configuration(base_sha256=old_ws.state_sha256(), configuration=old_ws._configuration(), content=complete_content())
@@ -53,6 +54,26 @@ def verify(url, root):
     with TestClient(app) as client:
         assert client.get(base).status_code==401
         client.headers['Authorization']='Bearer canary'
+        # Trying another template never requires approving the latest draft.
+        before_variant=authority.get_page(lid)
+        request={'source_creative_id':creative,'source_version':1,'template_reference':REFERENCE,'request_id':str(uuid4())}
+        variants=f'/landings/projects/{project}/pages/variants'
+        with patch.object(active,'generate') as generate:
+            first=client.post(variants,json=request)
+            assert first.status_code==202,first.text
+            assert first.json()['created']
+            again=client.post(variants,json=request)
+            assert again.status_code==202,again.text
+            assert not again.json()['created']
+            assert first.json()['landing']['landing_id']==again.json()['landing']['landing_id']
+            generate.assert_called_once()
+            for invalid in (None,'not-a-uuid'):
+                assert client.post(variants,json={**request,'request_id':invalid}).status_code==400
+            assert client.post(variants,json={**request,'template_reference':None}).status_code==400
+        retry_authority=DatabaseLandingAuthority(url)
+        retry_page,created=retry_authority.create_page(project_id=project,requested_by='test',additional=True,**request)
+        assert not created and retry_page['landing_id']==first.json()['landing']['landing_id']
+        assert authority.get_page(lid)==before_variant
         detail=client.get(base).json()
         content=showcase_content(); content['marketing']=complete_marketing()
         response=client.post(base+'/configuration',json={'base_sha256':detail['state_sha256'],'configuration':detail['configuration'],'content':content})
@@ -77,13 +98,13 @@ def verify(url, root):
     assert restored['template_reference']==REFERENCE
     assert restarted._workspace(legacy['landing_id']).version_detail(1)==historical
     publication=DatabaseLandingPublicationAuthority(url)
-    publication.publish(project_id=project,request_id=str(uuid4()),landing_id=lid,version=1,namespace='ai',slug='showcase-test',requested_by='test')
-    snapshot=publication.snapshot('ai','showcase-test')
+    publication.publish(project_id=project,request_id=str(uuid4()),landing_id=lid,version=1,slug='showcase-test',requested_by='test')
+    snapshot=publication.snapshot('showcase-test')
     assert snapshot['template_reference']==REFERENCE and set(snapshot['assets'])==set(VISUAL_SLOTS)
     for asset in restored['assets']:
-        result=publication.asset('ai','showcase-test',snapshot['version_sha256'],asset['slot'],asset['sha256'])
+        result=publication.asset('showcase-test',snapshot['version_sha256'],asset['slot'],asset['sha256'])
         assert result['bytes']==restarted._workspace(lid).visual_image(asset['slot'],asset['sha256'])['bytes']
-    print('PASS: authenticated HTTP, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, public bytes, and historical version preservation.')
+    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, public bytes, and historical version preservation.')
 
 
 def main():

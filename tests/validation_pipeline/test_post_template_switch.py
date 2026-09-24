@@ -119,7 +119,7 @@ class PostTemplateSwitchTests(unittest.TestCase):
             base_sha256=self.detail['state_sha256'], data=raw.getvalue(),
             source={'origin':'codex_builtin_image_generation','text_in_screen':'prohibited_by_prompt'})
         document = seed('post')
-        document['name'] = 'Bokko-style reusable post'
+        document['name'] = 'Gradient reusable post'
         document['components'] = [
             new_component('title','text','headline',[60,40,880,120],'Title'),
             {**new_component('person','cutout_image','hero',[470,170,470,650],'Image'),'fit':'contain'},

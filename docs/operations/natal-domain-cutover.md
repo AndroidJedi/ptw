@@ -9,8 +9,8 @@ values.
 ## Preconditions
 
 1. Verify `https://natal-landings-86123.web.app` with
-   `scripts/audit_public_landing.sh` and exercise `/`, `/ai/<slug>`,
-   `/la/<slug>`, and `/wa/<slug>` against a published test Project.
+   `scripts/audit_public_landing.sh` and exercise `/` plus `/<slug>` against a
+   published test Project. Retired two-segment paths must render the branded 404.
 2. Run `scripts/archive_natal_dashboard.sh` and retain the reported
    `.local/archives/natal-dashboard-dev/<timestamp>/` directory, including its
    `SHA256SUMS` manifest.
@@ -35,7 +35,7 @@ values.
 ## Acceptance and rollback boundary
 
 Verify valid TLS at the apex and `www`, an HTTP permanent redirect from `www`
-to the apex, the English umbrella at `/`, all three lane deep links, exact
+to the apex, the English umbrella at `/`, a direct slug deep link, exact
 public API CORS, `404` from unknown/unpublished public API paths, rejection of
 unauthenticated private API calls, and Owner Console health. Run
 `scripts/audit_public_landing.sh https://natal-service.com` after the certificate

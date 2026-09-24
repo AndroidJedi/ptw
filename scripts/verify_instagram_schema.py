@@ -92,7 +92,7 @@ def main():
             event_id = str(uuid4())
             connection.execute("INSERT INTO commander_entities(id,kind) VALUES(%s,'landing_publication_event')", (event_id,))
             landing = {'publication_id': str(uuid4()), 'current_event_id': event_id, 'status': 'published',
-                'canonical_url': 'https://natal-service.com/la/example', 'events': [
+                'canonical_url': 'https://natal-service.com/example', 'events': [
                     {'event_id': event_id, 'landing_version': 1, 'landing_version_sha256': 'a'*64}]}
             ads.configuration = MetaAdsConfiguration(access_token='test-only',ad_account_id='123',page_id='456',instagram_actor_id='789',pixel_id='101')
             ads.adapter = FakeAdapter()

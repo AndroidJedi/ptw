@@ -33,10 +33,19 @@ validates pending content and its note before writing workspace files or a versi
 
 ## Authority and lifecycle
 
-The first page for a Post version is idempotently reserved. A variant is
-available only after the latest sibling has an immutable approved version. A
-Landing captures its source Post snapshot at reservation; future Post edits
-never synchronize into it.
+The first page for a Post version is idempotently reserved. **Change template**
+creates another private Landing directly from the same immutable approved Post;
+the current Landing does not need to be saved, complete or approved. Each page
+captures its source Post snapshot at reservation; future Post edits never
+synchronize into it. Existing drafts, approved versions and publications remain
+unchanged when trying another template.
+
+Template changes send an exact `template_reference` and a stable `request_id` to
+`POST /pages/variants`. Project-scoped deterministic reservation IDs reconcile
+retries, including after a server restart; one request cannot reserve another
+source or template. Background generation is scheduled only for a new reservation.
+Legacy requests without a request ID keep their existing creation semantics.
+The browser retains unresolved requests in tab session storage for safe retries.
 
 PostgreSQL stores Landing metadata, workspace files, visual bytes, composition
 and visual generation runs, immutable versions, and checkpoints with explicit
@@ -49,9 +58,8 @@ private and `no-store`.
 
 Migration `004_public_landing_v1.sql` adds one stable `landing_publications`
 record per Project and append-only `landing_publication_events`. First Publish
-requires a selected approved version plus a manually confirmed `ai`, `la`, or
-`wa` lane and a 3–63 character lowercase ASCII slug. `(namespace, slug)` is
-unique and permanent: rename, Unpublish, and republish never change or release
+requires a selected approved version plus a manually confirmed 3–63 character
+lowercase ASCII slug. The slug is unique and permanent: rename, Unpublish, and republish never change or release
 it. Each publish event points to the exact immutable Landing version. A later
 publish atomically changes the current version, so publishing an earlier event
 is the rollback mechanism. Unpublish appends an event and makes public reads
@@ -60,7 +68,7 @@ return 404; it cannot recall already cached or downloaded files.
 Authenticated owner routes live at
 `/api/v1/landings/projects/{project_id}/publication...`. The only unauthenticated
 routes are bounded `GET`/`HEAD` snapshot and selected-asset reads below
-`/api/v1/public/landings/{namespace}/{slug}`. Snapshot JSON allowlists the
+`/api/v1/public/landings/{slug}`. Snapshot JSON allowlists the
 Project display name, canonical URL, normalized approved configuration/content,
 two selected asset URLs, version digest, and publication time. IDs, history,
 provenance, Analytics data, and unselected assets remain private. JSON is
@@ -81,7 +89,16 @@ Breakpoints follow the page container rather than the Owner Console viewport.
 Desktop/tablet/mobile previews use 1280/768/360 CSS pixels with proportional fit.
 Mobile opens at 360px and switches between editor and preview surfaces.
 
-The section navigator and clickable preview select a focused inspector. Existing
+The main header exposes **Change template** and **Save**. The small More menu
+opens **History** or **Approve & publish**; approval and publication remain
+explicit actions. To apply App Showcase to an existing project, open its Landing,
+choose **Change template → App Showcase → Apply template**. The selected design
+opens immediately and shows generation progress. History lists the template name
+and ordinal; returning to a previous page restores its pending edits from tab
+session storage, with the original digest retained for stale-edit checks. This
+local recovery does not create a Save or Approve checkpoint.
+
+A single section selector and clickable preview select a focused inspector. Existing
 bounded theme and layout controls are exposed alongside a `presentation` block:
 `language` (uk/en), `cta_target` (contacts/url/email/phone, where `url` is the
 backward-compatible stored key for a direct Telegram bot link), `heading_scale`
@@ -219,7 +236,7 @@ approvals, assets, publication and analytics retain their current behavior.
 
 ## App Showcase template — local implementation
 
-The optional `app_showcase` v1 built-in provides the Bokko-inspired gradient
+The optional `app_showcase` v1 built-in provides a blue-to-teal gradient
 hero, two staggered phones, three feature cards and their checklist, a three-step
 walkthrough, supporting photograph, optional owner evidence, repeated CTA, three
 FAQs and contact footer. Natal identity and validated contact routing remain fixed.
@@ -229,11 +246,12 @@ and full-width fitting below the camera: the complete image fits the remaining
 height without cropping labels or leaving side/bottom letterbox gaps.
 
 `GET /api/v1/landings/templates` supplies exact registered identities. Creation
-and approved-variant requests optionally include `{template_id, template_version,
+and variant requests optionally include `{template_id, template_version,
 template_sha256}` as `template_reference`. Missing references retain the legacy
 contract; explicit references are persisted and bound into new state/version
 hashes. Repeating the first reservation with a different explicit identity
-conflicts. Existing pages change templates through the approved-variant path.
+conflicts. Existing pages try another template through the variant path without
+requiring approval of the current Landing.
 
 The new template stores exactly three `content.app_screens` records (title,
 description, visual_direction) and bounded `configuration.showcase` controls
@@ -257,9 +275,9 @@ Selected reference icons and the optional interior photograph are bundled under
 `validation_pipeline/studio_assets/app-showcase`, with source URLs and SHA-256
 manifest entries. The supporting-image inspector can select the fixed photograph
 through the bounded `/visuals/visual_break_visual/reuse` route with
-`asset_id=bokko_lifestyle`; selection persists pending edits first. The backend
+`asset_id=showcase_lifestyle`; selection persists pending edits first. The backend
 checks its source digest and records the resulting PNG through normal asset
-history and graph lineage. No remote hotlink, Bokko identity, testimonial or
+history and graph lineage. No remote hotlink, third-party identity, testimonial or
 contact is included.
 
 Migration 016 adds nullable template-reference metadata and extends image/run
@@ -290,13 +308,16 @@ columns. Native copied icons are CSS masks tinted by the selected gradient;
 store SVGs retain their source colors. Eight optional Natal symbol decorations
 have bounded opacity. Carousel playback pauses on focus/hover and respects
 reduced motion. All new controls and bounded copy are available to Landing Agent.
+The footer always shows small Privacy Policy and Terms labels below the Natal
+logo. Until the owner supplies their HTTPS URLs, they render as noninteractive
+text; adding a URL turns only that label into a link.
 
 Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. The three
 reference reviews/avatars from the supplied screenshots are bundled with source
-SHA-256 metadata and explicitly labelled as Bokko design examples, never Natal
+SHA-256 metadata and explicitly labelled as sample layouts, never Natal
 customer evidence. Their visibility is optional; real owner evidence remains the
 existing immutable evidence block, outside Agent edit authority.
 
@@ -320,6 +341,6 @@ New Landing composition receives the owner-authorized Natal email and phone from
 `studio_assets/natal-contacts.json` after validating the endpoint-free AI response.
 These are persisted editable content, never render-time overrides. Existing drafts
 can apply **Use Natal contacts**; enabling showcase sections fills only empty email
-and phone fields. The shared footer uses locally pinned Bokko contact/social SVGs.
+and phone fields. The shared footer uses locally pinned contact/social SVGs.
 Telegram, Instagram and Threads remain icons without links when unconfigured;
 existing Telegram/Instagram endpoints still work. Approved snapshots are untouched.

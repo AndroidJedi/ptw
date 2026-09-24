@@ -80,7 +80,7 @@ controls. Preserve the fixed three-screen structure and Natal identity.
 Landing marketing sections expose ten `gradient_id` presets, one `logo_color`
 for symbol and name, optional motifs, carousel motion, comparison row visibility,
 four workflow steps and service values. Preserve store/legal URLs like contact
-endpoints. Never turn attributed Bokko review examples into Natal evidence.
+endpoints. Never turn sample review layouts into Natal evidence.
 `walkthrough_visual` includes complete phone mockups; individual `app_screen_*`
 images remain screen interiors. Describe edits to depicted text as image actions;
 external captions remain ordinary bounded copy. Missing claims stay blank for

@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import threading
 from typing import Any, Callable, Iterator, Mapping
-from uuid import UUID
+from uuid import UUID, NAMESPACE_URL, uuid5
 
 from commander.ids import new_uuid7
 
@@ -94,7 +94,21 @@ def _assert_template_request(page, reference):
         return
     existing = page.get("template_reference") or {key: value for key, value in LANDING_TEMPLATE_REGISTRY.get(LANDING_TEMPLATE_ID).identity.to_reference().items() if key != "surface"}
     if dict(reference) != existing:
-        raise RuntimeError("Landing already uses another template; approve it and create a variant")
+        raise RuntimeError("Landing already uses another template; use Change template to try a new design")
+
+
+def _variant_request_id(project_id, request_id, additional, reference):
+    if request_id is None:
+        return None
+    if not additional or reference is None:
+        raise ValueError("A Landing template request requires a variant and an exact template reference")
+    return str(uuid5(NAMESPACE_URL, f"ptw:landing-variant:{project_id}:{_uuid(request_id, 'request_id')}"))
+
+
+def _assert_variant_retry(page, source_creative_id, source_version, reference):
+    if (page["source_creative_id"] != source_creative_id or page["source_version"] != source_version
+            or page.get("template_reference") != dict(reference)):
+        raise RuntimeError("Landing request ID was already used for another template or source")
 
 
 def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketing: bool = False) -> dict[str, Any]:
@@ -271,14 +285,23 @@ class LocalLandingAuthority:
                 })
         return sorted(items, key=lambda item: (item["creative_id"], item["version"]), reverse=True)
 
-    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None, request_id: str | None = None) -> tuple[dict[str, Any], bool]:
         project_id = _uuid(project_id, "project_id")
         if template_reference is not None:
             if not isinstance(template_reference, Mapping):
                 raise ValueError("Landing template reference must be an object")
             LANDING_TEMPLATE_REGISTRY.resolve_reference(template_reference)
         source = self._source_version(project_id, source_creative_id, source_version)
+        reserved_id = _variant_request_id(project_id, request_id, additional, template_reference)
         with self._lock:
+            if reserved_id:
+                try:
+                    existing = self.get_page(reserved_id)
+                except KeyError:
+                    existing = None
+                if existing:
+                    _assert_variant_retry(existing, source_creative_id, source_version, template_reference)
+                    return existing, False
             siblings = sorted(
                 (item for item in self.store.list("landing_pages") if item["source_creative_id"] == source_creative_id and item["source_version"] == source_version),
                 key=lambda item: int(item["ordinal"]),
@@ -286,14 +309,14 @@ class LocalLandingAuthority:
             if siblings and not additional:
                 _assert_template_request(siblings[0], template_reference)
                 return siblings[0], False
-            if additional and (not siblings or int(siblings[-1].get("approved_version_count") or 0) < 1):
-                raise ValueError("approve the current Landing before creating another variant")
-            landing_id, now = new_uuid7(), utc_now()
+            if additional and not siblings:
+                raise ValueError("Create a Landing before trying another template")
+            landing_id, now = reserved_id or new_uuid7(), utc_now()
             value = {
                 "landing_id": landing_id, "project_id": project_id, "source_brief_id": source["source_brief_id"],
                 "source_creative_id": source_creative_id, "source_version": source_version,
                 "source_version_sha256": source["version_sha256"], "source_post_snapshot": source,
-                "ordinal": len(siblings) + 1, "origin": "approved_variant" if additional else "post_generation",
+                "ordinal": len(siblings) + 1, "origin": "approved_variant" if additional and siblings[-1].get("approved_version_count") else "post_generation",
                 "status": "queued", "state_sha256": None, "generation": {}, "learning_baseline": None,
                 "learning_baseline_sha256": None, "approved_version_count": 0, "requested_by": requested_by,
                 "created_at": now, "updated_at": now,
@@ -618,7 +641,7 @@ class DatabaseLandingAuthority:
             ).fetchall()
         return [{"creative_id": str(row[0]), "version": int(row[1]), "version_sha256": row[2], "template_id": row[3], "source_brief_id": str(row[4])} for row in rows]
 
-    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+    def create_page(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None, request_id: str | None = None) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
         project_id = _uuid(project_id, "project_id")
         if template_reference is not None:
@@ -626,22 +649,29 @@ class DatabaseLandingAuthority:
                 raise ValueError("Landing template reference must be an object")
             LANDING_TEMPLATE_REGISTRY.resolve_reference(template_reference)
         source = self._source_version(project_id, source_creative_id, source_version)
+        reserved_id = _variant_request_id(project_id, request_id, additional, template_reference)
         with self.connection() as connection:
+            if reserved_id:
+                connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-request:{reserved_id}",))
+                if connection.execute("SELECT 1 FROM landing_workspaces WHERE entity_id=%s", (UUID(reserved_id),)).fetchone():
+                    existing = self.get_page(reserved_id)
+                    _assert_variant_retry(existing, source_creative_id, source_version, template_reference)
+                    return existing, False
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-source:{source_creative_id}:{source_version}",))
             siblings = connection.execute("SELECT entity_id FROM landing_workspaces WHERE source_creative_id=%s AND source_version=%s ORDER BY ordinal", (UUID(source_creative_id), source_version)).fetchall()
             if siblings and not additional:
                 existing = self.get_page(str(siblings[0][0]))
                 _assert_template_request(existing, template_reference)
                 return existing, False
-            if additional:
-                if not siblings or connection.execute("SELECT 1 FROM landing_versions WHERE landing_id=%s LIMIT 1", (siblings[-1][0],)).fetchone() is None:
-                    raise ValueError("approve the current Landing before creating another variant")
-            landing_id = new_uuid7()
+            if additional and not siblings:
+                raise ValueError("Create a Landing before trying another template")
+            approved_variant = additional and connection.execute("SELECT 1 FROM landing_versions WHERE landing_id=%s LIMIT 1", (siblings[-1][0],)).fetchone() is not None
+            landing_id = reserved_id or new_uuid7()
             connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_workspace',%s)", (UUID(landing_id), Jsonb({"schema_version": 1, "project_id": project_id})))
             connection.execute(
                 """INSERT INTO landing_workspaces(entity_id,project_id,source_brief_id,source_creative_id,source_version,source_version_sha256,source_post_snapshot,ordinal,origin,status,requested_by,template_reference)
                      VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s,%s)""",
-                (UUID(landing_id), UUID(project_id), UUID(source["source_brief_id"]), UUID(source_creative_id), source_version, source["version_sha256"], Jsonb(source), len(siblings)+1, "approved_variant" if additional else "post_generation", requested_by, Jsonb(dict(template_reference)) if template_reference else None),
+                (UUID(landing_id), UUID(project_id), UUID(source["source_brief_id"]), UUID(source_creative_id), source_version, source["version_sha256"], Jsonb(source), len(siblings)+1, "approved_variant" if approved_variant else "post_generation", requested_by, Jsonb(dict(template_reference)) if template_reference else None),
             )
             self._edge(connection, project_id, "contains", landing_id, {"member": "landing_page", "ordinal": len(siblings)+1})
             self._edge(connection, landing_id, "derived_from", source["source_brief_id"], {"input": "approved_product_brief"})
@@ -864,8 +894,8 @@ class LandingService:
     def source_versions(self, project_id: str) -> dict[str, Any]:
         return {"items": self.authority.source_versions(project_id), "next_cursor": None}
 
-    def reserve_from_post(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
-        page, created = self.authority.create_page(project_id=project_id, source_creative_id=source_creative_id, source_version=source_version, requested_by=requested_by, additional=additional, template_reference=template_reference)
+    def reserve_from_post(self, *, project_id: str, source_creative_id: str, source_version: int, requested_by: str, additional: bool = False, template_reference: Mapping[str, Any] | None = None, request_id: str | None = None) -> tuple[dict[str, Any], bool]:
+        page, created = self.authority.create_page(project_id=project_id, source_creative_id=source_creative_id, source_version=source_version, requested_by=requested_by, additional=additional, template_reference=template_reference, **({"request_id": request_id} if request_id is not None else {}))
         if created:
             detail = self._workspace(page["landing_id"]).detail()
             self.authority.update_page(page["landing_id"], state_sha256=detail["state_sha256"], learning_baseline=_snapshot(detail), learning_baseline_sha256=sha256_json(_snapshot(detail)))

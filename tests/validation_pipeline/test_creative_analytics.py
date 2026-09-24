@@ -19,8 +19,8 @@ class _LandingPublications:
         self.project_id, self.publication_id = project_id, publication_id
         self.event_id, self.version_id = event_id, version_id
 
-    def _active(self, namespace: str, slug: str):
-        if (namespace, slug) != ("ai", "measured-page"):
+    def _active(self, slug: str):
+        if slug != "measured-page":
             raise KeyError("Published Landing was not found")
         return (
             {"project_id": self.project_id, "publication_id": self.publication_id},
@@ -80,7 +80,7 @@ class CreativeAnalyticsTests(unittest.TestCase):
     def event(self, **patch):
         return {
             "event_id": str(uuid4()), "visit_id": str(uuid4()),
-            "route": "/ai/measured-page", "landing_version_sha256": "a" * 64,
+            "route": "/measured-page", "landing_version_sha256": "a" * 64,
             "event_type": "landing_view", "surface": "page", "target": "page",
             "attribution_token": None, "viewport_class": "mobile", **patch,
         }

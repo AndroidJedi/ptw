@@ -58,7 +58,11 @@
 .mk-footer { display:grid; grid-template-columns:1fr 1fr 1.1fr; gap:36px; margin:80px 0 25px; padding:40px 0; border-top:1px solid #e3e8ef; }
 .mk-footer .mk-logo { background:var(--mk-start); }
 .mk-footer a { display:flex; gap:12px; align-items:center; margin:14px 0; font-size:15px; }.mk-footer .mk-stores { margin:0; gap:0; justify-content:flex-start; }.mk-footer .mk-store { margin:8px 0; font-size:14px; padding:12px 20px; }
-.lp-page .mk-footer h3 { font-size:18px; margin:0 0 20px; }.mk-legal { margin-top:20px; }
+.lp-page .mk-footer h3 { font-size:18px; margin:0 0 20px; }
+.mk-legal { display:flex; flex-direction:column; align-items:flex-start; gap:7px; margin-top:20px; }
+.mk-footer .mk-legal a,.mk-footer .mk-legal span { margin:0; font-size:11px; line-height:1.35; color:inherit; opacity:.72; }
+.mk-footer .mk-legal a { text-decoration:underline; text-underline-offset:3px; }
+.mk-footer .mk-policy-pending { cursor:default; }
 .as-page:has(.mk-section) .as-hero-wrap { background:var(--mk-gradient); }.as-page:has(.mk-section) .as-hero { position:relative; }.as-page:has(.mk-section) .as-nav { position:relative; }
 @container landing (max-width:900px) { .mk-notch-card { flex-basis:52%; }.mk-how-grid { grid-template-columns:1fr; }.mk-mockup { max-width:650px; margin:auto; }.mk-reviews { gap:16px; }.mk-reviews blockquote { padding:20px; }.mk-footer { grid-template-columns:1fr 1fr; }.mk-values { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @container landing (max-width:600px) {

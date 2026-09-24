@@ -73,6 +73,6 @@ focused tests, geometry audit and owner inspection of the full PNG. Browser
 output cannot register code; restart and resume only after reviewed source is
 applied. No deployment is implied.
 
-App Showcase v2 shares Landing sections and complete mockup generation. Keep
-reference asset digests and review attribution; never turn Bokko examples into
-Natal evidence. Preserve older exact references and hardware-free screen slots.
+App Showcase v2 shares sections and mockups. Retain source digests. Sample layouts
+are not Natal evidence. Preserve old references and hardware-free screens. Keep
+policy labels inert until owner URLs exist; never add fake URLs.

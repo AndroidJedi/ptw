@@ -426,7 +426,7 @@ test('approved Instagram Post manual package and exact tracked handoff', async (
   current.versions = [1, 2].map(version => ({ version, change_note: `Approved ${version}`, render_sha256: digest }))
   current.approved_version_count = 2
   const sources = current.versions.map((item: any) => ({ ...item, creative_id: creativeId, creative_ordinal: 1, template_id: 'phone_metrics', version_sha256: digest, defaults: { headline: `Approved title ${item.version}`, primary_text: 'Approved body', welcome_message: 'Hello' } }))
-  const landing = { publication_id: projectId, event_id: briefId, landing_version: 1, landing_version_sha256: digest, canonical_url: 'https://natal-service.com/la/example' }
+  const landing = { publication_id: projectId, event_id: briefId, landing_version: 1, landing_version_sha256: digest, canonical_url: 'https://natal-service.com/example' }
   const publications: any[] = []
   const manualRequests: any[] = []
   const packageId = '55555555-5555-4555-8555-555555555555'

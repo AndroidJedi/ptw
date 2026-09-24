@@ -11,7 +11,7 @@ trap 'rm -rf -- "$directory"' EXIT
 
 curl --fail --silent --show-error --max-time 20 --dump-header "$directory/root.headers" "$origin/" > "$directory/root.html"
 curl --fail --silent --show-error --max-time 20 "$origin/robots.txt" > "$directory/robots.txt"
-curl --fail --silent --show-error --max-time 20 "$origin/ai/public-shell-probe" > "$directory/deep-link.html"
+curl --fail --silent --show-error --max-time 20 "$origin/public-shell-probe" > "$directory/deep-link.html"
 asset_path=$(sed -n 's/.*src="\([^"?]*\/assets\/[^"?]*\.js\)".*/\1/p' "$directory/root.html" | head -1)
 [[ $asset_path =~ ^/assets/[A-Za-z0-9._-]+\.js$ ]] || { echo "public shell JavaScript asset is missing" >&2; exit 1; }
 curl --fail --silent --show-error --max-time 20 "$origin$asset_path" > "$directory/app.js"

@@ -33,7 +33,7 @@ Change template action explicitly applies one accepted version to an existing
 Post, preserving copy, raw image and approved history. The Post still requires
 its own approval before publication.
 
-Three bounded asset classes cover the Bokko reference without reference-specific
+Three bounded asset classes cover the external design reference without reference-specific
 renderer code. `brand_motif` repeats the canonical Natal symbol with configurable
 placement, opacity and deterministic `rotation_degrees`. `store_badge` resolves
 digest-pinned official English Apple or Google artwork from the offline asset
@@ -272,7 +272,7 @@ not carry template records between these authorities; verify the actual API
 process/database as well as proposed-versus-accepted status when a design seems
 to disappear.
 
-The next local Bokko edit exposed two distinct regressions: the local Codex
+The next local template edit exposed two distinct regressions: the local Codex
 corrective attempt still grew the system prompt (unlike the bridge), and the
 owner-supplied self-contained badges were painted over an additional black slot
 pill. Run `1a760233-32d4-4ec6-a9bf-be453e73ee80` now uses the shared bounded

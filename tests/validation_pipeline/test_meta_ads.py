@@ -148,7 +148,7 @@ class MetaAdsAdapterTests(unittest.TestCase):
         self.adapter.ensure_ad_set("website audience", campaign_id="campaign-1", destination="WEBSITE", preset={
             "countries": ["UA"], "age_min": 25, "age_max": 55, "gender": "all", "daily_budget_minor": 500,
         })
-        url = "https://natal-service.com/la/example"
+        url = "https://natal-service.com/example"
         self.adapter.ensure_creative("website creative", image_hash="hash", specification={
             "headline": "Headline", "primary_text": "Primary", "destination_type": "WEBSITE", "landing": {"canonical_url": url},
         })
@@ -521,7 +521,7 @@ class MetaAdsServiceTests(unittest.TestCase):
     def website_request(self):
         from types import SimpleNamespace
         event = {"event_id": "01900000-0000-7000-8000-000000000011", "landing_version": 1, "landing_version_sha256": "a" * 64}
-        publication = {"publication_id": "01900000-0000-7000-8000-000000000012", "current_event_id": event["event_id"], "events": [event], "status": "published", "canonical_url": "https://natal-service.com/la/example"}
+        publication = {"publication_id": "01900000-0000-7000-8000-000000000012", "current_event_id": event["event_id"], "events": [event], "status": "published", "canonical_url": "https://natal-service.com/example"}
         self.service.landing_publications = SimpleNamespace(get=lambda _: publication)
         request = self.request()
         request.pop("welcome_message")

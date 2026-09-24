@@ -16,9 +16,11 @@ from .landing_templates import LANDING_TEMPLATE_REGISTRY
 
 
 PUBLICATION_SCHEMA = "ptw.landing.publication.v1"
-NAMESPACES = ("ai", "la", "wa")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 VISUAL_SLOTS = ("hero_visual", "visual_break_visual")
+# Migration 004 requires a value in its retired namespace column. New writes use
+# one fixed storage value; the public contract and URL contain only the slug.
+_LEGACY_STORAGE_SCOPE = "ai"
 
 
 def canonical_json(value: Any) -> str:
@@ -27,13 +29,6 @@ def canonical_json(value: Any) -> str:
 
 def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode()).hexdigest()
-
-
-def normalized_namespace(value: str) -> str:
-    result = str(value or "")
-    if result not in NAMESPACES:
-        raise ValueError("Landing namespace must be ai, la, or wa")
-    return result
 
 
 def normalized_slug(value: str) -> str:
@@ -68,14 +63,14 @@ def selected_assets(record: Mapping[str, Any]) -> dict[str, str]:
 
 
 def public_snapshot(publication: Mapping[str, Any], project_name: str, event: Mapping[str, Any], record: Mapping[str, Any]) -> dict[str, Any]:
-    namespace, slug = str(publication["namespace"]), str(publication["slug"])
+    slug = str(publication["slug"])
     version_sha256 = str(event["landing_version_sha256"])
     assets = selected_assets(record)
-    prefix = f"/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets"
+    prefix = f"/api/v1/public/landings/{slug}/versions/{version_sha256}/assets"
     configuration = normalize_configuration(record["configuration"])
     content = normalize_content(record["content"])
     return {
-        "canonical_url": f"https://natal-service.com/{namespace}/{slug}",
+        "canonical_url": f"https://natal-service.com/{slug}",
         "project_name": project_name,
         **({"template_reference": record["template_reference"]} if record.get("template_reference") else {}),
         "configuration": configuration,
@@ -102,10 +97,10 @@ class DatabaseLandingPublicationAuthority:
     def _publication_row(row: Sequence[Any]) -> dict[str, Any]:
         return {
             "publication_id": str(row[0]), "project_id": str(row[1]),
-            "namespace": row[2], "slug": row[3], "status": row[4],
-            "current_event_id": None if row[5] is None else str(row[5]),
-            "requested_by": row[6], "created_at": row[7].isoformat(),
-            "updated_at": row[8].isoformat(),
+            "slug": row[2], "status": row[3],
+            "current_event_id": None if row[4] is None else str(row[4]),
+            "requested_by": row[5], "created_at": row[6].isoformat(),
+            "updated_at": row[7].isoformat(),
         }
 
     @staticmethod
@@ -122,7 +117,7 @@ class DatabaseLandingPublicationAuthority:
 
     @staticmethod
     def _publication_select() -> str:
-        return """SELECT entity_id,project_id,namespace,slug,status,current_event_id,
+        return """SELECT entity_id,project_id,slug,status,current_event_id,
                          requested_by,created_at,updated_at FROM landing_publications"""
 
     @staticmethod
@@ -149,24 +144,21 @@ class DatabaseLandingPublicationAuthority:
             return None
         publication = self._publication_row(row)
         publication["schema"] = PUBLICATION_SCHEMA
-        publication["canonical_url"] = f"https://natal-service.com/{publication['namespace']}/{publication['slug']}"
+        publication["canonical_url"] = f"https://natal-service.com/{publication['slug']}"
         publication["events"] = self._events(publication["publication_id"])
         return publication
 
-    def availability(self, project_id: str, namespace: str, slug: str) -> dict[str, Any]:
+    def availability(self, project_id: str, slug: str) -> dict[str, Any]:
         project_id = normalized_uuid(project_id, "project_id")
-        namespace, slug = normalized_namespace(namespace), normalized_slug(slug)
+        slug = normalized_slug(slug)
         with self.connection() as connection:
             if connection.execute("SELECT 1 FROM validation_projects WHERE entity_id=%s", (UUID(project_id),)).fetchone() is None:
                 raise KeyError(project_id)
             row = connection.execute(
-                "SELECT project_id FROM landing_publications WHERE namespace=%s AND slug=%s",
-                (namespace, slug),
+                "SELECT project_id FROM landing_publications WHERE slug=%s",
+                (slug,),
             ).fetchone()
-        return {
-            "namespace": namespace, "slug": slug,
-            "available": row is None or str(row[0]) == project_id,
-        }
+        return {"slug": slug, "available": row is None or str(row[0]) == project_id}
 
     def _request_event(self, request_id: str, request_sha256: str) -> dict[str, Any] | None:
         with self.connection() as connection:
@@ -185,7 +177,7 @@ class DatabaseLandingPublicationAuthority:
 
     def publish(
         self, *, project_id: str, request_id: str, landing_id: str, version: int,
-        namespace: str | None, slug: str | None, requested_by: str,
+        slug: str | None, requested_by: str,
     ) -> dict[str, Any]:
         from psycopg.errors import UniqueViolation
         from psycopg.types.json import Jsonb
@@ -197,7 +189,7 @@ class DatabaseLandingPublicationAuthority:
             raise ValueError("Landing version must be a positive integer")
         normalized_input = {
             "action": "publish", "project_id": project_id, "landing_id": landing_id,
-            "version": version, "namespace": namespace, "slug": slug,
+            "version": version, "slug": slug,
         }
         request_sha256 = sha256_json(normalized_input)
         prior = self._request_event(request_id, request_sha256)
@@ -228,25 +220,28 @@ class DatabaseLandingPublicationAuthority:
                     self._publication_select() + " WHERE project_id=%s", (UUID(project_id),)
                 ).fetchone()
                 if publication_row is None:
-                    if namespace is None or slug is None:
-                        raise ValueError("First publication requires namespace and slug")
-                    lane, path_slug = normalized_namespace(namespace), normalized_slug(slug)
+                    if slug is None:
+                        raise ValueError("First publication requires a slug")
+                    path_slug = normalized_slug(slug)
+                    collision = connection.execute(
+                        "SELECT project_id FROM landing_publications WHERE slug=%s", (path_slug,)
+                    ).fetchone()
+                    if collision is not None and str(collision[0]) != project_id:
+                        raise ValueError("That Landing slug is already reserved")
                     publication_id = new_uuid7()
                     connection.execute(
                         "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_publication',%s)",
-                        (UUID(publication_id), Jsonb({"schema_version": 1, "namespace": lane, "slug": path_slug})),
+                        (UUID(publication_id), Jsonb({"schema_version": 1, "slug": path_slug})),
                     )
                     connection.execute(
                         """INSERT INTO landing_publications(entity_id,project_id,namespace,slug,status,requested_by)
                            VALUES(%s,%s,%s,%s,'unpublished',%s)""",
-                        (UUID(publication_id), UUID(project_id), lane, path_slug, requested_by),
+                        (UUID(publication_id), UUID(project_id), _LEGACY_STORAGE_SCOPE, path_slug, requested_by),
                     )
                     self._edge(connection, project_id, "contains", publication_id, {"member": "landing_publication"})
                 else:
                     publication = self._publication_row(publication_row)
                     publication_id = publication["publication_id"]
-                    if namespace is not None and normalized_namespace(namespace) != publication["namespace"]:
-                        raise ValueError("Project public namespace is permanently reserved")
                     if slug is not None and normalized_slug(slug) != publication["slug"]:
                         raise ValueError("Project public slug is permanently reserved")
                 version_row = connection.execute(
@@ -286,7 +281,7 @@ class DatabaseLandingPublicationAuthority:
                     (UUID(new_uuid7()), requested_by, UUID(publication_id), Jsonb({"event_id": event_id, "landing_id": landing_id, "version": version})),
                 )
         except UniqueViolation as error:
-            raise ValueError("That Landing namespace and slug are already reserved") from error
+            raise ValueError("That Landing slug is already reserved") from error
         publication = self.get(project_id)
         assert publication is not None
         return {"publication": publication, "event": publication["events"][0], "created": True}
@@ -361,12 +356,12 @@ class DatabaseLandingPublicationAuthority:
             (UUID(new_uuid7()), UUID(source), relation, UUID(target), Jsonb(dict(attributes))),
         )
 
-    def _active(self, namespace: str, slug: str) -> tuple[dict[str, Any], dict[str, Any], str, dict[str, Any]]:
-        namespace, slug = normalized_namespace(namespace), normalized_slug(slug)
+    def _active(self, slug: str) -> tuple[dict[str, Any], dict[str, Any], str, dict[str, Any]]:
+        slug = normalized_slug(slug)
         with self.connection() as connection:
-            row = connection.execute(
-                """SELECT publication.entity_id,publication.project_id,publication.namespace,
-                          publication.slug,publication.status,publication.current_event_id,
+            rows = connection.execute(
+                """SELECT publication.entity_id,publication.project_id,publication.slug,
+                          publication.status,publication.current_event_id,
                           publication.requested_by,publication.created_at,publication.updated_at,
                           project.name,event.entity_id,event.publication_id,event.request_id,event.sequence,
                           event.action,event.landing_id,event.landing_version_id,event.landing_version,
@@ -375,27 +370,28 @@ class DatabaseLandingPublicationAuthority:
                    JOIN validation_projects project ON project.entity_id=publication.project_id
                    JOIN landing_publication_events event ON event.entity_id=publication.current_event_id
                    JOIN landing_versions version ON version.entity_id=event.landing_version_id
-                   WHERE publication.namespace=%s AND publication.slug=%s AND publication.status='published'
+                   WHERE publication.slug=%s AND publication.status='published'
                      AND project.deleted_at IS NULL AND event.action='publish'""",
-                (namespace, slug),
-            ).fetchone()
-        if row is None:
+                (slug,),
+            ).fetchall()
+        if len(rows) != 1:
             raise KeyError("Published Landing was not found")
-        publication = self._publication_row(row[:9])
-        event = self._event_row(row[10:21])
-        record = dict(row[21])
+        row = rows[0]
+        publication = self._publication_row(row[:8])
+        event = self._event_row(row[9:20])
+        record = dict(row[20])
         if record.get("version_sha256") != event["landing_version_sha256"]:
             raise RuntimeError("Published Landing version digest mismatch")
-        return publication, event, str(row[9]), record
+        return publication, event, str(row[8]), record
 
-    def snapshot(self, namespace: str, slug: str) -> dict[str, Any]:
-        publication, event, project_name, record = self._active(namespace, slug)
+    def snapshot(self, slug: str) -> dict[str, Any]:
+        publication, event, project_name, record = self._active(slug)
         return public_snapshot(publication, project_name, event, record)
 
-    def asset(self, namespace: str, slug: str, version_sha256: str, slot: str, digest: str) -> dict[str, Any]:
+    def asset(self, slug: str, version_sha256: str, slot: str, digest: str) -> dict[str, Any]:
         if slot not in ALL_LANDING_VISUAL_SLOTS or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise KeyError("Published Landing asset was not found")
-        publication, event, _project_name, record = self._active(namespace, slug)
+        publication, event, _project_name, record = self._active(slug)
         if event["landing_version_sha256"] != version_sha256 or selected_assets(record).get(slot) != digest:
             raise KeyError("Published Landing asset was not found")
         with self.connection() as connection:
@@ -429,14 +425,15 @@ class LocalLandingPublicationAuthority:
         item = self._publication(project_id)
         if item is None:
             return None
-        return {**item, "schema": PUBLICATION_SCHEMA, "canonical_url": f"https://natal-service.com/{item['namespace']}/{item['slug']}", "events": self._events(item["publication_id"])}
+        public_item = {key: value for key, value in item.items() if key != "namespace"}
+        return {**public_item, "schema": PUBLICATION_SCHEMA, "canonical_url": f"https://natal-service.com/{item['slug']}", "events": self._events(item["publication_id"])}
 
-    def availability(self, project_id: str, namespace: str, slug: str) -> dict[str, Any]:
+    def availability(self, project_id: str, slug: str) -> dict[str, Any]:
         project_id = normalized_uuid(project_id, "project_id")
         self.store.get("projects", project_id)
-        namespace, slug = normalized_namespace(namespace), normalized_slug(slug)
-        match = next((item for item in self.store.list("landing_publications") if item["namespace"] == namespace and item["slug"] == slug), None)
-        return {"namespace": namespace, "slug": slug, "available": match is None or match["project_id"] == project_id}
+        slug = normalized_slug(slug)
+        match = next((item for item in self.store.list("landing_publications") if item["slug"] == slug), None)
+        return {"slug": slug, "available": match is None or match["project_id"] == project_id}
 
     def _version(self, project_id: str, landing_id: str, version: int) -> dict[str, Any]:
         page = self.store.get("landing_pages", landing_id)
@@ -447,22 +444,22 @@ class LocalLandingPublicationAuthority:
             raise ValueError("Only an approved Landing version from this Project can be published")
         return match
 
-    def publish(self, *, project_id: str, request_id: str, landing_id: str, version: int, namespace: str | None, slug: str | None, requested_by: str) -> dict[str, Any]:
+    def publish(self, *, project_id: str, request_id: str, landing_id: str, version: int, slug: str | None, requested_by: str) -> dict[str, Any]:
         project_id, landing_id = normalized_uuid(project_id, "project_id"), normalized_uuid(landing_id, "landing_id")
         request_id = normalized_uuid(request_id, "request_id")
         if isinstance(version, bool) or not isinstance(version, int) or version < 1:
             raise ValueError("Landing version must be a positive integer")
         publication = self._publication(project_id)
         if publication is None:
-            if namespace is None or slug is None:
-                raise ValueError("First publication requires namespace and slug")
-            namespace, slug = normalized_namespace(namespace), normalized_slug(slug)
-            if not self.availability(project_id, namespace, slug)["available"]:
-                raise ValueError("That Landing namespace and slug are already reserved")
-        elif (namespace is not None and normalized_namespace(namespace) != publication["namespace"]) or (slug is not None and normalized_slug(slug) != publication["slug"]):
+            if slug is None:
+                raise ValueError("First publication requires a slug")
+            slug = normalized_slug(slug)
+            if not self.availability(project_id, slug)["available"]:
+                raise ValueError("That Landing slug is already reserved")
+        elif slug is not None and normalized_slug(slug) != publication["slug"]:
             raise ValueError("Project public URL is permanently reserved")
         version_item = self._version(project_id, landing_id, version)
-        fingerprint = {"action": "publish", "project_id": project_id, "landing_id": landing_id, "version": version, "namespace": namespace, "slug": slug}
+        fingerprint = {"action": "publish", "project_id": project_id, "landing_id": landing_id, "version": version, "slug": slug}
         prior_event_id = self.store.lookup_request(
             scope="landing-publication", request_id=request_id, fingerprint=fingerprint,
         )
@@ -482,7 +479,7 @@ class LocalLandingPublicationAuthority:
         now = utc_now()
         if publication is None:
             publication_id = new_uuid7()
-            publication = {"publication_id": publication_id, "project_id": project_id, "namespace": namespace, "slug": slug, "status": "unpublished", "current_event_id": None, "requested_by": requested_by, "created_at": now, "updated_at": now}
+            publication = {"publication_id": publication_id, "project_id": project_id, "slug": slug, "status": "unpublished", "current_event_id": None, "requested_by": requested_by, "created_at": now, "updated_at": now}
             self.store.append("landing_publications", publication_id, publication)
             self.store.edge(source_id=project_id, relation="contains", target_id=publication_id, evidence={"member": "landing_publication"})
         event = {"event_id": event_id, "publication_id": publication["publication_id"], "request_id": request_id, "sequence": len(self._events(publication["publication_id"])) + 1, "action": "publish", "landing_id": landing_id, "landing_version_id": version_item["version_id"], "landing_version": version, "landing_version_sha256": version_item["version_sha256"], "requested_by": requested_by, "created_at": now}
@@ -525,21 +522,22 @@ class LocalLandingPublicationAuthority:
         self.store.edge(source_id=publication["publication_id"], relation="contains", target_id=event_id, evidence={"action": "unpublish"})
         return {"publication": self.get(project_id), "event": event, "created": True}
 
-    def _active(self, namespace: str, slug: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-        namespace, slug = normalized_namespace(namespace), normalized_slug(slug)
-        publication = next((item for item in self.store.list("landing_publications") if item["namespace"] == namespace and item["slug"] == slug and item["status"] == "published"), None)
-        if publication is None:
+    def _active(self, slug: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+        slug = normalized_slug(slug)
+        publications = [item for item in self.store.list("landing_publications") if item["slug"] == slug and item["status"] == "published"]
+        if len(publications) != 1:
             raise KeyError("Published Landing was not found")
+        publication = publications[0]
         event = self.store.get("landing_publication_events", publication["current_event_id"])
         version = self.store.get("landing_versions", event["landing_version_id"])
         return publication, event, self.store.get("projects", publication["project_id"]), version["record"]
 
-    def snapshot(self, namespace: str, slug: str) -> dict[str, Any]:
-        publication, event, project, record = self._active(namespace, slug)
+    def snapshot(self, slug: str) -> dict[str, Any]:
+        publication, event, project, record = self._active(slug)
         return public_snapshot(publication, project["name"], event, record)
 
-    def asset(self, namespace: str, slug: str, version_sha256: str, slot: str, digest: str) -> dict[str, Any]:
-        _publication, event, _project, record = self._active(namespace, slug)
+    def asset(self, slug: str, version_sha256: str, slot: str, digest: str) -> dict[str, Any]:
+        _publication, event, _project, record = self._active(slug)
         if event["landing_version_sha256"] != version_sha256 or selected_assets(record).get(slot) != digest:
             raise KeyError("Published Landing asset was not found")
         return self.workspace_for(event["landing_id"]).visual_image(slot, digest)

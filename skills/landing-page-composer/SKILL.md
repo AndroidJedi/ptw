@@ -85,7 +85,7 @@ benefits; never invent prices, legal protection, response times or availability.
 Keep unsupported items as empty strings with `enabled: true`: Studio provides
 manual-completion hints and individual hide controls. Do not drop items.
 Store and legal URL fields stay empty; the owner supplies destinations.
-Reference reviews are fixed, visibly attributed Bokko design examples and never
+Sample review layouts are fixed, visibly marked demonstration content and never
 Natal evidence. Do not generate or adapt testimonials.
 
 `walkthrough_visual_direction` describes one cohesive 4:3 image containing three

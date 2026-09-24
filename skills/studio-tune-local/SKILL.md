@@ -57,12 +57,27 @@ and explicitly expands the task.
 
 ## Local runtime refresh
 
+For explicitly requested Landing editor changes, keep **Change template** and
+**Save** as the main actions, with History and Approve/Publish behind More.
+Trying a template must not require saving or approving the current Landing.
+Send its exact catalog reference and one stable request UUID, retain that UUID
+through uncertain responses/restarts, and open the returned Landing directly.
+Preserve previous pages and tab-local pending edits with their original stale
+digest. Verify an incomplete draft, lost-response retry, history restoration,
+project isolation and mobile/WebKit before claiming this flow works.
+
+Public Landing addresses use one direct permanent path, `/<slug>`. The editor
+must ask only for the slug and display `https://natal-service.com/<slug>`; owner,
+Gateway, public-read, asset and Analytics contracts must not expose a lane or
+path-prefix choice. Retired two-segment public paths return the branded 404.
+
 - Vite hot-module reload updates the browser bundle only. After changing a
   Python renderer, template builder, workspace/API module, font, or bundled
   renderer asset, restart the active local Studio API before asking the owner
   to inspect the result. Use `scripts/run_local_studio.sh` so the existing
   workspace and bounded local environment are preserved.
-- Stop only the exact PTW loopback processes verified on ports 8088 and 5173;
+- Stop only the exact PTW loopback processes verified on port 8088 and the
+  configured `PTW_LOCAL_WEB_PORT` (5173 by default);
   do not disturb unrelated development servers. After restart, verify `/healthz`,
   make an authenticated Studio detail request, and fetch a fresh authoritative
   preview PNG from the running API. Confirm the response uses the expected

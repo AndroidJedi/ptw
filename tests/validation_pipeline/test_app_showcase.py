@@ -79,7 +79,7 @@ class AppShowcaseTests(unittest.TestCase):
         record = self.workspace.version_detail(1)
         self.assertEqual(record['template_reference'], REFERENCE)
         self.assertEqual(set(selected_assets(record)), set(VISUAL_SLOTS))
-        snapshot = public_snapshot({'namespace': 'ai', 'slug': 'sample'}, 'Sample', {'landing_version_sha256': record['version_sha256'], 'created_at': 'now'}, record)
+        snapshot = public_snapshot({'slug': 'sample'}, 'Sample', {'landing_version_sha256': record['version_sha256'], 'created_at': 'now'}, record)
         self.assertEqual(snapshot['template_reference'], REFERENCE)
         self.assertNotIn('source_post_snapshot', snapshot)
         broken = deepcopy(record); broken['assets'].pop()
@@ -99,7 +99,7 @@ class AppShowcaseTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): restored.select_visual(base_sha256='0'*64, slot='app_screen_1', sha256=restored.detail()['assets'][0]['sha256'])
 
     def test_registered_photo_has_provenance_and_no_provider_call(self):
-        detail = self.workspace.reuse_visual(base_sha256=self.workspace.state_sha256(), slot='visual_break_visual', asset_id='bokko_lifestyle')
+        detail = self.workspace.reuse_visual(base_sha256=self.workspace.state_sha256(), slot='visual_break_visual', asset_id='showcase_lifestyle')
         self.assertTrue(detail['assets'][-1]['available'])
         self.assertEqual(self.workspace._history('visual_break_visual')[0]['source']['origin'], 'registered_reference')
         self.assertEqual(self.images.references, [])
@@ -161,9 +161,23 @@ class AppShowcaseTests(unittest.TestCase):
         self.assertFalse(authority.create_page(**request, template_reference=REFERENCE)[1])
         old = {k:v for k,v in LANDING_TEMPLATE_REGISTRY.get('project_landing').identity.to_reference().items() if k != 'surface'}
         with self.assertRaises(RuntimeError): authority.create_page(**request, template_reference=old)
-        with self.assertRaises(ValueError): authority.create_page(**request, additional=True)
-        authority.update_page(page['landing_id'], approved_version_count=1)
-        self.assertTrue(authority.create_page(**request, additional=True, template_reference=old)[1])
+        attempt = str(uuid4())
+        variant, created = authority.create_page(**request, additional=True, template_reference=old, request_id=attempt)
+        self.assertTrue(created)
+        self.assertEqual(old, variant['template_reference'])
+        self.assertEqual(page, authority.get_page(page['landing_id']))
+        # Response loss and authority restart reuse the same reservation.
+        restarted = LocalLandingAuthority(store, post_workspace_root=Path(self.directory.name))
+        restarted._source_version = authority._source_version
+        repeat, created = restarted.create_page(**request, additional=True, template_reference=old, request_id=attempt)
+        self.assertFalse(created)
+        self.assertEqual(variant['landing_id'], repeat['landing_id'])
+        with self.assertRaisesRegex(RuntimeError, 'request ID'):
+            authority.create_page(**request, additional=True, template_reference=REFERENCE, request_id=attempt)
+        with self.assertRaisesRegex(RuntimeError, 'request ID'):
+            authority.create_page(**{**request, 'source_version': 2}, additional=True, template_reference=old, request_id=attempt)
+        with self.assertRaisesRegex(ValueError, 'UUID'):
+            authority.create_page(**request, additional=True, template_reference=old, request_id='invalid')
         self.assertFalse(authority.create_page(**request)[1])
 
     def test_local_graph_sync_retains_each_screen_and_source_lineage(self):
@@ -202,7 +216,7 @@ class AppShowcaseTests(unittest.TestCase):
         for item in manifest['assets']:
             data = (root / item['file']).read_bytes()
             self.assertEqual(hashlib.sha256(data).hexdigest(), item['sha256'])
-            self.assertTrue(item['source_url'].startswith('https://www.bokko.in.ua/') or item['source_url'] == 'repo:natal/assets/logo-natal.png')
+            self.assertTrue(item['source_url'].startswith('repo:'))
             if item['file'].endswith('.svg'):
                 self.assertNotIn(b'<script', data.lower())
                 self.assertNotIn(b'<foreignobject', data.lower())

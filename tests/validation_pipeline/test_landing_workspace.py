@@ -118,7 +118,7 @@ class LandingAuthorityTests(unittest.TestCase):
         ], authority.edges)
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing authority dependencies are required")
-    def test_frozen_approved_post_source_is_project_scoped_and_variants_follow_approval(self) -> None:
+    def test_frozen_approved_post_source_is_project_scoped_and_variants_need_no_landing_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             store = LocalBriefStore(root / "briefs")
@@ -155,18 +155,14 @@ class LandingAuthorityTests(unittest.TestCase):
             )
             self.assertFalse(created)
             self.assertEqual(page["landing_id"], duplicate["landing_id"])
-            with self.assertRaisesRegex(ValueError, "approve the current Landing"):
-                authority.create_page(
-                    project_id=project_id, source_creative_id=creative_id, source_version=1,
-                    requested_by="test", additional=True,
-                )
-            authority.update_page(page["landing_id"], approved_version_count=1)
             variant, created = authority.create_page(
                 project_id=project_id, source_creative_id=creative_id, source_version=1,
                 requested_by="test", additional=True,
             )
             self.assertTrue(created)
-            self.assertEqual("approved_variant", variant["origin"])
+            self.assertEqual(2, variant["ordinal"])
+            self.assertEqual(page, authority.get_page(page["landing_id"]))
+            self.assertEqual(0, variant["approved_version_count"])
             with self.assertRaisesRegex(KeyError, "Post was not found"):
                 authority.create_page(
                     project_id=other_project_id, source_creative_id=creative_id, source_version=1,

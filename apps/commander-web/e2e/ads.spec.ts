@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
 const testId = '22222222-2222-4222-8222-222222222222'
-const landingUrl = 'https://natal-service.com/ai/idea'
+const landingUrl = 'https://natal-service.com/idea'
 const sources = [1, 2].map(ordinal => ({
   creative_id: `${ordinal}1111111-1111-4111-8111-111111111111`, creative_ordinal: ordinal,
   template_id: 'phone_metrics', version: 1, version_id: `${ordinal}2222222-2222-4222-8222-222222222222`,

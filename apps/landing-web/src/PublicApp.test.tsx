@@ -4,7 +4,7 @@ import type { PublicLanding } from './PublicApp'
 import { PublicApp } from './PublicApp'
 
 const snapshot: PublicLanding = {
-  canonical_url: 'https://natal-service.com/ai/sample-project',
+  canonical_url: 'https://natal-service.com/sample-project',
   project_name: 'Sample Project', version_sha256: 'a'.repeat(64),
   published_at: '2026-09-08T00:00:00Z',
   configuration: {
@@ -21,8 +21,8 @@ const snapshot: PublicLanding = {
     faq: [{ question: 'Question?', answer: 'Answer.' }],
   },
   assets: {
-    hero_visual: '/api/v1/public/landings/ai/sample-project/versions/' + 'a'.repeat(64) + '/assets/hero_visual/' + 'b'.repeat(64) + '.png',
-    visual_break_visual: '/api/v1/public/landings/ai/sample-project/versions/' + 'a'.repeat(64) + '/assets/visual_break_visual/' + 'c'.repeat(64) + '.png',
+    hero_visual: '/api/v1/public/landings/sample-project/versions/' + 'a'.repeat(64) + '/assets/hero_visual/' + 'b'.repeat(64) + '.png',
+    visual_break_visual: '/api/v1/public/landings/sample-project/versions/' + 'a'.repeat(64) + '/assets/visual_break_visual/' + 'c'.repeat(64) + '.png',
   },
 }
 
@@ -56,20 +56,20 @@ it('persists rejection without contacting Meta', () => {
   expect(window.fbq).toBeUndefined()
 })
 
-it.each(['ai', 'la', 'wa'])('fetches and renders a published %s lane with the shared renderer', async lane => {
-  const value = { ...snapshot, canonical_url: `https://natal-service.com/${lane}/sample-project` }
+it('fetches and renders a published direct slug with the shared renderer', async () => {
+  const value = snapshot
   const fetch = vi.fn(async () => new Response(JSON.stringify(value), { status: 200, headers: { 'Content-Type': 'application/json' } }))
   vi.stubGlobal('fetch', fetch)
-  render(<PublicApp path={`/${lane}/sample-project`} apiOrigin="https://api.example" />)
+  render(<PublicApp path="/sample-project" apiOrigin="https://api.example" />)
 
   expect(await screen.findByRole('heading', { name: 'A public promise' })).toBeVisible()
   expect(screen.getByLabelText('Landing live preview')).toBeVisible()
   expect(screen.getByRole('link', { name: /Instagram @natal_service/ })).toHaveAttribute('href', 'https://www.instagram.com/natal_service/')
-  expect(fetch).toHaveBeenCalledWith(`https://api.example/api/v1/public/landings/${lane}/sample-project`, expect.objectContaining({ credentials: 'omit', cache: 'no-store' }))
+  expect(fetch).toHaveBeenCalledWith('https://api.example/api/v1/public/landings/sample-project', expect.objectContaining({ credentials: 'omit', cache: 'no-store' }))
   expect(document.title).toBe('Sample Project — Natal')
 })
 
-it('shows the branded visual 404 for an invalid route without calling the API', () => {
+it('shows the branded visual 404 for nested and invalid routes without calling the API', () => {
   const fetch = vi.fn()
   vi.stubGlobal('fetch', fetch)
   render(<PublicApp path="/invalid/path" apiOrigin="https://api.example" />)
@@ -77,10 +77,12 @@ it('shows the branded visual 404 for an invalid route without calling the API', 
   expect(screen.getByText('This Natal page is unavailable.')).toBeVisible()
   expect(screen.getByRole('link', { name: 'Go to Natal' })).toHaveAttribute('href', '/')
   expect(fetch).not.toHaveBeenCalled()
+  render(<PublicApp path="/legacy/old-project" apiOrigin="https://api.example" />)
+  expect(fetch).not.toHaveBeenCalled()
 })
 
 it('shows the same visual 404 when the bounded public API returns 404', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })))
-  render(<PublicApp path="/ai/unpublished-project" apiOrigin="https://api.example" />)
+  render(<PublicApp path="/unpublished-project" apiOrigin="https://api.example" />)
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Page not found' })).toBeVisible())
 })

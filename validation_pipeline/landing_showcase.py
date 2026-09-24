@@ -88,7 +88,7 @@ def reference_photo() -> dict:
     output = BytesIO()
     with Image.open(BytesIO(data)) as image:
         image.convert("RGB").save(output, format="PNG")
-    return {"bytes": output.getvalue(), "mime_type": "image/png", "source": {"origin": "registered_reference", "asset_id": "bokko_lifestyle", "source_url": item["source_url"], "source_sha256": item["sha256"]}}
+    return {"bytes": output.getvalue(), "mime_type": "image/png", "source": {"origin": "registered_reference", "asset_id": "showcase_lifestyle", "source_url": item["source_url"], "source_sha256": item["sha256"]}}
 
 
 def enhanced_configuration():

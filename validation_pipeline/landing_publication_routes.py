@@ -31,10 +31,10 @@ def landing_publication_owner_router(
 
     @router.get("/projects/{project_id}/publication/availability")
     def availability(
-        project_id: str, namespace: str = Query(...), slug: str = Query(...),
+        project_id: str, slug: str = Query(...),
     ) -> dict[str, Any]:
         try:
-            return service.availability(project_id, namespace, slug)
+            return service.availability(project_id, slug)
         except (KeyError, ValueError) as error:
             raise _failure(error) from error
 
@@ -44,9 +44,8 @@ def landing_publication_owner_router(
         x_ptw_actor: str = Header(default="owner-web"),
     ) -> dict[str, Any]:
         required = {"request_id", "landing_id", "version"}
-        allowed = required | {"namespace", "slug"}
-        optional = {"namespace", "slug"} & set(request)
-        if not required <= set(request) <= allowed or optional not in (set(), {"namespace", "slug"}):
+        allowed = required | {"slug"}
+        if not required <= set(request) <= allowed:
             raise HTTPException(status_code=400, detail="Landing publication fields are invalid")
         if isinstance(request["version"], bool) or not isinstance(request["version"], int):
             raise HTTPException(status_code=400, detail="Landing publication version is invalid")
@@ -54,7 +53,6 @@ def landing_publication_owner_router(
             return service.publish(
                 project_id=project_id, request_id=str(request["request_id"]),
                 landing_id=str(request["landing_id"]), version=request["version"],
-                namespace=None if "namespace" not in request else str(request["namespace"]),
                 slug=None if "slug" not in request else str(request["slug"]),
                 requested_by=x_ptw_actor[:200],
             )
@@ -84,10 +82,10 @@ def landing_publication_read_router(
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, dependencies=list(dependencies))
 
-    @router.api_route("/{namespace}/{slug}", methods=["GET", "HEAD"])
-    def snapshot(namespace: str, slug: str) -> Response:
+    @router.api_route("/{slug}", methods=["GET", "HEAD"])
+    def snapshot(slug: str) -> Response:
         try:
-            value = service.snapshot(namespace, slug)
+            value = service.snapshot(slug)
         except (KeyError, ValueError):
             raise HTTPException(status_code=404, detail="Published Landing was not found")
         except RuntimeError as error:
@@ -99,10 +97,10 @@ def landing_publication_read_router(
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
-    @router.api_route("/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
-    def asset(namespace: str, slug: str, version_sha256: str, slot: str, sha256: str) -> Response:
+    @router.api_route("/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
+    def asset(slug: str, version_sha256: str, slot: str, sha256: str) -> Response:
         try:
-            value = service.asset(namespace, slug, version_sha256, slot, sha256)
+            value = service.asset(slug, version_sha256, slot, sha256)
         except (KeyError, ValueError):
             raise HTTPException(status_code=404, detail="Published Landing asset was not found")
         except RuntimeError as error:

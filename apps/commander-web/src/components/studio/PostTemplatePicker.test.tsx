@@ -6,6 +6,19 @@ import { PostTemplatePicker } from './PostTemplatePicker'
 vi.mock('../../firebase', () => ({ appCheck: {} }))
 vi.mock('../../views/TemplatesView', () => ({ TemplateImage: ({ label }: { label: string }) => <span>{label} preview</span> }))
 
+it('refreshes pending previews without losing the selected exact Post template', async () => {
+  const item = { surface: 'post', template_id: 'phone_metrics', template_version: 27, template_sha256: 'a'.repeat(64), name: 'Phone & metrics', preview_status: 'pending', previews: {} }
+  const api = { get: vi.fn().mockResolvedValueOnce({ items: [item] }).mockResolvedValue({ items: [{ ...item, preview_status: 'ready' }] }), post: vi.fn() }
+  const detail = { state_sha256: 'b'.repeat(64) } as StudioPhoneMetricsDetail
+  render(<PostTemplatePicker api={api as unknown as ApiClient} language="en" basePath="/post" detail={detail} configuration={detail.configuration} content={detail.content} disabled={false} onApply={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Change template' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Phone & metrics · v27' }))
+  expect(screen.getByRole('button', { name: 'Apply to this Post' })).toBeEnabled()
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2), { timeout: 3000 })
+  expect(screen.getByRole('button', { name: 'Phone & metrics · v27' })).toHaveAttribute('aria-pressed', 'true')
+  expect(api.post).not.toHaveBeenCalled()
+})
+
 it('applies an exact accepted version with current unsaved edits and reconciles response loss', async () => {
   const item = { surface: 'post', template_id: 'design_123', template_version: 2, template_sha256: 'a'.repeat(64), name: 'Clean design', previews: {} }
   const api = { get: vi.fn(async () => ({ items: [item] })), post: vi.fn().mockRejectedValueOnce(new Error('Connection lost')).mockResolvedValue({ template_id: item.template_id }) }

@@ -5,7 +5,7 @@ import type { Language } from '../../i18n'
 import type { StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent, StudioPhoneMetricsDetail } from '../../types'
 import { TemplateImage } from '../../views/TemplatesView'
 
-type Choice = { surface: 'post'; template_id: string; template_version: number; template_sha256: string; name: string; previews: Record<string, { sha256: string; definition_sha256: string }> }
+type Choice = { surface: 'post'; template_id: string; template_version: number; template_sha256: string; name: string; preview_status?: string; previews: Record<string, { sha256: string; definition_sha256: string }> }
 export function PostTemplatePicker({ api, language, basePath, detail, configuration, content, disabled, onApply }: {
   api: ApiClient; language: Language; basePath: string; detail: StudioPhoneMetricsDetail
   configuration: StudioPhoneMetricsConfiguration; content: StudioPhoneMetricsContent
@@ -23,13 +23,19 @@ export function PostTemplatePicker({ api, language, basePath, detail, configurat
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
     const previous = document.activeElement as HTMLElement | null
     panel.current?.focus()
     setItems(null); setError('')
-    void api.get<{ items: Choice[] }>('/api/v1/templates?surface=post', { deadlineMs: 120_000 }).then(value => {
-      if (!cancelled) setItems(value.items)
-    }).catch(cause => { if (!cancelled) setError(cause.message) })
-    return () => { cancelled = true; previous?.focus() }
+    const load = () => {
+      void api.get<{ items: Choice[] }>('/api/v1/templates?surface=post', { deadlineMs: 120_000 }).then(value => {
+        if (cancelled) return
+        setItems(value.items)
+        if (value.items.some(item => item.preview_status === 'pending')) timer = setTimeout(load, 1500)
+      }).catch(cause => { if (!cancelled) setError(cause.message) })
+    }
+    load()
+    return () => { cancelled = true; clearTimeout(timer); previous?.focus() }
   }, [api, open, retry])
   const apply = async () => {
     if (!selected) return
@@ -59,9 +65,9 @@ export function PostTemplatePicker({ api, language, basePath, detail, configurat
       {error && <p role="alert">{error}</p>}
       {!items && !error && <p role="status">{tr('Loading templates…', 'Завантаження шаблонів…')}</p>}
       {!items && error && <button onClick={() => setRetry(v => v + 1)}>{tr('Retry', 'Повторити')}</button>}
-      <div className="post-template-choices">{items?.map(item => <article key={`${item.template_id}:${item.template_version}`} className={selected === item ? 'is-selected' : ''}>
+      <div className="post-template-choices">{items?.map(item => <article key={`${item.template_id}:${item.template_version}`} className={selected?.template_sha256 === item.template_sha256 ? 'is-selected' : ''}>
         <TemplateImage api={api} preview={item.previews.desktop} label={item.name} />
-        <button className="secondary" aria-pressed={selected === item} disabled={busy || !!pending} onClick={() => setSelected(item)}>{item.name} · v{item.template_version}</button>
+        <button className="secondary" aria-pressed={selected?.template_sha256 === item.template_sha256} disabled={busy || !!pending} onClick={() => setSelected(item)}>{item.name} · v{item.template_version}</button>
       </article>)}</div>
       {items?.length === 1 && <p>{tr('Accept a new Post design in Templates to add more choices here.', 'Прийміть новий дизайн допису в Шаблонах, щоб він з’явився тут.')}</p>}
       {items?.length === 0 && <p>{tr('No accepted Post templates yet.', 'Ще немає прийнятих шаблонів дописів.')}</p>}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 import io
 import stat
+import subprocess
 import tempfile
 from pathlib import Path
 import time
@@ -78,6 +79,32 @@ class CodexAuthorizationStatusTests(unittest.TestCase):
                 self.await_terminal(controller),
             )
         self.assertEqual(2, working_test.call_count)
+
+    def test_working_test_copies_only_auth_into_an_isolated_codex_home(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            auth_file = codex_home / "auth.json"
+            auth_file.write_text('{"auth_mode":"chatgpt"}', encoding="utf-8")
+            (codex_home / "state.sqlite").write_text("long-lived state", encoding="utf-8")
+            controller = AuthorizationController("codex", codex_home)
+
+            def execute(command, **kwargs):
+                isolated_home = Path(kwargs["env"]["CODEX_HOME"])
+                self.assertNotEqual(codex_home, isolated_home)
+                self.assertEqual(
+                    auth_file.read_text(encoding="utf-8"),
+                    (isolated_home / "auth.json").read_text(encoding="utf-8"),
+                )
+                self.assertEqual(0o600, stat.S_IMODE((isolated_home / "auth.json").stat().st_mode))
+                self.assertFalse((isolated_home / "state.sqlite").exists())
+                output = Path(command[command.index("--output-last-message") + 1])
+                output.write_text("PTW_AUTH_OK\n", encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch("auth.service.subprocess.run", side_effect=execute) as run:
+                self.assertTrue(controller._working_test())
+
+            run.assert_called_once()
 
     def test_device_login_uses_a_pseudo_terminal(self) -> None:
         controller = AuthorizationController("codex", Path("/tmp/test-codex-auth"))

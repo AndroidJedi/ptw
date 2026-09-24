@@ -66,7 +66,19 @@ class AuthorizationController:
 
     def _working_test(self) -> bool:
         try:
-            with tempfile.TemporaryDirectory(prefix="ptw-codex-auth-") as directory:
+            auth_file = self.codex_home / "auth.json"
+            if not auth_file.is_file():
+                return False
+            with (
+                tempfile.TemporaryDirectory(prefix="ptw-codex-auth-home-") as home,
+                tempfile.TemporaryDirectory(prefix="ptw-codex-auth-work-") as directory,
+            ):
+                isolated_home = Path(home)
+                isolated_auth = isolated_home / "auth.json"
+                shutil.copyfile(auth_file, isolated_auth)
+                isolated_auth.chmod(0o600)
+                environment = self._environment()
+                environment["CODEX_HOME"] = str(isolated_home)
                 output = Path(directory) / "response.txt"
                 completed = subprocess.run(
                     [
@@ -76,7 +88,7 @@ class AuthorizationController:
                         "Reply with exactly PTW_AUTH_OK.",
                     ],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    text=True, timeout=TEST_TIMEOUT_SECONDS, env=self._environment(), check=False,
+                    text=True, timeout=TEST_TIMEOUT_SECONDS, env=environment, check=False,
                 )
                 return completed.returncode == 0 and output.is_file() and output.read_text(
                     encoding="utf-8"

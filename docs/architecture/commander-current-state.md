@@ -1,19 +1,19 @@
 # Commander current state
 
-Updated: 2026-09-24
+Updated: 2026-09-25
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: preserving release `template-picker-recovery-20260924-6e10735`
-accepted runtime code revision `6e10735f1e379be5a2c091313a72c596204a66d2`
+Deployment: preserving release `showcase-preview-recovery-20260924-a9745f2`
+accepted runtime code revision `a9745f2bb50d826106710a9a94c65bb10161b3b2`
 with companion platform `35b8fa0eb6b0e9e56a6448f05db14b18d01414a3`.
-Validation runs the picker recovery image; the other six application/companion
+Validation runs the Showcase preview recovery image; the other six application/companion
 containers retain the accepted metric-template release and all are healthy.
-Owner Hosting version `d7bb3d729e427f46` and public Landing Hosting version
+Owner Hosting version `b2ceec2982aaa0c1` and public Landing Hosting version
 `ad4b13c2006be094` remain live. The full Astra structured/media/Pexels canaries
-(jobs 1084–1094), schema, authorization, independent worker, dependency,
+(jobs 1112–1122), schema, authorization, independent worker, dependency,
 canonical skills, approved-Post persistence, 1 GB resource and public/Owner
 audits passed.
 
-## App Showcase preview/access recovery — release verification
+## App Showcase preview/access recovery — deployed
 
 The original reference-inspired gradient/app-screen Landing remains registered
 as `app_showcase` v2; branding removal did not delete its definition or layout.
@@ -23,19 +23,37 @@ a shared render lock delayed catalog/detail/history reads beyond the browser's
 15-second deadline. A hidden Landing-catalog failure could also leave the owner
 seeing only a fallback choice.
 
-The candidate supplies disposable writable browser XDG directories, coalesces
+The accepted runtime supplies disposable writable browser XDG directories, coalesces
 built-in previews on one background worker, and returns exact template identities
 with pending/ready/failed preview status immediately. Gallery/detail/chooser poll
 pending previews; version history returns both App Showcase versions without
 rendering. Landing catalog errors expose Reload templates. The shell cache is v15.
 No template acceptance, Project mutation, migration or publication is needed.
 
-Verified locally: 402 Validation tests, 127 Owner unit tests, 19 Gateway tests,
+Verified locally: 402 Validation tests, 128 Owner unit tests, 19 Gateway tests,
 Commander tests/demo, unprivileged read-only container native previews, and
 real HTTP/disposable PostgreSQL template apply/save, all five image slots,
 approval, immutable public bytes and fresh-cache restart. App Showcase detail,
 desktop/mobile native previews and v1/v2 history pass desktop/360px/iPhone browser
-checks. Full browser/container release gates and production rollout are pending.
+checks. All 117 Owner browser checks pass. The Linux container suite's unrelated
+temporary executable fixtures initially failed under a noexec test mount; all
+affected tests plus native preview regressions passed in a 26-test rerun with
+executable temporary storage and the final image's unprivileged user/read-only root.
+
+The first preserving rollout automatically restored the previous healthy image
+after the final media provider canary failed (job 1111). One fresh preserving
+retry passed all eleven structured/media canaries, Pexels, full-row preservation,
+approved-Post access, dependency/resource audits and Hosting/live-bundle checks.
+The accepted Owner shell is v15. No migration or owner publication ran.
+
+Live App Showcase v1/v2 exact reads, both desktop/mobile PNGs and native Landing
+picker/global-gallery identity parity pass before and after a Validation restart.
+All measured reads were at most 1.207 seconds cold and 0.294 seconds after restart.
+V2 retains template digest
+`c5d7a435bbcb9703d65ac9591a17bd75e6b81fb40d8659f815a4501f6943b354`;
+its desktop/mobile PNGs match the verified image render byte-for-byte.
+Landing authority and template/media fingerprints are identical across restart,
+with zero active Brief, Post, Landing or Template generation records.
 The incident skill records the diagnosis and guards against treating label removal
 or preview failure as permission to remove a template.
 

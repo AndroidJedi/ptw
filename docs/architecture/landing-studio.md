@@ -297,7 +297,9 @@ publication are separate from this local implementation.
 The original Project Landing also exposes **Enable showcase sections**; old
 stored pages acquire nothing on read. One saved logo color masks the canonical
 Natal symbol and name without changing their geometry. New v2 composition takes
-the source Post's symbol color (name color fallback), otherwise white. Ten named
+the source Post's symbol color (name color fallback) when it contrasts with both
+gradient endpoints; otherwise it chooses contrasting white or dark ink. Saved
+owner colors are preserved. Ten named
 gradients select a domain mood; an unspecified domain uses the nearest chromatic
 logo hue or Ocean for neutral logos. The Studio chooser can override this.
 
@@ -344,3 +346,31 @@ can apply **Use Natal contacts**; enabling showcase sections fills only empty em
 and phone fields. The shared footer uses locally pinned contact/social SVGs.
 Telegram, Instagram and Threads remain icons without links when unconfigured;
 existing Telegram/Instagram endpoints still work. Approved snapshots are untouched.
+
+
+## Image output quality (local implementation)
+
+Visual agents use `PTW_VISUAL_AGENT_MODEL` (default `gpt-6-astra`) separately
+from Brief and Analytics, retaining existing workflow reasoning efforts. Image
+model identity is separate from the orchestration model in provenance.
+
+All image adapters carry `ptw.image-output.v1`: server-owned dimensions,
+background and safe-area fractions, included in fingerprints/provenance.
+App Showcase requests 9:19.5 screen interiors, a shared realistic UI family and
+camera-safe content. The canonical aperture uses contain fitting without extra
+padding, so new portrait images fill it and legacy squares remain unstretched.
+The shared renderer applies this in editor, fullscreen, gallery and public pages.
+Tablet hero layout stacks through 900px; caption rows align the phone tops.
+
+Walkthroughs request 4:3 complete phones with transparent surroundings. Native
+alpha is retained; opaque output uses pinned cutout preparation, fills enclosed
+screen holes, retains device components and trims outer space with a small margin.
+Raw PNGs and preparation digests remain private and survive history/version
+retention and database restore. Published assets are the exact prepared bytes.
+Failed preparation or stale generation retains the prior selected image. Existing
+approved images/publications are never rewritten.
+
+See [contract, companion release order and reproducible local audit](../operations/landing-image-quality.md).
+The rules are generation/engineering constraints, not performance learning or
+semantic retry heuristics. Production needs the separately versioned companion
+worker capability before accepting new image requests.

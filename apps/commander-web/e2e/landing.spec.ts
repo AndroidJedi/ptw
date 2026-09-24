@@ -459,23 +459,31 @@ test('App Showcase uses static screens with individual inspectors and responsive
     await expect(dialog.locator('.as-arrow').first()).toHaveCSS('width', '32px')
     await expect(dialog.locator('.as-icon').first()).toHaveCSS('height', '40px')
     await expect(dialog.locator('.as-wave')).toHaveCSS('height', '65px')
-    // All hero/walkthrough interiors fill the aperture below the camera.
-    // Contain fitting in this padded box used to leave white side gutters.
+    // The full aperture uses proportional fitting. Generated portrait content
+    // reserves its camera area; legacy squares stay square without cropped labels.
     const screens = await dialog.locator('.as-screen > img').evaluateAll(images => images.map(image => {
       const aperture = image.parentElement!.getBoundingClientRect()
       const pixels = image.getBoundingClientRect()
-      return { fit: getComputedStyle(image).objectFit, left: pixels.left - aperture.left,
+      return { fit: getComputedStyle(image).objectFit, ratio: aperture.width / aperture.height, left: pixels.left - aperture.left,
         right: aperture.right - pixels.right, bottom: aperture.bottom - pixels.bottom,
         camera: pixels.top - aperture.top }
     }))
     expect(screens).toHaveLength(5)
     for (const screen of screens) {
-      expect(screen.fit).toBe('fill')
+      expect(screen.fit).toBe('contain')
+      expect(Math.abs(screen.ratio - 9 / 19.5)).toBeLessThan(.01)
       expect(Math.abs(screen.left)).toBeLessThan(1)
       expect(Math.abs(screen.right)).toBeLessThan(1)
       expect(Math.abs(screen.bottom)).toBeLessThan(1)
-      expect(screen.camera).toBeGreaterThan(0)
+      expect(Math.abs(screen.camera)).toBeLessThan(1)
     }
+    const hero = await dialog.locator('.as-hero').evaluate(el => ({
+      columns: getComputedStyle(el).gridTemplateColumns.split(' ').length,
+      copyBottom: el.querySelector('.as-hero-copy')!.getBoundingClientRect().bottom,
+      phonesTop: el.querySelector('.as-hero-phones')!.getBoundingClientRect().top,
+    }))
+    expect(hero.columns).toBe(width <= 900 ? 1 : 2)
+    if (width <= 900) expect(hero.phonesTop).toBeGreaterThan(hero.copyBottom)
     await expect(dialog.locator('[data-section=social_proof]')).toHaveCount(0)
   }
   await dialog.locator('.as-cta').first().click()

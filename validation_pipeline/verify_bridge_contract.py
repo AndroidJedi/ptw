@@ -20,6 +20,7 @@ from .creative_analytics import (
     visual_descriptor_schema,
 )
 from .openai_images import ResultBridgePhoneScreenImageProvider
+from .image_output import output_specification
 from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio_creatives import creative_generation_schema
@@ -34,6 +35,7 @@ from .studio_workspace import PostStudioWorkspace
 def main() -> None:
     settings = Settings.from_environment()
     provider = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
+    visual_provider = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.visual_model)
     capabilities = provider.capabilities()
     marker = str(uuid4())
     raw_idea = "A guided decision service for people who need one clear next step."
@@ -126,7 +128,7 @@ def main() -> None:
                 raise ValueError("Phone Metrics canary visual direction is invalid")
             return value
 
-        phone_composed = provider.call(
+        phone_composed = visual_provider.call(
             mode="studio_creative_generation",
             system_prompt=(
                 studio_skill + "\n\nThe live catalog in INPUT_JSON is authoritative. "
@@ -189,7 +191,7 @@ def main() -> None:
                 "reply": response_reply(value["reply"]),
             }
 
-        manual_edit = provider.call(
+        manual_edit = visual_provider.call(
             mode="studio_manual_edit",
             system_prompt=(
                 settings.studio_manual_agent_skill_path.read_text(encoding="utf-8")
@@ -218,7 +220,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="ptw-landing-canary-") as temporary:
         landing_workspace = LandingWorkspace(temporary)
         landing_detail = landing_workspace.detail()
-        landing = provider.call(
+        landing = visual_provider.call(
             mode="studio_creative_generation",
             system_prompt=settings.landing_composer_skill_path.read_text(encoding="utf-8"),
             input_payload=landing_composition_payload(
@@ -302,16 +304,18 @@ def main() -> None:
     )
     accept(visual, "creative_visual_analysis")
     media = ResultBridgePhoneScreenImageProvider(
-        settings.bridge_url, settings.bridge_token, settings.model,
+        settings.bridge_url, settings.bridge_token, settings.visual_model,
     )
     generated = media.generate(
         "Show a guest's hand holding a smartphone and scanning a QR card in a modern hotel room. Include the small label SPA on the card. "
         f"Treat {marker} only as a nonvisual request nonce and never render it.",
+        output_spec=output_specification({"mode": "phone_screen"}),
     )
     enhanced = media.generate(
         "Refine the same hotel scanning scene with cleaner lighting and material detail while "
         f"preserving its composition. Treat {marker} only as a nonvisual request nonce.",
         reference_image=generated["bytes"],
+        output_spec=output_specification({"mode": "phone_screen"}),
     )
     invocations.extend((
         {
@@ -332,6 +336,24 @@ def main() -> None:
         fingerprint = invocation.get("request_fingerprint")
         if not isinstance(fingerprint, str) or len(fingerprint) != 64:
             raise RuntimeError(f"{invocation['mode']} canary omitted its request fingerprint")
+    # Exercise both new geometries before a preserving rollout is accepted.
+    for mode, prompt in (
+        ("app_screen", "A realistic Ukrainian hotel-service app screen interior with a short service list and a request button. No hardware. Keep the camera safe area empty."),
+        ("app_mockup", "Three complete front-facing hotel app phones with readable service lists and request forms; transparent surroundings, opaque white screens."),
+    ):
+        artifact = media.generate(prompt + f" Nonvisual nonce: {marker}.", output_spec=output_specification({"mode": mode}))
+        provenance = artifact["source"]
+        if provenance.get("agent_model") != settings.visual_model or len(provenance.get("request_fingerprint", "")) != 64:
+            raise RuntimeError("Visual canary omitted its routed model or fingerprint")
+        if mode == "app_mockup":
+            from .landing_image_preparation import prepare_mockup
+            prepared, preparation = prepare_mockup(artifact["bytes"])
+        else:
+            prepared, preparation = artifact["bytes"], None
+        invocations.append({"mode": mode, "request_id": provenance.get("bridge_request_id"),
+                            "agent_model": provenance.get("agent_model"), "image_model": provenance.get("image_model"),
+                            "output_spec": provenance.get("output_spec"), "preparation": preparation,
+                            "output_sha256": hashlib.sha256(prepared).hexdigest()})
     print(json.dumps({
         "status": "ok", "canary_id": marker,
         "capabilities": capabilities, "invocations": invocations,

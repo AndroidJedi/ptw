@@ -1,0 +1,165 @@
+diff --git a/commander/main.py b/commander/main.py
+index 081a5fd..f175f52 100644
+--- a/commander/main.py
++++ b/commander/main.py
+@@ -24,0 +25 @@ from common.image_references import EphemeralImageReferences, persistable_image_
++from common.image_output import IMAGE_OUTPUT_VERSION, normalize_output_specification
+@@ -66,0 +68,4 @@ def validate_structured_llm_request(request: dict) -> None:
++    if "output_spec" in request["input_payload"]:
++        if request["mode"] not in MEDIA_MODES or image_policy != "ptw.domain-image.v1":
++            raise ValueError("image output specification requires the domain image policy")
++        normalize_output_specification(request["input_payload"]["output_spec"])
+@@ -153,0 +159 @@ def structured_llm_capabilities() -> dict:
++        "image_output_specs": [IMAGE_OUTPUT_VERSION],
+diff --git a/common/image_output.py b/common/image_output.py
+new file mode 100644
+index 0000000..83aceb4
+--- /dev/null
++++ b/common/image_output.py
+@@ -0,0 +1,50 @@
++"""Server-owned image geometry, independent of creative prompt instructions."""
++from copy import deepcopy
++from typing import Any, Mapping
++
++IMAGE_OUTPUT_VERSION = "ptw.image-output.v1"
++
++
++def output_specification(destination: Mapping[str, Any]) -> dict:
++    mode = destination.get("mode")
++    width, height = (864, 1872) if mode == "app_screen" else (1536, 1152) if mode == "app_mockup" else (1024, 1024)
++    return {
++        "schema": IMAGE_OUTPUT_VERSION, "width": width, "height": height,
++        "background": "transparent" if mode == "app_mockup" else "opaque",
++        "safe_area": {"top": .065 if mode == "app_screen" else .04,
++                      "right": .04, "bottom": .04, "left": .04},
++    }
++
++
++def normalize_output_specification(value: Mapping[str, Any]) -> dict:
++    import math
++    if not isinstance(value, Mapping) or set(value) != {"schema", "width", "height", "background", "safe_area"}:
++        raise ValueError("Invalid image output specification")
++    if value["schema"] != IMAGE_OUTPUT_VERSION or value["background"] not in {"opaque", "transparent"}:
++        raise ValueError("Unsupported image output specification")
++    width, height = value["width"], value["height"]
++    if any(type(n) is not int or not 512 <= n <= 2048 or n % 16 for n in (width, height)) or not 1/3 <= width/height <= 3:
++        raise ValueError("Invalid image output dimensions")
++    safe = value["safe_area"]
++    if not isinstance(safe, Mapping) or set(safe) != {"top", "right", "bottom", "left"} or any(
++        type(n) not in (int, float) or not math.isfinite(n) or not 0 <= n <= .2 for n in safe.values()
++    ):
++        raise ValueError("Invalid image safe area")
++    return deepcopy(dict(value))
++
++
++def output_prompt(value: Mapping[str, Any]) -> str:
++    spec = normalize_output_specification(value)
++    return (f"Output contract: one PNG, {spec['width']}x{spec['height']} pixels; preserve this aspect ratio. "
++            f"Background: {spec['background']}. Safe areas are fractions of the full canvas: {spec['safe_area']}. "
++            "Keep essential labels and controls inside these margins. For app screens, the top margin is "
++            "the camera/status safe area; extend the screen background to every edge. "
++            + ("Use actual transparent alpha outside the complete devices, including gaps between them; "
++               "keep white screen interiors opaque. Do not draw a white card or checkerboard background."
++               if spec["background"] == "transparent" else ""))
++
++
++def validate_output_dimensions(width: int, height: int, spec: Mapping[str, Any]) -> None:
++    expected = normalize_output_specification(spec)
++    if not (512 <= width <= 2048 and 512 <= height <= 2048) or abs((width / height) / (expected["width"] / expected["height"]) - 1) > .03:
++        raise ValueError("Generated image does not match the requested aspect ratio or dimension bounds")
+diff --git a/tests/test_commands.py b/tests/test_commands.py
+index 5e67f53..44476bf 100644
+--- a/tests/test_commands.py
++++ b/tests/test_commands.py
+@@ -49,0 +50 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
++        "image_output_specs": ["ptw.image-output.v1"],
+@@ -209,0 +211,19 @@ def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
++
++
++def test_output_contract_requires_media_policy_and_valid_safe_areas():
++    from copy import deepcopy
++    from common.image_output import output_specification
++    spec = output_specification({'mode': 'app_screen'})
++    request = {
++        'mode': 'content_non_human_graphic_generation',
++        'system_prompt': 'Generate one app screen',
++        'input_payload': {'generation_policy_version': 'ptw.domain-image.v1', 'output_spec': spec},
++        'output_schema': {'type': 'object'}, 'idempotency_key': 'output-contract',
++    }
++    validate_structured_llm_request(request)
++    for update in ({'generation_policy_version': None}, {'output_spec': {**spec, 'width': 1023}},
++                   {'output_spec': {**spec, 'safe_area': {**spec['safe_area'], 'top': float('nan')}}}):
++        invalid = deepcopy(request)
++        invalid['input_payload'].update(update)
++        with pytest.raises(ValueError): validate_structured_llm_request(invalid)
++    with pytest.raises(ValueError): validate_structured_llm_request({**request, 'mode': 'product_brief'})
+diff --git a/tests/test_worker.py b/tests/test_worker.py
+index 91de572..2df7ebf 100644
+--- a/tests/test_worker.py
++++ b/tests/test_worker.py
+@@ -387,0 +388,34 @@ def test_domain_image_policy_preserves_request_and_accepts_unchanged_edit(monkey
++
++
++@pytest.mark.parametrize("mode,size", [("app_screen", (864,1872)), ("app_mockup", (1536,1152))])
++def test_image_output_spec_reaches_worker_without_square_override(monkeypatch, tmp_path, mode, size):
++    from common.image_output import output_specification
++    home=tmp_path/'codex'; observed=[]
++    monkeypatch.setenv('CODEX_HOME',str(home))
++    monkeypatch.setenv('CONTENT_GRAPHIC_ASSET_DIR',str(tmp_path/'assets'))
++    spec=output_specification({'mode':mode})
++    def run(command, **kwargs):
++        observed.append((command,kwargs['input']))
++        Path(command[command.index('--output-last-message')+1]).write_text('{"generated":true}')
++        output=home/'generated_images'/'portrait';output.mkdir(parents=True)
++        (output/'image.png').write_bytes(png_header(*size))
++        return subprocess.CompletedProcess(command,0,stdout=thread_output('portrait',image_call=True),stderr='')
++    monkeypatch.setattr('worker.main.subprocess.run',run)
++    result=execute_structured_llm(request('content_non_human_graphic_generation',model='gpt-6-astra',input_payload={
++        'generation_policy_version':'ptw.domain-image.v1','output_spec':spec,'visual_direction':'Realistic hotel app screens'}))
++    assert len(observed)==1
++    assert 'square PNG' not in observed[0][1]
++    assert f'{size[0]}x{size[1]}' in observed[0][1]
++    assert result['image']['output_spec']==spec
++    assert result['invocation']['model']=='gpt-6-astra'
++    assert result['image']['resolved_model'] is None
++
++
++def test_portrait_output_rejects_square_pixels_and_cleans_temporary_files(tmp_path,monkeypatch):
++    from common.image_output import output_specification
++    from worker.main import _persist_non_human_graphic
++    output=tmp_path/'generated_images'/'square';output.mkdir(parents=True)
++    (output/'image.png').write_bytes(png_header(1024,1024))
++    with pytest.raises(ValueError,match='aspect ratio'):
++        _persist_non_human_graphic(tmp_path,'square',policy_version='ptw.domain-image.v1',output_spec=output_specification({'mode':'app_screen'}))
++    assert not output.exists()
+diff --git a/worker/main.py b/worker/main.py
+index b275be2..f3c65d1 100644
+--- a/worker/main.py
++++ b/worker/main.py
+@@ -14,0 +15 @@ from pathlib import Path
++from common.image_output import normalize_output_specification, output_prompt, validate_output_dimensions
+@@ -83,0 +85 @@ def _persist_non_human_graphic(
++    output_spec: dict | None = None,
+@@ -100 +102,3 @@ def _persist_non_human_graphic(
+-        if width != height or not 512 <= width <= 2048:
++        if output_spec is not None:
++            validate_output_dimensions(width, height, output_spec)
++        elif width != height or not 512 <= width <= 2048:
+@@ -129,2 +133,3 @@ def _persist_non_human_graphic(
+-            "requested_model": "gpt-image-2",
+-            "resolved_model": "gpt-image-2",
++            "requested_model": "codex-builtin-image-generation",
++            "resolved_model": None,
++            **({"output_spec": output_spec} if output_spec else {}),
+@@ -361,0 +367,5 @@ def execute_structured_llm(parameters: dict) -> dict:
++        output_spec = parameters["input_payload"].get("output_spec")
++        if output_spec is not None:
++            if mode != "content_non_human_graphic_generation" or image_policy != "ptw.domain-image.v1":
++                raise RuntimeError("image output specification requires the domain image policy")
++            output_spec = normalize_output_specification(output_spec)
+@@ -366 +376,2 @@ def execute_structured_llm(parameters: dict) -> dict:
+-                "\nUse image generation or image editing exactly once to create one square PNG. "
++                "\nUse image generation or image editing exactly once. "
++                + (output_prompt(output_spec) if output_spec else "Create one square PNG. ") +
+@@ -437,0 +449 @@ def execute_structured_llm(parameters: dict) -> dict:
++                output_spec=output_spec,

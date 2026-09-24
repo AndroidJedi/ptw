@@ -689,6 +689,7 @@ export interface LandingVisualSummary {
   slot: LandingVisualSlot
   available: boolean
   sha256: string | null
+  preparation?: { schema: string; method: string; raw_sha256: string; prepared_sha256: string; raw_size: number[]; crop_box: number[]; padding: number; model_sha256?: string }
   history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean; instruction_context?: ImageInstructionContext }>
 }
 

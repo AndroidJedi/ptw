@@ -62,7 +62,7 @@ class MemoryStudioRepository:
 
 
 class Provider:
-    def generate(self, _prompt: str, *, reference_image: bytes | None = None):
+    def generate(self, _prompt: str, *, reference_image: bytes | None = None, output_spec=None):
         output = BytesIO()
         Image.new("RGB", (1024, 1024), "#dff7fb").save(output, "PNG")
         data = output.getvalue()

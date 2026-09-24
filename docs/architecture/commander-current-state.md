@@ -20,6 +20,46 @@ public-shell and Owner Console audits passed. The exact amd64 Validation image
 passed 380 tests; Owner passed 124 unit tests/build and all 114 cross-browser
 checks. The 24-hour resource audit is scheduled for 2026-09-25 09:44 UTC.
 
+## Landing image quality — implemented locally, not deployed
+
+Visual composition, Manual Agents, Templates and image workers now default to
+Astra through `PTW_VISUAL_AGENT_MODEL`; Brief/Analytics and per-workflow reasoning
+remain independent. Image output v1 carries portrait/landscape geometry,
+background and safe areas through every adapter, with separate agent/pixel model
+provenance. The independent companion change is committed and exported as
+`patches/platform/landing-image-output-v1.patch`; it must precede PTW on a future
+preserving release. No production release or owner publication ran.
+
+Both templates use proportional phone fitting; legacy squares remain visible.
+App Showcase stacks the hero through 900px. Realistic screen-family guidance,
+camera clearance, transparent walkthrough preparation, raw/prepared retention,
+initial logo contrast and intentional photo-crop rules are canonical. Native
+alpha and pinned opaque cutouts preserve white interiors and device components;
+failure/stale response keeps the selected image. Approved bytes remain intact.
+
+Verification: 391 backend tests; 390 in the current built Linux Validation image
+plus the final 25 provider/routing tests; 52 companion tests; 124 Owner and 6
+Public unit tests/builds; 63 affected Owner and 28 Public browser tests, with a
+focused aperture rerun; Commander tests (43, five isolated-receiver skips), demo,
+skills and whitespace. The legacy `ptw-commander-api:latest` test image lacks Git;
+the successful runtime Commander suite uses the current Validation image.
+Disposable PostgreSQL verifies raw/prepared provenance, alpha, restart, exact
+public bytes and immutable historical approvals. No reset or migration was used.
+
+The real local Astra worker generated three portrait hotel screens and a native
+transparent walkthrough. After a manual navigation-spec refinement, the selected
+review set is `.local/landing-image-quality-final/`. Its site on port 42743 links
+the hotel preview, original-template draft, published before screenshots and
+corrected after screenshots. All 11 sections of both templates were inspected
+at 1440/1280, 768, 360 and iPhone WebKit with loaded images (110 section captures,
+no viewport overflow). The hotel's local photo focus was adjusted to preserve
+faces. Existing sample reviews and store destinations remain unchanged. The
+standalone preview shell now declares a mobile viewport.
+
+The Owner API hosting this chat has not been restarted; new backend code takes
+effect after a safe restart outside the active turn. See
+[output contract and release/audit procedure](../operations/landing-image-quality.md).
+
 ## Direct Landing slugs and Natal-only template copy — deployed
 
 Public Landing URLs now use `https://natal-service.com/<slug>`. First Publish

@@ -34,7 +34,7 @@
 .mk-how-grid li > span { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; border-radius:50%; background:#ffffffc9; color:var(--mk-start); font-weight:700; }
 .lp-page .mk-how-grid h3 { font-size:26px; margin:0 0 12px; line-height:1.3; }
 .lp-page .mk-how-grid p { font-size:17px; line-height:1.5; margin:0; }
-.mk-mockup { align-self:center; min-width:0; border-radius:24px; overflow:hidden; }
+.mk-mockup { align-self:center; min-width:0; }
 .lp-page .mk-mockup img { width:100%; height:auto; object-fit:contain; }
 .mk-benefits-grid { display:grid; grid-template-columns:1.1fr 1fr; gap:42px; align-items:center; }
 .lp-page .mk-benefits-grid > img { width:100%; height:300px; object-fit:cover; border-radius:28px; }

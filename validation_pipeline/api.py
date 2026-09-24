@@ -57,12 +57,12 @@ def create_studio_creative_service(
     studio_workspace: PostStudioWorkspace | None = None,
 ) -> StudioCreativeService:
     bridge = structured_provider or StructuredBridge(
-        settings.bridge_url, settings.bridge_token, settings.model,
+        settings.bridge_url, settings.bridge_token, settings.visual_model,
     )
     renderer = studio_renderer or StudioRenderer()
     authority = DatabaseStudioAuthority(settings.database_url)
     image_provider = ResultBridgePhoneScreenImageProvider(
-        settings.bridge_url, settings.bridge_token, settings.model,
+        settings.bridge_url, settings.bridge_token, settings.visual_model,
     )
     if studio_workspace is not None:
         workspace_factory = lambda _path: studio_workspace
@@ -101,12 +101,13 @@ def create_app(
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
     bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
+    visual_bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.visual_model)
     studio_renderer = studio_renderer or StudioRenderer()
     if studio_creative_service is not None:
         studio_creatives = studio_creative_service
     else:
         studio_creatives = create_studio_creative_service(
-            settings, structured_provider=bridge, studio_renderer=studio_renderer,
+            settings, structured_provider=visual_bridge, studio_renderer=studio_renderer,
             studio_workspace=studio_workspace,
         )
     if landing_page_service is not None:
@@ -114,17 +115,17 @@ def create_app(
     else:
         landing_authority = DatabaseLandingAuthority(settings.database_url)
         landing_images = ResultBridgePhoneScreenImageProvider(
-            settings.bridge_url, settings.bridge_token, settings.model,
+            settings.bridge_url, settings.bridge_token, settings.visual_model,
         )
         landing_pages = LandingService(
             root=settings.landing_workspace_path, authority=landing_authority,
             workspace_factory=lambda path: DatabaseLandingWorkspace(
                 LandingWorkspace(path, image_provider=landing_images), landing_authority, path.name,
             ),
-            structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
+            structured_provider=visual_bridge, composer_skill_path=settings.landing_composer_skill_path,
             manual_agent_skill_path=settings.studio_manual_agent_skill_path,
         )
-    template_authoring = template_authoring_service or TemplateAuthoringService(TemplateStore(database_url=settings.database_url), bridge)
+    template_authoring = template_authoring_service or TemplateAuthoringService(TemplateStore(database_url=settings.database_url), visual_bridge)
     studio_creatives.template_registry = template_authoring.post_registry
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url

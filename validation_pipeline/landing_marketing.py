@@ -75,6 +75,23 @@ def normalize_content(value):
     return result
 
 
+def _luminance(color):
+    channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in channels]
+    return sum(v * weight for v, weight in zip(linear, (.2126, .7152, .0722)))
+
+
+def initial_logo_color(color, gradient):
+    """Keep an inherited color when legible; this never runs on saved owner edits."""
+    def contrast(candidate):
+        foreground = _luminance(candidate)
+        return min((max(foreground, _luminance(gradient[k])) + .05) /
+                   (min(foreground, _luminance(gradient[k])) + .05) for k in ("start", "end"))
+    if contrast(color) >= 3:
+        return color
+    return max(("#ffffff", "#102335"), key=contrast)
+
+
 def initial_design(brief, source):
     """Brief-domain aura first, nearest source-logo hue when domain is unspecified."""
     import json, re
@@ -93,7 +110,8 @@ def initial_design(brief, source):
         def hue(hex): return rgb_to_hsv(*(int(hex[i:i+2], 16)/255 for i in (1,3,5)))[0]
         selected = min(GRADIENTS, key=lambda g: min(abs(hue(g["start"])-hue(color)), 1-abs(hue(g["start"])-hue(color))))["id"]
     result = deepcopy(DEFAULT_CONFIGURATION)
-    result.update(gradient_id=selected or "ocean", logo_color=color.lower() if valid else "#ffffff")
+    gradient = next(g for g in GRADIENTS if g["id"] == (selected or "ocean"))
+    result.update(gradient_id=gradient["id"], logo_color=initial_logo_color(color.lower() if valid else "#ffffff", gradient))
     return result
 
 

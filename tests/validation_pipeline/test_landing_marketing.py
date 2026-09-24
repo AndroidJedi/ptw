@@ -43,7 +43,10 @@ class MarketingTests(unittest.TestCase):
 
     def test_logo_inheritance_domain_gradients_and_browser_defaults(self):
         inherited = marketing.initial_design({'product': 'Aura meditation'}, {'configuration': {'logo': {'symbol_color': '#ABCDEF', 'name_color': '#112233'}}})
-        self.assertEqual(inherited['logo_color'], '#abcdef')
+        self.assertEqual(inherited['logo_color'], '#102335')
+        self.assertEqual(marketing.initial_design({'product': 'Aura meditation'}, {'configuration': {'logo': {'symbol_color': '#102335'}}})['logo_color'], '#102335')
+        # Explicit saved colors are normalized, never silently contrast-corrected.
+        self.assertEqual(marketing.normalize_configuration({**inherited, 'logo_color': '#abcdef'})['logo_color'], '#abcdef')
         self.assertEqual(inherited['gradient_id'], 'aurora')
         self.assertEqual(len(marketing.GRADIENTS), 10)
         self.assertEqual(marketing.initial_design({}, {'configuration': {'logo': {'symbol_color': '#ffffff'}}})['gradient_id'], 'ocean')

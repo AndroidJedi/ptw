@@ -5,6 +5,7 @@ from copy import deepcopy
 import hashlib
 import json
 from typing import Any, Mapping
+from .image_output import output_specification, output_prompt
 
 IMAGE_POLICY_VERSION = "ptw.domain-image.v1"
 MAX_IMAGE_PROMPT_CHARS = 24000
@@ -80,6 +81,7 @@ def build_image_context(*, direction: str, instruction: Mapping[str, str], brief
         "brief": {"brief_id": brief.get("brief_id"), "sha256": brief.get("document_sha256") or digest(document),
                   "document": {key: deepcopy(document[key]) for key in BRIEF_FIELDS if key in document}},
         "settings": deepcopy(dict(settings)), "settings_sha256": digest(settings), "destination": deepcopy(dict(destination)),
+        "output_spec": output_specification(destination),
         "operation": operation, "base_sha256": base_sha256,
         "changed_settings": {key: deepcopy(value) for key, value in settings.items()
                              if key in (changed_settings or []) or (previous_settings and value != previous_settings.get(key))},
@@ -97,9 +99,9 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
     destination = context.get("destination") or {}
     guidance = "Keep the requested interaction inside the destination's visible crop."
     if destination.get("mode") == "app_mockup":
-        guidance += " Generate ONE polished 4:3 composition of three or four staggered front-facing phone mockups illustrating the supplied steps. This slot includes complete phone hardware, unlike app_screen interiors. Keep every device inside the canvas with generous margins; no cut-off corners, duplicated frames, warped screens or illegible microtext. Use coherent readable UI in screen_language and the current palette, with short labels grounded in the Brief. Use a clean neutral background or transparent alpha if supported. Do not copy another app's UI or logo; do not generate store badges, external captions, testimonials, fabricated claims, or a replacement Natal logo. The renderer uses contain fitting and supplies all surrounding copy and store buttons. For enhancement preserve devices and unchanged screen contents unless explicitly requested."
+        guidance += " Generate ONE polished 4:3 composition of three or four staggered front-facing phone mockups illustrating the supplied steps. This slot includes complete phone hardware, unlike app_screen interiors. Keep every device inside modest safe margins, occupying most of the canvas; no cut-off corners, duplicated frames, warped screens or illegible microtext. Use coherent readable UI in screen_language and the shared screen_design, with short labels grounded in the Brief. Request a transparent background with real alpha outside the phones, keeping the entire screen interiors opaque. No white panel, scenic backdrop or checkerboard. Do not copy another app's UI or logo; do not generate store badges, external captions, testimonials, fabricated claims, or a replacement Natal logo. The renderer uses contain fitting and supplies all surrounding copy and store buttons. For enhancement preserve devices and unchanged screen contents unless explicitly requested."
     elif destination.get("mode") == "app_screen":
-        guidance += " This owner-selected template explicitly requests readable app UI and labels. Generate a polished static app-screen INTERIOR in portrait 9:19.5, edge to edge. Include crisp UI text in screen_language and coherent controls for the Brief-grounded task. Match the shared palette and screen_series. Do not paint phone hardware, perspective, an outer background, or a new brand logo: the renderer supplies Natal identity and hardware. Keep labels short; use illustrative inputs rather than invented results, prices, availability or testimonials."
+        guidance += " This owner-selected template explicitly requests readable app UI and labels. Generate a realistic native app screenshot INTERIOR in portrait 9:19.5, edge to edge. Follow the shared screen_design and screen_series: readable regular sans-serif typography, consistent spacing, restrained line icons, realistic lists, form inputs and buttons for one Brief-grounded task. Do not substitute giant decorative illustrations, poster headings or empty ornamental cards for a useful interface. Use screen_language throughout. Keep the top camera safe area free of essential text and controls while continuing the screen background to the edge; do not draw a second camera, status bar or hardware. Do not paint phone hardware, perspective, an outer background, or a new brand logo: the renderer supplies Natal identity and hardware. Keep labels short; use illustrative inputs rather than invented results, prices, availability or testimonials."
     elif destination.get("mode") == "phone" and destination.get("surface") == "landing":
         guidance += " This artwork is the backdrop behind a renderer-owned phone overlay, not its screen. Keep requested subjects visible around the central overlay."
     elif destination.get("mode") == "phone":
@@ -110,7 +112,12 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
         guidance += " Keep essential subjects within the central horizontal band for the shallow landscape crop."
     style = PHONE_HERO_STYLE_DIRECTIVES.get(str(settings.get("style")), "")
     background = PHONE_HERO_BACKGROUND_DIRECTIVES.get(str(settings.get("background")), "")
-    return f"{IMAGE_POLICY}\nDestination guidance: {guidance}\nDefault style: {style}\nDefault background: {background}\nIMAGE_CONTEXT_JSON:\n{canonical(context)}"
+    if destination.get("mode") in {"app_screen", "app_mockup"}:
+        # Photograph/illustration presets must not turn an app interface into a poster.
+        style = "Realistic native app UI following the shared screen_design; explicit owner instructions still take priority."
+        background = "Opaque edge-to-edge screen surface." if destination["mode"] == "app_screen" else "Transparent outside complete phone silhouettes; opaque screen interiors."
+    output = output_prompt(context["output_spec"]) if context.get("output_spec") else ""
+    return f"{IMAGE_POLICY}\n{output}\nDestination guidance: {guidance}\nDefault style: {style}\nDefault background: {background}\nIMAGE_CONTEXT_JSON:\n{canonical(context)}"
 
 
 def image_provenance(context: Mapping[str, Any]) -> dict[str, Any]:

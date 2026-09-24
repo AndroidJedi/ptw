@@ -16,7 +16,7 @@
 .as-hero-phones { display:flex; align-items:flex-start; gap:16px; padding-bottom:var(--as-offset); }
 .as-phone { position:relative; width:calc(210px * var(--as-screen-scale)); max-width:100%; aspect-ratio:1293/2656; flex-shrink:1; filter:drop-shadow(0 16px 20px #16395330); }
 .as-screen { position:absolute; inset:1.883% 4.408% 1.883% 4.486%; border-radius:12% / 6%; background:#f5f8fc; overflow:hidden; }
-.as-screen > img { width:100%; height:100%; object-fit:cover; display:block; }
+.as-screen > img { width:100%; height:100%; object-fit:contain; display:block; }
 .as-hardware { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .as-hero-phones > .as-phone:last-child { margin-top:var(--as-offset); }
 .as-wave { position:absolute; bottom:-1px; left:0; width:100%; height:65px; fill:var(--lp-bg); }
@@ -55,7 +55,7 @@
 .as-image-left .as-hero-copy { order:2; }.as-image-below { grid-template-columns:1fr; }.as-image-below .as-hero-phones { justify-content:center; }.as-align-center { text-align:center; }
 .as-features-stacked .as-card-grid,.as-proof-quote .as-card-grid { grid-template-columns:1fr; }.as-faq-divided details { border-radius:0; border-width:0 0 1px; }
 .as-page.lp-icon-hidden .as-icon,.as-page.lp-icon-hidden .as-arrow { display:none; }.as-page.lp-card-minimal .as-card-grid article { border:0; box-shadow:none; background:none; }.as-page.lp-card-outlined .as-card-grid article { box-shadow:none; border-color:var(--lp-accent); }.as-page.lp-card-elevated .as-card-grid article { box-shadow:0 12px 35px #17344b20; }
-@container landing (max-width:900px) { .as-hero { gap:28px; }.as-page h1 { font-size:calc(36px * var(--lp-scale)); }.as-card-grid article { padding:24px; }.as-body { padding:0 24px 24px; }.as-steps { gap:18px; } }
+@container landing (max-width:900px) { .as-hero { grid-template-columns:1fr; gap:36px; padding-bottom:100px; }.as-hero-copy { order:0!important; }.as-hero-copy > p { max-width:650px; }.as-hero-phones { justify-content:center; }.as-page h1 { font-size:calc(36px * var(--lp-scale)); }.as-card-grid article { padding:24px; }.as-body { padding:0 24px 24px; }.as-steps { gap:18px; } }
 @container landing (max-width:600px) {
  .as-nav { padding:24px; }.as-nav > img { width:110px; }.as-nav a { padding:10px 12px; font-size:12px; }
  .as-hero { grid-template-columns:1fr; padding:26px 24px 100px; gap:38px; }.as-hero-copy { order:0!important; }.as-hero-phones { justify-content:center; }.as-phone { width:calc(155px * var(--as-screen-scale)); }
@@ -72,9 +72,9 @@
 .as-page .as-wave { width:100%; height:65px; }
 .as-page .as-nav > img,.as-page .as-contact > img { width:145px; height:auto; object-fit:contain; }
 @container landing (max-width:600px) { .as-page .as-nav > img { width:110px; } }
-/* Fit the complete UI edge to edge below the camera, without letterbox gutters. */
-.as-page .as-screen { background:#fff; padding:12% 0 0; }
-.as-page .as-screen > img { object-fit:fill; }
+/* Portrait artwork includes its own camera safe area. Never stretch legacy squares. */
+.as-page .as-screen { background:#fff; }
+.as-page .as-screen > img { object-fit:contain; }
 /* Every appearance control shared with the Landing inspector has a visible effect. */
 .as-page.lp-button-outlined .as-cta,.as-page.lp-button-text .as-cta { background:transparent; color:var(--lp-button); }
 .as-page.lp-button-text .as-cta { border-color:transparent; }

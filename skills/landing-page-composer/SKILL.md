@@ -69,7 +69,13 @@ When the supplied catalog selects `app_showcase`, its exact schema replaces
 `app_feature` with three `app_screens` entries. Each has a short title, caption
 and 8–600-character visual direction. Describe three related tasks grounded in
 the Brief, with a consistent UI palette and language. These are static generated
-screen interiors, not live functionality. Describe crisp readable UI, without
+screen interiors, not live functionality. Describe realistic lists, compact service
+controls and forms rather than oversized decorative illustrations. Share one
+explicit typography, palette, spacing, header/navigation and control treatment
+across all three tasks; keep labels short and readable in the page language.
+The server provides `screen_design` and a portrait 9:19.5 output specification.
+Respect its camera-safe top margin; do not draw status bars or a camera.
+Describe crisp readable UI, without
 phone hardware or a new logo; the renderer supplies the frame and Natal identity.
 Screen values are illustrative inputs, never fabricated results or evidence.
 The supporting photograph uses `visual_break`; hero.visual_direction is retained
@@ -91,7 +97,11 @@ Natal evidence. Do not generate or adapt testimonials.
 `walkthrough_visual_direction` describes one cohesive 4:3 image containing three
 or four complete, staggered, front-facing phone mockups with coherent readable
 UI for these steps. Keep hardware entirely inside safe margins, UI language and
-palette consistent, and avoid perspective distortion or duplicate frames.
+palette and shared `screen_design` consistent, and avoid perspective distortion
+or duplicate frames. Surroundings, gaps and outer canvas must be transparent;
+white screen interiors stay opaque. Do not draw a white card or checkerboard.
+Keep devices large with modest outer margins; the server preserves native alpha
+or prepares a pinned cutout and trims unused outer space before selection.
 This slot includes hardware; `app_screen_1/2/3` still contain only screen interiors.
 Do not generate store badges, external captions, Natal logos or evidence inside
 this image. Generate/Enhance uses the existing slot history and reference flow.
@@ -99,3 +109,19 @@ this image. Generate/Enhance uses the existing slot history and reference flow.
 Owner-authorized Natal contact defaults are injected by the service after response
 validation. Keep generated endpoints empty; never copy reference-site contacts.
 Social icons without owner profile URLs remain noninteractive, never `#` links.
+
+## Visual engineering boundaries
+
+Screen interiors use proportional contain fitting in the canonical phone aperture:
+never stretch a square into a portrait or compensate with extra screen padding.
+Legacy square art remains fully visible; new portrait art fills the aperture.
+Supporting photographs use intentional crops with configurable focus; check
+faces, hands and the task remain visible rather than accepting a default center
+crop that cuts them off. Phone
+mockups use contain with unclipped hardware. Preview, gallery, fullscreen and
+public rendering share these rules. Inspect both templates with loaded images
+at 1440/1280px, 768px, 360px and iPhone WebKit, including long Ukrainian copy,
+aligned captions, wrapping buttons, camera clearance and logo contrast.
+These are generation/engineering rules, not performance-learning evidence.
+Do not score images or add semantic retry loops. A failed or stale image operation
+must retain the previous selected image. Existing approved versions stay intact.

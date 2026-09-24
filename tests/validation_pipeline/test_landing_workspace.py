@@ -30,9 +30,16 @@ class FakeImages:
     def __init__(self) -> None:
         self.references: list[bytes | None] = []
 
-    def generate(self, _prompt: str, *, reference_image: bytes | None = None):
+    def generate(self, _prompt: str, *, reference_image: bytes | None = None, output_spec=None):
         self.references.append(reference_image)
-        image = Image.new("RGB", (128, 128), (12 + len(self.references), 34, 56))
+        size = (output_spec['width'], output_spec['height']) if output_spec else (128, 128)
+        image = Image.new("RGBA", size, (12 + len(self.references), 34, 56, 255))
+        if output_spec and output_spec['background'] == 'transparent':
+            from PIL import ImageDraw
+            image = Image.new('RGBA', size)
+            draw = ImageDraw.Draw(image)
+            draw.rounded_rectangle((size[0]*.1, size[1]*.1, size[0]*.9, size[1]*.9), radius=20,
+                                   fill=(12 + len(self.references), 34, 56, 255))
         output = BytesIO()
         image.save(output, "PNG")
         return {

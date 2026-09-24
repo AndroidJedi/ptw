@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Disposable PostgreSQL proof of Landing template preservation and publication."""
 from pathlib import Path
-import subprocess, sys, tempfile
+import hashlib, subprocess, sys, tempfile
+from io import BytesIO
+from PIL import Image
 from uuid import uuid4
 from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,6 +99,15 @@ def verify(url, root):
     assert restored['state_sha256']==final['state_sha256']
     assert restored['template_reference']==REFERENCE
     assert restarted._workspace(legacy['landing_id']).version_detail(1)==historical
+    mockup=next(asset for asset in restored['assets'] if asset['slot']=='walkthrough_visual')
+    preparation=mockup['preparation']
+    restored_workspace=restarted._workspace(lid)
+    raw=(restored_workspace.root/'assets'/'raw'/f"{preparation['raw_sha256']}.png").read_bytes()
+    assert hashlib.sha256(raw).hexdigest()==preparation['raw_sha256']
+    prepared=restored_workspace.visual_image('walkthrough_visual',mockup['sha256'])['bytes']
+    assert hashlib.sha256(prepared).hexdigest()==preparation['prepared_sha256']==mockup['sha256']
+    image=Image.open(BytesIO(prepared)).convert('RGBA')
+    assert image.getpixel((0,0))[3]==0 and image.getpixel((image.width//2,image.height//2))[3]==255
     publication=DatabaseLandingPublicationAuthority(url)
     publication.publish(project_id=project,request_id=str(uuid4()),landing_id=lid,version=1,slug='showcase-test',requested_by='test')
     snapshot=publication.snapshot('showcase-test')
@@ -104,7 +115,7 @@ def verify(url, root):
     for asset in restored['assets']:
         result=publication.asset('showcase-test',snapshot['version_sha256'],asset['slot'],asset['sha256'])
         assert result['bytes']==restarted._workspace(lid).visual_image(asset['slot'],asset['sha256'])['bytes']
-    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, public bytes, and historical version preservation.')
+    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, raw/prepared alpha provenance, exact public bytes, and historical version preservation.')
 
 
 def main():

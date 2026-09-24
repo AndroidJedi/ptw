@@ -23,7 +23,7 @@ from .landing_workspace import (
     normalize_content, sha256_json,
 )
 from .landing_templates import LANDING_TEMPLATE_REGISTRY
-from .landing_showcase import SCREEN_SLOTS, screen_direction, DEFAULT_SCREENS
+from .landing_showcase import screen_design, SCREEN_SLOTS, screen_direction, DEFAULT_SCREENS
 from .landing_workspace import ALL_LANDING_VISUAL_SLOTS
 from .landing_design import (
     APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_COMPONENTS,
@@ -1122,10 +1122,11 @@ class LandingService:
             destination={"surface": "landing", "template_id": definition.identity.template_id,
                          "slot": slot, "mode": "app_mockup" if slot == "walkthrough_visual" else "app_screen" if slot in SCREEN_SLOTS else config.get("visual_mode", "phone") if slot == "hero_visual" else "image",
                          "screen_language": config.get("presentation", DEFAULT_PRESENTATION)["language"],
+                         **({"screen_design": screen_design(config)} if slot in (*SCREEN_SLOTS, "walkthrough_visual") else {}),
                          **({"screen_series": workspace._content()["app_screens"], "aspect_ratio": "9:19.5"} if slot in SCREEN_SLOTS else {}),
                          **({"aspect_ratio": "4:3", "steps": workspace._content().get("marketing", {}).get("walkthrough_steps", [])} if slot == "walkthrough_visual" else {}),
                          "presentation": config.get("presentation", {}),
-                         "crop": {"fit": "fill" if slot in SCREEN_SLOTS else "contain" if slot == "walkthrough_visual" else "cover", "focus": {"x": 50, "y": 0} if slot in SCREEN_SLOTS else config.get("presentation", {}).get("hero_focus" if slot == "hero_visual" else "visual_break_focus", {"x": 50, "y": 50}),
+                         "crop": {"fit": "contain" if slot in (*SCREEN_SLOTS, "walkthrough_visual") else "cover", "focus": {"x": 50, "y": 0} if slot in SCREEN_SLOTS else config.get("presentation", {}).get("hero_focus" if slot == "hero_visual" else "visual_break_focus", {"x": 50, "y": 50}),
                                   "height": config.get("visual_break", {}).get("height") if slot == "visual_break_visual" else None,
                                   "responsive": True},
                          "phone_mockup": config.get("phone_mockup", {}) if slot == "hero_visual" else {}},

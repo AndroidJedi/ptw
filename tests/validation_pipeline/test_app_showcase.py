@@ -132,7 +132,7 @@ class AppShowcaseTests(unittest.TestCase):
         screen = active._workspace(lid)._history('app_screen_2')[-1]['source']['image_context']
         self.assertEqual(screen['instruction']['origin'], 'owner')
         self.assertEqual(screen['destination']['template_id'], 'app_showcase')
-        self.assertEqual(screen['destination']['crop']['fit'], 'fill')
+        self.assertEqual(screen['destination']['crop']['fit'], 'contain')
         with self.assertRaises(KeyError): active.detail(str(uuid4()), lid)
 
     def test_manual_agent_can_tune_screens_but_cannot_change_contacts(self):

@@ -14,6 +14,7 @@ services:
       VALIDATION_LLM_BRIDGE_URL: ${VALIDATION_LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
       LLM_BRIDGE_TOKEN: ${LLM_BRIDGE_TOKEN:-${TELEGRAM_BOT_TOKEN:?set the existing platform bridge credential}}
       VALIDATION_LLM_MODEL: ${VALIDATION_LLM_MODEL:-codex-cli-default}
+      PTW_VISUAL_AGENT_MODEL: ${PTW_VISUAL_AGENT_MODEL:-gpt-6-astra}
       PRODUCT_BRIEF_SKILL_PATH: /run/ptw-auth/skills/product-brief-generator/SKILL.md
       PEXELS_API_KEY: ${PEXELS_API_KEY:?set PEXELS_API_KEY in the root-owned runtime environment}
       META_ADS_SECRETS_PATH: /run/ptw-meta-ads/config.env

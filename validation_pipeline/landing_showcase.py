@@ -110,3 +110,16 @@ def enhanced_catalog():
     value["visual_slots"] = [*VISUAL_SLOTS, "walkthrough_visual"]
     value["sha256"] = sha256_json({"configuration": enhanced_configuration(), "content": enhanced_content(), "renderer": 2})
     return value
+
+
+def screen_design(configuration: Mapping[str, Any]) -> dict:
+    """One explicit visual system for all screen interiors and walkthrough devices."""
+    return {
+        "typography": "Regular native sans-serif; 24-point semibold titles, 16-point labels, 14-point supporting text; no condensed or display lettering",
+        "surface": "#f6f8fb", "card": "#ffffff", "ink": "#17263c",
+        "accent": configuration["theme"]["accent_color"],
+        "spacing": "Consistent 8-point spacing, 20-point page insets, 12-point corner radii",
+        "controls": "24-point restrained line icons, 48-point input/button heights, clear labels and one primary action; no oversized illustrations",
+        "navigation": "The same compact left-aligned header on every screen; back chevron only on detail/form screens. No bottom tabs or bottom navigation on any screen in this family",
+        "content": "Only tasks, categories and controls explicitly supported by the Brief and supplied screen/step descriptions. Do not add controls or capability claims absent from the Brief, such as an unsupported upload, or invent metrics, availability or results",
+    }

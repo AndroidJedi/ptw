@@ -108,7 +108,7 @@ class FakeImageProvider:
         self.prompts: list[str] = []
         self.references: list[bytes | None] = []
 
-    def generate(self, prompt: str, *, reference_image: bytes | None = None):
+    def generate(self, prompt: str, *, reference_image: bytes | None = None, output_spec=None):
         self.prompts.append(prompt)
         self.references.append(reference_image)
         if self.failures:

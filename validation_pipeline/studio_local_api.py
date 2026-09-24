@@ -16,6 +16,7 @@ from .local_brief_routes import local_brief_router
 from .local_brief_store import LocalBriefStore
 from .local_briefs import LocalBriefService
 from .local_codex import LocalCodexStructuredProvider
+from .visual_models import visual_agent_model
 from .landing_pages import LandingService, LocalLandingAuthority
 from .landing_routes import landing_page_router
 from .landing_publication import LocalLandingPublicationAuthority
@@ -109,12 +110,17 @@ def create_app(
         store=local_store, provider=structured_provider,
         repository_root=repository_root,
     )
+    visual_provider = LocalCodexStructuredProvider(
+        codex_binary, model=visual_agent_model(),
+        reasoning_effort=os.environ.get("LOCAL_CODEX_REASONING_EFFORT", "xhigh").strip().casefold(),
+        timeout_seconds=int(os.environ.get("LOCAL_CODEX_TIMEOUT_SECONDS", "420")),
+    )
     studio_creatives = StudioCreativeService(
         root=workspace_path, authority=authority,
         workspace_factory=lambda path: PostStudioWorkspace(
             path, image_provider=phone_screen_images,
         ),
-        structured_provider=structured_provider,
+        structured_provider=visual_provider,
         composer_skill_path=repository_root / "skills/studio-creative-composer/SKILL.md",
         phone_skill_path=repository_root / "skills/studio-phone-hero-generator/SKILL.md",
         manual_agent_skill_path=repository_root / "skills/studio-manual-agent/SKILL.md",
@@ -123,11 +129,11 @@ def create_app(
         root=workspace_path.parent / "landing-workspace",
         authority=LocalLandingAuthority(local_store, post_workspace_root=workspace_path),
         workspace_factory=lambda path: LandingWorkspace(path, image_provider=phone_screen_images),
-        structured_provider=structured_provider,
+        structured_provider=visual_provider,
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
         manual_agent_skill_path=repository_root / "skills/studio-manual-agent/SKILL.md",
     )
-    template_authoring = TemplateAuthoringService(TemplateStore(workspace_path.parent / "template-authoring.sqlite3"), structured_provider)
+    template_authoring = TemplateAuthoringService(TemplateStore(workspace_path.parent / "template-authoring.sqlite3"), visual_provider)
     studio_creatives.template_registry = template_authoring.post_registry
     landing_publications = LocalLandingPublicationAuthority(
         local_store, landing_pages._workspace,

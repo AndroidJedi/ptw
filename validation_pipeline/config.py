@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from .visual_models import DEFAULT_VISUAL_AGENT_MODEL, visual_agent_model
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,7 @@ class Settings:
     bridge_token: str
     pexels_api_key: str
     model: str = "codex-cli-default"
+    visual_model: str = DEFAULT_VISUAL_AGENT_MODEL
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
     studio_composer_skill_path: Path = Path("/run/ptw-auth/skills/studio-creative-composer/SKILL.md")
     studio_phone_skill_path: Path = Path("/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md")
@@ -42,6 +44,7 @@ class Settings:
             bridge_token=required["LLM_BRIDGE_TOKEN"],
             pexels_api_key=required["PEXELS_API_KEY"],
             model=os.environ.get("VALIDATION_LLM_MODEL", "codex-cli-default").strip(),
+            visual_model=visual_agent_model(),
             product_brief_skill_path=Path(os.environ.get(
                 "PRODUCT_BRIEF_SKILL_PATH", "/run/ptw-auth/skills/product-brief-generator/SKILL.md"
             )),

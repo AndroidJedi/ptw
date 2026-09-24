@@ -27,19 +27,30 @@ from .studio import inspect_media
 from .image_generation_policy import (IMAGE_POLICY, IMAGE_POLICY_VERSION, MAX_IMAGE_PROMPT_CHARS,
     build_image_context, compile_image_prompt, instruction_context)
 from .provider import bridge_idempotency_key, bridge_request_fingerprint
+from .image_output import (IMAGE_OUTPUT_VERSION, normalize_output_specification,
+    output_prompt, validate_output_dimensions)
+from .visual_models import visual_agent_model
 
 
 OPENAI_IMAGES_ENDPOINT = "https://api.openai.com/v1/images/generations"
 OPENAI_IMAGE_EDITS_ENDPOINT = "https://api.openai.com/v1/images/edits"
 PHONE_SCREEN_IMAGE_MODEL = "gpt-image-2"
-# Generated pixels supply the hero artwork, not the complete phone UI. A square
-# source gives the compositor a stable focal crop inside its fixed app shell.
+# Existing Post default; the server-owned output contract overrides Landing geometry.
 PHONE_SCREEN_IMAGE_SIZE = "1024x1024"
 PHONE_SCREEN_IMAGE_QUALITY = "medium"
 PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS = MAX_IMAGE_PROMPT_CHARS
 CODEX_PHONE_SCREEN_TIMEOUT_SECONDS = 300
 RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS = 420
 RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
+
+
+def _image_fingerprint(prompt, output_spec, reference_image, model):
+    return bridge_request_fingerprint(
+        mode=RESULT_BRIDGE_PHONE_SCREEN_MODE, system_prompt=IMAGE_POLICY,
+        input_payload={"visual_direction": prompt, "output_spec": output_spec},
+        output_schema={}, prompt_version=IMAGE_POLICY_VERSION, model=model,
+        input_artifact_digests={"reference_image": hashlib.sha256(reference_image).hexdigest()} if reference_image is not None else {},
+    )
 
 
 def phone_screen_art_prompt(
@@ -70,6 +81,7 @@ class LocalCodexPhoneScreenImageProvider:
         timeout_seconds: int = CODEX_PHONE_SCREEN_TIMEOUT_SECONDS,
         executor: Any | None = None,
         generated_root: Path | str | None = None,
+        model: str | None = None,
     ) -> None:
         binary = codex_binary or shutil.which("codex")
         if not binary:
@@ -79,6 +91,7 @@ class LocalCodexPhoneScreenImageProvider:
         self.codex_binary = str(binary)
         self.timeout_seconds = timeout_seconds
         self.executor = executor or subprocess.run
+        self.model = model or visual_agent_model()
         codex_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
         self.generated_root = Path(generated_root or codex_home / "generated_images")
         if executor is None:
@@ -107,6 +120,7 @@ class LocalCodexPhoneScreenImageProvider:
             self.codex_binary, "exec", "--ephemeral", "--ignore-rules",
             "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never",
             "--config", 'model_reasoning_effort="low"',
+            "--model", self.model,
             "--output-last-message", str(output_path), "-C", str(workdir), "-",
         ]
 
@@ -143,8 +157,10 @@ class LocalCodexPhoneScreenImageProvider:
 
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
+        output_spec: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = str(prompt).strip()
+        output_spec = normalize_output_specification(output_spec) if output_spec is not None else None
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
             raise ValueError("phone-screen image prompt must contain 24-24000 characters")
         with tempfile.TemporaryDirectory(prefix="ptw-codex-image-") as temporary:
@@ -158,7 +174,7 @@ class LocalCodexPhoneScreenImageProvider:
             completed = self.executor(
                 self._command(workdir=root, output_path=output_path),
                 input=self._prompt(
-                    normalized_prompt, reference_path=reference_path,
+                    normalized_prompt + ("\n" + output_prompt(output_spec) if output_spec else ""), reference_path=reference_path,
                 ), text=True, capture_output=True,
                 cwd=root, env=self._environment(), timeout=self.timeout_seconds,
                 check=False,
@@ -186,6 +202,8 @@ class LocalCodexPhoneScreenImageProvider:
             resolved_path.parent.rmdir()
         except OSError:
             pass
+        if output_spec:
+            validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
         return {
             "bytes": data,
             "mime_type": "image/png",
@@ -194,6 +212,10 @@ class LocalCodexPhoneScreenImageProvider:
                 "provider": "openai",
                 "transport": "authenticated_codex_cli",
                 "model": "codex-builtin-image-generation",
+                "agent_model": self.model,
+                "image_model": None,  # The built-in tool does not expose its pixel model.
+                "request_fingerprint": _image_fingerprint(normalized_prompt, output_spec, reference_image, self.model),
+                **({"output_spec": output_spec} if output_spec else {}),
                 "text_in_screen": "owner_directed",
                 "generation_policy_version": IMAGE_POLICY_VERSION,
                 "prompt_sha256": hashlib.sha256(normalized_prompt.encode()).hexdigest(),
@@ -218,15 +240,17 @@ class OpenAIPhoneScreenImageProvider:
 
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
+        output_spec: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = str(prompt).strip()
+        output_spec = normalize_output_specification(output_spec) if output_spec is not None else None
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
             raise ValueError("phone-screen image prompt must contain 24-24000 characters")
-        guarded_prompt = normalized_prompt
+        guarded_prompt = normalized_prompt + ("\n" + output_prompt(output_spec) if output_spec else "")
         payload = {
             "model": PHONE_SCREEN_IMAGE_MODEL,
             "prompt": guarded_prompt,
-            "size": PHONE_SCREEN_IMAGE_SIZE,
+            "size": f"{output_spec['width']}x{output_spec['height']}" if output_spec else PHONE_SCREEN_IMAGE_SIZE,
             "quality": PHONE_SCREEN_IMAGE_QUALITY,
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -259,6 +283,8 @@ class OpenAIPhoneScreenImageProvider:
         except (KeyError, IndexError, TypeError, ValueError) as error:
             raise RuntimeError("OpenAI image response did not contain PNG image bytes") from error
         inspected = inspect_media(data, "image/png")
+        if output_spec:
+            validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
         return {
             "bytes": data,
             "mime_type": "image/png",
@@ -266,7 +292,10 @@ class OpenAIPhoneScreenImageProvider:
                 "origin": "openai_image_api",
                 "provider": "openai",
                 "model": PHONE_SCREEN_IMAGE_MODEL,
-                "size": PHONE_SCREEN_IMAGE_SIZE,
+                "image_model": PHONE_SCREEN_IMAGE_MODEL,
+                "request_fingerprint": _image_fingerprint(normalized_prompt, output_spec, reference_image, PHONE_SCREEN_IMAGE_MODEL),
+                "size": payload["size"],
+                **({"output_spec": output_spec} if output_spec else {}),
                 "quality": PHONE_SCREEN_IMAGE_QUALITY,
                 "text_in_screen": "owner_directed",
                 "generation_policy_version": IMAGE_POLICY_VERSION,
@@ -286,7 +315,7 @@ class ResultBridgePhoneScreenImageProvider:
     """Generate or edit one phone hero through PTW's authenticated media bridge."""
 
     def __init__(
-        self, bridge_url: str, bridge_token: str, model: str = "codex-cli-default", *,
+        self, bridge_url: str, bridge_token: str, model: str | None = None, *,
         timeout_seconds: int = RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS,
         client: httpx.Client | None = None,
     ) -> None:
@@ -296,7 +325,7 @@ class ResultBridgePhoneScreenImageProvider:
             raise ValueError("Result media bridge timeout must be 30-900 seconds")
         self.bridge_url = bridge_url.rstrip("/")
         self.bridge_token = bridge_token
-        self.model = model or "codex-cli-default"
+        self.model = model or visual_agent_model()
         self.timeout_seconds = timeout_seconds
         self.client = client
 
@@ -315,8 +344,10 @@ class ResultBridgePhoneScreenImageProvider:
 
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
+        output_spec: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = str(prompt).strip()
+        output_spec = normalize_output_specification(output_spec) if output_spec is not None else None
         if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
             raise ValueError("phone-screen image prompt must contain 24-24000 characters")
         prompt_digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
@@ -324,11 +355,14 @@ class ResultBridgePhoneScreenImageProvider:
         capabilities = self._request("GET", f"{self.bridge_url}/capabilities").json()
         if IMAGE_POLICY_VERSION not in capabilities.get("image_generation_policies", []):
             raise RuntimeError("Image generation requires a compatible domain-image worker; update the companion bridge")
+        if output_spec and IMAGE_OUTPUT_VERSION not in capabilities.get("image_output_specs", []):
+            raise RuntimeError("Image generation requires a compatible image-output worker; update the companion bridge")
         system_prompt = IMAGE_POLICY
         input_payload = {
             "visual_direction": normalized_prompt,
             "generation_policy_version": IMAGE_POLICY_VERSION,
             "operation": "image_edit" if reference_image is not None else "image_generation",
+            **({"output_spec": output_spec} if output_spec else {}),
         }
         output_schema = {
             "type": "object",
@@ -414,6 +448,8 @@ class ResultBridgePhoneScreenImageProvider:
         response = self._request("GET", f"{self.bridge_url}/{request_id}/asset")
         data = response.content
         inspected = inspect_media(data, "image/png")
+        if output_spec:
+            validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
         digest = hashlib.sha256(data).hexdigest()
         if (
             image.get("digest") != digest
@@ -431,6 +467,9 @@ class ResultBridgePhoneScreenImageProvider:
                 "provider": image.get("provider", "codex_chatgpt_imagegen"),
                 "transport": "authenticated_result_bridge",
                 "model": image.get("resolved_model") or image.get("requested_model"),
+                "agent_model": (result.get("invocation") or {}).get("model") or self.model,
+                "image_model": image.get("resolved_model"),
+                **({"output_spec": output_spec} if output_spec else {}),
                 "text_in_screen": "owner_directed",
                 "generation_policy_version": IMAGE_POLICY_VERSION,
                 "prompt_sha256": prompt_digest,

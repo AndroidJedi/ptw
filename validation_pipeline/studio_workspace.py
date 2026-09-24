@@ -827,6 +827,7 @@ class PostStudioWorkspace:
             generated = generate_image(
                 self.image_provider, prompt, reference_image=reference,
                 uploaded_reference=reference_image is not None,
+                output_spec=image_context.get("output_spec") if image_context is not None else None,
             )
         except ValueError:
             raise

@@ -45,7 +45,7 @@ class FakePhoneScreenImageProvider:
         self.references: list[bytes | None] = []
         self.colors = ["#6AAFC8", "#C586D8", "#E3A451", "#77B989", "#8D91D8"]
 
-    def generate(self, prompt: str, *, reference_image: bytes | None = None) -> dict:
+    def generate(self, prompt: str, *, reference_image: bytes | None = None, output_spec=None) -> dict:
         self.prompts.append(prompt)
         self.references.append(reference_image)
         return {
@@ -1297,7 +1297,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
 
         class FailingProvider:
             @staticmethod
-            def generate(_prompt: str, *, reference_image: bytes | None = None) -> dict:
+            def generate(_prompt: str, *, reference_image: bytes | None = None, output_spec=None) -> dict:
                 self.assertIsNotNone(reference_image)
                 raise RuntimeError("provider unavailable")
 

@@ -1,7 +1,7 @@
 # PTW owner-console rules
 
 Status: canonical
-Updated: 2026-09-04
+Updated: 2026-09-24
 
 ## Navigation and trust
 
@@ -43,7 +43,8 @@ Updated: 2026-09-04
   applicable, then editable draft. Failures expose stage-specific retry.
 - Natal is fixed. Arbitrary primitive edits, template imports, owner logo
   replacement, and unsupported fields do not enter the editor.
-- Phone hero generation is text-free, keeps three selectable raw images, and
+- Phone hero generation follows the shared domain image policy (text-free by default,
+  direct owner requests take precedence), keeps three selectable raw images, and
   may enhance exactly the selected raw hero. The checked-in phone frame is
   digest-verified and never fetched at runtime.
 - The saved Phone hero direction has a 44px edit/reset control. Replacing it
@@ -60,23 +61,24 @@ Updated: 2026-09-04
 
 - Every app uses the canonical Natal logo and name. Page themes may style components
   but never substitute another app identity or request a new brand kit.
-- Every service is experienced through a Natal app. The Landing hero demonstrates
-  one editable, Brief-grounded task inside Post Studio's canonical phone frame.
-  Bounded screen themes/layouts and copy are separate from generated text-free art.
-  UI row interactions are local demonstrations; the phone action uses the page CTA.
+- Every service is experienced through a Natal app. Project Landing demonstrates
+  one editable, Brief-grounded task inside the canonical phone frame; App Showcase
+  uses three generated app-interface interiors. The editable UI's row interactions
+  are local demonstrations, and its phone action uses the page CTA.
 - Coordinated page themes remain editable through bounded component controls.
   Per-image Post style/background presets are persisted and expanded into generation
   and enhancement prompts; changing a style alone does not regenerate existing art.
 
 - A Landing belongs to the selected Project, its approved Brief, and one immutable
   approved Post version. It captures Post style once and does not synchronize later edits.
-- Its fixed order is Hero, three features, optional owner evidence social proof, one generated
-  visual break, contacts, and three FAQs. Each has bounded editable controls.
+- The two registered templates are Project Landing and App Showcase. Their fixed
+  sections and optional marketing sections have bounded editable controls.
   Approved versions have an explicit publication action; private drafts remain protected.
   No page builder, form submission, or lead storage exists.
-- Hero and visual-break artwork inherit the frozen Post visual profile, are text-free,
-  digest-checked, private/no-store, and retain at most three selected raw images per slot.
-- Approval requires both visuals, essential section copy, all FAQs/features, and at least
+- Hero and visual-break artwork inherit the frozen Post visual profile and the
+  owner-directed image policy. Images are digest-checked, private/no-store, and
+  retain at most three selections per slot; immutable approvals protect their bytes.
+- Approval requires the template's required visuals, essential section copy, all FAQs/features, and at least
   one validated email, phone, or HTTPS contact endpoint. Proof is optional and absent
   entries are hidden; supplied entries require complete statements and attribution.
   A direct CTA requires its selected endpoint. Validate before persisting approval.
@@ -105,3 +107,32 @@ Updated: 2026-09-04
 - Cache only public shell resources. Never cache APIs or authenticated renders.
 - Production reset names only `ptw_commander.public`, preserves the independent
   platform database, and requires `RESET PTW PRODUCTION`.
+
+## Landing image quality
+
+- Use one shared realistic app UI family: normal readable typography, palette,
+  spacing, navigation, line icons, compact lists, forms and service controls.
+  Show three distinct Brief-grounded tasks in Ukrainian or English. Avoid giant
+  decorative illustrations, condensed labels and invented product capabilities.
+- Server-owned image output v1 carries dimensions, background and safe areas.
+  Screen interiors use portrait 9:19.5 without hardware and reserve the top 6.5%
+  for the camera. Complete walkthrough phone compositions use landscape 4:3.
+  Existing Post defaults remain square. Record the contract and separate agent
+  and image model identities in generation provenance and request fingerprints.
+- Use proportional contain fitting across editor, gallery, fullscreen and public
+  renderers. Never stretch screen interiors or compress them with extra padding.
+  Legacy square images stay fully visible inside the canonical phone aperture.
+- Walkthrough phones sit directly on the section gradient. Preserve native alpha;
+  otherwise use pinned cutout preparation, protect white screen interiors and
+  all device silhouettes, and trim transparent outer space with a small margin.
+  Retain raw bytes and preparation metadata; publish the exact prepared PNG.
+  Technical failures and stale responses keep the current selected image.
+- Stack App Showcase hero copy and phones through 900px. Inspect every section
+  with loaded lazy images at 1440/1280px, 768px, 360px and iPhone WebKit. Check
+  long Ukrainian copy, camera clearance, aligned captions, button wrapping,
+  section spacing and intentional supporting-photo crops. Adjust the existing
+  focus control when a center crop cuts faces, hands or the task. Choose a contrasting
+  initial logo color; never rewrite an explicit owner color selection.
+- Apply these as engineering and generation rules, never as performance claims,
+  learned effectiveness or automatic semantic retries. Preserve immutable
+  approvals/publications; regeneration and publication are separate actions.

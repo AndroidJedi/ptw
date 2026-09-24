@@ -39,11 +39,28 @@ authored Post versions, so the new accepted records and their six immutable PNGs
 need one backup-bearing append-only transfer after the compatible renderer
 release. No Project or existing template record will be replaced.
 
-Local verification passes 399 Validation tests, 43 Commander tests with seven
+Local verification passes 399 Validation tests, 44 Commander tests with seven
 expected environment skips, the Commander demo, focused provider/composition
 regressions, canonical skill verification, the deterministic Studio visual
 audit and whitespace checks. No production retry, import, reset or deletion has
 run yet.
+
+Two preserving rollout attempts stopped without accepting a candidate. The
+first stopped before cutover because the companion image archives retained an
+older tag; the archives were retagged and reverified. The second recreated the
+candidate services, then structured canary jobs 1040 and 1046 failed only on the
+explicit `gpt-6-astra` route and triggered a complete automatic rollback. The
+accepted marker remains `393924f08cee3c79644b0d67b502c8799d5937d9`, all active
+containers are healthy on that accepted tag, and PostgreSQL was not reset or
+migrated. A credential-safe direct probe exposed the exact prerequisite: the
+installed Codex CLI 0.147.0 rejected Astra until the CLI was upgraded. The
+supported updater installed 0.156.1 while retaining 0.147.0; a fresh isolated
+Astra probe now completes. The candidate mounts `standalone/current` instead of
+one obsolete release directory, uses the same Studio composer version in the
+runtime and deployment canary, and adds the incident guardrail. Verification is
+now 399 Validation tests and 44 Commander tests with seven expected environment
+skips. A fresh preserving rollout is still required before the template import
+and one retry of the same Creative.
 
 ## Catalog-wide visual quality — implemented locally, proposal pending
 

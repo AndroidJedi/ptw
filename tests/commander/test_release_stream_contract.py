@@ -127,6 +127,16 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("commander_god/Dockerfile", commander)
         self.assertIn("PTW_VALIDATION_IMAGE", validation)
 
+    def test_codex_mount_follows_the_supported_current_standalone_release(self) -> None:
+        commander = (ROOT / "docker-compose.commander.yml").read_text()
+        self.assertEqual(
+            2,
+            commander.count(
+                "/root/.codex/packages/standalone/current:/opt/ptw-codex:ro"
+            ),
+        )
+        self.assertNotIn("/root/.codex/packages/standalone/releases/", commander)
+
     def test_mobile_release_keeps_coding_runtime_separate_from_privileged_transport(self) -> None:
         compose = (ROOT / "docker-compose.commander.yml").read_text()
         workflow = (ROOT / ".github/workflows/god-mobile-deploy.yml").read_text()

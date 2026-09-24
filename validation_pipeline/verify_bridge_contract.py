@@ -23,7 +23,7 @@ from .openai_images import ResultBridgePhoneScreenImageProvider
 from .image_output import output_specification
 from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
-from .studio_creatives import creative_generation_schema
+from .studio_creatives import STUDIO_COMPOSER_PROMPT_VERSION, creative_generation_schema
 from .studio_manual_agent import (
     STUDIO_MANUAL_AGENT_PROMPT_VERSION, apply_manual_agent_edits,
     manual_agent_editable_values, manual_agent_payload,
@@ -152,8 +152,8 @@ def main() -> None:
                 },
             },
             output_schema=creative_generation_schema(phone_detail),
-            prompt_version="studio-creative-composer-v4",
-            idempotency_key=f"canary:{marker}:studio_phone_metrics:v4",
+            prompt_version=STUDIO_COMPOSER_PROMPT_VERSION,
+            idempotency_key=f"canary:{marker}:studio_phone_metrics:{STUDIO_COMPOSER_PROMPT_VERSION}",
             response_validator=validate_phone_composition,
         )
         manual_artifacts = screenshot_artifacts([canary_png])

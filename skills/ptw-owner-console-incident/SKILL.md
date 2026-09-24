@@ -194,6 +194,15 @@ before changing code or runtime state.
   `ai_hypothesis` with empty evidence, and version the composition namespace.
   Do not weaken provenance to recover the creative; retry the same ID once
   after rollout and preserve both rejected bridge jobs and the failed run.
+- When an explicit visual model fails at `RESULT_PROVIDER` within seconds while
+  the default structured route succeeds, run one minimal credential-safe CLI
+  probe and inspect the exact provider error before changing prompts or schemas.
+  A model may require a newer Codex CLI even when the model name and request are
+  valid. Update through the CLI's supported updater, retain the prior standalone
+  release, mount the `standalone/current` target consistently, and recreate the
+  affected containers. Require the explicit-model probe and the full structured
+  canary to pass before accepting the rollout; never silently fall back to a
+  different model.
 - When a browser Studio mutation returns 404, compare the exact method/path at
   all three boundaries before inspecting the provider: built/live Owner
   Console call, public Owner Gateway route, and internal Validation route. A

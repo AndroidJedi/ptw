@@ -114,7 +114,7 @@ services:
     volumes:
       - /opt/ptw/commander-workspace:/workspace
       - commander-god-state:/var/lib/ptw/commander-chat
-      - /root/.codex/packages/standalone/releases/0.147.0-x86_64-unknown-linux-musl:/opt/ptw-codex:ro
+      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
     mem_limit: 512m
     pids_limit: 128
@@ -176,7 +176,7 @@ services:
       PATH: /opt/ptw-codex/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - /opt/ptw/commander-workspace:/workspace:ro
-      - /root/.codex/packages/standalone/releases/0.147.0-x86_64-unknown-linux-musl:/opt/ptw-codex:ro
+      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
     mem_limit: 512m
     pids_limit: 128

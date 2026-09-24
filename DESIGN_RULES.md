@@ -36,9 +36,9 @@ Updated: 2026-09-24
 ## Post Studio
 
 - Every creative belongs to the selected Project and one approved Brief.
-- The registered Post template is 4:5 `phone_metrics`. Retired templates are not
-  compatibility targets. A creative stores only bounded state and the selected
-  template version/digest behind the Post template registry.
+- Post uses 4:5 `phone_metrics` or an exact accepted authored template and its
+  native canvas. Retired templates are not compatibility targets. A creative
+  stores bounded state and the selected template version/digest behind the registry.
 - Show generation progress as queued, composing, generating image when
   applicable, then editable draft. Failures expose stage-specific retry.
 - Natal is fixed. Arbitrary primitive edits, template imports, owner logo
@@ -136,3 +136,41 @@ Updated: 2026-09-24
 - Apply these as engineering and generation rules, never as performance claims,
   learned effectiveness or automatic semantic retries. Preserve immutable
   approvals/publications; regeneration and publication are separate actions.
+
+## Quality across the template catalog
+
+- Audit every registered Post and Landing design, accepted authored layouts and
+  retained versions. Inspect native pixels and the actual gallery/editor size;
+  a short placeholder render alone cannot establish usable text density.
+- Gallery demonstrations use one neutral language, distinct realistic app tasks,
+  canonical hardware and transparent walkthrough surroundings. Mark examples as
+  previews. Never borrow another Project's copy, product claims or results.
+- Complete phones, cutout subjects, logos, motifs and store badges retain their
+  proportions with contain fitting. Photo cover crops keep an explicit focal
+  point. Legacy stretch values render proportionally without rewriting records.
+- Check Ukrainian and English copy, long captions and actions, empty optional
+  sections and bounded style extremes. At a 1080px Post width, target at least
+  30–36px for explanatory copy and 24px for secondary labels; inspect at 360px
+  display width. Enlarge/recompose the box or request shorter copy before using
+  microscopic text. These are design review targets, not silent owner-copy edits.
+- Both built-in Landing heroes stack through 900px. Project Landing's FAQ also
+  stacks at tablet widths so ordinary Ukrainian headings retain whole words.
+  Scrollable app demos must keep the final row reachable by touch and keyboard.
+- When mapping a Post to standalone benefit fields, retain each source value
+  with its label unless separate value fields exist. Existing authored text wins;
+  never leave fragments by dropping the main part of a value/label pair.
+- Inspect a real raw image after cutout preparation. White clothing, screens,
+  hands, tools and interaction objects must survive; a technically valid alpha
+  mask is not evidence of semantic completeness. Do not approve a damaged cutout
+  based on the neutral stock fixture. No automatic semantic retry loop.
+- Review the hero and surrounding gradient together. Select compatible hues from
+  the actual image, with sufficient luminance separation for readable copy and
+  the subject silhouette; never apply one stock blue gradient to every image.
+  Replacements should show a complete, Brief-relevant subject/action rather than
+  an unrelated literal metaphor. Preserve explicit owner colors, adapting the
+  image when those colors are fixed. Authored full-canvas gradients have bounded
+  per-Post color controls; changing them does not rewrite the template or badges.
+- Preview cache identity includes renderer/fixture versions separately from the
+  template identity. Refresh appends new preview media; exact historical template
+  requests resolve that version. Accepted records, approved PNGs and publications
+  remain immutable.

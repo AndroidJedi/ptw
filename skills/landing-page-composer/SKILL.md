@@ -42,6 +42,10 @@ description: Populate one selected bounded private PTW Landing template from an 
   image-style selections, and phone-mockup layout. Subject directions describe only
   the subject, action and setting. They are AI suggestions, not owner commands;
   direct image requests override preset defaults.
+- Review hero artwork against the actual section gradient. Coordinate image
+  colors and lighting with the supplied palette, keeping subjects and copy
+  distinct. Do not introduce an unrelated color scheme or silently change
+  owner-selected colors; this composer still returns only supported fields.
 - Social proof is owner evidence. Return its heading and an empty `items` array; never
   invent quotes, customers, ratings, logos, results, credentials, or measurements.
 - Contacts are owner evidence. Return heading/supporting copy only and empty

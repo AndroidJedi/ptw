@@ -5,6 +5,7 @@ from __future__ import annotations
 from .image_reference import generate_image
 
 import base64
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
@@ -495,8 +496,9 @@ class PostStudioWorkspace:
         }
         value["phone_screen_history"] = self._phone_screen_history_summaries()
         if self._definition().editor_key == "post.declarative.react":
-            from .post_template_runtime import text_fields
+            from .post_template_runtime import palette_defaults, text_fields
             value["template_fields"] = text_fields(self._definition().document)
+            value["template_palette_defaults"] = palette_defaults(self._definition().document)
         return value
 
     def switch_template(self, *, base_sha256, template_reference, request_id, configuration, content):
@@ -522,12 +524,17 @@ class PostStudioWorkspace:
         drafts = json.loads(drafts_path.read_text()) if drafts_path.exists() else {}
         current_key = _canonical(current.identity.to_reference())[1]
         target_key = _canonical(target.identity.to_reference())[1]
-        drafts[current_key] = {"configuration": config, "content": source}
+        drafts[current_key] = {"configuration": deepcopy(config), "content": source}
         if current_key == target_key:
             next_content = source
         elif target.editor_key == "post.declarative.react":
             next_content = bind_content(target.document, source,
                 text_fields(current.document) if current.editor_key == "post.declarative.react" else ())
+            # Palettes belong to a Post/template pair, not every subsequent layout.
+            config.pop("template_palette", None)
+            saved_palette = drafts.get(target_key, {}).get("configuration", {}).get("template_palette")
+            if saved_palette is not None:
+                config["template_palette"] = deepcopy(saved_palette)
         else:
             next_content = {k: v for k, v in source.items() if k != "template_text"}
             if current.editor_key == "post.declarative.react":
@@ -540,6 +547,7 @@ class PostStudioWorkspace:
                         seen.add(role)
             # Keep authored text available on return; restore the built-in's controls.
             config = drafts.get(target_key, {}).get("configuration", config)
+            config = {k: v for k, v in config.items() if k != "template_palette"}
         next_content = target.normalize_content(next_content)
         config = target.normalize_configuration(config)
         updates = {"template.json": {"schema": _TEMPLATE_SELECTION_SCHEMA, **reference},

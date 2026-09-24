@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 
 ASSET_ROOT = Path(__file__).with_name("studio_assets") / "template-assets"
-RENDERER_VERSION = "studio.declarative.pillow.v6"
+RENDERER_VERSION = "studio.declarative.pillow.v7"
 
 _manifest = json.loads((ASSET_ROOT / "manifest.json").read_text(encoding="utf-8"))
 if _manifest.get("schema") != "ptw.template-assets.v1" or not isinstance(_manifest.get("assets"), list):

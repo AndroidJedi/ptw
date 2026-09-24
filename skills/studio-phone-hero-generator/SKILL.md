@@ -16,6 +16,19 @@ not subject identity. Isolation removes scenery, not objects needed for an
 interaction; an explicit requested setting wins. Omit text, logos, charts and UI
 by default; include them within artwork when explicitly requested.
 
+Keep each complete interaction readable at the final template size. Include
+task-relevant equipment such as a laptop together with its user; white objects,
+screens and clothing are foreground, not background to erase. Avoid fragile
+micro-detail and excessive empty margins around a cutout subject. Inspect the
+prepared render as well as the raw image; a neutral stock preview cannot prove
+that a new cutout retains every necessary object. Do not auto-retry semantics.
+
+Coordinate image colors and lighting with the supplied page/Post palette. A
+replacement must express the Brief's task, not an unrelated literal metaphor.
+Review image and gradient together: use compatible sampled/supporting hues and
+enough luminance separation for readable copy and a distinct subject silhouette.
+Preserve explicit owner colors; if those are fixed, coordinate the image instead.
+
 Respect the actual template/mode and visible crop. Only Phone mode reserves
 space for renderer-owned phone chrome; image-only and authored layouts must not
 inherit its white-fade or phone-screen assumptions. Generation never changes the

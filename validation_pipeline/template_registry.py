@@ -112,6 +112,10 @@ class TemplateRegistry(Generic[T]):
     def all(self) -> tuple[T, ...]:
         return tuple(self._definitions.values())
 
+    def registered_versions(self) -> tuple[T, ...]:
+        """Enumerate local immutable definitions for audits, without lazy loading."""
+        return tuple(self._versions.values())
+
     def resolve_reference(self, value: Mapping[str, Any]) -> T:
         if set(value) != {
             "template_id", "template_version", "template_sha256",

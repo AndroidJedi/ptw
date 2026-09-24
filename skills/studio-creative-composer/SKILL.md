@@ -37,6 +37,10 @@ selected live template catalog.
   suggestions. Direct owner image requests override defaults. People, hands,
   devices and complete interactions are legitimate subjects. Text/UI/logo content
   is omitted by default but allowed when explicitly requested within artwork.
+- Compose the image direction and available background controls as one palette.
+  Match warm/cool lighting and supporting hues; keep text and subject contrast.
+  Prefer a Brief-grounded interaction to an unrelated metaphor. For an existing
+  hero, match editable background colors to its palette, preserving locked colors.
 - The generated baseline and later Save/Approve checkpoints are provenance, not
   performance evidence. Only a reviewed Analytics learning run or a direct owner
   Skill revision may create a new active snapshot.

@@ -20,6 +20,50 @@ public-shell and Owner Console audits passed. The exact amd64 Validation image
 passed 380 tests; Owner passed 124 unit tests/build and all 114 cross-browser
 checks. The 24-hour resource audit is scheduled for 2026-09-25 09:44 UTC.
 
+## Catalog-wide visual quality — implemented locally, proposal pending
+
+The review now covers all four current Post/Landing designs and seven retained
+definitions. Gallery app screens use a coherent neutral UI family and native-alpha
+walkthroughs; Phone & Metrics has consistent demo copy. Declarative complete
+subjects/devices/marks/badges render proportionally under compiler v7. Historical
+built-in reads resolve exact definitions and renderer/fixture cache refreshes
+append new preview media. Post switching preserves complete benefit value/label
+pairs and existing authored copy. Project Landing hero and FAQ now stack through
+900px, resolving cramped Ukrainian tablet headings.
+
+An actual Astra `xhigh` analyze/compose/compare run has a reviewed square-Post
+proposal with larger copy boxes and separate subject space:
+`3adaf350-6652-4405-92f0-50f5ca603ea3`. It remains proposed pending the owner's
+acceptance choice. Three real-copy examples use 32–38px body and 30px benefit text.
+A separate generated cutout preserves the complete laptop interaction in local
+evidence; existing raw images and all three accepted authored records are intact.
+Owner correction replaced the damaged hardhat portrait with a complete generated
+phone-user hero. All three real examples now use gradients matched to their art.
+Authored full-canvas gradients have two bounded per-Post editor color controls,
+with saved overrides restored per template and historical defaults unchanged.
+Shared generation/composition rules now require palette harmony, readable text
+and complete Brief-relevant subjects; no semantic retry loop was introduced.
+No Project was switched or approved, and no deployment/publication ran.
+
+Local before/after review: `http://127.0.0.1:42745/review.html`; catalog and section
+captures: `http://127.0.0.1:42745/index.html`. There are 16 existing native Post
+renders plus four proposal renders, and 35 Landing views / 285 section captures
+at 1440/1280, 768, 360 and iPhone WebKit, including open FAQs, loaded images and
+optional marketing sections. Geometry, screen proportions, phone alignment,
+scrollable app controls and viewport overflow checks pass. Skills and
+`DESIGN_RULES.md` capture these engineering rules without performance claims.
+Verification passes: 397 backend tests locally; 396 in the built Linux image plus
+11 palette/switch and six final quality checks; 125 Owner and six Public unit tests/builds;
+21 Templates/Post, 45 Landing and 28 Public browser tests; disposable PostgreSQL
+template/Post persistence and restart; deterministic Phone Metrics audit;
+Commander 43 tests (five runtime-only skips), demo, skills and whitespace.
+The palette correction also reran Post browser checks on all three browser
+profiles and the disposable PostgreSQL Post persistence canary. All three chosen
+gradients keep white-copy contrast above 5.9:1 at both endpoints. Original raw
+Post assets and all three accepted authored records compare unchanged.
+Changes remain uncommitted locally; the chat-hosting API was not restarted.
+See [catalog audit procedure and boundaries](../operations/template-quality.md).
+
 ## Landing image quality — implemented locally, not deployed
 
 Visual composition, Manual Agents, Templates and image workers now default to

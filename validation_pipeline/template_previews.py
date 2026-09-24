@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import base64
-from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
@@ -12,23 +11,28 @@ import signal
 
 from .post_templates import POST_TEMPLATE_REGISTRY
 from .landing_templates import LANDING_TEMPLATE_REGISTRY
-from .studio import StudioRenderer
 from .template_components import normalize_document, placeholder_image, render, render_contract_sha256, sha
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def builtin_record(definition) -> dict:
+    return {**definition.identity.to_reference(), "name": definition.name, "description": definition.description,
+            "builtin": True, "status": "registered", "renderer_key": definition.renderer_key,
+            "canvas": None if definition.canvas is None else dict(definition.canvas),
+            "capabilities": definition.capabilities.to_dict(),
+            "component_roles": [{"type": item["component_id"], "role": item["role"]} for item in definition.catalog()["components"]]}
+
+
 def builtins() -> list[dict]:
-    return [{**definition.identity.to_reference(), "name": definition.name, "description": definition.description,
-             "builtin": True, "status": "registered", "renderer_key": definition.renderer_key,
-             "canvas": None if definition.canvas is None else dict(definition.canvas),
-             "capabilities": definition.capabilities.to_dict(),
-             "component_roles": [{"type": item["component_id"], "role": item["role"]} for item in definition.catalog()["components"]]}
+    return [builtin_record(definition)
             for registry in (POST_TEMPLATE_REGISTRY, LANDING_TEMPLATE_REGISTRY) for definition in registry.all()]
 
 
-def landing_fixture(template_id="project_landing") -> dict:
-    definition = LANDING_TEMPLATE_REGISTRY.get(template_id)
+def landing_fixture(template_id="project_landing", *, reference=None) -> dict:
+    definition = (LANDING_TEMPLATE_REGISTRY.resolve_reference(reference) if reference
+                  else LANDING_TEMPLATE_REGISTRY.get(template_id))
+    template_id = definition.identity.template_id
     content = definition.default_content()
     content["hero"].update(title="Template title", supporting_text="Supporting text placeholder", cta_label="Action")
     content["features"] = [{"title": "Section title", "description": "Body text placeholder"} for _ in range(3)]
@@ -49,29 +53,57 @@ def landing_fixture(template_id="project_landing") -> dict:
     # Native phone demo defaults are labels, not claims; no contact or proof is invented.
     image = "data:image/png;base64," + base64.b64encode(placeholder_image()).decode()
     images = {slot: image for slot in definition.capabilities.image_slots}
+    from .landing_showcase import reference_photo
+    images["visual_break_visual"] = "data:image/png;base64," + base64.b64encode(reference_photo()["bytes"]).decode()
     if template_id == "app_showcase":
-        from .landing_showcase import reference_photo
-        images["visual_break_visual"] = "data:image/png;base64," + base64.b64encode(reference_photo()["bytes"]).decode()
+        from .template_demo_assets import app_screen, walkthrough
+        for index in range(3):
+            images[f"app_screen_{index + 1}"] = "data:image/png;base64," + base64.b64encode(app_screen(index)).decode()
+        if "walkthrough_visual" in images:
+            images["walkthrough_visual"] = "data:image/png;base64," + base64.b64encode(walkthrough()).decode()
     return {"configuration": configuration, "content": content, "imageUrls": images}
 
 
+def builtin_preview_contract(record: dict) -> str:
+    """Version preview caches separately from immutable templates/approved PNGs."""
+    paths = [Path(__file__), ROOT / "validation_pipeline/template_demo_assets.py"]
+    reference = {key: record[key] for key in ("template_id", "template_version", "template_sha256")}
+    if record["surface"] == "landing":
+        bundle = Path(os.environ.get("PTW_TEMPLATE_PREVIEW_BUNDLE", str(ROOT / ".local/template-preview")))
+        paths.extend(sorted(path for path in bundle.rglob("*") if path.is_file()))
+        fixture = sha(landing_fixture(reference=reference))
+    else:
+        paths.extend(ROOT / "validation_pipeline" / name for name in
+                     ("studio_phone_metrics.py", "studio.py", "studio_primitives.py", "studio_workspace.py", "natal_brand.py"))
+        definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
+        fixture = sha({"configuration": definition.default_configuration(), "content": definition.default_content()})
+    return sha({"reference": {key: record[key] for key in ("surface", "template_id", "template_version", "template_sha256")},
+                "fixture_sha256": fixture,
+                "renderer_files": [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]})
+
+
 def render_builtin(record: dict, *, mobile=False) -> dict:
+    reference = {key: record[key] for key in ("template_id", "template_version", "template_sha256")}
     if record["surface"] == "post":
-        definition = POST_TEMPLATE_REGISTRY.get(record["template_id"])
+        definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
         configuration, content = definition.default_configuration(), definition.default_content()
-        content.update(hero_title="Template title", supporting_text="Supporting text", offer="Template preview", cta="Action")
+        content.update(hero_title="Your next idea starts here", supporting_text="Describe the task your app helps people complete.",
+                       offer="TEMPLATE PREVIEW", cta="Explore the details", phone_hero_title="Your workspace",
+                       phone_buttons=["Explore options", "View requests", "Profile"])
         for item in content.get("stats", []):
             item.update(value="01", label="Label")
         import tempfile
         from .studio_workspace import PostStudioWorkspace
         with tempfile.TemporaryDirectory(prefix="ptw-template-fixture-") as temporary:
             workspace = PostStudioWorkspace(Path(temporary))
-            result = workspace.render_preview(state_sha256=workspace.detail()["state_sha256"], configuration=configuration, content=content)
+            detail = workspace.apply_template(base_sha256=workspace.detail()["state_sha256"],
+                template_id=record["template_id"], template_reference={"surface": "post", **reference})
+            result = workspace.render_preview(state_sha256=detail["state_sha256"], configuration=configuration, content=content)
     else:
         process = subprocess.Popen(["node", str(ROOT / "apps/commander-web/scripts/render-template-landing.mjs")],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         try:
-            stdout, _stderr = process.communicate(json.dumps({"fixture": landing_fixture(record["template_id"]), "width": 360 if mobile else 1280}), timeout=45)
+            stdout, _stderr = process.communicate(json.dumps({"fixture": landing_fixture(reference=reference), "width": 360 if mobile else 1280}), timeout=45)
         except subprocess.TimeoutExpired as error:
             os.killpg(process.pid, signal.SIGKILL)
             process.communicate()

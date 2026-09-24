@@ -326,7 +326,13 @@ export interface StudioPhoneActionButtonConfiguration {
   shape: StudioPhoneActionButtonShape
 }
 
+export interface StudioPostPalette {
+  gradient_start: string
+  gradient_end: string
+}
+
 export interface StudioPhoneMetricsConfiguration {
+  template_palette?: StudioPostPalette
   visual_mode?: 'phone' | 'image'
   schema: 'ptw.studio.phone-metrics-config.v11' | 'ptw.studio.phone-metrics-config.v12' | 'ptw.studio.phone-metrics-config.v13'
   background: {
@@ -467,6 +473,7 @@ export interface StudioPhoneMetricsDetail {
   template_name?: string
   editor_key?: string
   template_fields?: Array<{ id: string; role: string }>
+  template_palette_defaults?: StudioPostPalette | null
   creative_id: string
   project_id: string
   source_brief_id: string

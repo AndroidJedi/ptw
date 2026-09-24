@@ -488,6 +488,19 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       <aside className="studio-controls phone-metrics-controls">
         {authored && <section className="panel authored-post-content"><h2>{tr('Post text', 'Текст допису')}</h2>
           {detail.template_fields?.map((field, index) => <label key={field.id}><span>{({ headline: tr('Headline', 'Заголовок'), description: tr('Supporting text', 'Пояснювальний текст'), cta: tr('Button', 'Кнопка'), meta: tr('Caption', 'Підпис'), footer: tr('Footer', 'Нижній текст') } as Record<string, string>)[field.role] || tr('Text', 'Текст')} {index + 1}</span><textarea rows={3} maxLength={500} disabled={mutationBusy} value={content.template_text?.[field.id] || ''} onChange={event => setContent(current => ({ ...current, template_text: { ...current.template_text, [field.id]: event.target.value.replace(/\s+/g, ' ') } }))} /></label>)}
+          {detail.template_palette_defaults && <fieldset disabled={mutationBusy}>
+            <legend>{tr('Background palette', 'Кольори фону')}</legend>
+            <p>{tr('Choose tones that complement the hero image and keep the text readable.', 'Оберіть відтінки, що пасують до головного зображення та зберігають читабельність тексту.')}</p>
+            {(['gradient_start', 'gradient_end'] as const).map(key => <EditableColorField key={key}
+              label={{ gradient_start: tr('Gradient start', 'Початок градієнта'), gradient_end: tr('Gradient end', 'Кінець градієнта') }[key]}
+              value={(configuration.template_palette || detail.template_palette_defaults!)[key]}
+              onChange={color => setConfiguration(current => ({ ...current, template_palette: { ...(current.template_palette || detail.template_palette_defaults!), [key]: color } }))}
+            />)}
+            <button type="button" className="secondary" disabled={!configuration.template_palette} onClick={() => setConfiguration(current => {
+              const { template_palette: _palette, ...rest } = current
+              return rest
+            })}>{tr('Use template colors', 'Кольори шаблону')}</button>
+          </fieldset>}
           <p>{tr('Your existing image is used in this layout. Edit the text, then update the preview.', 'У цьому макеті використано ваше зображення. Відредагуйте текст і оновіть прев’ю.')}</p>
         </section>}
         {!authored && <><StudioSection

@@ -23,7 +23,11 @@ const test = base.extend<{ backend: { url: string; restart: () => Promise<void> 
       }
       throw Error('Templates fixture unavailable: ' + diagnostic)
     }
-    const stop = async () => { child.kill('SIGTERM'); await new Promise<void>(resolve => child.once('exit', () => resolve())) }
+    const stop = async () => {
+      if (child.exitCode !== null || child.signalCode !== null) return
+      const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+      child.kill('SIGTERM'); await exited
+    }
     await launch()
     try { await use({ url, restart: async () => { await stop(); await launch() } }) }
     finally { await stop(); await rm(directory, { recursive: true, force: true }) }
@@ -35,8 +39,14 @@ test.beforeEach(async ({ page, backend }) => {
   await page.route('**/api/**', route => route.fulfill({ status: 404, json: { detail: 'Outside disposable Templates fixture' } }))
   await page.route('**/api/v1/templates**', async route => {
     const url = new URL(route.request().url())
-    const response = await route.fetch({ url: backend.url + url.pathname + url.search, timeout: 120000 })
-    await route.fulfill({ response })
+    try {
+      const response = await route.fetch({ url: backend.url + url.pathname + url.search, timeout: 120000 })
+      await route.fulfill({ response })
+    } catch {
+      // Model a temporary proxy failure during the deliberate restart instead
+      // of throwing out of the route callback and orphaning its test server.
+      if (!page.isClosed()) await route.fulfill({ status: 503, json: { detail: 'Disposable Templates authority unavailable' } })
+    }
   })
 })
 
@@ -116,6 +126,9 @@ test('authoritative gallery, all three scopes, immutable review and restart', as
     await expect(page.locator('.template-run-status')).toContainText('Accepted')
   }
   const location = page.url()
+  // Acceptance changes media URLs asynchronously. Finish those exact PNG reads
+  // before deliberately stopping the disposable authority for restart recovery.
+  await page.waitForLoadState('networkidle')
   await backend.restart()
   await page.reload()
   await expect(page.locator('.template-run-status')).toContainText('Accepted')

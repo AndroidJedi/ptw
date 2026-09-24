@@ -74,7 +74,9 @@
 .lp-section:hover .lp-edit-section, .lp-selected .lp-edit-section, .lp-edit-section:focus-visible { opacity: 1; }
 @container landing (max-width: 900px) {
   .lp-inner { padding: 0 28px; }
-  .lp-hero { gap: 28px; }
+  .lp-hero { grid-template-columns: 1fr; gap: 28px; }
+  .lp-image-left .lp-hero-art { order: 0; }
+  .lp-faq { grid-template-columns: 1fr; gap: 12px; }
   .lp-page h1 { font-size: calc(44px * var(--lp-scale)); }
   .lp-feature-grid article { padding: 22px; }
   .lp-contact-panel { padding: 32px; gap: 24px; }

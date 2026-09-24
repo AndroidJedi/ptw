@@ -15,7 +15,7 @@ from . import template_agent as agent
 from .image_reference import decode_reference
 from .template_assets import RENDERER_VERSION, document_asset_manifest
 from .template_components import canonical, definition, normalize_document, render_contract_sha256, seed, sha
-from .template_previews import builtins, render_builtin, render_designs, geometry
+from .template_previews import builtin_record, builtin_preview_contract, builtins, render_builtin, render_designs, geometry
 from .template_registry import TemplateRegistry
 from .template_store import TemplateConflict, TemplateStore
 
@@ -274,28 +274,34 @@ class TemplateAuthoringService:
         with self.store.transaction() as tx:
             return tx.append("run", run["run_id"], {**run, **changes}, expected=run["state_sha256"])
 
-    def ensure_builtins(self) -> list[dict]:
-        items = []
+    def _builtin_preview(self, builtin: dict) -> dict:
+        contract = builtin_preview_contract(builtin)
+        # Append a new cache entry after renderer/fixture changes. Old gallery
+        # PNGs, accepted versions and publication records remain byte-identical.
+        key = "preview:" + contract
         with self._preview_lock:
-            for builtin in builtins():
-                key = reference_key({k: builtin[k] for k in ("surface", "template_id", "template_version", "template_sha256")})
+            with self.store.transaction() as tx:
+                saved = tx.get("builtin", key)
+            if saved is not None:
+                return saved
+            try:
+                previews = {}
+                for viewport in (["desktop", "mobile"] if builtin["surface"] == "landing" else ["desktop"]):
+                    result = render_builtin(builtin, mobile=viewport == "mobile")
+                    observations, failures = geometry(result)
+                    with self.store.transaction() as tx:
+                        digest = tx.media(result["bytes"])
+                    previews[viewport] = {"sha256": digest, "definition_sha256": builtin["template_sha256"],
+                        "render_contract_sha256": contract, "geometry": observations, "failures": failures}
                 with self.store.transaction() as tx:
-                    saved = tx.get("builtin", key)
-                if saved is None:
-                    try:
-                        previews = {}
-                        for viewport in (["desktop", "mobile"] if builtin["surface"] == "landing" else ["desktop"]):
-                            result = render_builtin(builtin, mobile=viewport == "mobile")
-                            observations, failures = geometry(result)
-                            with self.store.transaction() as tx:
-                                digest = tx.media(result["bytes"])
-                            previews[viewport] = {"sha256": digest, "definition_sha256": builtin["template_sha256"], "geometry": observations, "failures": failures}
-                        with self.store.transaction() as tx:
-                            saved = tx.get("builtin", key) or tx.append("builtin", key, {**builtin, "previews": previews, "preview_status": "ready"})
-                    except (RuntimeError, TimeoutError, OSError) as error:
-                        saved = {**builtin, "previews": {}, "preview_status": "failed", "preview_error": "Authoritative preview unavailable. Retry after the renderer is ready."}
-                items.append(saved)
-        return items
+                    return tx.get("builtin", key) or tx.append("builtin", key,
+                        {**builtin, "previews": previews, "preview_status": "ready"})
+            except (RuntimeError, TimeoutError, OSError):
+                return {**builtin, "previews": {}, "preview_status": "failed",
+                    "preview_error": "Authoritative preview unavailable. Retry after the renderer is ready."}
+
+    def ensure_builtins(self) -> list[dict]:
+        return [self._builtin_preview(builtin) for builtin in builtins()]
 
     def gallery(self, surface: str | None = None) -> dict:
         if surface not in {None, "post", "landing"}:
@@ -317,15 +323,16 @@ class TemplateAuthoringService:
         try:
             record = self.store.get("version", key)
         except KeyError:
-            # A built-in remains registered even if its optional native preview
-            # cannot be rendered. In that case ensure_builtins returns a failed
-            # preview summary without persisting a record, just as the gallery
-            # does; exact reads must resolve that same summary.
-            record = next((item for item in self.ensure_builtins()
-                if reference_key({field: item[field] for field in
-                    ("surface", "template_id", "template_version", "template_sha256")}) == key), None)
-            if record is None:
-                raise KeyError("Template record does not exist")
+            from .post_templates import POST_TEMPLATE_REGISTRY
+            from .landing_templates import LANDING_TEMPLATE_REGISTRY
+            native = POST_TEMPLATE_REGISTRY if reference["surface"] == "post" else LANDING_TEMPLATE_REGISTRY
+            try:
+                registered = native.resolve_reference({k: v for k, v in reference.items() if k != "surface"})
+            except ValueError as error:
+                if str(error) == "Template reference is stale":
+                    raise TemplateConflict("Template digest does not match its immutable version") from error
+                raise KeyError("Template record does not exist") from error
+            record = self._builtin_preview(builtin_record(registered))
         if record["template_sha256"] != reference["template_sha256"]:
             raise TemplateConflict("Template digest does not match its immutable version")
         return record
@@ -335,14 +342,24 @@ class TemplateAuthoringService:
         from .landing_templates import LANDING_TEMPLATE_REGISTRY
         registry = POST_TEMPLATE_REGISTRY if surface == "post" else LANDING_TEMPLATE_REGISTRY
         return TemplateRegistry(surface, (*registry.all(), *(definition(r) for r in self.store.list("version", 200) if r["surface"] == surface)),
-            version_loader=lambda reference: definition(self.read({"surface": surface, **reference})))
+            version_loader=lambda reference: self._load_definition(surface, reference))
+
+    def _load_definition(self, surface, reference, *, post_runtime=False):
+        from .post_templates import POST_TEMPLATE_REGISTRY
+        from .landing_templates import LANDING_TEMPLATE_REGISTRY
+        from .post_template_runtime import post_definition
+        native = POST_TEMPLATE_REGISTRY if surface == "post" else LANDING_TEMPLATE_REGISTRY
+        if reference["template_id"] in native.ids:
+            return native.resolve_reference(reference)
+        record = self.read({"surface": surface, **reference})
+        return post_definition(record) if post_runtime else definition(record)
 
     def post_registry(self) -> TemplateRegistry:
         from .post_templates import POST_TEMPLATE_REGISTRY
         from .post_template_runtime import post_definition
         return TemplateRegistry("post", (*POST_TEMPLATE_REGISTRY.all(),
             *(post_definition(r) for r in self.store.list("version", 200) if r["surface"] == "post")),
-            version_loader=lambda reference: post_definition(self.read({"surface": "post", **reference})))
+            version_loader=lambda reference: self._load_definition("post", reference, post_runtime=True))
 
     def resolve_post_reference(self, reference: Mapping) -> dict:
         if set(reference) != {"template_id", "template_version", "template_sha256"}:

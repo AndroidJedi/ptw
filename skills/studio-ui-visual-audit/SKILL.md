@@ -26,6 +26,10 @@ a specific remote target.
   coordinates. Preserve ordering and a positive visual gap for title,
   supporting text, bullets, and CTA.
 - Check relevant optional-element states and bounded typography/layout extremes.
+- Inspect hero and gradient as one composition. Match supporting hues and light
+  temperature to the actual image, keep the silhouette distinct and verify copy
+  contrast across the gradient. Recheck each replacement with its real cutout;
+  a stock blue background is not a universal palette. Preserve owner colors.
   For editor changes, also inspect desktop, 360 CSS pixels, keyboard behavior,
   and reduced-motion behavior.
 
@@ -134,13 +138,25 @@ suggestions retain their origin after selection; changing presets alone must not
 promote the suggestion to an owner override.
 
 For App Showcase, inspect all three raw screen images and the framed result.
-Fit the full generated UI edge to edge below a camera safe area without cropping
-text. Check side and bottom gutters in both hero and walkthrough phones;
-contain fitting inside a padded aperture can introduce unwanted letterboxing.
+Fit the full generated UI proportionally in the unpadded canonical aperture;
+the portrait image itself reserves camera clearance. Legacy squares remain
+fully visible. Check side and bottom gutters in hero and walkthrough phones.
 Check decorative icon sizes and the full-width hero wave: shared `.lp-page img`
 and `svg` rules can override a less-specific template selector. Test each screen
 inspector, missing-image approval feedback, and desktop/tablet/360px/WebKit page
 geometry. Native gallery, editor and public output must share the same renderer.
+
+For a catalog-wide review, enumerate all registered versions and read accepted
+authored records without mutating the authority. Inspect native Post PNGs and
+360px display sizes with real English/Ukrainian copy, not just `Title`. Inspect
+real cutouts for preserved white screens, hands and equipment; inference success
+does not prove a complete interaction. Aim for 30–36px explanatory copy and
+24px secondary labels at 1080px width. Report unreadable text instead of treating
+absence of overflow as success. Complete devices, subjects, logos and badges
+must fit proportionally. Gallery fixtures use coherent neutral UI and preview
+labels; cache refresh must retain old bytes and exact historical versions.
+Use `scripts/audit_template_quality.py` followed by
+`apps/commander-web/scripts/audit-template-quality.mjs` for local evidence.
 
 For shared Landing marketing sections, verify card/review/value grids by actual
 child widths, not just page overflow. Do not reuse an inner grid class on its

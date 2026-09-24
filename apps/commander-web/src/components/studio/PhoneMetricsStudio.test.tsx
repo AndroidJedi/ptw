@@ -188,6 +188,29 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('previews and saves authored background colors and can restore template defaults', async () => {
+    const authored = structuredClone(detail)
+    authored.editor_key = 'post.declarative.react'
+    authored.template_fields = [{ id: 'title', role: 'headline' }]
+    authored.content.template_text = { title: 'A complete subject' }
+    authored.template_palette_defaults = { gradient_start: '#1676cb', gradient_end: '#24c4cc' }
+    const { api, post } = studioApi(authored)
+    render(<PhoneMetricsStudio api={api} language="en" basePath={basePath} detail={authored} onDetail={vi.fn()} />)
+    await screen.findByText('Background palette')
+    fireEvent.change(screen.getByLabelText('Gradient start'), { target: { value: '#402429' } })
+    fireEvent.change(screen.getByLabelText('Gradient end'), { target: { value: '#85442d' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      configuration: expect.objectContaining({ template_palette: { gradient_start: '#402429', gradient_end: '#85442D' } }),
+    }), expect.anything()))
+    fireEvent.click(screen.getByRole('button', { name: 'Use template colors' }))
+    expect(screen.getByLabelText('Gradient start')).toHaveValue('#1676cb')
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post.mock.calls.filter(([path]) => path === `${basePath}/save`)).toHaveLength(2))
+    const saved = post.mock.calls.filter(([path]) => path === `${basePath}/save`).at(-1)![1] as { configuration: unknown }
+    expect(saved.configuration).not.toHaveProperty('template_palette')
+  })
+
   it('shows hypothesis provenance and sends owner edits with matching values', async () => {
     const current = structuredClone(detail)
     current.content.stats = [{ value: '+35%', label: 'More orders' }, { value: '−25%', label: 'Fewer calls' }, { value: '2×', label: 'Faster handling' }]

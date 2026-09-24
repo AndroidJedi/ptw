@@ -204,7 +204,7 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
             "reused_native_components": "phone uses the existing fixed iPhone compositor with an editable hero-art slot; brand uses the canonical Natal lock-up. Neither is a generated screenshot widget.",
             "placeholders": list(PLACEHOLDERS), "fonts": list(STUDIO_FONT_FAMILIES),
             "layout": "Ordered layers; box and mobile_box are [x,y,width,height] in 0–1000 canvas units. Separate mobile composition for Landing.",
-            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain/stretch; focal_x/y 0–1; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; brand_motif repeat_min/repeat_max 1–8 in its box, seeded per Post for stable variety; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
+            "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain (legacy stretch renders as contain); complete cutouts, phones, brands, motifs and store badges always contain; focal_x/y 0–1 for intentional photo crops; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; brand_motif repeat_min/repeat_max 1–8 in its box, seeded per Post for stable variety; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
             "registered_variants": {
                 "cutout_image": ["Image"],
                 "brand_motif": ["Natal symbol"],
@@ -343,7 +343,9 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
             props["fill"] = c["fill"]
         if kind == "image":
             props.update({"asset": c["id"], "fit": c["fit"], "focal_x": c["focal_x"], "focal_y": c["focal_y"], "mask": "rounded_rect" if c["type"] == "image" else "none"})
-            if c["type"] in ("phone", "brand"):
+            # A complete subject, device or fixed mark must retain its shape.
+            # Only ordinary photos may use intentional cover/focal cropping.
+            if c["type"] in ("phone", "brand", "brand_motif", "store_badge", "cutout_image") or c["fit"] == "stretch":
                 props["fit"] = "contain"
             replaceable = c["type"] in {"image", "cutout_image", "phone"}
             assets[c["id"]] = {"kind": "image", "allowed_mime_types": ["image/png", "image/jpeg", "image/webp"], "required": False,

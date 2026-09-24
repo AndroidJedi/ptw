@@ -20,6 +20,31 @@ public-shell and Owner Console audits passed. The exact amd64 Validation image
 passed 380 tests; Owner passed 124 unit tests/build and all 114 cross-browser
 checks. The 24-hour resource audit is scheduled for 2026-09-25 09:44 UTC.
 
+## Phone Metrics evidence recovery and today's accepted templates — candidate
+
+Production Creative `01a0d423-5c82-7cde-b319-1f073381772a` remains intact but
+failed composition after completed bridge jobs 1042 and 1043 both described
+digit-form cards as Brief-supported using a spelled-out excerpt. Runtime domain
+validation correctly rejected that provenance; the output schema had not yet
+expressed the same origin/evidence relation. The candidate gives
+`brief_supported` and `ai_hypothesis` separate strict schema branches, requires
+an Arabic numeral in supported evidence, requires empty hypothesis evidence,
+retains the exact-substring/quantity validator, and advances the composer
+namespace to v5 so the failed response cannot be replayed.
+
+Local combined Template run `981ca558-9a9a-4298-bffb-fc8176719ea2` is explicitly
+accepted and owns Post `design_3eba6cc0fe34469b83ff` v1 plus Landing
+`design_1d56c213d83645669a64` v1. Production still has only the three older
+authored Post versions, so the new accepted records and their six immutable PNGs
+need one backup-bearing append-only transfer after the compatible renderer
+release. No Project or existing template record will be replaced.
+
+Local verification passes 399 Validation tests, 43 Commander tests with seven
+expected environment skips, the Commander demo, focused provider/composition
+regressions, canonical skill verification, the deterministic Studio visual
+audit and whitespace checks. No production retry, import, reset or deletion has
+run yet.
+
 ## Catalog-wide visual quality — implemented locally, proposal pending
 
 The review now covers all four current Post/Landing designs and seven retained

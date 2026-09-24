@@ -5,7 +5,9 @@ from validation_pipeline.image_generation_policy import (
     IMAGE_POLICY_VERSION, build_image_context, compile_image_prompt, image_provenance,
     instruction_context, resolve_instruction,
 )
-from validation_pipeline.metric_hypotheses import generated_metrics, reconcile_metrics
+from validation_pipeline.metric_hypotheses import (
+    METRIC_NUMERAL_PATTERN, generated_metrics, metric_basis_schema, reconcile_metrics,
+)
 
 
 class DomainImagePolicyTests(unittest.TestCase):
@@ -84,6 +86,20 @@ class DomainImagePolicyTests(unittest.TestCase):
 
 
 class MetricHypothesisTests(unittest.TestCase):
+    def test_metric_basis_schema_separates_supported_evidence_from_hypotheses(self):
+        variants = metric_basis_schema()["items"]["anyOf"]
+        supported, hypothesis = variants
+        self.assertEqual(
+            ["brief_supported"], supported["properties"]["origin"]["enum"],
+        )
+        self.assertEqual(
+            METRIC_NUMERAL_PATTERN, supported["properties"]["evidence"]["pattern"],
+        )
+        self.assertEqual(
+            ["ai_hypothesis"], hypothesis["properties"]["origin"]["enum"],
+        )
+        self.assertEqual([""], hypothesis["properties"]["evidence"]["enum"])
+
     def test_numeric_hypotheses_and_exact_brief_support(self):
         stats = [{"value": "1", "label": "Free month"}, {"value": "−25%", "label": "Reception calls"}, {"value": "2×", "label": "Faster handling"}]
         basis = [{"origin": "brief_supported", "evidence": "1 free month"}, *[{"origin": "ai_hypothesis", "evidence": ""}] * 2]
@@ -97,6 +113,34 @@ class MetricHypothesisTests(unittest.TestCase):
         changed[0]["value"] = "FAST"
         with self.assertRaisesRegex(ValueError, "numeral"):
             generated_metrics(changed, basis, {})
+        with self.assertRaisesRegex(ValueError, "empty evidence"):
+            generated_metrics(
+                stats,
+                [{"origin": "ai_hypothesis", "evidence": "Invented rationale"}] * 3,
+                {},
+            )
+
+    def test_spelled_out_brief_quantity_cannot_support_a_digit_card(self):
+        stats = [
+            {"value": "1 місяць", "label": "безкоштовного користування"},
+            {"value": "1 готель", "label": "у межах пропозиції"},
+            {"value": "24/7", "label": "доступ до меню послуг"},
+        ]
+        spelled_out = "Безкоштовний перший місяць користування чат-ботом для одного готелю."
+        basis = [
+            {"origin": "brief_supported", "evidence": spelled_out},
+            {"origin": "brief_supported", "evidence": spelled_out},
+            {"origin": "ai_hypothesis", "evidence": ""},
+        ]
+        with self.assertRaisesRegex(ValueError, "exact supporting Brief excerpt"):
+            generated_metrics(stats, basis, {"offer": spelled_out})
+
+        recovered = generated_metrics(
+            stats,
+            [{"origin": "ai_hypothesis", "evidence": ""}] * 3,
+            {"offer": spelled_out},
+        )
+        self.assertTrue(all(item["origin"] == "ai_hypothesis" for item in recovered))
 
     def test_owner_edit_is_allowed_and_provenance_binds_exact_copy(self):
         stats = [{"value": "+35%", "label": "More orders"}] * 3

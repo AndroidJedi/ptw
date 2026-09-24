@@ -30,8 +30,10 @@ selected live template catalog.
   steps. These are unvalidated copy hypotheses, never measured results.
 - Return `metric_basis` in card order: `{origin, evidence}` with origin
   `brief_supported` or `ai_hypothesis`. A supported quantity needs an exact Brief
-  excerpt including the number; hypotheses use empty evidence. Never claim that
-  generation or plausibility verifies a figure.
+  substring containing the same Arabic numeral(s) used in the card value;
+  hypotheses use empty evidence. A spelled-out quantity is not support for a
+  digit-form card value. Never claim that generation or plausibility verifies a
+  figure.
 - Supply a subject/action/setting suggestion for the image worker. Its current
   style/background are defaults; do not bake competing style instructions into
   suggestions. Direct owner image requests override defaults. People, hands,

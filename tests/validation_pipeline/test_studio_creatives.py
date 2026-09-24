@@ -517,10 +517,10 @@ class StudioCreativeServiceTests(unittest.TestCase):
             if call["mode"] == "studio_creative_generation"
         )
         self.assertTrue(generation_call["idempotency_key"].endswith(
-            ":studio-creative-composer-v4"
+            ":studio-creative-composer-v5"
         ))
         self.assertEqual(
-            "studio-creative-composer-v4", generation_call["prompt_version"],
+            "studio-creative-composer-v5", generation_call["prompt_version"],
         )
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])
@@ -605,6 +605,13 @@ class StudioCreativeServiceTests(unittest.TestCase):
             key: content["stats"]["items"]["properties"]["value"][key]
             for key in ("minLength", "maxLength")
         })
+        metric_basis = schema["properties"]["metric_basis"]["items"]["anyOf"]
+        self.assertEqual(
+            r"[0-9]", metric_basis[0]["properties"]["evidence"]["pattern"],
+        )
+        self.assertEqual(
+            [""], metric_basis[1]["properties"]["evidence"]["enum"],
+        )
         configuration = schema["properties"]["configuration"]["properties"]
         self.assertEqual({"minimum": 0.04, "maximum": 0.24}, {
             key: configuration["background"]["properties"]["texture_intensity"][key]

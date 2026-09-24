@@ -186,6 +186,14 @@ before changing code or runtime state.
   outcome is uncertain. Preserve the failed creative and all append-only runs;
   after rollout, retry that same creative once and require a valid draft plus
   distinct completed provider provenance rather than reserving a replacement.
+- For `Brief-supported metrics require an exact supporting Brief excerpt`,
+  compare only `content.stats[*].value` with its matching `metric_basis[*]`.
+  A spelled-out quantity does not support a digit-form value. Keep the runtime
+  exact-substring/quantity check, make the strict schema distinguish
+  `brief_supported` evidence containing an Arabic numeral from
+  `ai_hypothesis` with empty evidence, and version the composition namespace.
+  Do not weaken provenance to recover the creative; retry the same ID once
+  after rollout and preserve both rejected bridge jobs and the failed run.
 - When a browser Studio mutation returns 404, compare the exact method/path at
   all three boundaries before inspecting the provider: built/live Owner
   Console call, public Owner Gateway route, and internal Validation route. A

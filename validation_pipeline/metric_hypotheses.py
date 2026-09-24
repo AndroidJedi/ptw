@@ -5,12 +5,34 @@ import re
 from typing import Any, Mapping
 
 
+METRIC_NUMERAL_PATTERN = r"[0-9]"
+METRIC_EVIDENCE_MAX_LENGTH = 600
+
+
 def metric_basis_schema() -> dict[str, Any]:
     return {"type": "array", "minItems": 3, "maxItems": 3, "items": {
-        "type": "object", "additionalProperties": False,
-        "properties": {"origin": {"type": "string", "enum": ["brief_supported", "ai_hypothesis"]},
-                       "evidence": {"type": "string", "maxLength": 600}},
-        "required": ["origin", "evidence"],
+        "anyOf": [
+            {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "origin": {"type": "string", "enum": ["brief_supported"]},
+                    "evidence": {
+                        "type": "string", "minLength": 1,
+                        "maxLength": METRIC_EVIDENCE_MAX_LENGTH,
+                        "pattern": METRIC_NUMERAL_PATTERN,
+                    },
+                },
+                "required": ["origin", "evidence"],
+            },
+            {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "origin": {"type": "string", "enum": ["ai_hypothesis"]},
+                    "evidence": {"type": "string", "enum": [""]},
+                },
+                "required": ["origin", "evidence"],
+            },
+        ],
     }}
 
 
@@ -20,16 +42,20 @@ def generated_metrics(stats: list[dict[str, str]], basis: Any, brief: Mapping[st
     document = json.dumps(brief, ensure_ascii=False)
     result = []
     for stat, source in zip(stats, basis):
-        if not re.search(r"\d", stat["value"]):
+        if not re.search(METRIC_NUMERAL_PATTERN, stat["value"]):
             raise ValueError("Every automatically composed metric value must contain a numeral")
         if not isinstance(source, dict) or set(source) != {"origin", "evidence"}:
             raise ValueError("Metric source fields are invalid")
         origin, evidence = source["origin"], source["evidence"]
-        if origin not in {"brief_supported", "ai_hypothesis"} or not isinstance(evidence, str) or len(evidence) > 600:
+        if (origin not in {"brief_supported", "ai_hypothesis"}
+                or not isinstance(evidence, str)
+                or len(evidence) > METRIC_EVIDENCE_MAX_LENGTH):
             raise ValueError("Metric source is invalid")
         if origin == "brief_supported" and (not evidence or evidence not in document or
                 not all(number in evidence for number in re.findall(r"\d+(?:[.,]\d+)?", stat["value"]))):
             raise ValueError("Brief-supported metrics require an exact supporting Brief excerpt containing the quantity")
+        if origin == "ai_hypothesis" and evidence:
+            raise ValueError("AI metric hypotheses require empty evidence")
         result.append({**stat, "origin": origin, "validation_status": "unvalidated",
                        "evidence": evidence if origin == "brief_supported" else ""})
     return result

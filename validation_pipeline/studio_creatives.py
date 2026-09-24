@@ -13,7 +13,9 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from commander.ids import new_uuid7
 
-from .metric_hypotheses import metric_basis_schema, generated_metrics, reconcile_metrics
+from .metric_hypotheses import (
+    METRIC_NUMERAL_PATTERN, metric_basis_schema, generated_metrics, reconcile_metrics,
+)
 from .agent_context import compact_active_skills
 from .image_generation_policy import build_image_context, resolve_instruction
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
@@ -57,7 +59,7 @@ TEMPLATE_IDS = frozenset(POST_TEMPLATE_REGISTRY.ids)
 ACTIVE_TEMPLATE_IDS = TEMPLATE_IDS
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
-STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v4"
+STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v5"
 
 
 def post_composition_payload(
@@ -232,7 +234,7 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         content["phone_buttons"]["items"].update({"minLength": 1, "maxLength": 48})
         properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
         properties["metric_basis"] = metric_basis_schema()
-        content["stats"]["items"]["properties"]["value"]["pattern"] = r"[0-9]"
+        content["stats"]["items"]["properties"]["value"]["pattern"] = METRIC_NUMERAL_PATTERN
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,

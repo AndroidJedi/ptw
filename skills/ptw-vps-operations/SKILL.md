@@ -368,6 +368,12 @@ the tracked deployer to restore the prior image and verify its deployed marker
 and health before retrying. Inspect only the bridge job's bounded status; never
 expose provider output or bypass the canary. At most one fresh full preserving
 retry is appropriate for an isolated transient provider failure.
+Apply the same bounded recovery to an isolated structured canary timeout: confirm
+the job reached a terminal timeout status, verify source, service-image, accepted
+marker and Hosting rollback, and only then allow the single fresh full attempt.
+Do not resubmit while the original provider outcome is uncertain, change model or
+reasoning settings to pass a canary, or skip any acceptance gate. Record the failed
+attempt and successful acceptance separately in the incident log.
 Run the expensive live bridge/Pexels canaries and schema-bound Codex dependency
 probe only when their owning Validation/platform components change; unchanged
 provider releases use `audit_vps_owner_dependencies.sh --quick`. Stream only

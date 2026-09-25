@@ -68,12 +68,23 @@ Deploy the paired candidate only through `publish_ptw_in_place_serial.sh` and it
 migration-aware preserving workflow. The previous runtime tolerates the additive
 tables. Never use a reset or bulk reapplication for this release.
 
-The owner explicitly authorized refreshing only `hotel-assistant`. Local review
+The owner explicitly authorized refreshing only `hotel-assistant`. Local and live review
 retains its copy/settings/artwork, measures 5,584,916 original bytes versus 466,312
 bytes for the largest WebP copies (91.65% reduction), and checks all 11 sections at
 1440px, 768px, 360px and iPhone WebKit. CLS stays below 0.001 on measured Chromium
 views. The real two-image capacity canary completed in 58.254 seconds with a
 423,047,168-byte worker peak under its 805,306,368-byte cap, minimum host available
-memory 252,256,256 bytes, and zero new OOM events. Production acceptance must still
-record exact revision/Hosting versions, the refreshed immutable version and live
-measurements in the current-state checkpoint.
+memory 252,256,256 bytes, and zero new OOM events.
+
+Production acceptance completed on 2026-09-25 through the preserving workflow.
+The first isolated provider timeout triggered a verified automatic rollback; one
+fresh full attempt passed all eleven provider canaries. Migration 018 preserved
+all pre-existing business rows. `scripts/refresh_published_landing.py` reapplied only
+the explicitly named hotel Project from its exact approved digest, then used the
+normal Save/Approve/Publish API. Other application fingerprints stayed identical.
+Live checks verified every display derivative and PNG fallback, immutable caching,
+desktop/tablet/360px/iPhone rendering, no horizontal overflow, and Chromium CLS
+below 0.014. A guarded Validation restart preserved the public snapshot and all
+Landing authority fingerprints. Exact runtime/Hosting revisions and the retained
+rollback version are recorded in the current-state checkpoint. No other existing
+Project application should be processed without a new owner instruction.

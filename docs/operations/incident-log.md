@@ -1,6 +1,24 @@
 # PTW incident log
 
-Updated: 2026-09-22
+Updated: 2026-09-25
+
+## 2026-09-25 — Landing performance release recovered after provider timeout
+
+The paired migration-aware preserving release's first provider suite stopped at
+Landing composition: bridge job 1144 reached terminal `failed`/`TimeoutExpired`.
+The worker stayed healthy with no OOM indication. The tracked deployer restored
+the accepted application/companion images, source revisions and Hosting, and the
+hotel's public snapshot remained byte-for-byte identical. No Project application
+was changed and the migration had not started.
+
+After bounded status and rollback verification, one fresh full attempt passed all
+eleven provider canaries, Pexels, migration row-preservation, dependency/resource
+audits, and the full Owner browser suite. Model, reasoning and image quality were
+unchanged. The owner-authorized hotel-only refresh then preserved copy/settings/
+source PNGs, reduced display bytes by 91.65%, and left all other application
+fingerprints unchanged. Live delivery and a guarded backend restart passed.
+The VPS skill now records structured-timeout reconciliation and complete rollback
+verification before the single fresh release attempt.
 
 ## 2026-09-22 — Template Creation correction exceeded prompt budget
 

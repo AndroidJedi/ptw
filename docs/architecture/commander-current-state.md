@@ -2,18 +2,17 @@
 
 Updated: 2026-09-25
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: preserving release `showcase-preview-recovery-20260924-a9745f2`
-accepted runtime code revision `a9745f2bb50d826106710a9a94c65bb10161b3b2`
-with companion platform `35b8fa0eb6b0e9e56a6448f05db14b18d01414a3`.
-Validation runs the Showcase preview recovery image; the other six application/companion
-containers retain the accepted metric-template release and all are healthy.
-Owner Hosting version `b2ceec2982aaa0c1` and public Landing Hosting version
-`ad4b13c2006be094` remain live. The full Astra structured/media/Pexels canaries
-(jobs 1112–1122), schema, authorization, independent worker, dependency,
-canonical skills, approved-Post persistence, 1 GB resource and public/Owner
-audits passed.
+Deployment: migration-aware preserving release `landing-performance-20260925`,
+accepted runtime code revision `c443c2d6ca7c7008b0771e7caa5626eb3aacff07`
+with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
+Commander, Validation, Gateway and the three companion services run the paired
+release; GOD/Plan/Release retain their accepted images. All are healthy.
+Owner Hosting version `b298a13378206bec` and public Landing Hosting version
+`6fb915a9a9e5cf64` are live. Migration 018 preserved every existing business row.
+All eleven Astra canaries (jobs 1145–1155), Pexels, schema, authorization,
+dependencies, skills, approved-Post persistence, resource and Hosting audits passed.
 
-## Landing delivery and durable operations — verified locally, rollout pending
+## Landing delivery and durable operations — deployed and verified
 
 Shared Landing writes prepare responsive q90 WebP display copies; approved PNGs,
 raw alpha/provenance, exact template identities and older applications are retained.
@@ -24,19 +23,34 @@ One shared blocking dialog covers preparation through preview readiness, failure
 retry and refresh recovery. Migration 018 and a bounded two-worker companion are
 required; model, reasoning and image resolution remain unchanged.
 
-Local checks: 410 backend tests plus palette-alpha and provider-restart regressions, 128 Owner unit
-tests, 123 Owner browser checks, 19 Gateway tests, all three supported Landing
-definitions on disposable PostgreSQL, migration runner/schema, Commander/demo and
-skills. Hotel before/after captures cover 11 sections at 1440/768/360px and iPhone.
-Largest WebP copies total 466,312 bytes versus 5,584,916 PNG bytes, a 91.65% reduction.
+Checks: 414 backend tests in the exact Linux image, 55 companion tests, 128 Owner
+unit tests, all 123 Owner browser checks, 19 Gateway tests, 6 public unit tests,
+32 public browser checks, all three supported Landing definitions on disposable
+PostgreSQL, migration runner/schema, Commander/demo and skills. Hotel before/after
+and live captures cover 11 sections at 1440/768/360px and iPhone WebKit.
 Two real Astra images completed together in 58.254 seconds in the existing VPS
 worker, peaking at 403.4 MiB under its 768 MiB cap with no OOM increment.
 
-Next: build exact Linux images and finish the migration-aware preserving release,
-then reapply/approve/publish only the existing hotel-assistant Project using its
-original copy, settings and selected artwork. Retain its old immutable version and
-compare every other Landing application fingerprint. No production application has
-been refreshed yet. See [performance workflow](../operations/landing-performance.md).
+Only hotel-assistant Project `01a0d420-f4d4-7b21-8511-d1a2cc294200` was reapplied,
+saved, approved and republished at its existing URL. Replacement Landing
+`04d96712-39d2-5af6-b252-a633e3883f43` v1 has immutable digest
+`6812250675fa1b22e884da339931382b00ad8ddf45623a23a56b8763a2c96590`.
+Copy, settings, contacts and selected source PNGs are identical. Largest WebP
+copies total 466,312 bytes versus 5,584,916 PNG bytes, a 91.65% reduction.
+The prior Landing `b8f67501-9adb-5895-85f3-ee461f11ff66` v1 remains available for
+rollback with digest `597f9c756e8964abe81bfe3af52090e9ad0d0a5fd5daef01607c88ea31ed5d20`.
+Every other Landing application's rows/files/versions/publication fingerprints are
+unchanged. Live WebP/PNG hashes, immutable caching, HEAD, invalid-version rejection,
+authenticated operation routing, hero priority and deferred supporting images pass.
+No horizontal overflow was found; measured Chromium CLS was below 0.014. A guarded
+Validation restart retained the identical public snapshot and all Landing authority
+fingerprints, with no active operation or provider job interrupted.
+
+The first release attempt rolled back services, sources and Hosting after one
+Landing-composition provider timeout (job 1144). Its bounded terminal status was
+confirmed; the single fresh full retry passed without changing quality settings.
+Next: use the shared workflow for new Projects; no other application backfill is
+authorized. See [performance workflow](../operations/landing-performance.md).
 
 ## App Showcase preview/access recovery — deployed
 

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
 import type { LandingDetail, LandingPublication } from '../types'
 import { LandingView } from './LandingView'
@@ -11,6 +11,7 @@ const projectId = '11111111-1111-4111-8111-111111111111'
 const creativeId = '22222222-2222-4222-8222-222222222222'
 const landingId = '33333333-3333-4333-8333-333333333333'
 beforeEach(() => sessionStorage.clear())
+afterEach(() => vi.useRealTimers())
 async function openPublication() {
   fireEvent.click(await screen.findByLabelText('More actions'))
   fireEvent.click(screen.getByRole('button', { name: 'Approve & publish' }))
@@ -122,7 +123,7 @@ it('refreshes an in-progress Landing until it reaches a terminal state', async (
   expect(screen.getByText('Building the Landing')).toBeInTheDocument()
 
   await act(async () => { await vi.advanceTimersByTimeAsync(2_500) })
-  expect(vi.mocked(api.get).mock.calls.filter(([path]) => path.includes('/pages/'))).toHaveLength(2)
+  expect(vi.mocked(api.get).mock.calls.filter(([path]) => path.endsWith(`/pages/${landingId}`))).toHaveLength(2)
 
   view.unmount()
   vi.useRealTimers()
@@ -134,10 +135,10 @@ it('explains a persisted Landing generation failure returned over HTTP 200', asy
   const api = landingApi(detail)
   render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
 
-  expect(await screen.findByText('The Landing could not be generated.')).toBeVisible()
-  expect(screen.getByText(/Explanation: The ChatGPT\/Codex service/)).toBeVisible()
-  expect(screen.getByText(/What to do: In Settings/)).toBeVisible()
-  expect(screen.getByText(new RegExp(`bridge job 438 · ID ${landingId}`))).toBeVisible()
+  const overlay = await screen.findByRole('dialog', { name: 'This request needs attention' })
+  expect(overlay).toHaveTextContent('The Landing could not be generated.')
+  expect(overlay).toHaveTextContent('Explanation: The ChatGPT/Codex service')
+  expect(overlay).toHaveTextContent(`bridge job 438 · ID ${landingId}`)
   expect(screen.queryByText('structured bridge request 438 failed')).not.toBeInTheDocument()
 })
 
@@ -360,7 +361,7 @@ it('shows three static app screens and targets the selected screen for generatio
   detail.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
   detail.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A project-specific task', visual_direction: `A polished app interface ${i}` }))
   const api = landingApi(detail)
-  vi.mocked(api.post).mockImplementation(async () => detail as never)
+  vi.mocked(api.post).mockImplementation(async (_path, body) => ({ operation_id: 'operation-screen', request_id: (body as { request: { request_id: string } }).request.request_id, status: 'completed', phase: 'completed', started_at: new Date().toISOString(), jobs: [{ slot: 'app_screen_2', status: 'completed' }], result: { configuration: detail.configuration, content: detail.content } }) as never)
   const view = render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
   await screen.findByLabelText('Hero title')
   expect(view.container.querySelectorAll('.as-phone')).toHaveLength(5)
@@ -368,8 +369,8 @@ it('shows three static app screens and targets the selected screen for generatio
   fireEvent.change(screen.getByLabelText('Page section'), { target: { value: 'app_screen_2' } })
   fireEvent.change(screen.getByLabelText('Visual direction'), { target: { value: 'A new inventory screen with an Add photo action' } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/visuals/app_screen_2/generate'), expect.objectContaining({ visual_direction: 'A new inventory screen with an Add photo action' }), expect.anything()))
-  expect(vi.mocked(api.post).mock.calls[0][0]).toContain('/configuration')
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/operations'), { kind: 'image', request: expect.objectContaining({ slot: 'app_screen_2', visual_direction: 'A new inventory screen with an Add photo action' }) }, expect.anything()))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Updating your Landing' })).toBeNull())
 })
 
 it('passes the exact selected template reference when reserving a Landing', async () => {
@@ -420,7 +421,7 @@ it('tries a selected template from an incomplete draft without Save or Approve a
   expect(api.post).toHaveBeenCalledTimes(1)
 })
 
-it('retries an uncertain template change with the identical request after reopening the chooser', async () => {
+it('retries an uncertain template change from the blocking overlay with the identical request', async () => {
   const old = landingDetail()
   const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
   const api = landingApi(old)
@@ -432,10 +433,8 @@ it('retries an uncertain template change with the identical request after reopen
   fireEvent.click(await screen.findByRole('button', { name: 'Change template' }))
   fireEvent.click(screen.getByRole('button', { name: 'App Showcase' }))
   fireEvent.click(screen.getByRole('button', { name: 'Apply template' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Response lost')
-  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: false, cancelable: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Change template' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  expect(await screen.findByRole('dialog', { name: 'This request needs attention' })).toHaveTextContent('Response lost')
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry unfinished work' }))
   await waitFor(() => expect(onLanding).toHaveBeenCalledWith('new-page'))
   expect(vi.mocked(api.post).mock.calls[1]).toEqual(vi.mocked(api.post).mock.calls[0])
 })

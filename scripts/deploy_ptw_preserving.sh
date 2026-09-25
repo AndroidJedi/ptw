@@ -159,8 +159,12 @@ trap cleanup EXIT
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
     -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
-DECLARE instagram_active boolean; tiktok_active boolean;
+DECLARE instagram_active boolean; tiktok_active boolean; landing_active boolean;
 BEGIN
+  IF to_regclass('landing_operations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS(SELECT 1 FROM landing_operations WHERE status IN (''queued'',''running''))' INTO landing_active;
+    IF landing_active THEN RAISE EXCEPTION 'a Landing operation is active; deployment refused'; END IF;
+  END IF;
   IF to_regclass('public.instagram_publications') IS NOT NULL THEN
     EXECUTE 'SELECT EXISTS(SELECT 1 FROM instagram_publications WHERE state->>''status'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO instagram_active;
     IF instagram_active THEN

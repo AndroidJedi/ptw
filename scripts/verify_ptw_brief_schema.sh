@@ -126,6 +126,8 @@ landing_generation_runs
 landing_analytics_events
 landing_analytics_rollup_snapshots
 landing_learning_proposals
+landing_operations
+landing_operation_events
 landing_publication_events
 landing_publications
 landing_skill_snapshots

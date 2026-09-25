@@ -1,0 +1,17 @@
+.landing-operation-overlay { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 24px; box-sizing: border-box; border: 0; background: rgb(12 16 24 / 94%); color: #f8fafc; overflow: auto; z-index: 10000; }
+.landing-operation-overlay[open] { display: grid; place-items: center; }
+.landing-operation-overlay::backdrop { background: rgb(12 16 24 / 75%); }
+.landing-operation-card { width: min(100%, 560px); padding: 28px; box-sizing: border-box; border: 1px solid #465266; border-radius: 18px; background: #171d28; overflow-wrap: anywhere; }
+.landing-operation-card h2 { margin: 20px 0 12px; font-size: 24px; }
+.landing-operation-card p { font-size: 15px; line-height: 1.6; white-space: pre-line; }
+.landing-operation-card ul { padding: 0; list-style: none; }
+.landing-operation-card li { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #465266; font-size: 13px; }
+.landing-operation-card small { color: #bac5d5; }
+.landing-operation-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.landing-operation-actions button { min-height: 44px; white-space: normal; }
+.landing-operation-card details { margin-top: 20px; font-size: 12px; }
+.landing-operation-card details p { font-size: 12px; }
+.landing-operation-spin { animation: landing-operation-spin 1.4s linear infinite; }
+@keyframes landing-operation-spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) { .landing-operation-overlay { padding: 16px; }.landing-operation-card { padding: 20px; }.landing-operation-actions { flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .landing-operation-spin { animation: none; } }

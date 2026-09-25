@@ -534,6 +534,7 @@ export interface StudioManualAgentImageAction {
 }
 
 export interface StudioManualAgentResult<Configuration, Content> {
+  operation_id?: string
   owner_instruction?: string
   metric_provenance?: MetricProvenance[]
   request_id: string
@@ -697,7 +698,7 @@ export interface LandingVisualSummary {
   available: boolean
   sha256: string | null
   preparation?: { schema: string; method: string; raw_sha256: string; prepared_sha256: string; raw_size: number[]; crop_box: number[]; padding: number; model_sha256?: string }
-  history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean; instruction_context?: ImageInstructionContext }>
+  history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean; instruction_context?: ImageInstructionContext; variants?: Array<{ sha256: string; width: number; height: number; mime_type: string; byte_count: number }> }>
 }
 
 export interface LandingSummary {

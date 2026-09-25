@@ -1,6 +1,35 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 
 const digest = 'a'.repeat(64)
+
+test('requests responsive hero WebP with stable geometry and falls back to the original', async ({ page }) => {
+  const webp = readFileSync(new URL('../../../validation_pipeline/studio_assets/landing-display-v1/iphone-15-pro-black.webp', import.meta.url))
+  const png = readFileSync(new URL('../../../validation_pipeline/studio_assets/iphone-15-pro-black.png', import.meta.url))
+  let failWebp = false
+  await page.route('**/api/v1/public/landings/delivery-test**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('.webp')) return failWebp ? route.fulfill({ status: 404 }) : route.fulfill({ contentType: 'image/webp', body: webp })
+    if (path.endsWith('.png')) return route.fulfill({ contentType: 'image/png', body: png })
+    const base = '/api/v1/public/landings/delivery-test'
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ configuration: { ...configuration, visual_mode: 'image' }, content, project_name: 'Delivery fixture', canonical_url: 'https://natal-service.com/delivery-test', version_sha256: digest,
+      assets: { hero_visual: `${base}/original.png`, visual_break_visual: `${base}/support.png` },
+      asset_variants: { hero_visual: [480, 960].map(width => ({ url: `${base}/${width}.webp`, width, height: width*2, sha256: digest, mime_type: 'image/webp', byte_count: webp.length })) } }) })
+  })
+  await page.goto('/delivery-test')
+  const hero = page.locator('.lp-hero-art > img')
+  await expect(hero).toHaveAttribute('data-image-state', 'ready')
+  expect(await hero.evaluate(image => (image as HTMLImageElement).currentSrc)).toMatch(/\.webp$/)
+  await expect(hero).toHaveAttribute('loading', 'eager')
+  await expect(hero).toHaveAttribute('fetchpriority', 'high')
+  await expect(page.locator('.lp-visual img')).toHaveAttribute('loading', 'lazy')
+  const before = await hero.boundingBox()
+  failWebp = true
+  await page.reload()
+  await expect(hero).toHaveAttribute('data-image-state', 'ready')
+  expect(await hero.evaluate(image => (image as HTMLImageElement).currentSrc)).toMatch(/original\.png$/)
+  expect(await hero.boundingBox()).toEqual(before)
+})
 const configuration = {
   schema: 'ptw.landing.configuration.v1',
   presentation: { language: 'en', cta_target: 'email', heading_scale: 1, spacing: 'comfortable', hero_focus: { x: 50, y: 50 }, visual_break_focus: { x: 50, y: 50 } },

@@ -48,9 +48,12 @@ async function setup(page: Page, showcase = false, projectName = 'Landing visual
     if (path.endsWith('/pages')) return json({ items: [current] })
     if (path === base) return json(current)
     if (path.includes('/history/')) return route.fulfill({ contentType: 'image/png', body: bytes, headers: { 'Cache-Control': 'private, no-store', 'X-PTW-Content-SHA256': sha } })
-    if (path.endsWith('/generate')) {
-      if (path.includes('/walkthrough_visual/')) current.assets.push({ ...current.assets[0], slot: 'walkthrough_visual' })
-      return json(current)
+    if (path.endsWith('/operations')) {
+      if (route.request().method() === 'GET') return json({ operation: null })
+      const { request } = route.request().postDataJSON()
+      current = { ...current, configuration: request.configuration, content: request.content }
+      if (request.slot === 'walkthrough_visual') current.assets.push({ ...current.assets[0], slot: 'walkthrough_visual' })
+      return json({ operation_id: 'operation-image', request_id: request.request_id, status: 'completed', phase: 'completed', started_at: new Date().toISOString(), jobs: [{ slot: request.slot, status: 'completed' }], result: { configuration: current.configuration, content: current.content } })
     }
     if (path.endsWith('/configuration') || path.endsWith('/save') || path.endsWith('/approve')) {
       const body = route.request().postDataJSON()
@@ -70,6 +73,52 @@ const openPublication = async (page: Page) => {
   await page.getByLabel('More actions', { exact: true }).click()
   await page.getByRole('button', { name: 'Approve & publish', exact: true }).click()
 }
+
+for (const showcase of [false, true]) test(`blocking image progress survives refresh and retries unfinished work (${showcase ? 'showcase' : 'original'})`, async ({ page }) => {
+  await setup(page, showcase)
+  let operation: Record<string, unknown> | null = null
+  let starts = 0, retries = 0
+  const slot = showcase ? 'app_screen_1' : 'hero_visual'
+  await page.route('**/operations**', async route => {
+    const url = new URL(route.request().url())
+    if (route.request().method() === 'POST') {
+      if (url.pathname.endsWith('/retry')) {
+        retries++
+        operation = { ...operation, status: 'completed', phase: 'completed', error: null, jobs: [{ slot, status: 'completed' }] }
+      } else {
+        starts++
+        const { request } = route.request().postDataJSON()
+        operation = { operation_id: 'progress-operation', request_id: request.request_id, status: 'running', phase: 'images', started_at: new Date().toISOString(), jobs: [{ slot, status: 'generating' }], result: { configuration: request.configuration, content: request.content } }
+      }
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(url.pathname.endsWith('/operations') && route.request().method() === 'GET' ? { operation } : operation) })
+  })
+  if (showcase) await editorSection(page, 'Screen 1').click()
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
+  let dialog = page.getByRole('dialog', { name: 'Updating your Landing' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('0 of 1 images completed')
+  await expect(dialog).toContainText(showcase ? 'App screen 1' : 'Hero image')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Tab')
+  expect(await dialog.evaluate(element => element.contains(document.activeElement) || document.activeElement === document.body)).toBe(true)
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+  expect(await dialog.evaluate(element => element.getBoundingClientRect().width)).toBe(page.viewportSize()!.width)
+  await page.reload()
+  dialog = page.getByRole('dialog', { name: 'Updating your Landing' })
+  await expect(dialog).toBeVisible()
+  operation = { ...operation, status: 'failed', phase: 'failed', error: { category: 'timeout', code: 'TimeoutError', phase: slot, retryable: true }, jobs: [{ slot, status: 'failed' }] }
+  const failed = page.getByRole('dialog', { name: 'This request needs attention' })
+  await expect(failed).toBeVisible()
+  await expect(failed).toContainText('provider did not finish')
+  await failed.getByText('Technical details').click()
+  await expect(failed).toContainText('TimeoutError')
+  await failed.screenshot({ path: `.local/landing-operation-${showcase}-${test.info().project.name}.png` })
+  await failed.getByRole('button', { name: 'Retry unfinished work' }).click()
+  await expect(page.locator('.landing-operation-overlay')).toHaveCount(0)
+  expect(starts).toBe(1); expect(retries).toBe(1)
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
+})
 
 test('changes template directly from an unsaved unapproved draft and returns through history', async ({ page }) => {
   await setup(page, false, 'Застосунок для обліку домашньої аптечки за фото упаковок ліків')
@@ -291,10 +340,9 @@ test('saves independent Post-style image directions before generating or enhanci
   await page.getByRole('radio', { name: /Tactile handmade/ }).check()
   await page.getByRole('radio', { name: /Remove scene background/ }).check()
   await page.getByLabel('Hero title', { exact: true }).fill('Збережений заголовок')
-  const saved = page.waitForRequest(request => request.url().endsWith('/configuration'))
-  const generated = page.waitForRequest(request => request.url().endsWith('/hero_visual/generate'))
+  const generated = page.waitForRequest(request => request.url().endsWith('/operations') && request.method() === 'POST')
   await page.getByRole('button', { name: 'Generate', exact: true }).click()
-  const body = (await saved).postDataJSON()
+  const body = (await generated).postDataJSON().request
   expect(body.configuration.image_directions.hero_visual).toEqual({ style: 'tactile_handmade', background: 'isolated_key_element' })
   expect(body.configuration.image_directions.visual_break_visual.style).toBe('premium_editorial')
   expect(body.content.hero.title).toBe('Збережений заголовок')
@@ -305,9 +353,9 @@ test('saves independent Post-style image directions before generating or enhanci
   const picker = page.locator('.landing-direction-picker')
   if (!(await picker.evaluate(element => element.hasAttribute('open')))) await picker.locator('summary').click()
   await page.getByRole('radio', { name: /Contemporary 3D/ }).check()
-  const enhanced = page.waitForRequest(request => request.url().endsWith('/visual_break_visual/generate'))
+  const enhanced = page.waitForRequest(request => request.url().endsWith('/operations') && request.method() === 'POST')
   await page.getByRole('button', { name: 'Enhance', exact: true }).click()
-  expect((await enhanced).postDataJSON().enhance_current).toBe(true)
+  expect((await enhanced).postDataJSON().request.enhance_current).toBe(true)
 })
 
 test('edits the app task, switches screen themes and layouts, and saves pending feature copy', async ({ page }) => {
@@ -391,16 +439,16 @@ test('uses a temporary reference in either image slot, clears on completion, err
     await upload()
     await page.locator(".landing-image-editor").screenshot({ path: `.local/image-reference-landing-${slot}-${test.info().project.name}.png` })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-    const request = page.waitForRequest(request => request.url().endsWith(`/${slot}/generate`))
+    const request = page.waitForRequest(request => request.url().endsWith('/operations') && request.method() === 'POST')
     await page.getByRole('button', { name: 'Generate', exact: true }).click()
-    expect((await request).postDataJSON()).toMatchObject({ reference_image: { mime_type: 'image/png', bytes_base64: bytes.toString('base64') } })
+    expect((await request).postDataJSON().request).toMatchObject({ reference_image: { mime_type: 'image/png', bytes_base64: bytes.toString('base64') } })
     await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
   }
   await upload()
   await editorSection(page, 'Hero').click()
   await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
   await upload()
-  await page.route('**/hero_visual/generate', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ detail: 'Generation failed; previous image preserved' }) }))
+  await page.route('**/operations', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ detail: 'Generation failed; previous image preserved' }) }))
   await page.getByRole('button', { name: 'Generate', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
   await expect(page.getByText(/Generation failed; previous image preserved/)).toBeVisible()
@@ -513,9 +561,9 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
   await page.getByLabel('Show row 6', { exact: true }).uncheck()
   await editorSection(page, 'How it works').click()
   await page.getByLabel('Step 1 · title').fill('Додайте річ')
-  const generated = page.waitForRequest(r => r.url().includes('/walkthrough_visual/generate'))
+  const generated = page.waitForRequest(r => r.url().endsWith('/operations') && r.method() === 'POST')
   await page.getByRole('button', { name: 'Generate', exact: true }).click()
-  expect((await generated).postDataJSON().visual_direction).toContain('phone mockups')
+  expect((await generated).postDataJSON().request.visual_direction).toContain('phone mockups')
   await editorSection(page, 'CTA panel').click()
   await page.getByLabel('Show CTA panel').uncheck()
   await expect(page.locator('.mk-section-cta, .as-banner')).toHaveCount(0)

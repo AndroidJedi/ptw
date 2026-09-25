@@ -65,7 +65,7 @@ function ScreenshotTile({ file, remove, disabled, language }: {
 
 export function StudioManualAgent<Configuration, Content>({
   api, language, endpoint, stateSha256, configuration, content, disabled = false,
-  onApply, compact = false,
+  onApply, compact = false, onRequest, onBegin, onFailure,
 }: {
   api: ApiClient
   language: Language
@@ -75,6 +75,9 @@ export function StudioManualAgent<Configuration, Content>({
   content: Content
   compact?: boolean
   disabled?: boolean
+  onBegin?: () => void
+  onFailure?: (message: string) => void
+  onRequest?: (request: Record<string, unknown>) => Promise<StudioManualAgentResult<Configuration, Content>>
   onApply: (
     result: StudioManualAgentResult<Configuration, Content>, screenshots: File[],
   ) => Promise<void> | void
@@ -133,13 +136,15 @@ export function StudioManualAgent<Configuration, Content>({
       requestId, endpoint, message, savedAt: new Date().toISOString(), status: 'pending',
     })
     setPending(true); setError('')
+    onBegin?.()
     try {
       const payloads = await Promise.all(screenshots.map(imageReferencePayload))
-      const result = await api.post<StudioManualAgentResult<Configuration, Content>>(endpoint, {
+      const request = {
         request_id: requestId, base_sha256: stateSha256,
         message, history: messages.slice(-8),
         configuration, content, screenshots: payloads,
-      }, { deadlineMs: 480_000 })
+      }
+      const result = onRequest ? await onRequest(request) : await api.post<StudioManualAgentResult<Configuration, Content>>(endpoint, request, { deadlineMs: 480_000 })
       await onApply(result, screenshots)
       updateSavedRequest(requestId, 'completed')
       setMessages(current => [...current, { role: 'user', content: message }, { role: 'assistant', content: result.reply }].slice(-8) as ChatMessage[])
@@ -148,6 +153,7 @@ export function StudioManualAgent<Configuration, Content>({
     } catch (cause) {
       updateSavedRequest(requestId, 'failed')
       setError(cause instanceof Error ? cause.message : String(cause))
+      onFailure?.(cause instanceof Error ? cause.message : String(cause))
     } finally { setPending(false) }
   }
 

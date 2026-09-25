@@ -1,3 +1,6 @@
+import { LandingOperationOverlay } from '../landing/LandingOperationOverlay'
+import { useLandingOperation } from '../landing/useLandingOperation'
+import { useLandingImages } from '../landing/useLandingImages'
 import { imageReferencePayload } from '../components/ImageReferenceInput'
 import { Check, ExternalLink, Globe2, History, LayoutTemplate, Maximize2, Monitor, MoreHorizontal, RefreshCcw, Save, Smartphone, Sparkles, Tablet } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -40,9 +43,9 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [configuration, setConfiguration] = useState<LandingConfiguration | null>(null)
   const [content, setContent] = useState<LandingContent | null>(null)
   const [imageInstructions, setImageInstructions] = useState<Record<string, ImageInstructionContext>>({})
-  const [images, setImages] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [dismissedGeneration, setDismissedGeneration] = useState('')
   const [landingViewOpen, setLandingViewOpen] = useState(false)
   const [note, setNote] = useState('Landing design and copy approved')
   const [section, setSection] = useState<Section>('hero')
@@ -145,25 +148,23 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     return () => { active = false; if (timer !== undefined) window.clearTimeout(timer) }
   }, [api, base, detail?.landing_id, detail?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const pagePath = detail && projectId ? `${base}/pages/${detail.landing_id}` : ''
+  const imageState = useLandingImages(api, detail, pagePath, section)
+  const images = imageState.images
+  const localRetry = useRef<(() => Promise<void>) | null>(null)
+  const operation = useLandingOperation(api, pagePath, applyDetail, result => { setConfiguration(clone(result.configuration as LandingConfiguration)); setContent(clone(result.content as LandingContent)) })
+  const initialGeneration = useRef(false)
   useEffect(() => {
-    let active = true
-    const urls: string[] = []
-    const load = async () => {
-      if (!detail || !projectId) { setImages({}); return }
-      const next: Record<string, string> = {}
-      await Promise.all(detail.assets.flatMap(item => item.history.map(async entry => {
-        try {
-          const blob = await api.image(`${base}/pages/${detail.landing_id}/visuals/${item.slot}/history/${entry.sha256}`, 'image/png', entry.sha256)
-          if (!active) return
-          const url = URL.createObjectURL(blob); urls.push(url); next[entry.sha256] = url
-          if (entry.selected) next[item.slot] = url
-        } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : String(cause)) }
-      })))
-      if (active) setImages(next)
-    }
-    void load().catch((cause) => active && setError(cause instanceof Error ? cause.message : String(cause)))
-    return () => { active = false; urls.forEach((url) => URL.revokeObjectURL(url)) }
-  }, [detail?.landing_id, JSON.stringify(detail?.assets), projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (detail && ['queued', 'composing', 'generating_images'].includes(detail.status)) initialGeneration.current = true
+    else if (detail?.status === 'draft' && initialGeneration.current) { initialGeneration.current = false; operation.preview() }
+  }, [detail?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (operation.visible && operation.phase === 'preview' && imageState.ready) { operation.ready(); setBusy(false) }
+  }, [operation.visible, operation.phase, imageState.ready]) // eslint-disable-line react-hooks/exhaustive-deps
+  const overlay = operation.visible && <LandingOperationOverlay language={language} operation={operation.operation} phase={operation.phase}
+    error={operation.error || (operation.phase === 'preview' ? imageState.error : '')}
+    retry={references => { if (operation.phase === 'preview' && imageState.error) imageState.retry(); else if (localRetry.current) void localRetry.current().catch(() => {}); else void operation.retry(references) }}
+    close={() => { operation.dismiss(); setBusy(false) }} />
 
   const persist = async () => {
     if (!detail || !configuration || !content) throw new Error('Landing draft is not ready')
@@ -173,22 +174,27 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     return value
   }
   const create = async (source: SourcePost) => {
-    setBusy(true); setError('')
+    localRetry.current = () => create(source)
+    setBusy(true); setError(''); operation.begin()
     try {
       const value = await api.post<{ landing: LandingSummary }>(`${base}/pages`, { source_creative_id: source.creative_id, source_version: source.version, ...(templateReference() ? { template_reference: templateReference() } : {}) })
       onLanding(value.landing.landing_id)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+    } catch (cause) { operation.fail(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
   const createVariant = async (request: LandingTemplateRequest) => {
     if (!detail) return
     const epoch = requestEpoch.current
     stashDraft()
-    setBusy(true); setError('')
+    localRetry.current = () => createVariant(request)
+    setBusy(true); setError(''); operation.begin()
     try {
       const value = await api.post<{ landing: LandingSummary }>(`${base}/pages/variants`, request)
       if (epoch !== requestEpoch.current) return
       setNotice(''); setTemplateOpen(false)
       onLanding(value.landing.landing_id)
+    } catch (cause) {
+      if (epoch === requestEpoch.current) operation.fail(cause instanceof Error ? cause.message : String(cause))
+      throw cause
     } finally { if (epoch === requestEpoch.current) setBusy(false) }
   }
   const save = async (approve = false) => {
@@ -240,17 +246,20 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     ]
   }
   const generate = async (slot: LandingVisualSlot, enhance = false) => {
-    if (!detail || !content) return
-    setBusy(true); setError('')
+    if (!detail || !content || !configuration) return
+    localRetry.current = null
+    setBusy(true); setError(''); operation.begin()
     try {
       const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
-      const changed = configuration ? changedImageSettings(slot, configuration) : []
+      const changed = changedImageSettings(slot, configuration)
       const instruction = imageInstructions[slot]
-      const saved = await persist()
       const direction = slot === 'walkthrough_visual' ? content.marketing!.walkthrough_visual_direction : slot.startsWith('app_screen_') ? content.app_screens![Number(slot.slice(-1)) - 1].visual_direction : slot === 'hero_visual' ? content.hero.visual_direction : content.visual_break.visual_direction
-      const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/generate`, { base_sha256: saved.state_sha256, visual_direction: direction, ...(instruction ? { instruction_context: instruction } : {}), ...(changed.length ? { changed_image_settings: changed } : {}), ...(reference ? { reference_image: reference } : enhance ? { enhance_current: true } : {}) }, { deadlineMs: 480_000 })
-      applyDetail(value)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setReferenceImage(null); setBusy(false) }
+      await operation.run('image', { request_id: crypto.randomUUID(), slot, configuration, content, base_sha256: detail.state_sha256,
+        visual_direction: direction, ...(instruction ? { instruction_context: instruction } : {}), ...(changed.length ? { changed_image_settings: changed } : {}),
+        ...(reference ? { reference_image: reference } : enhance ? { enhance_current: true } : {}) })
+      setCheckpointPending(true)
+    } catch (cause) { if (!(cause instanceof Error && cause.message === 'Landing operation needs attention')) operation.fail(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setReferenceImage(null); setBusy(false) }
   }
   const selectVisual = async (slot: LandingVisualSlot, sha256: string) => {
     if (!detail) return
@@ -277,47 +286,13 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     setBusy(true)
     try { await api.post(`${base}/pages/${detail.landing_id}/retry`, {}); await reload() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
-  const applyAgentResult = async (
-    result: StudioManualAgentResult<LandingConfiguration, LandingContent>,
-    screenshots: File[],
-  ) => {
+  const applyAgentResult = async (result: StudioManualAgentResult<LandingConfiguration, LandingContent>) => {
     if (!detail) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const nextConfiguration = clone(result.configuration)
-      const nextContent = clone(result.content)
-      setConfiguration(nextConfiguration); setContent(nextContent)
-      let saved = detail
-      if (result.image_actions.length) {
-        saved = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/configuration`, {
-          base_sha256: saved.state_sha256,
-          configuration: nextConfiguration, content: nextContent,
-        }, { deadlineMs: 60_000 })
-        applyDetail(saved)
-        setCheckpointPending(true)
-        for (const action of result.image_actions) {
-          const reference = action.reference_index > 0
-            ? await imageReferencePayload(screenshots[action.reference_index - 1]) : null
-          saved = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${action.slot}/generate`, {
-            base_sha256: saved.state_sha256,
-            visual_direction: action.visual_direction,
-            ...(result.owner_instruction ? { instruction_context: { origin: 'agent', owner_instruction: result.owner_instruction } } : {}),
-            ...(changedImageSettings(action.slot as LandingVisualSlot, nextConfiguration).length ? { changed_image_settings: changedImageSettings(action.slot as LandingVisualSlot, nextConfiguration) } : {}),
-            enhance_current: action.enhance_current,
-            ...(reference ? { reference_image: reference } : {}),
-          }, { deadlineMs: 480_000 })
-          if (result.owner_instruction) setImageInstructions(current => ({ ...current, [action.slot]: { origin: 'agent', owner_instruction: result.owner_instruction } }))
-          applyDetail(saved)
-        }
-      }
-      setNotice(tr(
-        `Agent adjusted ${result.changed_paths.length} editor field${result.changed_paths.length === 1 ? '' : 's'}${result.image_actions.length ? ` and generated ${result.image_actions.length} visual${result.image_actions.length === 1 ? '' : 's'}` : ''}. Review before saving.`,
-        `Агент налаштував ${result.changed_paths.length} полів редактора${result.image_actions.length ? ` і згенерував ${result.image_actions.length} візуалів` : ''}. Перевірте перед збереженням.`,
-      ))
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-      throw cause
-    } finally { setBusy(false) }
+    setConfiguration(clone(result.configuration)); setContent(clone(result.content))
+    if (result.image_actions.length) setCheckpointPending(true)
+    setNotice(tr(`Agent adjusted ${result.changed_paths.length} editor fields and completed ${result.image_actions.length} images. Review before saving.`,
+      `Агент змінив ${result.changed_paths.length} полів і завершив ${result.image_actions.length} зображень. Перевірте перед збереженням.`))
+    setBusy(false)
   }
   const status = detail?.status
   const dirty = Boolean(detail && configuration && content && (JSON.stringify(configuration) !== JSON.stringify(detail.configuration) || JSON.stringify(content) !== JSON.stringify(detail.content)))
@@ -367,7 +342,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   if (!projectId) return <Empty><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('A Landing is always scoped to one Project.', 'Лендінг завжди належить одному проєкту.')}</p></Empty>
   if (pages === null || sources === null) return <Loading language={language} />
   if (error && !detail) return <ErrorState message={error} retry={() => void reload()} language={language} />
-  if (!detail) return <section className="panel landing-source-picker"><small>{tr('PRIVATE LANDING', 'ПРИВАТНИЙ ЛЕНДІНГ')}</small><h1>{tr('Create a Landing from an approved Post', 'Створіть лендінг із затвердженого допису')}</h1><p>{tr('Landing captures the selected Post version’s design, then remains independently editable.', 'Лендінг зафіксує дизайн обраної версії допису та далі редагуватиметься окремо.')}</p>{templatePicker}{sources.length ? <div className="landing-source-list">{sources.map((source) => <button key={`${source.creative_id}:${source.version}`} className="panel" disabled={busy} onClick={() => void create(source)}><Sparkles /><span>{source.template_id} · v{source.version}</span><small>{source.creative_id.slice(0, 8)}</small></button>)}</div> : <Empty><h2>{tr('Approve a Post first', 'Спершу затвердьте допис')}</h2><p>{tr('Landing starts only from an immutable approved Post version.', 'Лендінг створюється лише з незмінної затвердженої версії допису.')}</p></Empty>}</section>
+  if (!detail) return <section className="panel landing-source-picker">{overlay}<small>{tr('PRIVATE LANDING', 'ПРИВАТНИЙ ЛЕНДІНГ')}</small><h1>{tr('Create a Landing from an approved Post', 'Створіть лендінг із затвердженого допису')}</h1><p>{tr('Landing captures the selected Post version’s design, then remains independently editable.', 'Лендінг зафіксує дизайн обраної версії допису та далі редагуватиметься окремо.')}</p>{templatePicker}{sources.length ? <div className="landing-source-list">{sources.map((source) => <button key={`${source.creative_id}:${source.version}`} className="panel" disabled={busy} onClick={() => void create(source)}><Sparkles /><span>{source.template_id} · v{source.version}</span><small>{source.creative_id.slice(0, 8)}</small></button>)}</div> : <Empty><h2>{tr('Approve a Post first', 'Спершу затвердьте допис')}</h2><p>{tr('Landing starts only from an immutable approved Post version.', 'Лендінг створюється лише з незмінної затвердженої версії допису.')}</p></Empty>}</section>
   const templateName = (page: LandingSummary) => {
     const id = page.template_reference?.template_id || ('template_id' in page ? page.template_id : 'project_landing')
     return templates.find(item => item.template_id === id)?.name || (id === 'app_showcase' ? 'App Showcase' : 'Project landing')
@@ -376,7 +351,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   if (status !== 'draft' || !configuration || !content) {
     const generation = detail.generation as { error_message?: string; error_type?: string }
     const previous = pages.find(item => item.landing_id !== detail.landing_id && item.source_creative_id === detail.source_creative_id && item.source_version === detail.source_version)
-    return <section className="panel landing-progress"><small>{templateName(detail)}</small><h1>{status === 'failed' ? tr('Landing generation needs attention', 'Створення лендінгу потребує уваги') : tr('Building the Landing', 'Створюємо лендінг')}</h1>{status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language)} retry={() => void retry()} language={language} /> : <p>{status === 'composing' ? tr('Writing the page sections…', 'Готуємо текст сторінки…') : status === 'generating_images' ? tr('Generating app screens and page images…', 'Створюємо екрани застосунку та зображення…') : tr('Queued for generation…', 'У черзі на створення…')}</p>}
+    return <section className="panel landing-progress">{dismissedGeneration !== detail.landing_id && <LandingOperationOverlay language={language} phase={status} error={status === 'failed' ? operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language) : undefined} retry={() => void retry()} close={() => setDismissedGeneration(detail.landing_id)} />}<small>{templateName(detail)}</small><h1>{status === 'failed' ? tr('Landing generation needs attention', 'Створення лендінгу потребує уваги') : tr('Building the Landing', 'Створюємо лендінг')}</h1>{status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language)} retry={() => void retry()} language={language} /> : <p>{status === 'composing' ? tr('Writing the page sections…', 'Готуємо текст сторінки…') : status === 'generating_images' ? tr('Generating app screens and page images…', 'Створюємо екрани застосунку та зображення…') : tr('Queued for generation…', 'У черзі на створення…')}</p>}
       <div className="landing-progress-actions">{previous && <button className="secondary" onClick={() => onLanding(previous.landing_id)}>{tr('Back to previous Landing', 'Повернутися до попереднього лендінгу')}</button>}{status === 'failed' && <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}>{tr('Change template', 'Змінити шаблон')}</button>}</div>{templateChooser}</section>
   }
 
@@ -385,7 +360,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const preview = (editing: boolean) => <LandingCanvas width={width}><LandingPage showDraftHints configuration={configuration} content={content} imageUrls={images} editing={editing} selected={section} onSelect={value => { setSection(value); setMode('edit') }} /></LandingCanvas>
   const publicUrl = publication?.canonical_url || `https://natal-service.com/${slug}`
   return <section className="landing-studio">
-    <header className="landing-action-bar"><div><h1>{templateName(detail)}</h1><p role="status">{busy ? tr('Working…', 'Виконуємо…') : dirty ? tr('Unsaved changes', 'Незбережені зміни') : checkpointPending ? tr('Draft updated · Save to capture your changes', 'Чернетку оновлено · Збережіть свої зміни') : notice || tr('Private draft', 'Приватна чернетка')}</p></div><div className="landing-actions">
+    {overlay}<header className="landing-action-bar"><div><h1>{templateName(detail)}</h1><p role="status">{busy ? tr('Working…', 'Виконуємо…') : dirty ? tr('Unsaved changes', 'Незбережені зміни') : checkpointPending ? tr('Draft updated · Save to capture your changes', 'Чернетку оновлено · Збережіть свої зміни') : notice || tr('Private draft', 'Приватна чернетка')}</p></div><div className="landing-actions">
       <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}><LayoutTemplate />{tr('Change template', 'Змінити шаблон')}</button>
       <button className="primary" aria-label={tr('Save Landing', 'Зберегти лендінг')} disabled={busy} onClick={() => void save(false)}><Save />{tr('Save', 'Зберегти')}</button>
       <details className="landing-more"><summary aria-label={tr('More actions', 'Інші дії')}><MoreHorizontal /></summary><div>
@@ -424,7 +399,9 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     <div className="landing-workspace-toolbar"><div className="landing-mode-controls"><button className={mode === 'edit' ? 'active' : ''} aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>{tr('Edit', 'Редагувати')}</button><button className={mode === 'preview' ? 'active' : ''} aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>{tr('Preview', 'Перегляд')}</button></div>
       <select className="landing-width-select" aria-label={tr('Preview width', 'Ширина прев’ю')} value={width} onChange={event => setWidth(Number(event.target.value))}><option value={1280}>{tr('Desktop', 'Комп’ютер')}</option><option value={768}>{tr('Tablet', 'Планшет')}</option><option value={360}>{tr('Mobile', 'Телефон')}</option></select>
       <button className="ghost landing-expand" aria-label={tr('View Landing', 'Переглянути лендінг')} onClick={event => { event.currentTarget.focus(); setLandingViewOpen(true) }}><Maximize2 /></button>
-      <StudioManualAgent compact api={api} language={language} endpoint={`${base}/pages/${detail.landing_id}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={busy} onApply={applyAgentResult} />
+      <StudioManualAgent compact onBegin={() => { localRetry.current = null; setBusy(true); operation.begin() }}
+        onFailure={message => { setBusy(false); if (message !== 'Landing operation needs attention') operation.fail(message) }}
+        onRequest={async request => await operation.run('agent', request) as unknown as StudioManualAgentResult<LandingConfiguration, LandingContent>} api={api} language={language} endpoint={`${base}/pages/${detail.landing_id}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={busy} onApply={applyAgentResult} />
     </div>
     <div className={`landing-workbench is-${mode}`}>
       <aside className="landing-editor"><nav className="landing-section-nav" aria-label={tr('Page sections', 'Секції сторінки')}><select aria-label={tr('Page section', 'Секція сторінки')} value={section} onChange={event => setSection(event.target.value as Section)}>{pageSections.map(key => <option key={key} value={key}>{labels[language][key]}</option>)}</select></nav>

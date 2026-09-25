@@ -138,3 +138,9 @@
   .lp-page .lp-brand { max-width: 100%; font-size: 16px; }
   .lp-nav > div { width: 100%; justify-content: space-between; }
 }
+
+/* Display-image state occupies the final image box, so loading cannot shift layout. */
+.lp-delivery-image.is-loading { background: linear-gradient(110deg, #dfe7ef 20%, #f4f7fb 45%, #dfe7ef 70%); background-size: 250% 100%; animation: landing-image-loading 1.8s ease-in-out infinite; }
+.lp-delivery-image.is-failed { background: #e8edf3; }
+@keyframes landing-image-loading { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .lp-delivery-image.is-loading { animation: none; } }

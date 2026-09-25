@@ -1,0 +1,42 @@
+[
+  {
+    "source": "validation_pipeline/studio_assets/iphone-15-pro-black.png",
+    "source_sha256": "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0",
+    "file": "iphone-15-pro-black.webp",
+    "sha256": "dafb48567c1877dccd3a518b058a1e114eaba7816a6c6f393a77dc24addca9b3",
+    "width": 1293,
+    "height": 2656,
+    "lossless": true,
+    "quality": 90
+  },
+  {
+    "source": "validation_pipeline/studio_assets/app-showcase/iryna.png",
+    "source_sha256": "d2c578d0797d888273992a6c0324075420cf70b6eefc7e355dff5c5a9160b4c5",
+    "file": "iryna.webp",
+    "sha256": "bd70f68c41092e5a951afe616b9954310ee17b2bc6074ad976968c4020607f8e",
+    "width": 139,
+    "height": 160,
+    "lossless": false,
+    "quality": 90
+  },
+  {
+    "source": "validation_pipeline/studio_assets/app-showcase/mykyta.png",
+    "source_sha256": "97155dea08891987b69a650fcb085cd338120ffc0923e7a352f16e6002cdd23e",
+    "file": "mykyta.webp",
+    "sha256": "28effb808c23e512f024a2c40a3a032bd437b9fe9b605d4a40030894cc6500b8",
+    "width": 139,
+    "height": 160,
+    "lossless": false,
+    "quality": 90
+  },
+  {
+    "source": "validation_pipeline/studio_assets/app-showcase/maryna.png",
+    "source_sha256": "f46a7b5bf716662b5ea2801ccfb65ba000b62a0a3e7a5b97ff13ed76d95101b4",
+    "file": "maryna.webp",
+    "sha256": "f19d598bfc68fd32d1ddfcacefe418032ee31496394f0a03d88c226807300724",
+    "width": 139,
+    "height": 160,
+    "lossless": false,
+    "quality": 90
+  }
+]

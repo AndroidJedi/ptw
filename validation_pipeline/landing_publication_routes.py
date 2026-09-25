@@ -114,4 +114,17 @@ def landing_publication_read_router(
             },
         )
 
+    @router.api_route("/{slug}/versions/{version}/assets/{slot}/{source}/webp-v1/{digest}.webp", methods=["GET", "HEAD"])
+    def display_asset(slug: str, version: str, slot: str, source: str, digest: str) -> Response:
+        try:
+            value = service.display_asset(slug, version, slot, source, digest)
+        except (KeyError, ValueError):
+            raise HTTPException(status_code=404, detail="Published Landing display image was not found")
+        except (RuntimeError, OSError) as error:
+            raise HTTPException(status_code=503, detail="Published Landing display image is temporarily unavailable") from error
+        return Response(content=value["bytes"], media_type="image/webp", headers={
+            "Cache-Control": "public, max-age=31536000, immutable", "ETag": f'"{digest}"',
+            "X-Content-Type-Options": "nosniff",
+        })
+
     return router

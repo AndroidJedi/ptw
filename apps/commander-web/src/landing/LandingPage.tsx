@@ -1,3 +1,4 @@
+import { LandingImage, type LandingImageVariants } from './LandingImage'
 import { MarketingSections, NatalMark } from './MarketingSections'
 import { marketingStyle } from './marketing'
 import { AppShowcasePage } from './AppShowcasePage'
@@ -14,6 +15,7 @@ import './showcase.css'
 
 export type LandingPageProps = {
   configuration: LandingConfiguration; content: LandingContent; imageUrls: Record<string, string>
+  imageVariants?: LandingImageVariants
   showDraftHints?: boolean; editing?: boolean; selected?: Section; onSelect?: (section: Section) => void
   onAnalyticsEvent?: (eventType: 'primary_cta_click' | 'contact_click', surface: 'hero' | 'phone' | 'telegram' | 'instagram' | 'email', target: 'contacts' | 'telegram' | 'instagram' | 'email' | 'phone') => void
 }
@@ -21,7 +23,7 @@ export function LandingPage(props: LandingPageProps) {
   return props.configuration.showcase ? <AppShowcasePage {...props} /> : <ProjectLandingPage {...props} />
 }
 
-function ProjectLandingPage({ configuration, content, imageUrls, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
+function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
   const id = useId().replace(/:/g, '')
   const root = useRef<HTMLElement>(null)
   const p = configuration.presentation || defaults
@@ -66,7 +68,7 @@ function ProjectLandingPage({ configuration, content, imageUrls, showDraftHints,
   const section = (key: Exclude<Section, 'theme'>, className: string, children: ReactNode) => <section id={`${id}-${key}`} data-section={key} tabIndex={-1} className={`lp-section ${className} ${editing && selected === key ? 'lp-selected' : ''}`} onClickCapture={event => {
     if (editing) { event.preventDefault(); event.stopPropagation(); onSelect?.((event.target as HTMLElement).closest('[data-phone-editor]') ? 'app_feature' : key) }
   }}>{editing && <button className="lp-edit-section" onClick={() => onSelect?.(key)} aria-label={`${p.language === 'uk' ? 'Редагувати' : 'Edit'}: ${t[key]}`}><Pencil aria-hidden="true" />{t[key]}</button>}{children}</section>
-  const extra = (part: Parameters<typeof MarketingSections>[0]['part']) => <MarketingSections showDraftHints={showDraftHints} configuration={configuration} content={content} imageUrls={imageUrls} editing={editing} selected={selected} onSelect={onSelect} onAnalyticsEvent={onAnalyticsEvent} contactId={`${id}-contacts`} part={part} />
+  const extra = (part: Parameters<typeof MarketingSections>[0]['part']) => <MarketingSections imageVariants={imageVariants} showDraftHints={showDraftHints} configuration={configuration} content={content} imageUrls={imageUrls} editing={editing} selected={selected} onSelect={onSelect} onAnalyticsEvent={onAnalyticsEvent} contactId={`${id}-contacts`} part={part} />
   const proof = content.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
   const featureIcons = [ScanLine, Layers, Check]
   return <div className="lp-container"><article ref={root} className={`lp-page lp-button-${components.button_style} lp-card-${components.card_style} lp-icon-${components.icon_style} lp-panel-${components.contact_style} ${editing ? 'lp-editing' : ''}`} style={style} lang={p.language} aria-label="Landing live preview">
@@ -77,12 +79,12 @@ function ProjectLandingPage({ configuration, content, imageUrls, showDraftHints,
       </nav>
       {section('hero', `lp-hero lp-image-${configuration.hero.image_position} lp-align-${configuration.hero.alignment}`, <>
         <div className="lp-hero-copy"><h1>{content.hero.title}</h1><p>{content.hero.supporting_text}</p><div className="lp-hero-actions">{cta()}{anchor('features', t.explore, 'lp-secondary-link', <ArrowDown aria-hidden="true" />)}</div></div>
-        <div className="lp-hero-art">{imageUrls.hero_visual && <img src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}{configuration.visual_mode !== 'image' && <LandingPhone feature={resolvedAppFeature(content, p.language)} appearance={configuration.phone_mockup || phoneDefaults} language={p.language} editing={editing} selected={selected === 'app_feature'} onSelect={() => onSelect?.('app_feature')} actionHref={href} external={target === 'url'} onAction={event => { if (editing) return; if (target === 'contacts') { trackPrimary('phone'); event.preventDefault(); scroll('contacts') } else if (!href) event.preventDefault(); else trackPrimary('phone') }} />}</div>
+        <div className="lp-hero-art">{imageUrls.hero_visual && <LandingImage priority variants={imageVariants?.hero_visual} sizes="(max-width: 900px) 100vw, 50vw" src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}{configuration.visual_mode !== 'image' && <LandingPhone feature={resolvedAppFeature(content, p.language)} appearance={configuration.phone_mockup || phoneDefaults} language={p.language} editing={editing} selected={selected === 'app_feature'} onSelect={() => onSelect?.('app_feature')} actionHref={href} external={target === 'url'} onAction={event => { if (editing) return; if (target === 'contacts') { trackPrimary('phone'); event.preventDefault(); scroll('contacts') } else if (!href) event.preventDefault(); else trackPrimary('phone') }} />}</div>
       </>)}
       {configuration.marketing?.carousel_enabled ? extra('carousel') : section('features', `lp-features lp-features-${configuration.features.layout}`, <><div className="lp-section-heading"><span className="lp-eyebrow">01 / {t.features}</span><h2>{t.features}</h2></div><div className="lp-feature-grid">{content.features.map((feature, index) => { const Icon = featureIcons[index]; return <article key={index}><span className="lp-feature-icon"><Icon aria-hidden="true" /></span><h3>{feature.title}</h3><p>{feature.description}</p></article> })}</div></>)}
       {extra('comparison')}{extra('walkthrough')}
       {proof.length > 0 && section('social_proof', `lp-proof lp-proof-${configuration.social_proof.layout}`, <><h2>{content.social_proof.heading}</h2><div className="lp-proof-grid">{proof.map((item, index) => <blockquote key={index}><p>“{item.statement}”</p><footer>{item.attribution}</footer></blockquote>)}</div></>)}
-      {configuration.marketing?.benefits_enabled ? extra('benefits') : section('visual_break', `lp-visual lp-visual-${configuration.visual_break.height}`, <div className="lp-visual-frame">{imageUrls.visual_break_visual && <img src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${p.visual_break_focus.x}% ${p.visual_break_focus.y}%` }} />}</div>)}
+      {configuration.marketing?.benefits_enabled ? extra('benefits') : section('visual_break', `lp-visual lp-visual-${configuration.visual_break.height}`, <div className="lp-visual-frame">{imageUrls.visual_break_visual && <LandingImage variants={imageVariants?.visual_break_visual} sizes="(max-width: 900px) 100vw, 70vw" src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${p.visual_break_focus.x}% ${p.visual_break_focus.y}%` }} />}</div>)}
       {extra('reviews')}{extra('values')}{extra('cta')}
       {!configuration.marketing?.footer_enabled && section('contacts', `lp-contacts lp-align-${configuration.contacts.alignment}`, <div className="lp-contact-panel"><div><span className="lp-eyebrow">{t.contact}</span><h2>{content.contacts.heading}</h2><p>{content.contacts.supporting_text}</p></div><div className="lp-contact-links">{(['url', 'instagram', 'email', 'phone'] as const).map(field => {
         const value = content.contacts[field] || ''; const link = contactHref(field, value)

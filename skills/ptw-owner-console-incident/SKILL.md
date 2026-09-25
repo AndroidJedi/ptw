@@ -17,6 +17,29 @@ before changing code or runtime state.
 
 ## Public boundary
 
+For slow Landing images, measure the public snapshot and each selected asset
+separately from fonts and bundled artwork. New assets prepare bounded `webp-v1`
+display copies on writes; snapshot and image reads must never encode or backfill
+existing workspaces. Keep original PNGs, approved records, alpha and provenance.
+Verify derivative selection against the active publication before immutable
+caching, and test native WebKit fallback with fast failed/cached image requests.
+An initial React effect must not reset an already received load/error event.
+Compare actual text/alpha at desktop, tablet, 360px and iPhone sizes. Use
+`scripts/prepare_landing_delivery_review.py` and `scripts/audit_landing_delivery.mjs`
+for local before/after evidence; these tools never publish.
+
+For a slow or interrupted Landing Agent request, inspect its durable operation
+UUID, phase, per-image status and timings. Image generation/preparation runs
+outside workspace locks; selected images display independently and history loads
+only for the open inspector. Retain completed slots, frozen settings/references
+and the original provider key on uncertain outcomes. Restart marks work interrupted
+without replaying it. Retry reconciles committed assets before resuming missing
+work, including a terminal-status/worker-cleanup race. A shared modal must open
+before request preparation, block the viewport, recover after refresh, and stay
+through preview readiness. Terminal failures explain the step, preserved work and
+recovery action; original screenshots may need reattachment. Exercise partial
+failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy.
+
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
   Check, exact Owner CORS origins, and unauthenticated rejection.
 - A local frontend that proxies the production Owner Gateway must use exactly

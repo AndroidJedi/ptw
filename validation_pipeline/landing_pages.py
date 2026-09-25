@@ -479,7 +479,7 @@ class LocalLandingAuthority:
 class DatabaseLandingWorkspace:
     """Database-backed cache wrapper for one Landing workspace's files."""
 
-    _mutating = frozenset({"save_configuration", "generate_visual", "select_visual", "reuse_visual", "approve_configuration"})
+    _mutating = frozenset({"save_configuration", "generate_visual", "commit_prepared_visual", "select_visual", "reuse_visual", "approve_configuration"})
 
     def __init__(self, workspace: LandingWorkspace, authority: "DatabaseLandingAuthority", landing_id: str) -> None:
         self.workspace, self.authority, self.landing_id = workspace, authority, _uuid(landing_id, "landing_id")
@@ -515,7 +515,8 @@ class DatabaseLandingWorkspace:
             self._restore(files)
             if self.workspace.detail()["state_sha256"] != expected:
                 raise RuntimeError("Landing database state digest does not match restored files")
-        self._persist()
+        else:
+            self._persist()
         self._loaded = True
 
     def _persist(self) -> None:
@@ -530,6 +531,10 @@ class DatabaseLandingWorkspace:
         if not callable(target):
             return target
         def call(*args: Any, **kwargs: Any) -> Any:
+            if name == "prepare_visual":
+                with self._lock:
+                    self._ensure_loaded()
+                return target(*args, **kwargs)
             with self._lock:
                 self._ensure_loaded()
                 value = target(*args, **kwargs)
@@ -715,10 +720,14 @@ class DatabaseLandingAuthority:
         files = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
         with self.connection() as connection:
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-workspace:{landing_id}",))
-            connection.execute("UPDATE landing_workspaces SET state_sha256=%s,updated_at=clock_timestamp() WHERE entity_id=%s", (detail["state_sha256"], UUID(landing_id)))
+            connection.execute("UPDATE landing_workspaces SET state_sha256=%s,updated_at=clock_timestamp() WHERE entity_id=%s AND state_sha256 IS DISTINCT FROM %s", (detail["state_sha256"], UUID(landing_id), detail["state_sha256"]))
+            stored = dict(connection.execute("SELECT relative_path,content_sha256 FROM landing_workspace_files WHERE landing_id=%s", (UUID(landing_id),)).fetchall())
             for relative, content in files.items():
+                digest = hashlib.sha256(content).hexdigest()
+                if stored.get(relative) == digest:
+                    continue
                 connection.execute("""INSERT INTO landing_workspace_files(landing_id,relative_path,content_sha256,content) VALUES(%s,%s,%s,%s)
-                                      ON CONFLICT(landing_id,relative_path) DO UPDATE SET content_sha256=excluded.content_sha256,content=excluded.content,updated_at=clock_timestamp()""", (UUID(landing_id), relative, hashlib.sha256(content).hexdigest(), content))
+                                      ON CONFLICT(landing_id,relative_path) DO UPDATE SET content_sha256=excluded.content_sha256,content=excluded.content,updated_at=clock_timestamp()""", (UUID(landing_id), relative, digest, content))
             connection.execute("DELETE FROM landing_workspace_files WHERE landing_id=%s AND NOT(relative_path=ANY(%s))", (UUID(landing_id), list(files) or ["__none__"]))
             asset_ids: dict[tuple[str, str], str] = {}
             for relative, content in files.items():
@@ -874,6 +883,14 @@ class LandingService:
         )
         self.analytics: Any | None = None
         self._workspaces: dict[str, Any] = {}
+        self._operations = None
+
+    @property
+    def operations(self):
+        if self._operations is None:
+            from .landing_operations import LandingOperations
+            self._operations = LandingOperations(self)
+        return self._operations
 
     def templates(self) -> dict[str, Any]:
         return {
@@ -1258,6 +1275,11 @@ class LandingService:
         )
 
     def mutate(self, project_id: str, landing_id: str, method: str, **kwargs: Any) -> dict[str, Any]:
+        with self.operations.lock:
+            self.operations.assert_idle(landing_id)
+            return self._mutate(project_id, landing_id, method, **kwargs)
+
+    def _mutate(self, project_id: str, landing_id: str, method: str, **kwargs: Any) -> dict[str, Any]:
         self.detail(project_id, landing_id)
         workspace = self._workspace(landing_id)
         before = workspace.detail()
@@ -1285,6 +1307,11 @@ class LandingService:
         return {**result, **self.summary(landing_id)}
 
     def checkpoint(self, project_id: str, landing_id: str, *, kind: str, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str = "") -> dict[str, Any]:
+        with self.operations.lock:
+            self.operations.assert_idle(landing_id)
+            return self._checkpoint(project_id, landing_id, kind=kind, base_sha256=base_sha256, configuration=configuration, content=content, change_note=change_note)
+
+    def _checkpoint(self, project_id: str, landing_id: str, *, kind: str, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str = "") -> dict[str, Any]:
         if kind not in {"save", "approve"}:
             raise ValueError("Landing checkpoint kind is invalid")
         page = self.authority.get_page(landing_id)

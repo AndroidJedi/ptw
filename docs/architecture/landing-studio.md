@@ -11,6 +11,12 @@ Landing still has no forms, lead storage, or public Project directory.
 
 ## Bounded page contract
 
+New image delivery and durable Agent execution are specified in
+[Landing performance and recovery](../operations/landing-performance.md).
+Migration 018 adds operations and append-only progress without rewriting existing
+Landing applications. Display WebP copies are optional versioned derivatives;
+the approved PNG and its provenance remain authoritative.
+
 The default `project_landing` template keeps this semantic order: Hero, three feature cards,
 social proof, a generated visual break, contacts, and three FAQs. The owner can
 edit bounded content and theme/layout controls but cannot add HTML, CSS,

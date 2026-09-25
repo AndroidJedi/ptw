@@ -115,6 +115,34 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 
+    @router.post("/projects/{project_id}/pages/{landing_id}/operations", status_code=202)
+    def start_operation(project_id: str, landing_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        try:
+            return service.operations.start(project_id, landing_id, dict(request))
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/pages/{landing_id}/operations")
+    def latest_operation(project_id: str, landing_id: str) -> dict[str, Any]:
+        try:
+            return {"operation": service.operations.latest(project_id, landing_id)}
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/pages/{landing_id}/operations/{operation_id}")
+    def operation(project_id: str, landing_id: str, operation_id: str) -> dict[str, Any]:
+        try:
+            return service.operations.get(project_id, landing_id, operation_id)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/pages/{landing_id}/operations/{operation_id}/retry", status_code=202)
+    def retry_operation(project_id: str, landing_id: str, operation_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        try:
+            return service.operations.retry(project_id, landing_id, operation_id, dict(request))
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
     @router.post("/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate")
     def generate_visual(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any]) -> dict[str, Any]:
         try:
@@ -155,6 +183,18 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
             return service.checkpoint(project_id, landing_id, kind="save", base_sha256=str(request["base_sha256"]), configuration=request["configuration"], content=request["content"])
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
+
+    @router.get("/projects/{project_id}/pages/{landing_id}/visuals/{slot}/history/{source}/webp-v1/{digest}.webp")
+    def display_image(project_id: str, landing_id: str, slot: str, source: str, digest: str) -> Response:
+        try:
+            service.detail(project_id, landing_id)
+            value = service._workspace(landing_id).display_image(slot, source, digest)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+        return Response(content=value["bytes"], media_type="image/webp", headers={
+            "Cache-Control": "private, no-store", "ETag": f'"{digest}"',
+            "X-PTW-Content-SHA256": digest, "X-Content-Type-Options": "nosniff",
+        })
 
     @router.post("/projects/{project_id}/pages/{landing_id}/approve")
     def approve(project_id: str, landing_id: str, request: Mapping[str, Any]) -> dict[str, Any]:

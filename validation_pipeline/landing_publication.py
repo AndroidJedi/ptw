@@ -63,6 +63,7 @@ def selected_assets(record: Mapping[str, Any]) -> dict[str, str]:
 
 
 def public_snapshot(publication: Mapping[str, Any], project_name: str, event: Mapping[str, Any], record: Mapping[str, Any]) -> dict[str, Any]:
+    from .landing_delivery import selected_variants
     slug = str(publication["slug"])
     version_sha256 = str(event["landing_version_sha256"])
     assets = selected_assets(record)
@@ -78,6 +79,9 @@ def public_snapshot(publication: Mapping[str, Any], project_name: str, event: Ma
         "assets": {
             slot: f"{prefix}/{slot}/{digest}.png" for slot, digest in assets.items()
         },
+        **({"asset_variants": {slot: [{**variant, "url": f"{prefix}/{slot}/{assets[slot]}/{variant['profile']}/{variant['sha256']}.webp"} for variant in variants]
+                               for slot, variants in selected_variants(record).items() if slot in assets}}
+           if selected_variants(record) else {}),
         "version_sha256": version_sha256,
         "published_at": event["created_at"],
     }
@@ -403,6 +407,18 @@ class DatabaseLandingPublicationAuthority:
             raise RuntimeError("Published Landing asset digest mismatch")
         return {"bytes": bytes(row[0]), "mime_type": row[1], "sha256": digest}
 
+    def display_asset(self, slug: str, version: str, slot: str, source: str, digest: str) -> dict[str, Any]:
+        from .landing_delivery import selected_variants, variant_path
+        _publication, event, _project, record = self._active(slug)
+        path = variant_path(source, digest)
+        if event["landing_version_sha256"] != version or selected_assets(record).get(slot) != source or not any(v["sha256"] == digest for v in selected_variants(record).get(slot, [])):
+            raise KeyError("Published Landing display image was not found")
+        with self.connection() as connection:
+            row = connection.execute("SELECT content,content_sha256 FROM landing_workspace_files WHERE landing_id=%s AND relative_path=%s", (UUID(event["landing_id"]), path)).fetchone()
+        if row is None or row[1] != digest or hashlib.sha256(bytes(row[0])).hexdigest() != digest:
+            raise RuntimeError("Published Landing display image digest mismatch")
+        return {"bytes": bytes(row[0]), "mime_type": "image/webp", "sha256": digest}
+
 
 class LocalLandingPublicationAuthority:
     """Loopback parity over the append-only local store."""
@@ -541,3 +557,13 @@ class LocalLandingPublicationAuthority:
         if event["landing_version_sha256"] != version_sha256 or selected_assets(record).get(slot) != digest:
             raise KeyError("Published Landing asset was not found")
         return self.workspace_for(event["landing_id"]).visual_image(slot, digest)
+
+    def display_asset(self, slug: str, version: str, slot: str, source: str, digest: str) -> dict[str, Any]:
+        from .landing_delivery import selected_variants, variant_path
+        _publication, event, _project, record = self._active(slug)
+        if event["landing_version_sha256"] != version or selected_assets(record).get(slot) != source or not any(v["sha256"] == digest for v in selected_variants(record).get(slot, [])):
+            raise KeyError("Published Landing display image was not found")
+        data = (self.workspace_for(event["landing_id"]).root / variant_path(source, digest)).read_bytes()
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise RuntimeError("Published Landing display image digest mismatch")
+        return {"bytes": data, "mime_type": "image/webp", "sha256": digest}

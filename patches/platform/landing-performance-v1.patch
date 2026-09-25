@@ -1,0 +1,181 @@
+diff --git a/commander/main.py b/commander/main.py
+index f175f52..54ee343 100644
+--- a/commander/main.py
++++ b/commander/main.py
+@@ -159,0 +160 @@ def structured_llm_capabilities() -> dict:
++        "media_concurrency": max(1, min(2, int(os.getenv("PTW_MEDIA_CONCURRENCY", "1")))),
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 544192e..aa424c5 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -45 +45,3 @@ services:
+-    environment: *app-environment
++    environment:
++      <<: *app-environment
++      PTW_MEDIA_CONCURRENCY: ${PTW_MEDIA_CONCURRENCY:-2}
+@@ -71,0 +74 @@ services:
++      PTW_MEDIA_CONCURRENCY: ${PTW_MEDIA_CONCURRENCY:-2}
+diff --git a/tests/test_commands.py b/tests/test_commands.py
+index 44476bf..de0baab 100644
+--- a/tests/test_commands.py
++++ b/tests/test_commands.py
+@@ -44,0 +45 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
++        "media_concurrency": 1,
+diff --git a/tests/test_worker.py b/tests/test_worker.py
+index 2df7ebf..5d3660d 100644
+--- a/tests/test_worker.py
++++ b/tests/test_worker.py
+@@ -193 +193 @@ def test_non_human_graphic_enhancement_receives_private_png_reference(monkeypatc
+-        generated = codex_home / "generated_images" / "graphic-edit-1"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "graphic-edit-1"
+@@ -225 +225 @@ def test_non_human_graphic_is_single_square_png_with_review_policy(monkeypatch,
+-    def fake_run(command, **_kwargs):
++    def fake_run(command, **kwargs):
+@@ -229 +229 @@ def test_non_human_graphic_is_single_square_png_with_review_policy(monkeypatch,
+-        generated = codex_home / "generated_images" / "graphic-session-1"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "graphic-session-1"
+@@ -269 +269 @@ def test_non_human_graphic_reference_is_digest_checked_attached_and_provenanced(
+-        generated = codex_home / "generated_images" / "graphic-edit-session"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "graphic-edit-session"
+@@ -309 +309 @@ def test_non_human_graphic_reference_rejects_unchanged_output(
+-    def fake_run(command, **_kwargs):
++    def fake_run(command, **kwargs):
+@@ -313 +313 @@ def test_non_human_graphic_reference_rejects_unchanged_output(
+-        generated = codex_home / "generated_images" / "unchanged-edit-session"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "unchanged-edit-session"
+@@ -340 +340 @@ def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_pa
+-    def fake_run(command, **_kwargs):
++    def fake_run(command, **kwargs):
+@@ -344 +344 @@ def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_pa
+-        generated = codex_home / "generated_images" / "graphic-session-many"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "graphic-session-many"
+@@ -372 +372 @@ def test_domain_image_policy_preserves_request_and_accepts_unchanged_edit(monkey
+-        generated = codex_home / "generated_images" / "domain-scene"
++        generated = Path(kwargs["env"]["CODEX_HOME"]) / "generated_images" / "domain-scene"
+@@ -400 +400 @@ def test_image_output_spec_reaches_worker_without_square_override(monkeypatch, t
+-        output=home/'generated_images'/'portrait';output.mkdir(parents=True)
++        output=Path(kwargs['env']['CODEX_HOME'])/'generated_images'/'portrait';output.mkdir(parents=True)
+@@ -421,0 +422,42 @@ def test_portrait_output_rejects_square_pixels_and_cleans_temporary_files(tmp_pa
++
++
++def test_two_image_jobs_have_isolated_cli_homes_and_keep_model_quality(monkeypatch, tmp_path):
++    from concurrent.futures import ThreadPoolExecutor
++    from threading import Barrier
++    barrier = Barrier(2)
++    homes = []
++    monkeypatch.setenv('CONTENT_GRAPHIC_ASSET_DIR', str(tmp_path / 'assets'))
++    def run(command, **kwargs):
++        home = Path(kwargs['env']['CODEX_HOME'])
++        homes.append(home)
++        barrier.wait(timeout=5)
++        Path(command[command.index('--output-last-message')+1]).write_text('{"generated":true}')
++        output = home / 'generated_images' / 'parallel-image'
++        output.mkdir(parents=True)
++        (output / 'image.png').write_bytes(png_header())
++        return subprocess.CompletedProcess(command, 0, stdout=thread_output('parallel-image', image_call=True), stderr='')
++    monkeypatch.setattr('worker.main.subprocess.run', run)
++    with ThreadPoolExecutor(max_workers=2) as pool:
++        results = list(pool.map(lambda _: execute_structured_llm(request('content_non_human_graphic_generation', model='gpt-6-astra')), range(2)))
++    assert len(set(homes)) == 2
++    assert all(not home.exists() for home in homes)
++    assert all(result['invocation']['model'] == 'gpt-6-astra' for result in results)
++    assert all(result['image']['width'] == 1254 for result in results)
++
++
++def test_restart_marks_only_abandoned_running_jobs_failed_without_replay(monkeypatch):
++    from worker.main import recover_interrupted_jobs
++    statements = []; events = []
++    class Connection:
++        committed = False
++        def execute(self, sql, args=()):
++            statements.append((sql,args)); return self
++        def fetchall(self): return [(41,10),(42,11)]
++        def commit(self): self.committed = True
++    monkeypatch.setattr('worker.main.append_event', lambda *args,**kwargs:events.append(kwargs))
++    connection = Connection(); recover_interrupted_jobs(connection)
++    assert "status='running' FOR UPDATE" in statements[0][0]
++    assert not any("status='queued'" in sql or "status='completed'" in sql for sql,_ in statements)
++    assert [event['job_id'] for event in events] == [41,42]
++    assert all(event['payload']['error_type']=='WorkerRestarted' for event in events)
++    assert connection.committed
+diff --git a/worker/main.py b/worker/main.py
+index f3c65d1..b343159 100644
+--- a/worker/main.py
++++ b/worker/main.py
+@@ -8,0 +9 @@ import time
++import threading
+@@ -315,3 +316,2 @@ def execute_structured_llm(parameters: dict) -> dict:
+-    """Run one schema-bound Codex invocation with no reusable conversation state."""
+-    codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
+-    codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
++    """Each concurrent job gets a private writable CLI home and temporary inputs."""
++    shared_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
+@@ -319,6 +319,7 @@ def execute_structured_llm(parameters: dict) -> dict:
+-    runtime = codex_home / "auth.json"
+-    # Refresh the runtime copy for every request so a completed owner device-login
+-    # takes effect without an SSH session or a worker restart.
+-    if mounted.is_file():
+-        shutil.copyfile(mounted, runtime)
+-        runtime.chmod(0o600)
++    credential = mounted if mounted.is_file() else shared_home / "auth.json"
++    with tempfile.TemporaryDirectory(prefix="ptw-job-home-") as directory:
++        codex_home = Path(directory)
++        if credential.is_file():
++            shutil.copyfile(credential, codex_home / "auth.json")
++            (codex_home / "auth.json").chmod(0o600)
++        return _execute_structured_llm(parameters, codex_home)
+@@ -325,0 +327,2 @@ def execute_structured_llm(parameters: dict) -> dict:
++
++def _execute_structured_llm(parameters: dict, codex_home: Path) -> dict:
+@@ -424 +427 @@ def execute_structured_llm(parameters: dict) -> dict:
+-            env=os.environ.copy(),
++            env={**os.environ, "CODEX_HOME": str(codex_home)},
+@@ -461 +464 @@ def execute_structured_llm(parameters: dict) -> dict:
+-def process_one(connection: psycopg.Connection) -> bool:
++def process_one(connection: psycopg.Connection, *, media_only: bool = False) -> bool:
+@@ -468,0 +472 @@ def process_one(connection: psycopg.Connection) -> bool:
++    media_filter = " AND parameters->>'mode'='content_non_human_graphic_generation'" if media_only else ""
+@@ -470,3 +474,2 @@ def process_one(connection: psycopg.Connection) -> bool:
+-        """SELECT id,session_id,parameters FROM jobs
+-            WHERE status='queued' AND type='llm_structured' ORDER BY created_at,id
+-            FOR UPDATE SKIP LOCKED LIMIT 1"""
++        "SELECT id,session_id,parameters FROM jobs WHERE status='queued' AND type='llm_structured'"
++        + media_filter + " ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1"
+@@ -522,3 +525 @@ def process_one(connection: psycopg.Connection) -> bool:
+-def main() -> None:
+-    signal.signal(signal.SIGTERM, stop)
+-    signal.signal(signal.SIGINT, stop)
++def worker_loop(*, media_only: bool = False) -> None:
+@@ -526 +526,0 @@ def main() -> None:
+-    logger.info("Commander worker started")
+@@ -530 +530 @@ def main() -> None:
+-                worked = process_one(connection)
++                worked = process_one(connection, media_only=media_only)
+@@ -535,0 +536,27 @@ def main() -> None:
++
++
++def recover_interrupted_jobs(connection) -> None:
++    """This single worker container owns both execution threads; never replay at boot."""
++    rows = connection.execute("SELECT id,session_id FROM jobs WHERE type='llm_structured' AND status='running' FOR UPDATE").fetchall()
++    for job_id, session_id in rows:
++        connection.execute("UPDATE jobs SET status='failed',error_code='WorkerRestarted',error_message='Worker restarted before result persistence',finished_at=now() WHERE id=%s", (job_id,))
++        connection.execute("UPDATE sessions SET status='failed',updated_at=now() WHERE id=%s", (session_id,))
++        append_event(connection, 'JOB_FAILED', 'commander-worker', status='failed', session_id=session_id, job_id=job_id,
++            payload={'error_type':'WorkerRestarted','stage':'RESULT_PROVIDER'})
++    connection.commit()
++
++
++def main() -> None:
++    signal.signal(signal.SIGTERM, stop)
++    signal.signal(signal.SIGINT, stop)
++    with psycopg.connect(database_url(secrets), connect_timeout=3) as connection:
++        recover_interrupted_jobs(connection)
++    capacity = max(1, min(2, int(os.getenv("PTW_MEDIA_CONCURRENCY", "1"))))
++    extra = None
++    if capacity == 2:
++        extra = threading.Thread(target=worker_loop, kwargs={"media_only": True}, name="media-worker")
++        extra.start()
++    logger.info("Commander worker started with media capacity %s", capacity)
++    worker_loop()
++    if extra:
++        extra.join()

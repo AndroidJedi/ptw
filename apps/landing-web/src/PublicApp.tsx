@@ -1,3 +1,4 @@
+import type { LandingImageVariants } from '../../commander-web/src/landing/LandingImage'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { LandingPage } from '../../commander-web/src/landing/LandingPage'
 import type { LandingConfiguration, LandingContent } from '../../commander-web/src/types'
@@ -9,6 +10,7 @@ export type PublicLanding = {
   project_name: string
   configuration: LandingConfiguration
   content: LandingContent
+  asset_variants?: LandingImageVariants
   assets: Record<string, string>
   version_sha256: string
   published_at: string
@@ -79,7 +81,8 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
       const value = await response.json() as PublicLanding
       if (value.canonical_url !== `https://natal-service.com/${slug}`) throw new Error('invalid public snapshot')
       const assets = Object.fromEntries(Object.entries(value.assets).map(([slot, url]) => [slot, `${apiOrigin}${url}`])) as PublicLanding['assets']
-      const next = { ...value, assets }
+      const asset_variants = value.asset_variants && Object.fromEntries(Object.entries(value.asset_variants).map(([slot, variants]) => [slot, variants.map(variant => ({ ...variant, url: `${apiOrigin}${variant.url}` }))]))
+      const next = { ...value, assets, asset_variants }
       setSnapshot(next); setMetadata(value)
     }).catch(error => { if (error.name !== 'AbortError') setFailed(true) })
     return () => controller.abort()
@@ -94,5 +97,5 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
   if (root) return <PublicShell path={path}><main className="natal-public-state natal-public-home"><NatalMark /><h1>Natal</h1><p>Digital products and services by Natal.</p></main></PublicShell>
   if (!match || failed) return <PublicShell path={path}><NotFound /></PublicShell>
   if (!snapshot) return <PublicShell path={path}><main className="natal-public-state" role="status"><NatalMark /><p>Loading Natal page…</p></main></PublicShell>
-  return <PublicShell path={path} language={snapshot.configuration.presentation?.language}><main className="natal-public-landing"><LandingPage configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} onAnalyticsEvent={emit} /></main></PublicShell>
+  return <PublicShell path={path} language={snapshot.configuration.presentation?.language}><main className="natal-public-landing"><LandingPage configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} imageVariants={snapshot.asset_variants} onAnalyticsEvent={emit} /></main></PublicShell>
 }

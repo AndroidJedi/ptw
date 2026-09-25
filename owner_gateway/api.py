@@ -655,6 +655,22 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_configuration(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, "/configuration", request, identity)
 
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/operations", status_code=202)
+    async def landing_operation_start(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/operations", request, identity, timeout=60)
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/operations")
+    async def landing_operation_latest(project_id: str, landing_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", landing_path(project_id, landing_id, "/operations"), timeout=60)).json()
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/operations/{operation_id}")
+    async def landing_operation_status(project_id: str, landing_id: str, operation_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", landing_path(project_id, landing_id, f"/operations/{operation_id}"), timeout=60)).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/operations/{operation_id}/retry", status_code=202)
+    async def landing_operation_retry(project_id: str, landing_id: str, operation_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/operations/{operation_id}/retry", request, identity, timeout=60)
+
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/agent")
     async def landing_manual_agent(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, "/agent", request, identity, timeout=480)
@@ -675,6 +691,11 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_visual_history(project_id: str, landing_id: str, slot: str, sha256: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
         response = await validation_bridge("GET", landing_path(project_id, landing_id, f"/visuals/{slot}/history/{sha256}"), timeout=60)
         return Response(content=response.content, media_type=response.headers.get("content-type", "image/png"), headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", **({"ETag": response.headers["etag"]} if response.headers.get("etag") else {}), **({"X-PTW-Content-SHA256": response.headers["x-ptw-content-sha256"]} if response.headers.get("x-ptw-content-sha256") else {})})
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/history/{source}/webp-v1/{digest}.webp")
+    async def landing_display_image(project_id: str, landing_id: str, slot: str, source: str, digest: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", landing_path(project_id, landing_id, f"/visuals/{slot}/history/{source}/webp-v1/{digest}.webp"), timeout=60)
+        return Response(content=response.content, media_type="image/webp", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-PTW-Content-SHA256": digest, "ETag": f'"{digest}"'})
 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/save")
     async def landing_save(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
@@ -830,6 +851,11 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 **({"ETag": response.headers["etag"]} if response.headers.get("etag") else {}),
             },
         )
+
+    @app.api_route("/api/v1/public/landings/{slug}/versions/{version}/assets/{slot}/{source}/webp-v1/{digest}.webp", methods=["GET", "HEAD"])
+    async def public_landing_display_image(slug: str, version: str, slot: str, source: str, digest: str) -> Response:
+        response = await validation_bridge("GET", f"/internal/v1/public/landings/{slug}/versions/{version}/assets/{slot}/{source}/webp-v1/{digest}.webp", timeout=60)
+        return Response(content=response.content, media_type="image/webp", headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff", **({"ETag": response.headers["etag"]} if response.headers.get("etag") else {})})
 
     @app.get("/api/v1/instagram/connection")
     async def instagram_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

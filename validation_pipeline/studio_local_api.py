@@ -175,6 +175,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        await asyncio.to_thread(landing_pages.operations.recover_interrupted)
         await asyncio.to_thread(template_authoring.recover_interrupted)
         for brief_id in brief_service.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(brief_service.generate_brief, brief_id))
@@ -206,6 +207,7 @@ def create_app(
             await asyncio.to_thread(commander_chat.close)
         await asyncio.to_thread(local_authorization.close)
         template_authoring.close()
+        landing_pages.operations.close()
 
     app = FastAPI(
         title="PTW Local Owner App", version="1.0.0",

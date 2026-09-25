@@ -13,6 +13,31 @@ Owner Hosting version `b2ceec2982aaa0c1` and public Landing Hosting version
 canonical skills, approved-Post persistence, 1 GB resource and public/Owner
 audits passed.
 
+## Landing delivery and durable operations — verified locally, rollout pending
+
+Shared Landing writes prepare responsive q90 WebP display copies; approved PNGs,
+raw alpha/provenance, exact template identities and older applications are retained.
+Snapshot reads never encode/backfill. Studio loads selected images independently
+and defers history. Durable operation UUIDs, append-only progress, individual image
+commits and retry/restart reconciliation replace browser-serial image actions.
+One shared blocking dialog covers preparation through preview readiness, failures,
+retry and refresh recovery. Migration 018 and a bounded two-worker companion are
+required; model, reasoning and image resolution remain unchanged.
+
+Local checks: 410 backend tests plus palette-alpha and provider-restart regressions, 128 Owner unit
+tests, 123 Owner browser checks, 19 Gateway tests, all three supported Landing
+definitions on disposable PostgreSQL, migration runner/schema, Commander/demo and
+skills. Hotel before/after captures cover 11 sections at 1440/768/360px and iPhone.
+Largest WebP copies total 466,312 bytes versus 5,584,916 PNG bytes, a 91.65% reduction.
+Two real Astra images completed together in 58.254 seconds in the existing VPS
+worker, peaking at 403.4 MiB under its 768 MiB cap with no OOM increment.
+
+Next: build exact Linux images and finish the migration-aware preserving release,
+then reapply/approve/publish only the existing hotel-assistant Project using its
+original copy, settings and selected artwork. Retain its old immutable version and
+compare every other Landing application fingerprint. No production application has
+been refreshed yet. See [performance workflow](../operations/landing-performance.md).
+
 ## App Showcase preview/access recovery — deployed
 
 The original reference-inspired gradient/app-screen Landing remains registered

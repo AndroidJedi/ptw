@@ -151,6 +151,9 @@ class ValidationRepository:
                        SELECT 'Landing',entity_id FROM landing_workspaces
                         WHERE project_id=%s AND status IN ('queued','composing','generating_images')
                        UNION ALL
+                       SELECT 'Landing operation',operation_id FROM landing_operations
+                        WHERE project_id=%s AND status IN ('queued','running')
+                       UNION ALL
                        SELECT 'Instagram publication',entity_id FROM instagram_publications
                         WHERE project_id=%s AND state->>'status' IN ('queued','creating_container','preparing','publishing')
                        UNION ALL
@@ -178,7 +181,7 @@ class ValidationRepository:
                        SELECT 'Analytics learning',entity_id FROM creative_learning_runs
                         WHERE project_id=%s AND status='running'
                    ) active LIMIT 1""",
-                (project_uuid,) * 9,
+                (project_uuid,) * 10,
             ).fetchone()
             if active is not None:
                 raise RuntimeError(

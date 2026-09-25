@@ -5,6 +5,27 @@ description: Safely inspect, deploy, reset, verify, and troubleshoot PTW product
 
 # PTW VPS Operations
 
+Before enabling two Landing image jobs, run the explicit
+`scripts/verify_landing_parallel_worker.py` canary with the candidate worker in
+the existing bounded companion container. Require no queued/running companion
+jobs, the PTW maintenance lock, unchanged model/reasoning/output geometry, no OOM
+counter increase and measured worker/host memory headroom. Each concurrent CLI
+job needs its own writable temporary home and an isolated copy of the mounted
+credential; never share generated-image directories or print credential contents.
+The second normal worker is media-only and uses its own database connection with
+`SKIP LOCKED`; total capacity remains at most two. Validate that both API and
+worker retain the shared Compose environment when adding capacity settings.
+
+Landing operation records require an additive migration. Both preserving release
+guards and Project deletion must reject active operations. No asset backfill runs
+during migration, reads or publication. An explicitly named refresh uses
+`scripts/refresh_published_landing.py` with the exact Project, current published
+digest and stable request UUID after local visual checks. It copies approved
+settings/artwork to one replacement draft, verifies image hashes/bytes, uses normal
+Save/Approve/Publish endpoints, retains the previous version, and compares all
+other Landing application fingerprints. Never infer authorization to refresh
+other Projects from one example.
+
 Operate `/root/ptw` and `/opt/ptw/platform` as unrelated histories and
 databases. Their authenticated structured/media bridge is the only generation
 integration. Never move credentials between them or mutate platform data during

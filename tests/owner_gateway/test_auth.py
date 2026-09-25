@@ -362,6 +362,13 @@ class OwnerClaimsTests(unittest.TestCase):
             contract(validation.routes, "/internal/v1/studio"),
             contract(gateway.routes, "/api/v1/studio"),
         )
+        from validation_pipeline.landing_routes import landing_page_router
+        from validation_pipeline.landing_publication_routes import landing_publication_owner_router, landing_publication_read_router
+        expected = landing_page_router(object(), prefix="/internal/v1/landings").routes
+        expected += landing_publication_owner_router(object(), prefix="/internal/v1/landings").routes
+        self.assertEqual(contract(expected, "/internal/v1/landings"), contract(gateway.routes, "/api/v1/landings"))
+        public = landing_publication_read_router(object(), prefix="/internal/v1/public/landings")
+        self.assertEqual(contract(public.routes, "/internal/v1/public/landings"), contract(gateway.routes, "/api/v1/public/landings"))
 
     def test_image_references_cross_both_authenticated_gateway_routes_unchanged(self):
         from tests.validation_pipeline.test_image_reference import upload

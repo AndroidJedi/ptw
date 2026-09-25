@@ -748,6 +748,9 @@ class LandingDesignTests(unittest.TestCase):
             service.summary = Mock(return_value={})
             service._workspace = Mock(return_value=workspace)
             service.authority = Mock()
+            service.authority.database_url = None
+            service.root = Path(root)
+            service._operations = None
             service.analytics = None
             service.authority.brief.return_value = {'brief_id': 'brief', 'document': {'product': 'Hotel service'}}
             service.authority.get_page.return_value = {'landing_id': 'page', 'project_id': 'project', 'source_brief_id': 'brief', 'source_post_snapshot': {'template_id': 'phone_metrics', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}

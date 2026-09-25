@@ -313,6 +313,12 @@ class OpenAIPhoneScreenImageProvider:
 
 class ResultBridgePhoneScreenImageProvider:
     """Generate or edit one phone hero through PTW's authenticated media bridge."""
+    supports_operation_tracking = True
+
+    def operation_status(self, request_id: int) -> str:
+        if isinstance(request_id, bool) or not isinstance(request_id, int) or request_id < 1:
+            raise ValueError("Invalid media request ID")
+        return str(self._request("GET", f"{self.bridge_url}/{request_id}").json().get("status", "unknown"))
 
     def __init__(
         self, bridge_url: str, bridge_token: str, model: str | None = None, *,
@@ -345,6 +351,7 @@ class ResultBridgePhoneScreenImageProvider:
     def generate(
         self, prompt: str, *, reference_image: bytes | None = None,
         output_spec: Mapping[str, Any] | None = None,
+        operation_key: str | None = None, progress: Any = None,
     ) -> dict[str, Any]:
         normalized_prompt = str(prompt).strip()
         output_spec = normalize_output_specification(output_spec) if output_spec is not None else None
@@ -399,6 +406,8 @@ class ResultBridgePhoneScreenImageProvider:
             f"phone-screen:{prompt_digest}:new" if reference_digest is None
             else f"phone-screen:{prompt_digest}:edit:{reference_digest}:{uuid.uuid4().hex}"
         )
+        if operation_key is not None:
+            base_key = f"landing-operation:{operation_key}"
         request_fingerprint = bridge_request_fingerprint(
             mode=RESULT_BRIDGE_PHONE_SCREEN_MODE,
             system_prompt=system_prompt,
@@ -419,12 +428,18 @@ class ResultBridgePhoneScreenImageProvider:
             request_id = int(queued["request_id"])
         except (KeyError, TypeError, ValueError) as error:
             raise RuntimeError("Result media bridge did not return a request ID") from error
+        if progress:
+            progress({"stage": "queued", "provider_request_id": request_id})
         try:
             deadline = time.monotonic() + self.timeout_seconds
             result: Mapping[str, Any] | None = None
+            previous_status = None
             while time.monotonic() < deadline:
                 state = self._request("GET", f"{self.bridge_url}/{request_id}").json()
                 status = state.get("status")
+                if progress and status != previous_status:
+                    progress({"stage": "generating" if status == "running" else str(status), "provider_request_id": request_id})
+                    previous_status = status
                 if status == "completed":
                     candidate = state.get("result")
                     if not isinstance(candidate, Mapping):

@@ -1,7 +1,7 @@
 import { ArrowUpRight, BatteryFull, CalendarDays, Check, ChevronRight, LayoutGrid, Signal, Wifi } from 'lucide-react'
 import { useState, type CSSProperties, type MouseEventHandler } from 'react'
 import type { LandingAppFeature, LandingPhoneMockup } from '../types'
-import phoneFrame from '../../../../validation_pipeline/studio_assets/iphone-15-pro-black.png'
+import phoneFrame from '../../../../validation_pipeline/studio_assets/landing-display-v1/iphone-15-pro-black.webp'
 import './phone.css'
 
 /** Same fixed front-facing hardware as Post Studio; app UI stays editable HTML. */

@@ -497,6 +497,8 @@ class LandingWorkspace:
         self.assets = self.root / "assets"
         self.versions = self.root / "versions"
         self.image_provider = image_provider
+        import threading
+        self._operation_lock = threading.RLock()
         self.template_reference = None
         self.root.mkdir(parents=True, exist_ok=True)
         self.assets.mkdir(parents=True, exist_ok=True)
@@ -634,6 +636,15 @@ class LandingWorkspace:
         enhance_current: bool = False, reference_image: bytes | None = None,
         image_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        generated = self.prepare_visual(base_sha256=base_sha256, slot=slot, visual_direction=visual_direction,
+            prompt=prompt, enhance_current=enhance_current, reference_image=reference_image, image_context=image_context)
+        return self.commit_prepared_visual(base_sha256=base_sha256, slot=slot, visual_direction=visual_direction,
+                                           generated=generated, image_context=image_context)
+
+    def prepare_visual(self, *, base_sha256: str, slot: str, visual_direction: str, prompt: str,
+                       enhance_current: bool = False, reference_image: bytes | None = None,
+                       image_context: Mapping[str, Any] | None = None, operation_key: str | None = None,
+                       progress: Any = None) -> dict[str, Any]:
         self._assert_state(base_sha256)
         if slot not in self.visual_slots:
             raise ValueError("Landing visual slot is invalid")
@@ -649,16 +660,22 @@ class LandingWorkspace:
                 raise ValueError("select a Landing visual before enhancement")
             reference = (self.assets / f"{selected}.png").read_bytes()
         generated = generate_image(self.image_provider, prompt, reference_image=reference, uploaded_reference=reference_image is not None,
-                                   output_spec=image_context.get("output_spec") if image_context else None)
+                                   output_spec=image_context.get("output_spec") if image_context else None,
+                                   operation_key=operation_key, progress=progress)
         if slot == "walkthrough_visual" and image_context and image_context.get("output_spec", {}).get("background") == "transparent":
             from .landing_image_preparation import prepare_mockup
             raw = bytes(generated["bytes"])
             prepared, preparation = prepare_mockup(raw)
             generated = {**generated, "bytes": prepared, "raw_bytes": raw,
                          "source": {**generated.get("source", {}), "preparation": preparation}}
-        # The provider can outlive an editor turn; reject a stale result before writing bytes.
-        self._assert_state(base_sha256)
-        return self._store_visual(slot, direction, generated, image_context)
+        from .landing_delivery import prepare
+        return {**generated, "delivery": prepare(bytes(generated["bytes"]), slot)}
+
+    def commit_prepared_visual(self, *, base_sha256: str, slot: str, visual_direction: str,
+                               generated: Mapping[str, Any], image_context: Mapping[str, Any] | None = None):
+        with self._operation_lock:
+            self._assert_state(base_sha256)
+            return self._store_visual(slot, visual_direction, generated, image_context)
 
     def reuse_visual(self, *, base_sha256: str, slot: str, asset_id: str) -> dict[str, Any]:
         self._assert_state(base_sha256)
@@ -674,6 +691,10 @@ class LandingWorkspace:
         if inspected["mime_type"] != "image/png":
             raise ValueError("Landing generated visual must be PNG")
         digest = hashlib.sha256(data).hexdigest()
+        from .landing_delivery import prepare
+        variants, display_files = generated.get("delivery") or prepare(data, slot)
+        for relative, encoded in display_files.items():
+            self._atomic_bytes(self.root / relative, encoded)
         if "raw_bytes" in generated:
             raw = bytes(generated["raw_bytes"])
             raw_digest = hashlib.sha256(raw).hexdigest()
@@ -682,6 +703,7 @@ class LandingWorkspace:
         history = [item for item in self._history(slot) if item["sha256"] != digest]
         history.append({
             "sha256": digest, "mime_type": "image/png", "width": inspected["width"], "height": inspected["height"],
+            "variants": variants,
             "visual_direction": direction, "source": {**dict(generated.get("source") or {}),
                 **(image_provenance(image_context) if image_context is not None else {}), "visual_direction": direction},
         })
@@ -691,16 +713,30 @@ class LandingWorkspace:
             protected.update(item["sha256"] for other in self.visual_slots if other != slot for item in self._history(other))
             if evicted["sha256"] not in protected:
                 (self.assets / f"{evicted['sha256']}.png").unlink(missing_ok=True)
+                for variant in (self.root / "delivery" / "webp-v1" / evicted["sha256"]).glob("*.webp"):
+                    variant.unlink()
         self._atomic_json(self.assets / f"{slot}.history.json", history)
         self._atomic_json(self.assets / f"{slot}.selected.json", {"sha256": digest})
         # Raw generation data follows the same history/approval retention boundary.
         retained = [item for visual_slot in self.visual_slots for item in self._history(visual_slot)]
         retained.extend(item for version in self._versions() for item in version.get("assets", []))
+        retained.extend(entry for version in self._versions() for asset in version.get("assets", [])
+                        for entry in asset.get("history", []) if entry["sha256"] == asset.get("sha256"))
         protected_raw = {(item.get("source", {}).get("preparation") or item.get("preparation") or {}).get("raw_sha256") for item in retained}
         for raw_path in (self.assets / "raw").glob("*.png"):
             if raw_path.stem not in protected_raw:
                 raw_path.unlink()
         return self.detail()
+
+    def display_image(self, slot: str, source: str, digest: str) -> dict[str, Any]:
+        from .landing_delivery import variant_path
+        history = self._history(slot)
+        if not any(item["sha256"] == source and any(v["sha256"] == digest for v in item.get("variants", [])) for item in history):
+            raise KeyError("Landing display image was not found")
+        data = (self.root / variant_path(source, digest)).read_bytes()
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise RuntimeError("Landing display image digest mismatch")
+        return {"bytes": data, "mime_type": "image/webp", "sha256": digest}
 
     def select_visual(self, *, base_sha256: str, slot: str, sha256: str) -> dict[str, Any]:
         self._assert_state(base_sha256)

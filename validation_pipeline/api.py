@@ -170,6 +170,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        if hasattr(landing_pages, "operations"):
+            await asyncio.to_thread(landing_pages.operations.recover_interrupted)
         await asyncio.to_thread(template_authoring.recover_interrupted)
         await asyncio.to_thread(repository.recover_interrupted)
         for creative_id in await asyncio.to_thread(studio_creatives.recover_interrupted):
@@ -198,6 +200,8 @@ def create_app(
         for task in tasks:
             task.cancel()
         template_authoring.close()
+        if hasattr(landing_pages, "operations"):
+            landing_pages.operations.close()
 
     app = FastAPI(
         title="PTW Validation API", version="1.0.0", docs_url=None, redoc_url=None,

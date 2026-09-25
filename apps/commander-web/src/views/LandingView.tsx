@@ -152,6 +152,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const imageState = useLandingImages(api, detail, pagePath, section)
   const images = imageState.images
   const localRetry = useRef<(() => Promise<void>) | null>(null)
+  useEffect(() => { localRetry.current = null }, [pagePath, projectId])
   const operation = useLandingOperation(api, pagePath, applyDetail, result => { setConfiguration(clone(result.configuration as LandingConfiguration)); setContent(clone(result.content as LandingContent)) })
   const initialGeneration = useRef(false)
   useEffect(() => {
@@ -283,8 +284,13 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   }
   const retry = async () => {
     if (!detail) return
-    setBusy(true)
-    try { await api.post(`${base}/pages/${detail.landing_id}/retry`, {}); await reload() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+    setBusy(true); setError('')
+    try {
+      const latest = await api.get<LandingDetail>(`${base}/pages/${detail.landing_id}`)
+      applyDetail(latest)
+      if (latest.status === 'failed') await api.post(`${base}/pages/${detail.landing_id}/retry`, {})
+      await reload()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
   const applyAgentResult = async (result: StudioManualAgentResult<LandingConfiguration, LandingContent>) => {
     if (!detail) return
@@ -350,8 +356,11 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const templateChooser = templateOpen && <LandingTemplatePicker api={api} language={language} items={templates} currentId={detail.template_id} requestKey={`ptw:landing-template-request:${projectId}:${detail.landing_id}`} source={{ source_creative_id: detail.source_creative_id, source_version: detail.source_version }} onApply={createVariant} onClose={() => setTemplateOpen(false)} />
   if (status !== 'draft' || !configuration || !content) {
     const generation = detail.generation as { error_message?: string; error_type?: string }
+    const initialAssets = detail.assets.filter(asset => asset.slot !== 'walkthrough_visual' || detail.configuration.marketing?.walkthrough_enabled)
+    const generatingSlot = initialAssets.find(asset => !asset.available)?.slot
+    const initialJobs = initialAssets.map(asset => ({ slot: asset.slot, status: asset.available ? 'completed' : status === 'failed' ? 'failed' : status === 'generating_images' && asset.slot === generatingSlot ? 'generating' : 'queued' }))
     const previous = pages.find(item => item.landing_id !== detail.landing_id && item.source_creative_id === detail.source_creative_id && item.source_version === detail.source_version)
-    return <section className="panel landing-progress">{dismissedGeneration !== detail.landing_id && <LandingOperationOverlay language={language} phase={status} error={status === 'failed' ? operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language) : undefined} retry={() => void retry()} close={() => setDismissedGeneration(detail.landing_id)} />}<small>{templateName(detail)}</small><h1>{status === 'failed' ? tr('Landing generation needs attention', 'Створення лендінгу потребує уваги') : tr('Building the Landing', 'Створюємо лендінг')}</h1>{status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language)} retry={() => void retry()} language={language} /> : <p>{status === 'composing' ? tr('Writing the page sections…', 'Готуємо текст сторінки…') : status === 'generating_images' ? tr('Generating app screens and page images…', 'Створюємо екрани застосунку та зображення…') : tr('Queued for generation…', 'У черзі на створення…')}</p>}
+    return <section className="panel landing-progress">{dismissedGeneration !== detail.landing_id && <LandingOperationOverlay language={language} phase={status} jobs={initialJobs} startedAt={detail.created_at} error={error || (status === 'failed' ? operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language) : undefined)} retry={() => void retry()} close={() => setDismissedGeneration(detail.landing_id)} />}<small>{templateName(detail)}</small><h1>{status === 'failed' ? tr('Landing generation needs attention', 'Створення лендінгу потребує уваги') : tr('Building the Landing', 'Створюємо лендінг')}</h1>{status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language)} retry={() => void retry()} language={language} /> : <p>{status === 'composing' ? tr('Writing the page sections…', 'Готуємо текст сторінки…') : status === 'generating_images' ? tr('Generating app screens and page images…', 'Створюємо екрани застосунку та зображення…') : tr('Queued for generation…', 'У черзі на створення…')}</p>}
       <div className="landing-progress-actions">{previous && <button className="secondary" onClick={() => onLanding(previous.landing_id)}>{tr('Back to previous Landing', 'Повернутися до попереднього лендінгу')}</button>}{status === 'failed' && <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}>{tr('Change template', 'Змінити шаблон')}</button>}</div>{templateChooser}</section>
   }
 

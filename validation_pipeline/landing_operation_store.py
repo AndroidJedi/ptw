@@ -48,12 +48,12 @@ class OperationStore:
             raise KeyError("Landing operation was not found")
         return json.loads(row[0])
 
-    def list(self, landing_id=None, active=False):
+    def list(self, landing_id=None, active=False, limit=200):
         with self.transaction() as query:
             where, args = ("landing_id=?", (landing_id,)) if landing_id else ("1=1", ())
             if active:
                 where += " AND status IN ('queued','running')"
-            return [json.loads(row[0]) for row in query(f"SELECT payload FROM landing_operations WHERE {where} ORDER BY created_at DESC LIMIT 200", args).fetchall()]
+            return [json.loads(row[0]) for row in query(f"SELECT payload FROM landing_operations WHERE {where} ORDER BY created_at DESC LIMIT ?", args + (max(1,min(200,int(limit))),)).fetchall()]
 
     def save(self, value, expected=None):
         value = deepcopy(value)
@@ -78,6 +78,6 @@ class OperationStore:
                     query("INSERT INTO commander_entities(id,kind,attributes) VALUES(?,'landing_operation',?)", (UUID(value["operation_id"]), Jsonb({"schema_version": 1, "kind": value["kind"]})))
                     from uuid import uuid4
                     query("INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(?,?,'contains',?,?)", (uuid4(), UUID(value["landing_id"]), UUID(value["operation_id"]), Jsonb({"member": "landing_operation"})))
-                query("INSERT INTO landing_operations(operation_id,landing_id,project_id,request_id,status,revision,payload) VALUES(?,?,?,?,?,?,?)", tuple(value[k] for k in ("operation_id", "landing_id", "project_id", "request_id", "status", "revision")) + (payload,))
+                query("INSERT INTO landing_operations(operation_id,landing_id,project_id,request_id,status,revision,payload,created_at) VALUES(?,?,?,?,?,?,?,?)", tuple(value[k] for k in ("operation_id", "landing_id", "project_id", "request_id", "status", "revision")) + (payload,value["started_at"]))
             query("INSERT INTO landing_operation_events(operation_id,revision,payload) VALUES(?,?,?)", (value["operation_id"], value["revision"], payload))
         return value

@@ -79,6 +79,28 @@ class LandingPerformanceTests(unittest.TestCase):
         active.manual_agent_edit.assert_called_once()
         self.assertTrue(all(entry['history'][0]['variants'] for entry in active.detail(pid, lid)['assets'][:2]))
 
+    def test_initial_generation_keeps_database_workspace_reads_available(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from validation_pipeline.landing_pages import DatabaseLandingWorkspace
+        entered, release = Event(), Event()
+        class Images(FakeImages):
+            def generate(self, prompt, **kwargs):
+                entered.set(); release.wait(timeout=5)
+                return super().generate(prompt, **kwargs)
+        active,pid,lid=self.build(Images())
+        original=active._workspace(lid)
+        authority=Mock();authority.get_page.return_value=active.authority.get_page(lid);authority.load_workspace_files.return_value=None
+        workspace=DatabaseLandingWorkspace(original,authority,lid)
+        detail=workspace.detail()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future=pool.submit(workspace.generate_visual,base_sha256=detail['state_sha256'],slot='app_screen_1',visual_direction='A clear app screen',prompt='A clear app screen')
+            try:
+                self.assertTrue(entered.wait(timeout=2))
+                started=time.monotonic();workspace.detail()
+                self.assertLess(time.monotonic()-started,.5)
+            finally:release.set()
+            self.assertTrue(future.result()['assets'][0]['available'])
+
     def test_partial_failure_retry_retains_completed_image_and_interpretation(self):
         class Images(FakeImages):
             calls = 0
@@ -110,6 +132,17 @@ class LandingPerformanceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): active.operations.start(pid, lid, changed)
         with self.assertRaises(KeyError): active.operations.get(str(uuid4()), lid, value['operation_id'])
         self.assertEqual([], active._workspace(lid).image_provider.references)
+        active.detail = Mock(side_effect=AssertionError('Status must not read image files'))
+        self.assertEqual('completed',active.operations.get(pid,lid,value['operation_id'])['status'])
+
+    def test_latest_request_orders_operations_within_the_same_second(self):
+        store=OperationStore(self.root/'ordered.sqlite3')
+        landing,project=str(uuid4()),str(uuid4())
+        for microsecond in ('100000','900000'):
+            identifier=str(uuid4())
+            store.save({'operation_id':identifier,'landing_id':landing,'project_id':project,'request_id':str(uuid4()),
+                'status':'completed','started_at':f'2026-09-25T08:00:00.{microsecond}+00:00'})
+        self.assertEqual(identifier,store.list(landing,limit=1)[0]['operation_id'])
 
     def test_restart_reconciles_committed_image_when_its_progress_event_was_lost(self):
         class Images(FakeImages):

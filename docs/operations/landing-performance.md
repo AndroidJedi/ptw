@@ -35,6 +35,9 @@ uncertain outcomes. Known terminal provider failures receive a fresh attempt.
 The companion marks abandoned running jobs failed on startup; completed jobs are
 retained. Before retrying, Landing reads the recorded provider request status so a
 known worker restart can receive a fresh attempt without an extra failed retry.
+Initial template creation also prepares images outside its database workspace lock,
+so status reads show completed slots while the next image is generating. Creation
+uses the same blocking dialog and checks server state before a generation retry.
 
 The native dialog covers the viewport from request preparation through result
 application and decoded selected images. It blocks underlying focus, controls and

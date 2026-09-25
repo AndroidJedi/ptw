@@ -531,6 +531,17 @@ class DatabaseLandingWorkspace:
         if not callable(target):
             return target
         def call(*args: Any, **kwargs: Any) -> Any:
+            if name == "generate_visual":
+                with self._lock:
+                    self._ensure_loaded()
+                generated = self.workspace.prepare_visual(**kwargs)
+                with self._lock:
+                    value = self.workspace.commit_prepared_visual(
+                        base_sha256=kwargs["base_sha256"], slot=kwargs["slot"],
+                        visual_direction=kwargs["visual_direction"], generated=generated,
+                        image_context=kwargs.get("image_context"))
+                    self._persist()
+                    return value
             if name == "prepare_visual":
                 with self._lock:
                     self._ensure_loaded()

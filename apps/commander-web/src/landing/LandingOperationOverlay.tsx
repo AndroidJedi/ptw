@@ -14,8 +14,9 @@ export type LandingOperation = {
   result?: Record<string, unknown> | null
 }
 
-export function LandingOperationOverlay({ language, operation, phase, error, retry, close }: {
+export function LandingOperationOverlay({ language, operation, phase, error, retry, close, jobs: initialJobs, startedAt }: {
   language: Language; operation?: LandingOperation | null; phase?: string; error?: string
+  jobs?: LandingOperation['jobs']; startedAt?: string
   retry?: (references?: ImageReference[]) => void; close?: () => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -57,15 +58,16 @@ export function LandingOperationOverlay({ language, operation, phase, error, ret
   }
   const slotLabel = (slot: string) => slot.startsWith('app_screen_') ? tr(`App screen ${slot.slice(-1)}`, `Екран застосунку ${slot.slice(-1)}`) : ({ hero_visual: tr('Hero image', 'Головне зображення'), visual_break_visual: tr('Supporting image', 'Додаткове зображення'), walkthrough_visual: tr('Walkthrough image', 'Зображення кроків') }[slot] || slot)
   const statusLabel = (status: string) => ({ queued: tr('Queued', 'У черзі'), generating: tr('Generating', 'Генерується'), preparing: tr('Preparing display images', 'Готуємо зображення для показу'), completed: tr('Completed', 'Завершено'), failed: tr('Failed', 'Помилка') }[status] || tr('Processing', 'Обробляється'))
-  const done = operation?.jobs?.filter(job => job.status === 'completed').length || 0
-  const elapsed = Math.max(0, Math.floor((tick - (operation ? Date.parse(operation.started_at) : began.current)) / 1000))
+  const jobs = operation?.jobs || initialJobs || []
+  const done = jobs.filter(job => job.status === 'completed').length
+  const elapsed = Math.max(0, Math.floor((tick - (Date.parse(operation?.started_at || startedAt || '') || began.current)) / 1000))
   return createPortal(<dialog ref={ref} className="landing-operation-overlay" aria-modal="true" aria-labelledby="landing-operation-title" tabIndex={-1} onCancel={event => event.preventDefault()}>
     <section className="landing-operation-card">
       {failed ? <AlertCircle size={32} /> : <LoaderCircle size={32} className="landing-operation-spin" />}
       <h2 id="landing-operation-title">{failed ? tr('This request needs attention', 'Цей запит потребує уваги') : tr('Updating your Landing', 'Оновлюємо ваш лендінг')}</h2>
       <div role={failed ? 'alert' : 'status'} aria-live="polite"><p>{failed ? error || categories[operation?.error?.category || 'provider'] : descriptions[stage] || descriptions.preparing}</p>
-        {!!operation?.jobs?.length && <p>{tr(`${done} of ${operation.jobs.length} images completed.`, `Завершено ${done} із ${operation.jobs.length} зображень.`)}</p>}</div>
-      {!!operation?.jobs?.length && <ul>{operation.jobs.map(job => <li key={job.slot}><span>{slotLabel(job.slot)}</span><strong>{statusLabel(job.status)}</strong></li>)}</ul>}
+        {!!jobs.length && <p>{tr(`${done} of ${jobs.length} images completed.`, `Завершено ${done} із ${jobs.length} зображень.`)}</p>}</div>
+      {!!jobs.length && <ul>{jobs.map(job => <li key={job.slot}><span>{slotLabel(job.slot)}</span><strong>{statusLabel(job.status)}</strong></li>)}</ul>}
       {!failed && <small>{tr('Elapsed', 'Минуло')}: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</small>}
       {failed && <><p>{tr('Previously completed images are retained. Retry continues only unfinished work.', 'Раніше завершені зображення збережено. Повторення продовжить лише незавершену роботу.')}</p>
       {error?.includes('Reattach') && <label>{tr('Reattach the original screenshots in the same order', 'Додайте початкові знімки екрана в тому самому порядку')}<input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={event => {

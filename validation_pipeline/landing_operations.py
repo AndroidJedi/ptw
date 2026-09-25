@@ -59,16 +59,20 @@ class LandingOperations:
         return result
 
     def get(self, project, landing, identifier):
-        self.service.detail(project, landing)
+        self._authorize(project, landing)
         value = self.store.get(identifier)
         if value["project_id"] != project or value["landing_id"] != landing:
             raise KeyError("Landing operation was not found in this Project")
         return self.public(value)
 
     def latest(self, project, landing):
-        self.service.detail(project, landing)
-        values = self.store.list(landing)
+        self._authorize(project, landing)
+        values = self.store.list(landing, limit=1)
         return self.public(values[0]) if values else None
+
+    def _authorize(self, project, landing):
+        if self.service.authority.get_page(landing)["project_id"] != str(UUID(project)):
+            raise KeyError("Landing operation was not found in this Project")
 
     def _save(self, value):
         value["updated_at"] = now()

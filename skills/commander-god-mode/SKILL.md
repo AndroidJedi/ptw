@@ -176,9 +176,11 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Public Landing analytics belong to the single `apps/landing-web` shell, not
   immutable Landing snapshots. A Meta Pixel ID is public configuration; keep
   tokens out of the browser. Load the external library and emit `PageView` only
-  after an explicit persisted visitor choice, keep the Firebase CSP allowlist
-  narrow, and verify both zero pre-consent requests and post-consent loading in
-  desktop/mobile browser tests.
+  after explicit visitor consent. First-party audience measurement has a separate
+  opt-in. Keep Cookie settings available, expire/version consent, revoke Pixel
+  consent and clear accessible Pixel cookies on withdrawal. Keep the Firebase CSP
+  allowlist narrow; test zero pre-consent requests, separate purposes, withdrawal,
+  reload, blocked storage and legal deep links on desktop/mobile browsers.
 - Project deletion is a tombstone boundary, not a graph cascade. Require the
   exact current Project name and a stable request UUID, reject active domain or
   provider work, hide the Project from every private scope, and make its public

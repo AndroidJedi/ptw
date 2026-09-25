@@ -1,5 +1,6 @@
 import { LandingImage } from './LandingImage'
 import { MarketingSections, NatalMark, NatalMotifs, StoreButtons } from './MarketingSections'
+import { LegalLinks } from './LegalLinks'
 import { marketingStyle } from './marketing'
 import { ArrowUpRight, Check, ChevronDown, Pencil } from 'lucide-react'
 import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
@@ -13,7 +14,7 @@ import message from '../../../../validation_pipeline/studio_assets/app-showcase/
 import time from '../../../../validation_pipeline/studio_assets/app-showcase/time.svg'
 import arrow from '../../../../validation_pipeline/studio_assets/app-showcase/arrow.svg'
 
-export function AppShowcasePage({ configuration: c, content: v, imageUrls, imageVariants, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
+export function AppShowcasePage({ configuration: c, content: v, imageUrls, imageVariants, legalOrigin, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
   const id = useId().replace(/:/g, '')
   const root = useRef<HTMLElement>(null)
   const p = c.presentation || defaults
@@ -53,7 +54,7 @@ export function AppShowcasePage({ configuration: c, content: v, imageUrls, image
     <div className="as-screen">{imageUrls[`app_screen_${index + 1}`] && <LandingImage priority={priority} variants={imageVariants?.[`app_screen_${index + 1}`]} sizes="(max-width: 600px) 180px, 300px" src={imageUrls[`app_screen_${index + 1}`]} alt={screens[index]?.title || ''} />}</div>
     <img className="as-hardware" src={phoneFrame} alt="" aria-hidden="true" />
   </div>
-  const marketingProps = { showDraftHints, configuration: c, content: v, imageUrls, imageVariants, editing, selected, onSelect, onAnalyticsEvent, contactId: `${id}-contacts` }
+  const marketingProps = { legalOrigin, showDraftHints, configuration: c, content: v, imageUrls, imageVariants, editing, selected, onSelect, onAnalyticsEvent, contactId: `${id}-contacts` }
   const extra = (part: Parameters<typeof MarketingSections>[0]['part']) => <MarketingSections {...marketingProps} part={part} />
   const icons = [office, message, time]
   const proof = v.social_proof.items.filter(item => item.statement && item.attribution)
@@ -77,6 +78,7 @@ export function AppShowcasePage({ configuration: c, content: v, imageUrls, image
         const value = v.contacts[field] || ''; const link = contactHref(field, value); const destination = field === 'url' ? 'telegram' : field
         return link && <a key={field} href={link} {...(['url', 'instagram'].includes(field) ? { target: '_blank', rel: 'noopener noreferrer' } : {})} onClick={() => { if (!editing) onAnalyticsEvent?.('contact_click', destination, destination) }}>{value}<ArrowUpRight size={18} /></a>
       })}</div></div></>)}
+      {!c.marketing?.footer_enabled && <footer className="as-legal-footer"><LegalLinks language={p.language} privacyUrl={v.marketing?.privacy_url} termsUrl={v.marketing?.terms_url} origin={legalOrigin} editing={editing} onSelect={() => onSelect?.('contacts')} /></footer>}
     </div>
   </article></div>
 }

@@ -316,9 +316,10 @@ columns. Native copied icons are CSS masks tinted by the selected gradient;
 store SVGs retain their source colors. Eight optional Natal symbol decorations
 have bounded opacity. Carousel playback pauses on focus/hover and respects
 reduced motion. All new controls and bounded copy are available to Landing Agent.
-The footer always shows small Privacy Policy and Terms labels below the Natal
-logo. Until the owner supplies their HTTPS URLs, they render as noninteractive
-text; adding a URL turns only that label into a link.
+Every footer links Terms & conditions, Privacy policy and Cookie policy to the
+shared bilingual Natal legal pages. Explicit owner privacy/terms URLs override
+those defaults without modifying stored snapshots. See [legal documents and
+consent](landing-legal.md); the operator profile currently remains a visible draft.
 
 Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
@@ -331,8 +332,8 @@ existing immutable evidence block, outside Agent edit authority.
 
 Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
 Empty destinations route to contacts or hide the individual button, according to
-an explicit setting. Privacy/terms links require owner HTTPS URLs. Composition
-and Agent cannot invent or change these endpoints. No download URLs are copied
+an explicit setting. Optional privacy/terms overrides require owner HTTPS URLs.
+Composition and Agent cannot invent or change these endpoints. No download URLs are copied
 from the reference site. Save, Approve and Publish remain separate.
 
 `walkthrough_visual` uses the existing Generate/Enhance/reference/history and

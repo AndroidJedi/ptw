@@ -59,8 +59,8 @@
 .mk-footer .mk-logo { background:var(--mk-start); }
 .mk-footer a { display:flex; gap:12px; align-items:center; margin:14px 0; font-size:15px; }.mk-footer .mk-stores { margin:0; gap:0; justify-content:flex-start; }.mk-footer .mk-store { margin:8px 0; font-size:14px; padding:12px 20px; }
 .lp-page .mk-footer h3 { font-size:18px; margin:0 0 20px; }
-.mk-legal { display:flex; flex-direction:column; align-items:flex-start; gap:7px; margin-top:20px; }
-.mk-footer .mk-legal a,.mk-footer .mk-legal span { margin:0; font-size:11px; line-height:1.35; color:inherit; opacity:.72; }
+.mk-legal { display:flex; flex-direction:column; align-items:flex-start; gap:0; margin-top:20px; }
+.mk-footer .mk-legal a { margin:0; display:inline-flex; align-items:center; min-height:44px; font-size:13px; line-height:1.4; color:inherit; }
 .mk-footer .mk-legal a { text-decoration:underline; text-underline-offset:3px; }
 .mk-footer .mk-policy-pending { cursor:default; }
 .as-page:has(.mk-section) .as-hero-wrap { background:var(--mk-gradient); }.as-page:has(.mk-section) .as-hero { position:relative; }.as-page:has(.mk-section) .as-nav { position:relative; }

@@ -28,6 +28,7 @@ import mykyta from '../../../../validation_pipeline/studio_assets/landing-displa
 import maryna from '../../../../validation_pipeline/studio_assets/landing-display-v1/maryna.webp'
 import star from '../../../../validation_pipeline/studio_assets/app-showcase/star.svg'
 import './marketing.css'
+import { LegalLinks } from './LegalLinks'
 
 export function NatalMark({ small = false }: { small?: boolean }) {
   return <span role={small ? undefined : 'img'} aria-label={small ? undefined : 'Natal'} aria-hidden={small || undefined} className={small ? 'mk-symbol' : 'mk-logo'} style={{ maskImage: `url("${small ? symbol : logo}")`, WebkitMaskImage: `url("${small ? symbol : logo}")` }} />
@@ -57,10 +58,6 @@ const references = [
 export function MarketingSections(props: Props) {
   const { configuration: c, content: v, imageUrls, editing, showDraftHints, onSelect, selected, part, contactId } = props
   const m = c.marketing, copy = v.marketing || marketingContentDefaults, uk = c.presentation?.language !== 'en'
-  const policies = [
-    { key: 'privacy', url: copy.privacy_url, label: uk ? 'Політика конфіденційності' : 'Privacy policy' },
-    { key: 'terms', url: copy.terms_url, label: uk ? 'Публічна оферта' : 'Terms of service' },
-  ]
   const rail = useRef<HTMLDivElement>(null)
   const [paused, setPaused] = useState(false)
   useEffect(() => {
@@ -82,10 +79,7 @@ export function MarketingSections(props: Props) {
   if (part === 'values' && m.benefits_enabled) return section('values', <div className="mk-values">{copy.values.map((value, i) => value.enabled && <article key={i}><span className="mk-icon" style={{ maskImage: `url("${[comment, requirements, employment, support][i]}")`, WebkitMaskImage: `url("${[comment, requirements, employment, support][i]}")` }} /><h3>{missing(value.title, i)}</h3><p>{value.description}</p></article>)}</div>)
   if (part === 'cta' && m.cta_enabled) return section('cta', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.cta_heading || v.contacts.heading}</h2><p>{copy.cta_text || v.contacts.supporting_text}</p><img className="mk-line" src={line} alt="" /><StoreButtons {...props} /></>, 'mk-gradient-panel')
   if (part === 'footer' && m.footer_enabled) return <footer id={contactId} data-section="contacts" tabIndex={-1} className="mk-footer" onClickCapture={e => { if (editing) { e.preventDefault(); e.stopPropagation(); onSelect?.('contacts') } }}>
-    <div><NatalMark /><div className="mk-legal" aria-label={uk ? 'Правові документи' : 'Policies'}>{policies.map(policy => policy.url
-      ? <a key={policy.key} href={policy.url}>{policy.label}</a>
-      : <span key={policy.key} className="mk-policy-pending">{policy.label}</span>
-    )}</div></div>
+    <div><NatalMark /><LegalLinks className="mk-legal" language={uk ? 'uk' : 'en'} privacyUrl={copy.privacy_url} termsUrl={copy.terms_url} origin={props.legalOrigin} /></div>
     <div><h3>{v.contacts.heading}</h3>{(['phone', 'email'] as const).map(k => {
       const value = v.contacts[k] || ''; const link = contactHref(k, value)
       return link && <a className="mk-contact-link" key={k} href={link} onClick={() => { if (!editing) props.onAnalyticsEvent?.('contact_click', k, k) }}><img src={k === 'email' ? emailIcon : phoneIcon} alt="" /><span>{value}</span></a>

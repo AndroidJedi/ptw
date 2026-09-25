@@ -1,0 +1,28 @@
+.natal-legal-page { color:#182235; background:#fafbf9; min-height:100vh; font-family:Inter,system-ui,sans-serif; font-size:16px; line-height:1.75; overflow-wrap:anywhere; }
+.natal-legal-page a { color:#244caf; text-underline-offset:4px; }
+.natal-legal-page a:focus-visible,.natal-legal-page button:focus-visible { outline:3px solid #3267ff; outline-offset:4px; }
+.natal-legal-header,.natal-legal-footer { max-width:1040px; margin:auto; padding:24px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.natal-legal-header img { display:block; width:100px; height:auto; }
+.natal-legal-header nav { display:flex; gap:16px; flex-wrap:wrap; }
+.natal-legal-header a,.natal-legal-footer a { display:inline-flex; align-items:center; min-height:44px; }
+.natal-legal-header [aria-current] { font-weight:750; color:#182235; }
+.natal-legal-main { max-width:790px; margin:auto; padding:40px 24px 60px; }
+.natal-legal-eyebrow { color:#526078; letter-spacing:.08em; font-size:13px; text-transform:uppercase; }
+.natal-legal-main h1 { font-size:clamp(32px,6vw,54px); line-height:1.15; letter-spacing:-.035em; margin:18px 0; }
+.natal-legal-main h2 { font-size:clamp(21px,3vw,26px); line-height:1.35; letter-spacing:-.02em; margin:0 0 18px; }
+.natal-legal-main p { margin:0 0 16px; }
+.natal-legal-main .natal-legal-version { color:#526078; font-size:14px; margin-bottom:24px; }
+.natal-legal-draft { border:1px solid #d4b46b; background:#fff8e8; border-radius:12px; padding:20px; margin:24px 0; }
+.natal-legal-draft p { margin:8px 0 0; }
+.natal-legal-intro { font-size:18px; }
+.natal-legal-contents { display:grid; gap:4px; border-block:1px solid #dce1e8; padding:20px 0; margin:28px 0 40px; }
+.natal-legal-contents a { display:flex; align-items:center; min-height:44px; }
+.natal-legal-main section { margin:36px 0; scroll-margin-top:24px; }
+.natal-legal-main dl { margin:0 0 20px; }
+.natal-legal-main dl > div { padding:12px 0; border-bottom:1px solid #dce1e8; }
+.natal-legal-main dt { font-weight:700; }
+.natal-legal-main dd { margin:4px 0 0; white-space:pre-line; }
+.natal-legal-main button { min-height:44px; padding:10px 18px; border:1px solid #244caf; border-radius:8px; color:#244caf; background:#fff; font:inherit; cursor:pointer; margin-bottom:18px; }
+.natal-legal-footer { border-top:1px solid #dce1e8; }
+.natal-legal-footer .natal-legal-links { display:flex; gap:16px; flex-wrap:wrap; }
+@media print { .natal-legal-header nav,.natal-legal-contents,.natal-privacy-controls,.natal-pixel-consent,.natal-legal-main button { display:none; } .natal-legal-main { max-width:none; padding:0; } .natal-legal-page { background:white; color:black; font-size:11pt; } .natal-legal-main section { break-inside:avoid; } }

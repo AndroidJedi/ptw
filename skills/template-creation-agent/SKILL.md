@@ -64,7 +64,7 @@ register code; resume after reviewed source is applied. No deployment implied.
 
 App Showcase v2 shares sections and mockups. Retain source digests. Sample layouts
 are not Natal evidence. Preserve old references and hardware-free screens. Keep
-policy labels inert until owner URLs exist; never add fake URLs.
+legal links per `docs/architecture/landing-legal.md`; owner URLs override.
 
 Review English/Ukrainian copy at native and 360px display sizes. At 1080px,
 target 30–36px body and 24px secondary text; enlarge boxes before shrinking.

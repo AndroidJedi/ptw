@@ -12,6 +12,37 @@ Owner Hosting version `b298a13378206bec` and public Landing Hosting version
 All eleven Astra canaries (jobs 1145–1155), Pexels, schema, authorization,
 dependencies, skills, approved-Post persistence, resource and Hosting audits passed.
 
+## Shared Landing legal documents — implemented locally, draft review pending
+
+All Landing footers now link reusable Ukrainian/English Terms & conditions,
+Privacy and Cookie pages at `/legal/{terms,privacy,cookies}`. Explicit owner
+privacy/terms URLs remain overrides; stored definitions, approvals and publication
+records are unchanged. Legal routes bypass Project lookup and optional tracking.
+The shared operator profile is deliberately incomplete and visibly draft, with
+no effective date: operator identity/address, markets, retention, transfer and
+representative details require confirmation and legal review. The earlier Natal
+Sesh documents were inspected, without copying their meetup-specific conditions.
+Future paid/regulated services still need their own terms and implementation.
+
+The public shell now offers separate opt-in choices for first-party analytics
+and Meta advertising, equal accept/reject actions, persistent Cookie settings,
+180-day versioned preferences, cross-tab updates and withdrawal. Withdrawal stops
+application events, revokes Pixel consent, removes queued PageViews and clears
+accessible Pixel cookies. Analytics reports consequently cover consenting visits.
+
+Verified: 19 public and 128 Owner unit tests, both builds, all 44 public browser
+checks at 1280/768/360px and iPhone WebKit, and all 75 affected Owner
+Landing/Templates cases across the initial run and focused rerun. The rerun fixed
+a now-ambiguous navigation selector and passed an unchanged WebKit gallery-filter
+test that transiently retained All templates. Legal-page/consent screenshots were
+reviewed; captures are under `.local/legal-review` and public browser test results.
+Commander tests/demo, canonical skills and whitespace checks pass. Commander runs
+44 cases with seven local dependency skips; the current Linux Validation image
+passes with five isolated-receiver skips. The older Commander image lacks Git and
+cannot run five repository checks; the current-image rerun resolves that limit.
+No deployment or owner publication ran. See
+[legal scope, source research and business-specific completion](landing-legal.md).
+
 ## Landing delivery and durable operations — deployed and verified
 
 Shared Landing writes prepare responsive q90 WebP display copies; approved PNGs,

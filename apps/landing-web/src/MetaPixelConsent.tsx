@@ -1,43 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { legalUrl } from '../../commander-web/src/landing/LegalLinks'
 import { trackMetaPageView } from './metaPixel'
+import { usePrivacy } from './privacyPreferences'
 
-const STORAGE_KEY = 'natal_meta_pixel_consent_v1'
-type Consent = 'accepted' | 'rejected' | 'pending'
-
-function browserStorage(): Storage | undefined {
-  try { return window.localStorage || undefined }
-  catch { return undefined }
-}
-
-function storedConsent(): Consent {
-  const value = browserStorage()?.getItem(STORAGE_KEY)
-  return value === 'accepted' || value === 'rejected' ? value : 'pending'
-}
-
-export function MetaPixelConsent({ path, language = 'en' }: { path: string; language?: string }) {
-  const [consent, setConsent] = useState<Consent>(storedConsent)
-  const ukrainian = language.toLowerCase().startsWith('uk')
-
+export function MetaPixelConsent({ path, language = 'en', track = true }: { path: string; language?: string; track?: boolean }) {
+  const { preferences, open, show, close, decide } = usePrivacy()
+  const [analytics, setAnalytics] = useState(false), [marketing, setMarketing] = useState(false)
+  const panel = useRef<HTMLElement>(null), settings = useRef<HTMLButtonElement>(null)
+  const uk = language === 'uk'
   useEffect(() => {
-    if (consent === 'accepted') trackMetaPageView(path)
-  }, [consent, path])
-
-  function decide(value: Exclude<Consent, 'pending'>) {
-    browserStorage()?.setItem(STORAGE_KEY, value)
-    setConsent(value)
-  }
-
-  if (consent !== 'pending') return null
-  return <aside className="natal-pixel-consent" aria-label={ukrainian ? 'Налаштування аналітики' : 'Analytics preferences'}>
-    <div>
-      <strong>{ukrainian ? 'Аналітика сайту' : 'Site analytics'}</strong>
-      <p>{ukrainian
-        ? 'Дозволити Meta Pixel вимірювати перегляди сторінок? Meta може використовувати файли cookie.'
-        : 'Allow Meta Pixel to measure page views? Meta may use cookies.'}</p>
-    </div>
-    <div className="natal-pixel-consent__actions">
-      <button type="button" onClick={() => decide('rejected')}>{ukrainian ? 'Відхилити' : 'Reject'}</button>
-      <button type="button" className="natal-pixel-consent__accept" onClick={() => decide('accepted')}>{ukrainian ? 'Дозволити' : 'Allow'}</button>
-    </div>
-  </aside>
+    if (preferences?.marketing && track) trackMetaPageView(path)
+  }, [preferences?.marketing, path, track])
+  useEffect(() => {
+    if (open) { setAnalytics(preferences?.analytics || false); setMarketing(preferences?.marketing || false) }
+  }, [open, preferences])
+  function save(a: boolean, m: boolean) { decide(a, m); settings.current?.focus() }
+  return <>
+    <div className="natal-privacy-controls"><button ref={settings} type="button" onClick={() => { show(); requestAnimationFrame(() => panel.current?.focus()) }}>{uk ? 'Налаштування cookie' : 'Cookie settings'}</button></div>
+    {open && <aside ref={panel} tabIndex={-1} className="natal-pixel-consent" aria-label={uk ? 'Налаштування приватності' : 'Privacy preferences'}>
+      <div><strong>{uk ? 'Ваш вибір приватності' : 'Your privacy choices'}</strong>
+        <p>{uk ? 'Сайт працює без необов’язкового вимірювання. Оберіть окремо аналітику Natal та рекламу Meta; змінити вибір можна будь-коли.' : 'The site works without optional measurement. Choose Natal analytics and Meta advertising separately; change your choice at any time.'}</p>
+        <p><a href={legalUrl('privacy', uk ? 'uk' : 'en', '')}>{uk ? 'Політика конфіденційності' : 'Privacy policy'}</a> · <a href={legalUrl('cookies', uk ? 'uk' : 'en', '')}>{uk ? 'Політика cookie' : 'Cookie policy'}</a></p>
+        <label><input type="checkbox" checked={analytics} onChange={event => setAnalytics(event.target.checked)} />{uk ? 'Аналітика Natal — перегляди та переходи до контактів' : 'Natal analytics — page views and contact clicks'}</label>
+        <label><input type="checkbox" checked={marketing} onChange={event => setMarketing(event.target.checked)} />{uk ? 'Реклама Meta — Pixel, cookie та вимірювання реклами' : 'Meta advertising — Pixel, cookies and ad measurement'}</label>
+      </div>
+      <div className="natal-pixel-consent__actions">
+        <button type="button" onClick={() => save(false, false)}>{uk ? 'Відхилити необов’язкові' : 'Reject optional'}</button>
+        <button type="button" onClick={() => save(true, true)}>{uk ? 'Дозволити всі' : 'Allow all'}</button>
+        <button type="button" onClick={() => save(analytics, marketing)}>{uk ? 'Зберегти вибір' : 'Save preferences'}</button>
+        {preferences && <button type="button" onClick={() => { close(); settings.current?.focus() }}>{uk ? 'Закрити' : 'Close'}</button>}
+      </div>
+    </aside>}
+  </>
 }

@@ -1,16 +1,27 @@
 # Commander current state
 
 Updated: 2026-09-26
-Branch: `release/natal-studio-20260926`
-Deployment: migration-aware preserving release `landing-performance-20260925`,
-accepted runtime code revision `c443c2d6ca7c7008b0771e7caa5626eb3aacff07`
+Branch: `release/post-editor-controls-20260926`
+Deployment baseline: migration-aware preserving release `natal-studio-20260926`,
+accepted runtime code revision `abe9607cfa4f4a687995b3e73f10902762bb7cb2`
 with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Commander, Validation, Gateway and the three companion services run the paired
-release; GOD/Plan/Release retain their accepted images. All are healthy.
-Owner Hosting version `b298a13378206bec` and public Landing Hosting version
-`6fb915a9a9e5cf64` are live. Migration 018 preserved every existing business row.
-All eleven Astra canaries (jobs 1145–1155), Pexels, schema, authorization,
-dependencies, skills, approved-Post persistence, resource and Hosting audits passed.
+This branch adds only the authored Post editor controls to that accepted source.
+
+## Authored Post editor controls — preserving release candidate
+
+The Project Post editor exposes each authored text field by component name, with
+per-field font family and 12–180px size controls. Overrides persist with the
+Post and survive reload and a switch away/back to the exact template. A direct
+link jumps from preview to controls; at narrower widths controls appear above
+the preview. The count and placement of separate bullet fields still belong to
+the accepted template version, so a third bullet requires a reviewed Templates
+revision and explicit application to the Project Post. Historical approved PNGs
+and accepted template definitions remain unchanged.
+
+Verified before release: 13 focused Python template/switch tests, 28 Studio web
+unit tests, Owner build, real-HTTP Post flows on desktop, 360px and iPhone
+WebKit, deterministic visual audit, Commander 44 tests (seven local dependency
+skips), demo and whitespace. No Project or template authority was changed.
 
 ## Natal Studio timeout recovery — local correction
 

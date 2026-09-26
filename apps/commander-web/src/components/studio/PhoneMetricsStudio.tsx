@@ -181,6 +181,17 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     { role: 'phone_title', en: 'In-phone title', uk: 'Заголовок у телефоні' },
     { role: 'phone_buttons', en: 'In-phone buttons', uk: 'Кнопки у телефоні' },
   ]
+  const setTemplateTypography = (fieldId: string, update: Partial<{ font_family: StudioFontFamily; font_size: number }>) => {
+    const field = detail.template_fields?.find((item) => item.id === fieldId)
+    if (!field) return
+    setConfiguration(current => ({
+      ...current,
+      template_typography: {
+        ...current.template_typography,
+        [fieldId]: { font_family: field.font_family, font_size: field.font_size, ...current.template_typography?.[fieldId], ...update },
+      },
+    }))
+  }
 
   useEffect(() => {
     setDetail(initialDetail)
@@ -473,10 +484,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       <button className="primary" disabled={mutationBusy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <StudioActionFeedback error={error} notice={notice} language={language} />
-    <section className="phone-metrics-workspace">
+    <section className={`phone-metrics-workspace ${authored ? 'authored-post-workspace' : ''}`}>
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
         <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{authored ? detail.template_name : tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || generating || previewBusy) && <RefreshCcw className="spin" />}</header>
         <button type="button" className="secondary" disabled={busy || generating || previewBusy} onClick={() => void render(detail, true)}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button>
+        {authored && <a className="secondary authored-post-edit-link" href="#post-edit-controls">{tr('Edit text and fonts', 'Редагувати текст і шрифти')}</a>}
         <div className="studio-preview-feedback" aria-live="polite">
           {previewBusy ? tr('Rendering your changes…', 'Рендеримо ваші зміни…')
             : previewState !== currentPreviewState ? tr('Changes not previewed. Press Update preview when ready.', 'Зміни ще не показано. Натисніть «Оновити прев’ю», коли завершите редагування.')
@@ -485,11 +497,34 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         {previewError && <ErrorState message={previewError} language={language} />}
         <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={authored ? tr('Post preview', 'Прев’ю допису') : tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
-      <aside className="studio-controls phone-metrics-controls">
-        {authored && <section className="panel authored-post-content"><h2>{tr('Post text', 'Текст допису')}</h2>
-          {detail.template_fields?.map((field, index) => <label key={field.id}><span>{({ headline: tr('Headline', 'Заголовок'), description: tr('Supporting text', 'Пояснювальний текст'), cta: tr('Button', 'Кнопка'), meta: tr('Caption', 'Підпис'), footer: tr('Footer', 'Нижній текст') } as Record<string, string>)[field.role] || tr('Text', 'Текст')} {index + 1}</span><textarea rows={3} maxLength={500} disabled={mutationBusy} value={content.template_text?.[field.id] || ''} onChange={event => setContent(current => ({ ...current, template_text: { ...current.template_text, [field.id]: event.target.value.replace(/\s+/g, ' ') } }))} /></label>)}
-          {detail.template_palette_defaults && <fieldset disabled={mutationBusy}>
-            <legend>{tr('Background palette', 'Кольори фону')}</legend>
+      <aside id={authored ? 'post-edit-controls' : undefined} className="studio-controls phone-metrics-controls">
+        {authored && <>
+          <StudioSection eyebrow={tr('POST COPY', 'ТЕКСТ ДОПИСУ')} title={tr('Text and bullets', 'Текст і маркери')}
+            expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}>
+            {detail.template_fields?.map((field) => {
+              const role = ({ headline: tr('Headline', 'Заголовок'), description: tr('Supporting text', 'Пояснювальний текст'), cta: tr('Button', 'Кнопка'), meta: tr('Caption', 'Підпис'), footer: tr('Footer', 'Нижній текст') } as Record<string, string>)[field.role] || tr('Text', 'Текст')
+              const name = field.id.replace(/[_-]+/g, ' ')
+              return <label key={field.id}><span>{name} · {role}</span><textarea rows={3} maxLength={500} disabled={mutationBusy} value={content.template_text?.[field.id] || ''} onChange={event => setContent(current => ({ ...current, template_text: { ...current.template_text, [field.id]: event.target.value.replace(/\s+/g, ' ') } }))} /></label>
+            })}
+            <p className="studio-section-note">{tr('This template sets the number of separate text and bullet positions. To add another, edit the design in Templates, accept its new version, then select it with Change template.', 'Цей шаблон задає кількість окремих текстових полів і маркерів. Щоб додати ще один, відредагуйте дизайн у «Шаблони», схваліть нову версію та виберіть її через «Змінити шаблон».')}</p>
+          </StudioSection>
+          <StudioSection eyebrow={tr('TYPOGRAPHY', 'ТИПОГРАФІКА')} title={tr('Font and size for each text field', 'Шрифт і розмір кожного поля')}
+            expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}>
+            {detail.template_fields?.map((field) => {
+              const appearance = configuration.template_typography?.[field.id] || field
+              return <div key={field.id} className="phone-metrics-stat-input authored-post-type-field"><strong>{field.id.replace(/[_-]+/g, ' ')}</strong><div className="studio-field-grid">
+                <label><span>{tr('Font family', 'Сімейство шрифту')}</span><select aria-label={`${field.id} ${tr('font family', 'сімейство шрифту')}`} disabled={mutationBusy} value={appearance.font_family} onChange={event => setTemplateTypography(field.id, { font_family: event.target.value as StudioFontFamily })}>{Object.entries(fontLabels).map(([family, label]) => <option key={family} value={family}>{label}</option>)}</select></label>
+                <label className="studio-range-field"><span>{tr('Font size', 'Розмір шрифту')}<code>{appearance.font_size}px</code></span><input aria-label={`${field.id} ${tr('font size', 'розмір шрифту')}`} type="range" min="12" max="180" step="1" disabled={mutationBusy} value={appearance.font_size} onChange={event => setTemplateTypography(field.id, { font_size: Number(event.target.value) })} /></label>
+              </div></div>
+            })}
+            <button type="button" className="secondary" disabled={mutationBusy || !configuration.template_typography} onClick={() => setConfiguration(current => {
+              const { template_typography: _typography, ...rest } = current
+              return rest
+            })}>{tr('Use template fonts', 'Шрифти шаблону')}</button>
+            <p className="studio-section-note">{tr('A changed font size renders exactly. If it does not fit, reduce the size or enlarge this text area in a new template version.', 'Змінений розмір шрифту відображається точно. Якщо текст не вміщується, зменште розмір або збільште текстову область у новій версії шаблону.')}</p>
+          </StudioSection>
+          {detail.template_palette_defaults && <StudioSection eyebrow={tr('BACKGROUND', 'ФОН')} title={tr('Background palette', 'Кольори фону')}
+            expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}><fieldset aria-label={tr('Background palette', 'Кольори фону')} disabled={mutationBusy}>
             <p>{tr('Choose tones that complement the hero image and keep the text readable.', 'Оберіть відтінки, що пасують до головного зображення та зберігають читабельність тексту.')}</p>
             {(['gradient_start', 'gradient_end'] as const).map(key => <EditableColorField key={key}
               label={{ gradient_start: tr('Gradient start', 'Початок градієнта'), gradient_end: tr('Gradient end', 'Кінець градієнта') }[key]}
@@ -500,9 +535,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               const { template_palette: _palette, ...rest } = current
               return rest
             })}>{tr('Use template colors', 'Кольори шаблону')}</button>
-          </fieldset>}
-          <p>{tr('Your existing image is used in this layout. Edit the text, then update the preview.', 'У цьому макеті використано ваше зображення. Відредагуйте текст і оновіть прев’ю.')}</p>
-        </section>}
+          </fieldset></StudioSection>}
+        </>}
         {!authored && <><StudioSection
           eyebrow={tr('VISUAL MODE', 'ВІЗУАЛЬНИЙ РЕЖИМ')} title={tr('Phone frame or image only', 'Рамка телефона або лише зображення')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}

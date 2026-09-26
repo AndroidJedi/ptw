@@ -333,6 +333,7 @@ export interface StudioPostPalette {
 
 export interface StudioPhoneMetricsConfiguration {
   template_palette?: StudioPostPalette
+  template_typography?: Record<string, StudioPhoneTypographyConfiguration>
   visual_mode?: 'phone' | 'image'
   schema: 'ptw.studio.phone-metrics-config.v11' | 'ptw.studio.phone-metrics-config.v12' | 'ptw.studio.phone-metrics-config.v13'
   background: {
@@ -472,7 +473,7 @@ export interface StudioPhoneMetricsDetail {
   template_reference?: { surface: 'post'; template_id: string; template_version: number; template_sha256: string }
   template_name?: string
   editor_key?: string
-  template_fields?: Array<{ id: string; role: string }>
+  template_fields?: Array<{ id: string; role: string; font_family: StudioFontFamily; font_size: number }>
   template_palette_defaults?: StudioPostPalette | null
   creative_id: string
   project_id: string

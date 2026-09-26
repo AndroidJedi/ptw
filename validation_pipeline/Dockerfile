@@ -23,10 +23,12 @@ COPY commander/ids.py ./commander/ids.py
 COPY commander/__init__.py ./commander/__init__.py
 COPY natal/assets/logo-natal.png ./natal/assets/logo-natal.png
 COPY natal/assets/inter.ttf ./natal/assets/inter.ttf
+COPY natal/assets/OFL-Inter.txt ./natal/assets/OFL-Inter.txt
 COPY --from=template-preview /build/.local/template-preview ./template-preview
 COPY --from=template-preview /build/apps/commander-web/node_modules/playwright ./apps/commander-web/node_modules/playwright
 COPY --from=template-preview /build/apps/commander-web/node_modules/playwright-core ./apps/commander-web/node_modules/playwright-core
 COPY apps/commander-web/scripts/render-template-landing.mjs ./apps/commander-web/scripts/render-template-landing.mjs
+COPY apps/commander-web/scripts/capture-website-reference.mjs ./apps/commander-web/scripts/capture-website-reference.mjs
 ENV PTW_TEMPLATE_PREVIEW_BUNDLE=/app/template-preview PTW_TEMPLATE_CHROMIUM=/usr/bin/chromium
 USER validation
 RUN test -r ./validation_pipeline/studio_assets/cutout-model/u2netp.onnx

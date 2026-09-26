@@ -294,6 +294,16 @@ export function TemplatesView({ api, language }: { api: ApiClient; language: Lan
   const continueRun = () => run && mutate({ path: `${base}/runs/${run.run_id}/resume`, body: { request_id: crypto.randomUUID(), base_sha256: run.state_sha256, instruction: '', mode: 'continue' } })
   const retryCorrection = () => run && mutate({ path: `${base}/runs/${run.run_id}/corrections/retry`, body: { request_id: crypto.randomUUID(), base_sha256: run.state_sha256 } })
   const discardCorrection = () => run && mutate({ path: `${base}/runs/${run.run_id}/corrections/discard`, body: { request_id: crypto.randomUUID(), base_sha256: run.state_sha256 } })
+  const openCreationStudio = async () => {
+    if (!run || busy) return
+    setBusy(true); setError('')
+    try {
+      const creation = await api.post<{ run_id: string }>('/api/v1/create/imports', { request_id: crypto.randomUUID(), template_run_id: run.run_id, base_sha256: run.state_sha256 })
+      const params = new URLSearchParams(window.location.search)
+      params.set('page', 'create'); params.set('creation', creation.run_id); params.delete('template_run')
+      window.location.assign(`${window.location.pathname}?${params}`)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
   return <section className="templates-view">
     <header className="page-header"><div><h1>{tr('Templates', 'Шаблони')}</h1><p>{tr('Reusable Post and Landing designs', 'Багаторазові дизайни дописів і лендінгів')}</p></div><button onClick={() => begin()} disabled={busy || !!pending}>{tr('Create Template Agent', 'Агент створення шаблону')}</button></header>
     {error && <div role="alert" className="notice"><p>{error}</p>{pending ? <button disabled={busy} onClick={() => void mutate(pending)}>{tr('Retry same request', 'Повторити той самий запит')}</button> : <button onClick={() => { setError(''); if (run) void openRun(run.run_id); else void refresh() }}>{tr('Retry', 'Повторити')}</button>}</div>}
@@ -307,6 +317,7 @@ export function TemplatesView({ api, language }: { api: ApiClient; language: Lan
       <button type="submit" disabled={busy || !!pending || (!instruction.trim() && !references.length)}>{busy ? tr('Submitting…', 'Надсилання…') : tr('Start creation', 'Почати створення')}</button>
     </form>}
     {run && <section ref={runPanel} className="template-run" tabIndex={-1} aria-live="polite" aria-labelledby="template-run-title">
+      {['proposed', 'accepted'].includes(run.status) && <button className="secondary" disabled={busy || !!pending} onClick={() => void openCreationStudio()}>{tr('Open in Natal Studio', 'Відкрити в Natal Studio')}</button>}
       <header className="template-run-header"><div><span className="template-run-status" data-status={run.status}>{statusLabel(run.status)}</span><h2 id="template-run-title">{run.status === 'proposed' ? tr('Review template', 'Перевірка шаблону') : tr('Template workspace', 'Робоча область шаблону')} · {run.scope === 'combined' ? 'Post + Landing' : run.scope === 'post' ? 'Post' : 'Landing'}</h2></div><p>{tr('Step', 'Етап')}: {phaseLabel(run.phase)} · {run.iterations} {tr('comparisons', 'порівнянь')}</p></header>
       <div className="template-workspace">
         <div className="template-workspace-preview"><h3>{tr('Current preview', 'Поточне прев’ю')}</h3><div className="template-preview-grid">{Object.entries(run.previews).map(([key, preview]) => <figure key={key}><TemplateImage api={api} preview={preview} label={key} language={language} /><figcaption>{key}</figcaption></figure>)}</div></div>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Template from Website"
+  short_description: "Build PTW Post and Landing templates from website links"
+  default_prompt: "Use $template-from-website to inspect this inspiration link and create a reusable PTW template pair."

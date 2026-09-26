@@ -292,6 +292,7 @@ class PostStudioWorkspace:
         definition = self._definition()
         if definition.editor_key == "post.declarative.react":
             from .template_components import fixed_component_assets
+            from .template_assets import is_fixed_image
             records = fixed_component_assets(definition.document)
             for component in definition.document["components"]:
                 if component["type"] == "brand":
@@ -301,7 +302,8 @@ class PostStudioWorkspace:
                         None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
                         normalized_content["cta"], "none", normalized_content["phone_buttons"],
                         logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"])
-                elif component["type"] in {"image", "cutout_image"} and screen:
+                elif (component["type"] in {"image", "cutout_image"} and screen
+                      and not is_fixed_image(component["asset_id"])):
                     if component["type"] == "cutout_image":
                         from .template_cutout import cutout_png
                         records[component["id"]] = {"bytes": cutout_png(screen["bytes"]), "mime_type": "image/png"}

@@ -19,10 +19,11 @@ class TemplateConflict(RuntimeError):
 
 
 class TemplateTransaction:
-    def __init__(self, connection, postgres=False):
-        self.connection, self.postgres = connection, postgres
+    def __init__(self, connection, postgres=False, namespace="template_authoring"):
+        self.connection, self.postgres, self.namespace = connection, postgres, namespace
 
     def execute(self, sql, values=()):
+        sql = sql.replace("template_authoring_", self.namespace + "_")
         return self.connection.execute(sql.replace("?", "%s") if self.postgres else sql, values)
 
     def get(self, kind: str, key: str) -> dict | None:
@@ -89,7 +90,10 @@ class TemplateTransaction:
 
 
 class TemplateStore:
-    def __init__(self, path: Path | None = None, *, database_url: str | None = None):
+    def __init__(self, path: Path | None = None, *, database_url: str | None = None, namespace="template_authoring"):
+        if namespace not in {"template_authoring", "creation_studio"}:
+            raise ValueError("Unknown authoring namespace")
+        self.namespace = namespace
         self.path, self.database_url = path, database_url
         if database_url is None:
             if path is None:
@@ -108,7 +112,7 @@ class TemplateStore:
                     CREATE TRIGGER IF NOT EXISTS template_records_no_delete BEFORE DELETE ON template_authoring_records BEGIN SELECT RAISE(ABORT,'immutable template record'); END;
                     CREATE TRIGGER IF NOT EXISTS template_media_no_update BEFORE UPDATE ON template_authoring_media BEGIN SELECT RAISE(ABORT,'immutable template media'); END;
                     CREATE TRIGGER IF NOT EXISTS template_media_no_delete BEFORE DELETE ON template_authoring_media BEGIN SELECT RAISE(ABORT,'immutable template media'); END;
-                """)
+                """.replace("template_authoring_", namespace + "_").replace("template_records_", namespace + "_records_").replace("template_media_", namespace + "_media_"))
 
     @contextmanager
     def transaction(self):
@@ -118,12 +122,12 @@ class TemplateStore:
                 with connection.transaction():
                     # Serialize short state transitions across workers; never hold during inference/rendering.
                     connection.execute("SELECT pg_advisory_xact_lock(719260013)")
-                    yield TemplateTransaction(connection, True)
+                    yield TemplateTransaction(connection, True, self.namespace)
         else:
             with closing(sqlite3.connect(self.path, timeout=30)) as connection:
                 with connection:
                     connection.execute("BEGIN IMMEDIATE")
-                    yield TemplateTransaction(connection)
+                    yield TemplateTransaction(connection, namespace=self.namespace)
 
     def get(self, kind: str, key: str) -> dict:
         with self.transaction() as tx:

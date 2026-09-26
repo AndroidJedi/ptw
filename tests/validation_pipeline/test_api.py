@@ -28,6 +28,13 @@ class ValidationApiRouteTests(unittest.TestCase):
         replacement = patch("validation_pipeline.api.TemplateAuthoringService", return_value=service)
         replacement.start()
         self.addCleanup(replacement.stop)
+        from tests.validation_pipeline.test_creation_studio import make_service
+        creation, _, _ = make_service(Path(temporary.name) / "creation")
+        self.addCleanup(creation.templates.close)
+        self.addCleanup(creation.close)
+        creation_replacement = patch("validation_pipeline.api.CreationStudio", return_value=creation)
+        creation_replacement.start()
+        self.addCleanup(creation_replacement.stop)
 
     class Studio:
         @staticmethod

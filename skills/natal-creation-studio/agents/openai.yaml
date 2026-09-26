@@ -1,0 +1,4 @@
+interface:
+  display_name: "Natal Creation Studio"
+  short_description: "Create and edit Brief, Post and Landing together"
+  default_prompt: "Use $natal-creation-studio to create a Natal draft package from my idea or references."

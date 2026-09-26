@@ -517,6 +517,28 @@ class OwnerClaimsTests(unittest.TestCase):
             self.assertEqual({"sha256":"6bd068332255e5bf294341f85f46d31f3708b933282cb4bf09497b3511466d7a"},
                 forwarded.call_args.kwargs["params"])
 
+    def test_creation_proxy_is_private_and_only_forwards_bounded_owner_routes(self) -> None:
+        class Verifier:
+            def verify(self, token, app_check_token):
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+        headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
+        upstream = AsyncMock(return_value=httpx.Response(202, json={"run_id": "draft"}))
+        with patch("httpx.AsyncClient.request", upstream), TestClient(create_app(self.settings, verifier=Verifier())) as client:
+            self.assertEqual(401, client.get("/api/v1/create/runs").status_code)
+            self.assertEqual(202, client.post("/api/v1/create/runs", headers=headers, json={"request_id": "id"}).status_code)
+            self.assertEqual("http://validation/internal/v1/create/runs", upstream.call_args.args[1])
+            before = upstream.await_count
+            self.assertEqual(404, client.post("/api/v1/create/execute", headers=headers, json={}).status_code)
+            self.assertEqual(422, client.get("/api/v1/create/runs?project=x", headers=headers).status_code)
+            self.assertEqual(413, client.post("/api/v1/create/runs", headers=headers, content="x"*64001).status_code)
+            self.assertEqual(before, upstream.await_count)
+            upstream.return_value = httpx.Response(200, content=b"zip", headers={"Content-Type": "application/zip", "X-PTW-Content-SHA256": "a"*64, "Content-Disposition": 'attachment; filename="natal-studio.zip"'})
+            response = client.get("/api/v1/create/runs/00000000-0000-0000-0000-000000000001/export", headers=headers)
+            self.assertEqual(b"zip", response.content)
+            self.assertEqual("a"*64, response.headers["x-ptw-content-sha256"])
+            self.assertIn("no-store", response.headers["cache-control"])
+            self.assertIn("natal-studio.zip", response.headers["content-disposition"])
+
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):
             validate_owner_claims(

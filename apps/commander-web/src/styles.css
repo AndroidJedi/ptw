@@ -373,6 +373,10 @@ button svg { width: 17px; height: 17px; }
 .phone-metrics-canvas-panel { position: sticky; top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; }
 .phone-metrics-canvas-panel figure { min-height: 0; margin: 0; padding: clamp(12px, 2vw, 24px); display: grid; place-items: center; background: #111; }
 .phone-metrics-canvas-panel figure > img { width: min(100%, 630px); max-height: 78vh; display: block; object-fit: contain; border: 1px solid #303030; border-radius: 9px; background: #181818; box-shadow: 0 16px 50px rgba(0, 0, 0, .4); }
+.authored-post-edit-link { margin: 0 14px 10px; display: inline-flex; width: fit-content; align-items: center; text-decoration: none; }
+.authored-post-type-field { grid-template-columns: 1fr; }
+.authored-post-type-field > strong { min-height: 0; padding: 8px; place-items: center start; text-transform: capitalize; }
+.authored-post-workspace #post-edit-controls { scroll-margin-top: 16px; }
 .phone-metrics-canvas-panel .studio-preview-empty { width: min(100%, 520px); min-height: 500px; }
 .phone-metrics-controls { min-width: 0; display: grid; gap: 10px; }
 .phone-rich-copy { min-width: 0; display: grid; gap: 8px; }
@@ -754,6 +758,12 @@ button svg { width: 17px; height: 17px; }
 @media (min-width: 761px) and (max-width: 1100px) {
   .project-switcher { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .project-switcher-actions { grid-column: 1 / -1; }
+}
+
+@media (max-width: 1180px) {
+  .phone-metrics-workspace { grid-template-columns: minmax(0, 1fr); }
+  .authored-post-workspace .phone-metrics-controls { order: -1; }
+  .phone-metrics-canvas-panel { position: static; }
 }
 
 @media (max-width: 760px) {

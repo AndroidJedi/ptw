@@ -26,6 +26,24 @@ submitted. The source assets and code are deployed; Sanlarix template
 records were subsequently imported and accepted at the owner's explicit deploy
 request. Project application, Post approval and publication remain separate.
 
+## Authored Post editor controls — local only
+
+The Project Post editor now exposes every authored text field by its component
+name, with per-field font family and 12–180px size controls. Overrides persist
+with the Post, survive reload and a switch away/back to the same exact template,
+and leave accepted template definitions and prior approved PNGs unchanged. A
+direct link jumps from preview to controls; at narrower browser widths the
+controls move above the large preview. Separate bullet positions remain a
+property of an accepted template version; adding a third requires a Templates
+revision and explicit application to the Project Post. This local editor update
+has not been deployed or applied to the owner’s production creative.
+
+Verified: 13 focused Python template/switch tests, 28 Studio web unit tests,
+Owner build, three real-HTTP Post template browser flows (desktop, 360px and
+iPhone WebKit), deterministic Studio visual audit, Commander 44 tests (seven
+local dependency skips), demo and whitespace. No template version or Project
+data was changed by these checks.
+
 ## Sanlarix template production registration — verified
 
 The initial Natal Studio release included the Sanlarix-inspired source assets

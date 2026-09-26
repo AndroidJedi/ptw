@@ -64,6 +64,7 @@ class TemplateQualityTests(unittest.TestCase):
             'template_version': 1, 'template_sha256': sha(doc), 'document': doc})
         original = deepcopy(doc)
         palette = {'gradient_start': '#402429', 'gradient_end': '#85442D'}
+        typography = {'title': {'font_family': 'Oswald', 'font_size': 62}}
         registry = TemplateRegistry('post', (*POST_TEMPLATE_REGISTRY.all(), definition))
         with tempfile.TemporaryDirectory() as directory:
             workspace = PostStudioWorkspace(Path(directory), template_registry=lambda: registry)
@@ -74,14 +75,22 @@ class TemplateQualityTests(unittest.TestCase):
                     request_id=str(uuid4()), configuration=current['configuration'], content=current['content'])
             detail = switch(definition.identity.to_reference())
             self.assertEqual(palette_defaults(doc), detail['template_palette_defaults'])
+            self.assertEqual(48, next(field['font_size'] for field in detail['template_fields'] if field['id'] == 'title'))
             self.assertNotIn('template_palette', detail['configuration'])
             before = workspace.render_preview(state_sha256=detail['state_sha256'])['bytes']
-            config = {**detail['configuration'], 'template_palette': palette}
+            config = {**detail['configuration'], 'template_palette': palette, 'template_typography': typography}
             detail = workspace.save_configuration(base_sha256=detail['state_sha256'], configuration=config, content=detail['content'])
             after = workspace.render_preview(state_sha256=detail['state_sha256'])['bytes']
             self.assertNotEqual(before, after)
+            rendered_title = next(node for node in definition.build_template(config, detail['content']).document['root']['children'] if node['id'] == 'title')
+            self.assertEqual(('Oswald', 62), (rendered_title['props']['font_family'], rendered_title['props']['font_size']))
+            self.assertEqual('fixed', rendered_title['props']['text_fit'])
+            family_only = {**config, 'template_typography': {'title': {'font_family': 'Oswald', 'font_size': 48}}}
+            family_title = next(node for node in definition.build_template(family_only, detail['content']).document['root']['children'] if node['id'] == 'title')
+            self.assertEqual('shrink', family_title['props']['text_fit'])
             reopened = PostStudioWorkspace(Path(directory), template_registry=lambda: registry)
             self.assertEqual(palette, reopened.detail()['configuration']['template_palette'])
+            self.assertEqual(typography, reopened.detail()['configuration']['template_typography'])
             self.assertEqual(palette, definition.component_settings(config, detail['content'])['template_palette'])
             with self.assertRaises(RuntimeError):
                 workspace.save_configuration(base_sha256='0' * 64, configuration=config, content=detail['content'])
@@ -90,13 +99,20 @@ class TemplateQualityTests(unittest.TestCase):
             approved_png = workspace.version_render(1)['bytes']
             self.assertEqual(after, approved_png)
             self.assertEqual(palette, workspace.version_detail(1)['configuration']['template_palette'])
+            self.assertEqual(typography, workspace.version_detail(1)['configuration']['template_typography'])
             with self.assertRaises(ValueError):
                 definition.normalize_configuration({**config, 'template_palette': {**palette, 'css': 'anything'}})
             with self.assertRaises(ValueError):
                 definition.normalize_configuration({**config, 'template_palette': {**palette, 'gradient_start': 'red'}})
+            for invalid in ({'unknown': typography['title']}, {'title': {'font_family': 'Oswald', 'font_size': True}}, {'title': {'font_family': 'Not a font', 'font_size': 62}}):
+                with self.assertRaises(ValueError):
+                    definition.normalize_configuration({**config, 'template_typography': invalid})
             restored = switch(phone)
             self.assertNotIn('template_palette', restored['configuration'])
-            self.assertEqual(palette, switch(definition.identity.to_reference())['configuration']['template_palette'])
+            self.assertNotIn('template_typography', restored['configuration'])
+            restored = switch(definition.identity.to_reference())
+            self.assertEqual(palette, restored['configuration']['template_palette'])
+            self.assertEqual(typography, restored['configuration']['template_typography'])
             self.assertEqual(approved_png, workspace.version_render(1)['bytes'])
             self.assertEqual(original, doc)
 

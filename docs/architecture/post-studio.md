@@ -60,9 +60,17 @@ unaccepted template, wrong surface or mismatched digest is rejected. Selecting
 a template never invokes generation or approves the Post.
 
 Authored layouts bind existing copy by semantic role and occurrence, expose
-individual text fields, and reuse the current image and shared image-generation
-controls. Fields without matching copy begin empty. Text can shrink within its
-box; preview/approval reject remaining overflow. The original Phone configuration
+individual text fields with per-field font family and 12–180px size controls,
+and reuse the current image and shared image-generation controls. Those font
+overrides are pinned to the selected exact template; switching away and back
+restores them without changing the immutable template definition. The Post editor
+links directly to its collapsed Text and bullets and Typography controls, and
+places the controls above the large preview at narrower viewport widths. Fields
+without matching copy begin empty. The count and placement of separate bullet
+fields still come from the accepted template version; adding another position
+requires a new version in Templates and an explicit Project switch. Unchanged
+text can shrink within its box; an explicit font-size override renders at that
+size and preview/approval reject overflow. The original Phone configuration
 and prior template drafts are retained. The exact accepted definition is pinned
 in workspace selection, state hashes, checkpoints and approved records, so later
 template versions do not alter an existing Post. Manual Agent remains specific

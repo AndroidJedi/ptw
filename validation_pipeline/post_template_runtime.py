@@ -6,7 +6,8 @@ from typing import Mapping
 from .post_templates import PHONE_METRICS_DEFINITION, PostTemplateDefinition
 from .studio_phone_metrics import normalize_phone_metrics_content
 from .studio_primitives import PrimitiveTemplate
-from .template_components import bounded_text, color, normalize_document, primitive, sha
+from .studio import STUDIO_FONT_FAMILIES
+from .template_components import bounded_text, color, normalize_document, number, primitive, sha
 from .template_registry import TemplateCapabilities, TemplateIdentity
 
 
@@ -16,7 +17,7 @@ class AuthoredPostDefinition(PostTemplateDefinition):
 
 
 def text_fields(document):
-    return [{"id": c["id"], "role": c["role"]} for c in document["components"]
+    return [{"id": c["id"], "role": c["role"], "font_family": c["font_family"], "font_size": c["font_size"]} for c in document["components"]
             if c["type"] in {"text", "button"}]
 
 
@@ -84,13 +85,27 @@ def post_definition(record):
     def configuration(value):
         if not isinstance(value, Mapping):
             raise ValueError("Post configuration must be an object")
-        normalized = PHONE_METRICS_DEFINITION.normalize_configuration({k: v for k, v in value.items() if k != "template_palette"})
+        normalized = PHONE_METRICS_DEFINITION.normalize_configuration({k: v for k, v in value.items() if k not in {"template_palette", "template_typography"}})
         if "template_palette" in value:
             palette = value["template_palette"]
             defaults = palette_defaults(doc)
             if defaults is None or not isinstance(palette, Mapping) or set(palette) != set(defaults):
                 raise ValueError("Post palette must match the selected template's controls")
             normalized["template_palette"] = {k: color(v) for k, v in palette.items()}
+        if "template_typography" in value:
+            typography = value["template_typography"]
+            field_ids = {field["id"] for field in fields}
+            if not isinstance(typography, Mapping) or set(typography) - field_ids:
+                raise ValueError("Post typography must match the selected template's text fields")
+            normalized["template_typography"] = {}
+            for field_id, appearance in typography.items():
+                if not isinstance(appearance, Mapping) or set(appearance) != {"font_family", "font_size"}:
+                    raise ValueError("Post typography requires a font and size")
+                family = appearance["font_family"]
+                if family not in STUDIO_FONT_FAMILIES:
+                    raise ValueError("Post font family is unsupported")
+                size = number(appearance["font_size"], 12, 180)
+                normalized["template_typography"][field_id] = {"font_family": family, "font_size": size}
         return normalized
 
     def content(value):
@@ -108,8 +123,17 @@ def post_definition(record):
                                     variant_seed=variant_seed).document)
         result.update(template_id=identity.template_id, version=identity.template_version)
         for node in result["root"]["children"]:
+            default_size = node["props"].get("font_size")
+            appearance = None
+            if node["type"] in {"text", "button"}:
+                appearance = configuration.get("template_typography", {}).get(node["id"])
+                if appearance:
+                    node["props"].update(appearance)
             if node["type"] == "text":
-                node["props"].update(text_fit="shrink", min_font_size=14)
+                # A changed size is exact: fail visibly if the template box is
+                # too small instead of silently shrinking the owner's choice.
+                exact_size = appearance and appearance["font_size"] != default_size
+                node["props"].update(text_fit="fixed" if exact_size else "shrink", min_font_size=14)
         return PrimitiveTemplate.from_dict(result)
 
     def catalog():
@@ -124,6 +148,8 @@ def post_definition(record):
                   "content": normalized["template_text"], "logo": configuration["logo"]}
         if "template_palette" in configuration:
             result["template_palette"] = configuration["template_palette"]
+        if "template_typography" in configuration:
+            result["template_typography"] = configuration["template_typography"]
         return {**result, "sha256": sha(result)}
 
     return AuthoredPostDefinition(

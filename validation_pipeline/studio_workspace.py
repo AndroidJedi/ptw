@@ -532,11 +532,15 @@ class PostStudioWorkspace:
         elif target.editor_key == "post.declarative.react":
             next_content = bind_content(target.document, source,
                 text_fields(current.document) if current.editor_key == "post.declarative.react" else ())
-            # Palettes belong to a Post/template pair, not every subsequent layout.
+            # Palette and typography overrides belong to one exact Post template.
             config.pop("template_palette", None)
+            config.pop("template_typography", None)
             saved_palette = drafts.get(target_key, {}).get("configuration", {}).get("template_palette")
             if saved_palette is not None:
                 config["template_palette"] = deepcopy(saved_palette)
+            saved_typography = drafts.get(target_key, {}).get("configuration", {}).get("template_typography")
+            if saved_typography is not None:
+                config["template_typography"] = deepcopy(saved_typography)
         else:
             next_content = {k: v for k, v in source.items() if k != "template_text"}
             if current.editor_key == "post.declarative.react":
@@ -549,7 +553,7 @@ class PostStudioWorkspace:
                         seen.add(role)
             # Keep authored text available on return; restore the built-in's controls.
             config = drafts.get(target_key, {}).get("configuration", config)
-            config = {k: v for k, v in config.items() if k != "template_palette"}
+            config = {k: v for k, v in config.items() if k not in {"template_palette", "template_typography"}}
         next_content = target.normalize_content(next_content)
         config = target.normalize_configuration(config)
         updates = {"template.json": {"schema": _TEMPLATE_SELECTION_SCHEMA, **reference},

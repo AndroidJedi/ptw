@@ -191,24 +191,37 @@ describe('Phone & metrics Studio', () => {
   it('previews and saves authored background colors and can restore template defaults', async () => {
     const authored = structuredClone(detail)
     authored.editor_key = 'post.declarative.react'
-    authored.template_fields = [{ id: 'title', role: 'headline' }]
+    authored.template_fields = [{ id: 'title', role: 'headline', font_family: 'Inter', font_size: 48 }]
     authored.content.template_text = { title: 'A complete subject' }
     authored.template_palette_defaults = { gradient_start: '#1676cb', gradient_end: '#24c4cc' }
     const { api, post } = studioApi(authored)
     render(<PhoneMetricsStudio api={api} language="en" basePath={basePath} detail={authored} onDetail={vi.fn()} />)
-    await screen.findByText('Background palette')
+    expect(screen.getByRole('link', { name: 'Edit text and fonts' })).toHaveAttribute('href', '#post-edit-controls')
+    const textSection = screen.getByText('Text and bullets').closest('details')!
+    const typographySection = screen.getByText('Font and size for each text field').closest('details')!
+    const paletteSection = screen.getByText('Background palette').closest('details')!
+    expect(textSection).not.toHaveAttribute('open')
+    expect(typographySection).not.toHaveAttribute('open')
+    expect(paletteSection).not.toHaveAttribute('open')
+    fireEvent.click(typographySection.querySelector('summary')!)
+    fireEvent.change(screen.getByLabelText('title font family'), { target: { value: 'Oswald' } })
+    fireEvent.change(screen.getByLabelText('title font size'), { target: { value: '62' } })
+    fireEvent.click(paletteSection.querySelector('summary')!)
     fireEvent.change(screen.getByLabelText('Gradient start'), { target: { value: '#402429' } })
     fireEvent.change(screen.getByLabelText('Gradient end'), { target: { value: '#85442d' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
-      configuration: expect.objectContaining({ template_palette: { gradient_start: '#402429', gradient_end: '#85442D' } }),
+      configuration: expect.objectContaining({ template_palette: { gradient_start: '#402429', gradient_end: '#85442D' }, template_typography: { title: { font_family: 'Oswald', font_size: 62 } } }),
     }), expect.anything()))
     fireEvent.click(screen.getByRole('button', { name: 'Use template colors' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use template fonts' }))
     expect(screen.getByLabelText('Gradient start')).toHaveValue('#1676cb')
+    expect(screen.getByLabelText('title font size')).toHaveValue('48')
     fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post.mock.calls.filter(([path]) => path === `${basePath}/save`)).toHaveLength(2))
     const saved = post.mock.calls.filter(([path]) => path === `${basePath}/save`).at(-1)![1] as { configuration: unknown }
     expect(saved.configuration).not.toHaveProperty('template_palette')
+    expect(saved.configuration).not.toHaveProperty('template_typography')
   })
 
   it('shows hypothesis provenance and sends owner edits with matching values', async () => {

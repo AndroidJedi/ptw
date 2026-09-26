@@ -39,6 +39,8 @@ from .studio_routes import studio_creative_router
 from .template_authoring import TemplateAuthoringService
 from .template_store import TemplateStore
 from .template_routes import template_router
+from .creation_studio import CreationStudio, BriefAdapter, XhighProvider, MODEL as CREATION_MODEL
+from .creation_routes import creation_router
 from .studio_workspace import PostStudioWorkspace
 from .creative_analytics import CreativeAnalyticsService, DatabaseCreativeAnalyticsAuthority
 from .creative_analytics_routes import (
@@ -127,6 +129,12 @@ def create_app(
         )
     template_authoring = template_authoring_service or TemplateAuthoringService(TemplateStore(database_url=settings.database_url), visual_bridge)
     studio_creatives.template_registry = template_authoring.post_registry
+    creation_provider = StructuredBridge(settings.bridge_url, settings.bridge_token, CREATION_MODEL)
+    creation_templates = TemplateAuthoringService(TemplateStore(database_url=settings.database_url), creation_provider)
+    creation_generator = lambda: ValidationRunner(repository, XhighProvider(creation_provider), product_brief_skill_path=settings.product_brief_skill_path)
+    creation = CreationStudio(TemplateStore(database_url=settings.database_url, namespace="creation_studio"),
+        creation_templates, creation_provider, BriefAdapter(repository, creation_generator),
+        ResultBridgePhoneScreenImageProvider(settings.bridge_url, settings.bridge_token, CREATION_MODEL))
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url
     )
@@ -173,6 +181,7 @@ def create_app(
         if hasattr(landing_pages, "operations"):
             await asyncio.to_thread(landing_pages.operations.recover_interrupted)
         await asyncio.to_thread(template_authoring.recover_interrupted)
+        await asyncio.to_thread(creation.recover_interrupted)
         await asyncio.to_thread(repository.recover_interrupted)
         for creative_id in await asyncio.to_thread(studio_creatives.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
@@ -200,6 +209,8 @@ def create_app(
         for task in tasks:
             task.cancel()
         template_authoring.close()
+        creation.close()
+        creation_templates.close()
         if hasattr(landing_pages, "operations"):
             landing_pages.operations.close()
 
@@ -226,6 +237,8 @@ def create_app(
     project_dependencies = [Depends(authorize), Depends(require_active_project)]
 
     app.include_router(template_router(template_authoring, prefix="/internal/v1/templates", dependencies=[Depends(authorize)]))
+    app.include_router(creation_router(creation, prefix="/internal/v1/create", dependencies=[Depends(authorize)]))
+    app.state.creation_studio = creation
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/internal/v1/studio", dependencies=project_dependencies,
     ))

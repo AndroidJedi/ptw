@@ -1,7 +1,7 @@
 # Commander current state
 
-Updated: 2026-09-25
-Branch: `candidate/ptw-prod-access-20260922`
+Updated: 2026-09-26
+Branch: `release/natal-studio-20260926`
 Deployment: migration-aware preserving release `landing-performance-20260925`,
 accepted runtime code revision `c443c2d6ca7c7008b0771e7caa5626eb3aacff07`
 with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
@@ -11,6 +11,135 @@ Owner Hosting version `b298a13378206bec` and public Landing Hosting version
 `6fb915a9a9e5cf64` are live. Migration 018 preserved every existing business row.
 All eleven Astra canaries (jobs 1145–1155), Pexels, schema, authorization,
 dependencies, skills, approved-Post persistence, resource and Hosting audits passed.
+
+## Natal Studio timeout recovery — local correction
+
+A real water-quality creation stopped during template composition after an Astra
+timeout. Natal Studio incorrectly converted the linked provider failure to a
+generic "another agent pass" message. The canonical Brief and template IDs were
+already saved; asking the owner to clarify the idea was misleading.
+The first live retry subsequently failed numeric validation. Numeric component
+bounds now share one source with the output schema; correction feedback names
+the exact component field or canvas dimension and its permitted range. Resuming
+an invalid design passes the saved validation issue and original direction into
+refinement, instead of blindly repeating the failed request.
+
+Creation now retries a confirmed design timeout once, continues bounded segment
+checkpoints, and derives localized recovery from the linked template even for
+older sessions. The notice says what is saved and offers Continue creating.
+Layout no-progress retries refine the recorded issues; unsupported capabilities,
+cached visual-review failures and exhausted budgets cannot offer no-op retries.
+Describe a change opens and focuses the collapsed editor. Recovery does not
+replace the Brief, duplicate its learning, accept templates or publish output.
+
+Verified: 90 current Linux-image backend tests plus a final 16-case Creation run,
+128 web unit tests
+and build, nine real-HTTP/scripted-inference browser cases on desktop/360px/iPhone
+WebKit, Commander tests/demo and canonical skill checks. Browser evidence includes
+localized repeated-timeout recovery and continuation with unchanged Brief/design
+IDs. The corrected local service was restarted only after the old attempt ended;
+the real recovery notice passed desktop/mobile/WebKit checks without overflow.
+The owner's original creation was then resumed through its actual Continue
+button, preserving Brief and template IDs. Its live inference remains separate
+from scripted test evidence. Production has not changed.
+
+## Natal Studio unified creation page — implemented locally
+
+`?page=create` is a standalone Natal product page with collapsible input, Brief,
+Post, Landing, agent-edit and export sections. It accepts ideas/pasted briefs,
+public HTTPS websites and screenshots; supports full packages or individual
+outputs and reusable templates. Editing uses Astra `xhigh`. Canonical Brief
+creation/correction preserves graph learning; concept drafts do not fabricate
+Project approvals or publishing. Saved pairs can serve other ideas; accepted
+pair edits create exact-source derivatives, with enforced surface boundaries.
+
+The API, Gateway allowlist, append-only creation store, migration 019, passive
+public-network capture, content/media binding, native geometry checks, actual-PNG
+visual review and responsive HTML/PNG/JSON exports are implemented. Review can
+apply two bounded framing/layout passes without changing source templates.
+Site source logos are excluded from new authoring. Raw reference screenshots
+remain temporary; reused photos retain source and normalized digests.
+
+The Sanlarix pair now uses canonical Natal branding. Actual Astra comparison
+passed, and all six UA/EN bound renders have no geometry errors. Original source
+wordmark bytes remain historical evidence only. The corrected pair is available
+in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`, linked to the
+original proposed template run. No acceptance or provider result was fabricated.
+Local product: `http://127.0.0.1:5173/?e2e=1&page=create`.
+
+A separate real-Astra canary produced a canonical Brief, a coordinated pair,
+actual copy and generated art. Actual-PNG review detected a cropped mobile house;
+two bounded framing corrections preserved it, and the following review passed.
+Its Project/domain records are isolated under `.local/creation-real-canary/`.
+Browser evidence for the real Sanlarix draft is in `.local/sanlarix-template/`.
+Scripted-provider browser tests exercise real HTTP, storage, renderers, recovery,
+agent edits and downloads on desktop/360px/iPhone WebKit. Local and current Linux
+image tests cover creation, retained templates, canonical learning, auth and
+integrity: the final Linux backend run passed 87 tests, web checks passed 128,
+and 30 browser cases passed. Exported HTML passed desktop/mobile Chromium and
+WebKit checks for clipping, overflow, embedded images and inactive draft actions.
+All 19 migrations and append-only/CAS guards passed in a disposable
+PostgreSQL database. Production remains on the accepted release above; migration
+019, new source and local template records have not been deployed there.
+
+Canonical skills: `natal-creation-studio`, updated `template-from-website` and
+`template-creation-agent`; desktop links and verifier are synchronized. See
+[`natal-creation-studio.md`](natal-creation-studio.md) for authority and boundaries.
+
+## Sanlarix template pair and website-inspiration skill — local review ready
+
+Owner-requested Sanlarix Landing and square ad reuse four original registered
+assets: home/business photographs, transparent equipment and green backdrop;
+the originally downloaded source logo is retained only as historical evidence.
+Source bytes/URLs and source/raster digests are retained; live copy is separate.
+A generic image-asset catalog supports fixed decorative/background art and
+replaceable photo fixtures. Project hero replacement preserves fixed art; previous
+accepted definitions and their image contracts are unchanged.
+
+Combined run `569caf85-fb98-4ded-8793-cafca0e01854` is proposed. Actual Astra
+`xhigh` analysis succeeded; two composition calls failed (timeout, stopped stalled
+retry). The owner-directed local composition is explicitly recorded separately,
+then real Astra `xhigh` comparison passed with zero differences and geometry errors.
+No successful composition invocation was fabricated. Six Ukrainian/English native
+renders and 12 review-browser states pass at desktop/360px/iPhone WebKit.
+The local app was restarted; the exact proposed state survived and its three
+previews/review action passed real desktop/360px/iPhone checks.
+Review: `http://127.0.0.1:42749/`; evidence: `.local/sanlarix-template/`.
+These are global declarative designs, not a new native Project Landing definition.
+Acceptance, Project application and production deployment/publication have not run.
+
+New canonical `skills/template-from-website` covers URL inspection, temporary
+references, explicitly requested source reuse, typed composition and visual review.
+Its desktop symlink and verifier entry are installed. The bounded composer skill
+retains its 5 KiB budget, enforces editable surfaces and keeps Natal identity.
+Verification: 52 focused backend cases across suite and focused rerun, nine current
+Linux-image asset/quality checks, all 24 Templates/Post browser cases (scripted
+inference), deterministic Studio audit, Commander 44 cases (seven local/five current
+image dependency skips), demo, skills and whitespace. The old Commander image
+lacks Git and failed five repository checks; the current Validation image passed
+those checks. Source changes remain local.
+
+## Square Post refinement — local, template acceptance pending
+
+Repeated Natal marks now use a count- and aspect-aware grid with square slots,
+bounded rotation and full rotated-canvas clearance. Compiler v8 invalidates
+preview caches; accepted definitions and approved PNGs remain unchanged.
+The local Studio was restarted with its standard launcher and its authenticated
+detail and fresh PNG verified. Existing copy, image history and approval survive.
+
+Template proposal `e49794d9-bcd2-4617-bd84-3e89966ac9cc` refines
+`design_ee8759d1b6034ee2bffe` v3 with 82/32/30px typography, three sparse marks,
+a deeper blue/teal gradient, separated hero and a compact aligned footer.
+Real Ukrainian and English copy renders without truncation; the Ukrainian copy
+has at least 5.05:1 contrast against its actual background. Astra `xhigh`
+analysis/composition and three comparisons completed, including compiler v8.
+Owner acceptance and application to the selected local Post remain pending.
+
+Verified: 65 focused template/renderer tests, deterministic Studio geometry audit,
+Owner build, desktop/360px/iPhone WebKit checks of both Post and proposal, plus
+the before/after review, Commander 44 tests (seven local dependency skips), demo,
+skills and whitespace. Evidence: `.local/post-template-refinement/`; review:
+`http://127.0.0.1:42747/`. No deployment, publication or Post approval ran.
 
 ## Landing delivery and durable operations — deployed and verified
 

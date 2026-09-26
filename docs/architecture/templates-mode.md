@@ -60,6 +60,11 @@ small canonical marks. Old documents default to one. A stable per-creative
 seed varies count, locations and angles across Posts while keeping each Post
 identical across refresh, save and restart. Repeated marks render over the
 backdrop but behind copy and hero imagery.
+The repetition grid adapts to the sampled count and region aspect ratio, with
+square symbol slots and enough clearance for rotation. Small counts no longer
+shrink into a fixed eight-cell grid. Compiler v8 refreshes preview caches without
+rewriting accepted definitions or approved PNGs. For deliberate sparse patterns,
+author individual larger, faint marks clear of text and footer boundaries.
 Bright owner markup such as circles, arrows and highlights is annotation data and
 is never composed into the template.
 
@@ -82,6 +87,34 @@ Creating a derivative from an unavailable built-in preview may use the owner's
 instruction without attaching preview pixels. A wrong immutable digest still
 conflicts, and an unknown template still returns 404.
 Accepted historical PNGs remain immutable even after renderer code changes.
+
+## Website inspiration and authorized source art
+
+`skills/template-from-website` is the local development entrypoint for inspiration
+URLs. It inspects rendered desktop/mobile pages, captures up to two temporary
+references, and sends analysis plus registered asset IDs into the existing bounded
+Template Creation Agent. The latter remains a structured, non-coding runtime.
+Explicit owner requests to reuse website assets permit offline registration with
+original source bytes, URLs and both source/raster SHA-256 values. This does not
+assert a public license or turn source claims into Project evidence.
+
+The `image` component can select manifest-registered `image_assets`. Replaceable
+`fixture` photos/art yield to Project hero media; `fixed` decorative/background art
+survives replacement and is excluded from mutable image slots. Unknown assets,
+wrong component types and corrupted bytes fail validation. Existing canonical
+Natal identity, official badges and accepted definitions retain their contracts.
+The Sanlarix-inspired pair uses canonical Natal branding, two source photographs,
+transparent storage equipment and a green background. Its downloaded reference
+wordmark remains historical source evidence and cannot be selected by new authoring.
+All copy
+remains separate and editable. Template records and source assets must both exist
+in the target authority/runtime; source registration alone does not create an
+accepted template or deploy it.
+
+The standalone Natal Studio page combines idea/reference input, canonical Briefs,
+concept Post/Landing drafts and agent edits; see
+[`natal-creation-studio.md`](natal-creation-studio.md). Saved template pairs can
+serve new ideas there without approving Project content.
 
 ## Durable creation and review
 

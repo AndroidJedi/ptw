@@ -1,9 +1,10 @@
-import { BarChart3, Bot, Image, LayoutTemplate, Megaphone, Settings, Target } from 'lucide-react'
+import { BarChart3, Bot, Image, LayoutTemplate, Megaphone, Settings, Sparkles, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 import type { Page } from '../types'
 
 const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = [
+  { id: 'create', en: 'Natal Studio', uk: 'Natal Studio', icon: Sparkles },
   { id: 'briefs', en: 'Brief', uk: 'Бриф', icon: Target },
   { id: 'posts', en: 'Post', uk: 'Допис', icon: Image },
   { id: 'landing', en: 'Landing', uk: 'Лендінг', icon: LayoutTemplate },
@@ -20,6 +21,7 @@ export function Shell({ page, onPage, children, language }: {
   language: Language
 }) {
   const tr = (en: string, uk: string) => translate(language, en, uk)
+  if (page === 'create') return <div className="creation-product-shell"><main id="main-content">{children}</main></div>
   return <div className="app-shell">
     <aside className="rail" aria-label={tr('Main navigation', 'Головна навігація')}>
       <div className="brand" aria-label="PTW"><span>PTW</span><small>{tr('Validation', 'Валідація')}</small></div>

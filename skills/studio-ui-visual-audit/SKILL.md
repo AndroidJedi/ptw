@@ -26,6 +26,10 @@ a specific remote target.
   coordinates. Preserve ordering and a positive visual gap for title,
   supporting text, bullets, and CTA.
 - Check relevant optional-element states and bounded typography/layout extremes.
+- Inspect decorative Natal marks at phone display size. Sparse repeats must use
+  the region's available space, preserve the complete symbol and leave rotation
+  clearance; a fixed dense grid must not reduce them to fragments. Individually
+  composed marks need visible separation from copy and the footer edge.
 - Inspect hero and gradient as one composition. Match supporting hues and light
   temperature to the actual image, keep the silhouette distinct and verify copy
   contrast across the gradient. Recheck each replacement with its real cutout;

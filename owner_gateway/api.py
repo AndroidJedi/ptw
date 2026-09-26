@@ -395,15 +395,18 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/briefs/{brief_id}/approve", body=request, actor=actor(identity)
         )).json()
 
-    async def templates_proxy(path: str, request: Request, identity: OwnerIdentity) -> Response:
+    async def templates_proxy(path: str, request: Request, identity: OwnerIdentity, *, creation=False) -> Response:
         read_paths = (r"", r"runs", r"runs/[0-9a-f-]{36}", r"runs/[0-9a-f-]{36}/capability-handoff",
                       r"media/[0-9a-f]{64}", r"(?:post|landing)/[a-z][a-z0-9_]{1,63}/versions", r"(?:post|landing)/[a-z][a-z0-9_]{1,63}/versions/[1-9][0-9]*")
         write_paths = (r"references", r"references/[0-9a-f-]{36}/discard", r"runs",
                        r"runs/[0-9a-f-]{36}/(?:resume|decision)", r"(?:post|landing)/[a-z][a-z0-9_]{1,63}/versions/[1-9][0-9]*/edit")
+        if creation:
+            read_paths = (r"designs", r"runs", r"runs/[0-9a-f-]{36}", r"runs/[0-9a-f-]{36}/export", r"media/[0-9a-f]{64}")
+            write_paths = (r"imports", r"references", r"runs", r"runs/[0-9a-f-]{36}/(?:edit|retry|accept)")
         patterns = read_paths if request.method == "GET" else write_paths
         if not any(re.fullmatch(pattern, path) for pattern in patterns):
             raise HTTPException(404, "Template route is unavailable")
-        if set(request.query_params) - {"surface", "sha256"}:
+        if set(request.query_params) - (set() if creation else {"surface", "sha256"}):
             raise HTTPException(422, "Template query fields are invalid")
         payload = None
         if request.method == "POST":
@@ -419,10 +422,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                     raise ValueError()
             except (ValueError, UnicodeDecodeError) as error:
                 raise HTTPException(422, "Template request must be one JSON object") from error
-        response = await validation_bridge(request.method, "/internal/v1/templates" + ("/" + path if path else ""),
+        response = await validation_bridge(request.method, ("/internal/v1/create" if creation else "/internal/v1/templates") + ("/" + path if path else ""),
             body=payload, params=dict(request.query_params), actor=actor(identity), timeout=120)
         headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-        for key in ("etag", "x-ptw-content-sha256"):
+        for key in ("etag", "x-ptw-content-sha256", "content-disposition"):
             if key in response.headers:
                 headers[key] = response.headers[key]
         return Response(response.content, status_code=response.status_code,
@@ -431,6 +434,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.get("/api/v1/templates")
     async def templates_list(request: Request, identity: OwnerIdentity = Depends(owner)) -> Response:
         return await templates_proxy("", request, identity)
+
+    @app.api_route("/api/v1/create/{path:path}", methods=["GET", "POST"])
+    async def creation_route(path: str, request: Request, identity: OwnerIdentity = Depends(owner)) -> Response:
+        return await templates_proxy(path, request, identity, creation=True)
 
     @app.api_route("/api/v1/templates/{path:path}", methods=["GET", "POST"])
     async def templates_route(path: str, request: Request, identity: OwnerIdentity = Depends(owner)) -> Response:

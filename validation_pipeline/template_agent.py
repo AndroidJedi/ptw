@@ -5,9 +5,9 @@ import base64
 import hashlib
 from typing import Any, Mapping
 
-from .template_components import (COMPONENT_FIELDS, COMPONENT_TYPES, PLACEHOLDERS, ROLES,
+from .template_components import (COMPONENT_FIELDS, COMPONENT_NUMBER_BOUNDS, COMPONENT_TYPES, PLACEHOLDERS, ROLES,
     STUDIO_FONT_FAMILIES, apply_edits, bounded_text, box, canonical, catalog, number)
-from .template_assets import ASSET_IDS
+from .template_assets import ASSET_IDS, is_reference_identity
 from .provider import (TEMPLATE_CORRECTION_KEY, enforce_structured_contract_budget,
     enforce_structured_response_budget, template_validation_correction)
 
@@ -38,7 +38,7 @@ ANALYSIS_SCHEMA = obj({**{key: text_schema() for key in ANALYSIS_FIELDS},
     "component_types": {"type": "array", "maxItems": 8, "items": {"type": "string", "enum": list(COMPONENT_TYPES)}}})
 COMPONENT_SCHEMA = obj({
     **{key: text_schema(40) for key in ("id", "type", "role", "fill", "color", "border_color", "font_family", "align", "placeholder", "fit")},
-    **{key: {"type": "number"} for key in ("border_width", "radius", "opacity", "font_size", "font_weight", "focal_x", "focal_y", "rotation_degrees")},
+    **{key: {"type": "number", "minimum": low, "maximum": high} for key, (low, high) in COMPONENT_NUMBER_BOUNDS.items()},
     "asset_id": {"type": "string", "enum": list(ASSET_IDS)},
     "badge_surface": {"type": "string", "enum": ["slot_pill", "asset_only"]},
     "repeat_min": {"type": "integer", "minimum": 1, "maximum": 8},
@@ -79,7 +79,9 @@ def validate_analysis(value: Mapping[str, Any]) -> dict:
 def validate_step(value: Mapping[str, Any], documents: dict, *, comparison: bool) -> dict:
     if set(value) != {"edits", "differences", "capability_gap", "complete"} or type(value["complete"]) is not bool:
         raise ValueError("Template agent response fields are invalid")
-    apply_edits(documents, value["edits"])
+    proposed = apply_edits(documents, value["edits"])
+    if any(is_reference_identity(c["asset_id"]) for doc in proposed.values() for c in doc["components"]):
+        raise ValueError("Reusable Natal templates must not include a reference company's logo")
     differences = value["differences"]
     if not isinstance(differences, list) or len(differences) > 16:
         raise ValueError("Template comparison exceeds its bounded observations")
@@ -127,6 +129,7 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
         return payload, ANALYSIS_SCHEMA
     payload.update({"analysis": run["analysis"], "definitions": run["documents"],
                     "capabilities": {s: catalog(s, run["analysis"]["component_types"]) for s in run["documents"]}})
+    payload["editable_surfaces"] = run.get("editable_surfaces", list(run["documents"]))
     payload["fixed_assets"] = {
         "natal_symbol": "Canonical Natal symbol. Never redraw or replace.",
         "app_store_badge_en": "Official English Apple artwork. Never redraw, recolor, or replace.",
@@ -174,7 +177,13 @@ def call(provider, phase: str, run: dict, images: list[tuple[str, bytes]], *, ca
     payload, schema = contract(phase, run)
     payload["image_order"] = [name for name, _ in images]
     measured = enforce_structured_contract_budget(mode=MODE, system_prompt=SYSTEM, input_payload=payload, output_schema=schema)
-    validator = validate_analysis if phase == "analyze" else lambda value: validate_step(value, run["documents"], comparison=phase == "compare")
+    def validator(value):
+        if phase == "analyze":
+            return validate_analysis(value)
+        result = validate_step(value, run["documents"], comparison=phase == "compare")
+        if any(edit["surface"] not in run.get("editable_surfaces", run["documents"]) for edit in result["edits"]):
+            raise ValueError("The owner did not authorize edits to that surface")
+        return result
     kwargs = {"mode": MODE, "system_prompt": SYSTEM, "input_payload": payload, "output_schema": schema,
               "idempotency_key": f"template:{run['run_id']}:{run['revision']}:{phase}", "prompt_version": PROMPT_VERSION,
               "response_validator": validator, "reasoning_effort": REASONING_EFFORT}

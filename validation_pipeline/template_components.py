@@ -17,7 +17,8 @@ from typing import Any, Mapping
 
 from .studio import STUDIO_FONT_FAMILIES, StudioRenderer, inspect_media
 from .studio_primitives import PrimitiveTemplate, PRIMITIVE_TEMPLATE_SCHEMA
-from .template_assets import ASSET_IDS, RENDERER_VERSION, asset_bytes, document_asset_manifest
+from .template_assets import (ASSET_IDS, IMAGE_ASSET_IDS, RENDERER_VERSION, asset_bytes,
+    document_asset_manifest, image_asset_catalog, is_fixed_image)
 from .template_registry import TemplateCapabilities, TemplateDefinition, TemplateIdentity
 
 COMPONENT_VERSION = 6
@@ -36,6 +37,11 @@ COMPONENT_FIELDS = {
     "border_width", "radius", "opacity", "font_family", "font_size", "font_weight",
     "align", "placeholder", "fit", "focal_x", "focal_y", "gradient", "enabled",
     "asset_id", "rotation_degrees", "badge_surface", "repeat_min", "repeat_max",
+}
+COMPONENT_NUMBER_BOUNDS = {
+    "border_width": (0, 12), "radius": (0, 200), "opacity": (0, 1),
+    "font_size": (12, 180), "font_weight": (100, 900),
+    "focal_x": (0, 1), "focal_y": (0, 1), "rotation_degrees": (-360, 360),
 }
 REPEATLESS_COMPONENT_FIELDS = COMPONENT_FIELDS - {"repeat_min", "repeat_max"}
 REPEAT_WITHOUT_SURFACE_FIELDS = COMPONENT_FIELDS - {"badge_surface"}
@@ -112,10 +118,11 @@ def component(value: Any) -> dict:
         result[key] = box(value[key])
     for key in ("fill", "color", "border_color"):
         result[key] = color(value[key])
-    for key, low, high in (("border_width", 0, 12), ("radius", 0, 200), ("opacity", 0, 1),
-                           ("font_size", 12, 180), ("font_weight", 100, 900), ("focal_x", 0, 1), ("focal_y", 0, 1)):
-        number(value[key], low, high)
-    number(result["rotation_degrees"], -360, 360)
+    for key, (low, high) in COMPONENT_NUMBER_BOUNDS.items():
+        try:
+            number(result[key], low, high)
+        except ValueError as error:
+            raise ValueError(f"Component {result['id']}.{key} must be a finite number between {low} and {high}") from error
     if (type(result["repeat_min"]) is not int or type(result["repeat_max"]) is not int
             or not 1 <= result["repeat_min"] <= result["repeat_max"] <= 8
             or (value["type"] != "brand_motif" and result["repeat_max"] != 1)):
@@ -141,6 +148,8 @@ def component(value: Any) -> dict:
         "store_badge": "app_store_badge_en" if value["placeholder"] == "App Store" else "google_play_badge_en",
     }.get(value["type"], "")
     allowed_assets = {expected_asset}
+    if value["type"] == "image":
+        allowed_assets.update(IMAGE_ASSET_IDS)
     if value["type"] == "store_badge":
         allowed_assets.add("owner_app_store_badge_v1" if value["placeholder"] == "App Store" else "owner_google_play_badge_v1")
     if result["asset_id"] not in allowed_assets:
@@ -162,7 +171,10 @@ def normalize_document(value: Any) -> dict:
     for key in canvas:
         if type(canvas[key]) is not int:
             raise ValueError("Canvas dimensions must be integers")
-        number(canvas[key], 360, 2400)
+        try:
+            number(canvas[key], 360, 2400)
+        except ValueError as error:
+            raise ValueError(f"Canvas {key} must be between 360 and 2400 native pixels") from error
     if not isinstance(value["components"], list) or not 1 <= len(value["components"]) <= 16:
         raise ValueError("Template requires 1–16 reusable component instances")
     components = [component(v) for v in value["components"]]
@@ -189,6 +201,7 @@ def seed(surface: str) -> dict:
         "background": "#F7F8FA", "components": [
             new_component("title", "text", "headline", [60, 50, 880, 140], "Title"),
             new_component("support", "text", "description", [60, 210, 880, 90], "Supporting text"),
+            {**new_component("identity", "brand", "brand", [60, 15, 220, 28], ""), "mobile_box": [60, 15, 400, 28], "fit": "contain"},
             new_component("visual", "image", "hero", [60, 330, 880, 440], "Image"),
             {**new_component("action", "button", "cta", [60, 830, 880, 100], "Action"), "fill": "#2463EB", "color": "#FFFFFF", "align": "center"},
         ]})
@@ -204,6 +217,7 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
             "reused_native_components": "phone uses the existing fixed iPhone compositor with an editable hero-art slot; brand uses the canonical Natal lock-up. Neither is a generated screenshot widget.",
             "placeholders": list(PLACEHOLDERS), "fonts": list(STUDIO_FONT_FAMILIES),
             "layout": "Ordered layers; box and mobile_box are [x,y,width,height] in 0–1000 canvas units. Separate mobile composition for Landing.",
+            "canvas": "width, height and mobile_height are integer native pixels from 360 to 2400, not box units.",
             "settings": "fill/color/border_color HEX; border_width 0–12; radius 0–200; opacity 0–1; font_size 12–180 native pixels; font_weight 100–900; align left/center/right; fit cover/contain (legacy stretch renders as contain); complete cutouts, phones, brands, motifs and store badges always contain; focal_x/y 0–1 for intentional photo crops; gradient [] or 2 HEX colors; enabled boolean; rotation_degrees -360–360; brand_motif repeat_min/repeat_max 1–8 in its box, seeded per Post for stable variety; store_badge badge_surface slot_pill/asset_only; fixed visuals require an allowlisted asset_id.",
             "registered_variants": {
                 "cutout_image": ["Image"],
@@ -212,6 +226,7 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
             },
             "store_badge_assets": {"App Store": ["app_store_badge_en", "owner_app_store_badge_v1"],
                                    "Google Play": ["google_play_badge_en", "owner_google_play_badge_v1"]},
+            "image_assets": image_asset_catalog(),
             "priority": ["existing settings", "existing composition", "reusable parameter", "reusable component", "exception with justification"],
             "component_example": new_component("section_title", "text", "headline", [60, 40, 880, 150], "Section title")}
 
@@ -286,19 +301,28 @@ def _motif_nodes(c: Mapping[str, Any], props: dict, *, seed_value: str) -> list[
     digest = hashlib.sha256(f"{seed_value}:{c['id']}".encode()).digest()
     rng = random.Random(int.from_bytes(digest, "big"))
     count = rng.randint(c["repeat_min"], c["repeat_max"])
-    cells = [(column, row) for row in range(4) for column in range(2)]
+    # Match the grid to the actual count and region. A fixed 2-by-4 grid
+    # made two or three marks into tiny, tightly stacked fragments even
+    # when most of the available region was empty.
+    columns = min(range(1, count + 1), key=lambda value: (
+        abs(math.log((props["width"] / value) /
+                     (props["height"] / math.ceil(count / value)))), value))
+    rows = math.ceil(count / columns)
+    cells = [(column, row) for row in range(rows) for column in range(columns)]
     rng.shuffle(cells)
-    cell_width, cell_height = props["width"] / 2, props["height"] / 4
-    icon_width = max(10, min(cell_width * .48, cell_height * .68, 48))
-    icon_height = icon_width * .8
+    cell_width, cell_height = props["width"] / columns, props["height"] / rows
+    # The canonical asset has a square canvas. Give it a square slot and
+    # leave enough room for the entire rotated canvas, including jitter.
+    icon_width = min(cell_width * .6, cell_height * .6, 80)
+    icon_height = icon_width
     result = []
     for index, (column, row) in enumerate(cells[:count], 1):
         local = dict(props)
         local.update({
-            "x": props["x"] + column * cell_width + (cell_width - icon_width) / 2 + rng.uniform(-.09, .09) * cell_width,
-            "y": props["y"] + row * cell_height + (cell_height - icon_height) / 2 + rng.uniform(-.08, .08) * cell_height,
+            "x": props["x"] + column * cell_width + (cell_width - icon_width) / 2 + rng.uniform(-.06, .06) * cell_width,
+            "y": props["y"] + row * cell_height + (cell_height - icon_height) / 2 + rng.uniform(-.06, .06) * cell_height,
             "width": icon_width, "height": icon_height,
-            "rotation": c["rotation_degrees"] + rng.randint(-18, 18),
+            "rotation": c["rotation_degrees"] + rng.randint(-8, 8),
         })
         result.append({"id": f"{c['id']}_{index}", "type": "image", "props": local})
     return result
@@ -347,9 +371,11 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
             # Only ordinary photos may use intentional cover/focal cropping.
             if c["type"] in ("phone", "brand", "brand_motif", "store_badge", "cutout_image") or c["fit"] == "stretch":
                 props["fit"] = "contain"
-            replaceable = c["type"] in {"image", "cutout_image", "phone"}
+            replaceable = c["type"] in {"image", "cutout_image", "phone"} and not is_fixed_image(c["asset_id"])
             assets[c["id"]] = {"kind": "image", "allowed_mime_types": ["image/png", "image/jpeg", "image/webp"], "required": False,
-                "provenance": "Reusable image slot; gallery uses a neutral fixture." if replaceable else "Fixed allowlisted template visual."}
+                "provenance": ("Registered source fixture; Project media replaces it." if c["asset_id"]
+                               else "Reusable image slot; gallery uses a neutral fixture.")
+                              if replaceable else "Fixed allowlisted template visual."}
         nodes = (_motif_nodes(c, props, seed_value=variant_seed or sha(doc))
                  if c["type"] == "brand_motif" and c["repeat_max"] > 1 else
                  [{"id": c["id"], "type": kind, "props": props}])
@@ -374,9 +400,8 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
         "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": [], "change_note": "Declarative template compiler v1"}})
 
 
-def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
-           content: Mapping[str, str] | None = None, assets: Mapping[str, Any] | None = None) -> dict:
-    template = primitive(document, surface=surface, mobile=mobile, content=content)
+def resolved_assets(document: Mapping[str, Any], assets: Mapping[str, Any] | None = None) -> dict:
+    template = primitive(document, surface="landing")
     by_id = {item["id"]: item for item in normalize_document(document)["components"]}
     fixtures = {
         key: {"bytes": placeholder_image(), "mime_type": "image/png"}
@@ -390,7 +415,8 @@ def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
     if assets:
         if set(assets) - set(fixtures):
             raise ValueError("Unknown image slot")
-        protected = {item["id"] for item in by_id.values() if item["type"] in {"brand_motif", "store_badge", "brand"}}
+        protected = {item["id"] for item in by_id.values() if item["type"] in {"brand_motif", "store_badge", "brand"}
+                     or is_fixed_image(item["asset_id"])}
         if protected & set(assets):
             raise ValueError("Fixed template visual cannot be replaced")
         for key, record in assets.items():
@@ -410,7 +436,13 @@ def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
                 raise ValueError("Canonical Natal identity cannot be replaced")
             from .natal_brand import natal_logo_bytes
             fixtures[c["id"]] = {"bytes": natal_logo_bytes(), "mime_type": "image/png"}
-    return StudioRenderer().render_preview(template, semantic_data={}, assets=fixtures)
+    return fixtures
+
+
+def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
+           content: Mapping[str, str] | None = None, assets: Mapping[str, Any] | None = None) -> dict:
+    template = primitive(document, surface=surface, mobile=mobile, content=content)
+    return StudioRenderer().render_preview(template, semantic_data={}, assets=resolved_assets(document, assets))
 
 
 def render_contract_sha256(document: Mapping[str, Any]) -> str:
@@ -440,6 +472,7 @@ def definition(record: Mapping[str, Any]) -> TemplateDefinition:
         default_configuration=lambda: deepcopy(doc), default_content=lambda: {},
         normalize_configuration=normalize_document, normalize_content=normalize_content,
         component_settings=lambda configuration, content: {"configuration": normalize_document(configuration), "content": normalize_content(content)},
-        capabilities=TemplateCapabilities(image_slots=tuple(c["id"] for c in doc["components"] if c["type"] in ("image", "cutout_image", "phone")), supports_manual_agent=False),
+        capabilities=TemplateCapabilities(image_slots=tuple(c["id"] for c in doc["components"]
+            if c["type"] in ("image", "cutout_image", "phone") and not is_fixed_image(c["asset_id"])), supports_manual_agent=False),
         renderer_key=RENDERER_VERSION, editor_key="templates.declarative.v1",
         render=lambda configuration=None, content=None, assets=None, mobile=False: render(doc if configuration is None else configuration, surface=record["surface"], content=content, assets=assets, mobile=mobile))

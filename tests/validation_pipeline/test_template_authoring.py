@@ -93,6 +93,16 @@ class TemplateAuthoringTests(unittest.TestCase):
     def accept(self, run):
         return self.service.decide(run['run_id'], {'request_id': str(uuid4()), 'base_sha256': run['state_sha256'], 'decision': 'accept'})
 
+    def test_numeric_correction_names_the_field_and_exposes_identical_schema_bounds(self):
+        document = seed('post')
+        for field, invalid, low, high in [('radius', 999, 0, 200), ('font_size', 0, 12, 180), ('focal_x', 50, 0, 1)]:
+            with self.subTest(field=field):
+                self.assertEqual({'type': 'number', 'minimum': low, 'maximum': high}, agent.COMPONENT_SCHEMA['properties'][field])
+                with self.assertRaisesRegex(ValueError, rf'title\.{field} must be a finite number between {low} and {high}'):
+                    apply_edits({'post': document}, [{'surface': 'post', 'path': f'components.title.{field}', 'value': invalid}])
+        with self.assertRaisesRegex(ValueError, 'Canvas height must be between 360 and 2400'):
+            apply_edits({'post': document}, [{'surface': 'post', 'path': 'canvas.height', 'value': 3000}])
+
     def test_post_landing_and_combined_register_exact_independent_definitions(self):
         for scope in ('post', 'landing', 'combined'):
             with self.subTest(scope=scope):

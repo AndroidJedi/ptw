@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 
 ASSET_ROOT = Path(__file__).with_name("studio_assets") / "template-assets"
-RENDERER_VERSION = "studio.declarative.pillow.v7"
+RENDERER_VERSION = "studio.declarative.pillow.v8"
 
 _manifest = json.loads((ASSET_ROOT / "manifest.json").read_text(encoding="utf-8"))
 if _manifest.get("schema") != "ptw.template-assets.v1" or not isinstance(_manifest.get("assets"), list):
@@ -18,10 +18,26 @@ _ASSETS: dict[str, dict[str, Any]] = {
     str(item["asset_id"]): {**item, "mime_type": "image/png", "immutable": True}
     for item in _manifest["assets"]
 }
-if set(_ASSETS) != {"app_store_badge_en", "google_play_badge_en", "owner_app_store_badge_v1", "owner_google_play_badge_v1", "neutral_person_stock_v1"}:
+IMAGE_ASSET_IDS = tuple(key for key, item in _ASSETS.items() if item.get("component_type") == "image")
+if set(_ASSETS) - set(IMAGE_ASSET_IDS) != {"app_store_badge_en", "google_play_badge_en", "owner_app_store_badge_v1", "owner_google_play_badge_v1", "neutral_person_stock_v1"}:
     raise RuntimeError("Template asset manifest registrations are invalid")
 
 ASSET_IDS = ("", "natal_symbol", *_ASSETS)
+
+
+def is_fixed_image(asset_id: str) -> bool:
+    """Registered identity/backdrop art survives Project hero replacement."""
+    return asset_id in IMAGE_ASSET_IDS and _ASSETS[asset_id].get("usage") == "fixed"
+
+
+def image_asset_catalog() -> list[dict[str, str]]:
+    return [{"asset_id": key, "description": _ASSETS[key]["description"],
+             "usage": _ASSETS[key]["usage"], "fit": _ASSETS[key]["fit"]}
+            for key in IMAGE_ASSET_IDS if not _ASSETS[key].get("reference_identity")]
+
+
+def is_reference_identity(asset_id: str) -> bool:
+    return bool(_ASSETS.get(asset_id, {}).get("reference_identity"))
 
 
 def _checked_file(name: str, digest: str) -> bytes:

@@ -16,6 +16,37 @@ from validation_pipeline.template_store import TemplateStore
 
 
 class TemplateQualityTests(unittest.TestCase):
+    def test_repeated_marks_use_available_space_and_stay_inside_their_region(self):
+        import math
+        from validation_pipeline.template_components import _motif_nodes
+
+        component = {'id': 'marks', 'repeat_min': 3, 'repeat_max': 3, 'rotation_degrees': -18}
+        region = {'x': 356.4, 'y': 378, 'width': 178.2, 'height': 189}
+        marks = _motif_nodes(component, region, seed_value='real-post')
+        self.assertEqual(marks, _motif_nodes(component, region, seed_value='real-post'))
+        self.assertEqual(3, len(marks))
+        self.assertTrue(all(n['props']['width'] >= 50 for n in marks))
+        # Include narrow/tall regions, every allowed count and arbitrary rotations.
+        for width, height in ((178.2, 189), (415.8, 183.6), (30, 700), (700, 30), (1, 1)):
+            for count in range(1, 9):
+                for rotation in (0, 45, 180, 355):
+                    c = {**component, 'repeat_min': count, 'repeat_max': count, 'rotation_degrees': rotation}
+                    bounds = []
+                    for node in _motif_nodes(c, {**region, 'width': width, 'height': height}, seed_value='real-post'):
+                        p = node['props']
+                        self.assertEqual(p['width'], p['height'])
+                        angle = math.radians(p['rotation'])
+                        extent = p['width'] * (abs(math.cos(angle)) + abs(math.sin(angle)))
+                        x = p['x'] + (p['width'] - extent) / 2
+                        y = p['y'] + (p['height'] - extent) / 2
+                        self.assertGreaterEqual(x, region['x'])
+                        self.assertGreaterEqual(y, region['y'])
+                        self.assertLessEqual(x + extent, region['x'] + width)
+                        self.assertLessEqual(y + extent, region['y'] + height)
+                        for left, top, right, bottom in bounds:
+                            self.assertTrue(x + extent <= left or x >= right or y + extent <= top or y >= bottom)
+                        bounds.append((x, y, x + extent, y + extent))
+
     def test_post_palette_is_bounded_persisted_and_scoped_to_its_template(self):
         from copy import deepcopy
         from uuid import uuid4

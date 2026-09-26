@@ -8,7 +8,9 @@ needed for the task.
 | Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) |
 | Product Brief | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) and `skills/product-brief-generator/SKILL.md` |
 | Project Post and Landing Studio | [`architecture/post-studio.md`](architecture/post-studio.md) and [`architecture/landing-studio.md`](architecture/landing-studio.md), plus their composer, phone-hero, Tune, and visual-audit skills |
+| Unified Natal creation product | [`architecture/natal-creation-studio.md`](architecture/natal-creation-studio.md) and `skills/natal-creation-studio` |
 | Global private template authoring | [`architecture/templates-mode.md`](architecture/templates-mode.md) and `skills/template-creation-agent` |
+| Templates from website inspiration links | [`architecture/templates-mode.md`](architecture/templates-mode.md) and `skills/template-from-website` |
 | Analytics and reviewed Creative Skills | [`architecture/analytics-and-creative-learning.md`](architecture/analytics-and-creative-learning.md), plus `skills/creative-performance-learner` and `skills/creative-visual-analyzer` |
 | Instagram publishing and manual paid validation | [`architecture/instagram-manual-validation.md`](architecture/instagram-manual-validation.md), [`architecture/social-publishing.md`](architecture/social-publishing.md), and [`architecture/meta-ads.md`](architecture/meta-ads.md) |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |

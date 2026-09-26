@@ -38,6 +38,8 @@ from .studio_routes import studio_creative_router
 from .template_authoring import TemplateAuthoringService
 from .template_store import TemplateStore
 from .template_routes import template_router
+from .creation_studio import CreationStudio, BriefAdapter, XhighProvider, MODEL as CREATION_MODEL
+from .creation_routes import creation_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import PostStudioWorkspace
 from .commander_chat import commander_chat_router
@@ -135,6 +137,11 @@ def create_app(
     )
     template_authoring = TemplateAuthoringService(TemplateStore(workspace_path.parent / "template-authoring.sqlite3"), visual_provider)
     studio_creatives.template_registry = template_authoring.post_registry
+    creation_provider = LocalCodexStructuredProvider(codex_binary, model=CREATION_MODEL, reasoning_effort="xhigh", timeout_seconds=420)
+    creation_templates = TemplateAuthoringService(template_authoring.store, creation_provider)
+    creation_briefs = LocalBriefService(store=local_store, provider=XhighProvider(creation_provider), repository_root=repository_root)
+    creation = CreationStudio(TemplateStore(workspace_path.parent / "creation-studio.sqlite3", namespace="creation_studio"),
+        creation_templates, creation_provider, BriefAdapter(creation_briefs, creation_briefs, local=True), phone_screen_images)
     landing_publications = LocalLandingPublicationAuthority(
         local_store, landing_pages._workspace,
     )
@@ -177,6 +184,7 @@ def create_app(
     async def lifespan(_app: FastAPI):
         await asyncio.to_thread(landing_pages.operations.recover_interrupted)
         await asyncio.to_thread(template_authoring.recover_interrupted)
+        await asyncio.to_thread(creation.recover_interrupted)
         for brief_id in brief_service.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(brief_service.generate_brief, brief_id))
             recovery_tasks.add(task)
@@ -207,6 +215,8 @@ def create_app(
             await asyncio.to_thread(commander_chat.close)
         await asyncio.to_thread(local_authorization.close)
         template_authoring.close()
+        creation.close()
+        creation_templates.close()
         landing_pages.operations.close()
 
     app = FastAPI(
@@ -241,6 +251,8 @@ def create_app(
         return {"status": "ok", "scope": "loopback-local-owner-app"}
 
     app.include_router(template_router(template_authoring, prefix="/api/v1/templates", dependencies=[Depends(authorize)]))
+    app.include_router(creation_router(creation, prefix="/api/v1/create", dependencies=[Depends(authorize)]))
+    app.state.creation_studio = creation
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/api/v1/studio", dependencies=project_dependencies,
     ))

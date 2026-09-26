@@ -407,7 +407,7 @@ class TemplateAuthoringService:
         return None
 
     def start(self, request: Mapping) -> dict:
-        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "reference_ids", "source", "post_reference"}:
+        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "reference_ids", "source", "post_reference", "source_run", "editable_surfaces"}:
             raise ValueError("Template creation fields are invalid")
         request_id = uuid(request["request_id"])
         digest = sha(dict(request))
@@ -434,6 +434,20 @@ class TemplateAuthoringService:
                 raise ValueError("An external Post template reference applies only to Landing creation")
             self.resolve_post_reference(post_reference)
         documents = {s: deepcopy(source["document"]) if source and not source["builtin"] else seed(s) for s in surfaces}
+        origin = None
+        if request.get("source_run"):
+            ref = request["source_run"]
+            if not isinstance(ref, dict) or set(ref) != {"run_id", "state_sha256"} or source:
+                raise ValueError("Choose one exact source run")
+            origin = self.store.get("run", uuid(ref["run_id"]))
+            if origin["state_sha256"] != ref["state_sha256"] or origin["status"] not in {"accepted", "proposed"}:
+                raise TemplateConflict("Source template run changed or is unfinished")
+            if any(s not in origin["documents"] for s in surfaces):
+                raise ValueError("Source run does not contain the requested surfaces")
+            documents = {s: deepcopy(origin["documents"][s]) for s in surfaces}
+        editable = request.get("editable_surfaces", surfaces)
+        if not isinstance(editable, list) or not editable or set(editable) - set(surfaces):
+            raise ValueError("Editable template surfaces are invalid")
         base = {k: source[k] for k in ("surface", "template_id", "template_version", "template_sha256")} if source else None
         template_ids = {s: source["template_id"] if source and not source["builtin"] else "design_" + uuid4().hex[:20] for s in surfaces}
         run = {"run_id": request_id, "scope": scope, "instruction": instruction.strip(), "status": "queued", "phase": "analyze",
@@ -444,7 +458,10 @@ class TemplateAuthoringService:
             "checkpoint": None, "baseline": None, "progress": [],
             "latest_correction": None, "correction_history": [],
             "accepted_versions": []}
-        agent.preflight("analyze", run)  # Reject oversized JSON before reserving a provider job.
+        run["editable_surfaces"] = editable
+        if origin:
+            run.update(phase="compose", analysis=deepcopy(origin["analysis"]), origin_run=dict(request["source_run"]))
+        agent.preflight(run["phase"], run)  # Reject oversized JSON before reserving a provider job.
         images = []
         if identifiers:
             images = self.references.take_many(identifiers)
@@ -682,7 +699,7 @@ class TemplateAuthoringService:
         }
 
     def resume(self, run_id: str, request: Mapping) -> dict:
-        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "reference_ids", "mode"}:
+        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "reference_ids", "mode", "editable_surfaces"}:
             raise ValueError("Resume fields are invalid")
         request_id, run_id = uuid(request["request_id"]), uuid(run_id)
         digest = sha({"run_id": run_id, "action": "resume", **request})
@@ -748,6 +765,10 @@ class TemplateAuthoringService:
                    "correction_history": correction_history,
                    "progress": [] if mode == "refine" else list(run.get("progress") or []),
                    "phase": "analyze" if run["analysis"] is None else ("compose" if mode == "refine" else run["phase"])}
+        editable = request.get("editable_surfaces", list(run["documents"]) if mode == "refine" else run.get("editable_surfaces", list(run["documents"])))
+        if not isinstance(editable, list) or not editable or set(editable) - set(run["documents"]):
+            raise ValueError("Editable template surfaces are invalid")
+        updated["editable_surfaces"] = editable
         preflight_phase = "analyze" if updated["analysis"] is None else ("compose" if updated["phase"] == "compose" else "compare")
         agent.preflight(preflight_phase, updated)
         with self.store.transaction() as tx:

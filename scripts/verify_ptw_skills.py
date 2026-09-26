@@ -18,6 +18,8 @@ SKILLS = (
     "studio-phone-hero-generator",
     "studio-manual-agent",
     "template-creation-agent",
+    "template-from-website",
+    "natal-creation-studio",
     "landing-page-composer",
     "studio-tune-local",
     "studio-ui-visual-audit",

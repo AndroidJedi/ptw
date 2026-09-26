@@ -9,7 +9,8 @@
     "test": "vitest run",
     "build:template-preview": "vite build --config template-preview.config.ts",
     "test:e2e": "npm run build:template-preview && playwright test",
-    "check": "vitest run && npm run build"
+    "check": "vitest run && npm run build",
+    "test:references": "node --test scripts/capture-website-reference.checks.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

@@ -23,7 +23,32 @@ Python virtual environment. The exact 132-case desktop/360px/iPhone WebKit
 suite passed after restoring that local dependency; Owner Hosting was then
 published and its live audit passed. No second migration or provider run was
 submitted. The source assets and code are deployed; Sanlarix template
-acceptance, Project application, Post approval and publication remain separate.
+records were subsequently imported and accepted at the owner's explicit deploy
+request. Project application, Post approval and publication remain separate.
+
+## Sanlarix template production registration — verified
+
+The initial Natal Studio release included the Sanlarix-inspired source assets
+and authoring code, but its completed local template run was absent from the
+production PostgreSQL authority. Under the PTW maintenance lock, a root-only
+checksummed PostgreSQL backup preceded an exact import of the local run's 28
+append-only revisions, four request receipts and six digest-checked preview PNGs.
+Production's own Template Authoring service accepted the converged pair as
+Post `design_fa4f8f8810034ce4856d` v1 (digest
+`edb4e34014834032ef064df237479968a5578886f7e6f716fd0b44d2912e41e0`)
+and Landing `design_a14fbcf57247479a8d1a` v1 (digest
+`75086fe5e18b97403b26a19dfc1d29445dacb98ae20224fa1f2d934da5019dc2`).
+The source-company logo is absent from both accepted documents; canonical Natal
+brand components remain. The local source run remains proposed in its own
+authority, while production run `569caf85-fb98-4ded-8793-cafca0e01854` is
+accepted at revision 29.
+
+The exact production authenticated HTTP gallery and version endpoints return
+both registered cards and all three digest-matched preview PNGs. The live Owner
+Hosting page returns HTTP 200 and its unauthenticated private Templates route
+returns 401. No application image, migration, Hosting release, Project artifact,
+Post approval or publication changed during this data registration. The local
+Natal creation draft remains local.
 
 ## Natal Studio timeout recovery — deployed
 
@@ -76,10 +101,12 @@ remain temporary; reused photos retain source and normalized digests.
 The Sanlarix pair now uses canonical Natal branding. Actual Astra comparison
 passed, and all six UA/EN bound renders have no geometry errors. Original source
 wordmark bytes remain historical evidence only. The corrected pair is available
-in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`, linked to the
-original proposed template run. No acceptance or provider result was fabricated.
+locally in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`,
+linked to the original template run. Its source composition history remains
+explicit; no successful provider composition was fabricated.
 Live product: `https://provethemwrong-86123.firebaseapp.com/?page=create`.
-The local draft records remain local; deployment did not import them.
+The local creation draft records remain local; the reusable template pair is
+registered separately in production Templates.
 
 A separate real-Astra canary produced a canonical Brief, a coordinated pair,
 actual copy and generated art. Actual-PNG review detected a cropped mobile house;
@@ -93,14 +120,14 @@ integrity: the final Linux backend run passed 87 tests, web checks passed 128,
 and 30 browser cases passed. Exported HTML passed desktop/mobile Chromium and
 WebKit checks for clipping, overflow, embedded images and inactive draft actions.
 All 19 migrations and append-only/CAS guards passed in a disposable
-PostgreSQL database. Migration 019 and new source are live. Local template
-records have not been imported into production.
+PostgreSQL database. Migration 019 and new source are live. The later exact
+production template registration is recorded above.
 
 Canonical skills: `natal-creation-studio`, updated `template-from-website` and
 `template-creation-agent`; desktop links and verifier are synchronized. See
 [`natal-creation-studio.md`](natal-creation-studio.md) for authority and boundaries.
 
-## Sanlarix template pair and website-inspiration skill — local review ready
+## Sanlarix template pair and website-inspiration skill — production accepted
 
 Owner-requested Sanlarix Landing and square ad reuse four original registered
 assets: home/business photographs, transparent equipment and green backdrop;
@@ -110,7 +137,7 @@ A generic image-asset catalog supports fixed decorative/background art and
 replaceable photo fixtures. Project hero replacement preserves fixed art; previous
 accepted definitions and their image contracts are unchanged.
 
-Combined run `569caf85-fb98-4ded-8793-cafca0e01854` is proposed. Actual Astra
+Combined local run `569caf85-fb98-4ded-8793-cafca0e01854` remains proposed. Actual Astra
 `xhigh` analysis succeeded; two composition calls failed (timeout, stopped stalled
 retry). The owner-directed local composition is explicitly recorded separately,
 then real Astra `xhigh` comparison passed with zero differences and geometry errors.
@@ -120,7 +147,8 @@ The local app was restarted; the exact proposed state survived and its three
 previews/review action passed real desktop/360px/iPhone checks.
 Review: `http://127.0.0.1:42749/`; evidence: `.local/sanlarix-template/`.
 These are global declarative designs, not a new native Project Landing definition.
-Acceptance, Project application and publication have not run.
+The production copy is accepted as described above. Project application and
+publication have not run.
 
 New canonical `skills/template-from-website` covers URL inspection, temporary
 references, explicitly requested source reuse, typed composition and visual review.
@@ -131,8 +159,8 @@ Linux-image asset/quality checks, all 24 Templates/Post browser cases (scripted
 inference), deterministic Studio audit, Commander 44 cases (seven local/five current
 image dependency skips), demo, skills and whitespace. The old Commander image
 lacks Git and failed five repository checks; the current Validation image passed
-those checks. Source assets and template authoring code are deployed; the
-proposed template state remains local.
+those checks. The local proposal and its review evidence remain available;
+the exact accepted pair is now in production Templates.
 
 ## Square Post refinement — renderer deployed, template acceptance pending
 

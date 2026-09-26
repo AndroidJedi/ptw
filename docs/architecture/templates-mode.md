@@ -106,10 +106,15 @@ Natal identity, official badges and accepted definitions retain their contracts.
 The Sanlarix-inspired pair uses canonical Natal branding, two source photographs,
 transparent storage equipment and a green background. Its downloaded reference
 wordmark remains historical source evidence and cannot be selected by new authoring.
-All copy
-remains separate and editable. Template records and source assets must both exist
+All copy remains separate and editable. Template records and source assets must both exist
 in the target authority/runtime; source registration alone does not create an
 accepted template or deploy it.
+For an owner-directed production registration of a reviewed local run, import
+its append-only history and digest-checked previews under the maintenance lock
+after a checksummed backup. Run acceptance in the target Template Authoring
+authority and verify its live authenticated gallery, exact versions and media.
+Local Natal creation drafts are separate records and do not move with a global
+template pair.
 
 The standalone Natal Studio page combines idea/reference input, canonical Briefs,
 concept Post/Landing drafts and agent edits; see

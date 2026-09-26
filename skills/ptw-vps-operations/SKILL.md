@@ -385,7 +385,17 @@ Migration-bearing preserving releases instead require the exact
 `DEPLOY PTW IN PLACE` confirmation and
 `scripts/publish_ptw_in_place_serial.sh`. Never bypass that gate with the
 non-migration preserving script. Require `-T` on every Compose one-off. The
-inner deployer refuses active mutable work, backs up PostgreSQL, fingerprints
+serial publisher runs the full Owner Playwright gate from its local release
+checkout after VPS cutover. Before starting, verify that checkout's `.venv`
+Python can import FastAPI and Pillow and run the full browser suite there;
+another worktree's passing suite does not supply these fixtures. If a missing
+local dependency stops the publisher after the deployed marker advances,
+verify the exact live revision, migration, service health and unchanged source;
+repair the local environment, rerun the entire browser gate, then finish Owner
+Hosting and its live audit. Never treat that local test-launch failure as proof
+of a VPS rollback, or publish Hosting before the full suite passes.
+
+The inner deployer refuses active mutable work, backs up PostgreSQL, fingerprints
 pre-existing rows before and after migration and again on failure, and verifies
 all restored application image tags. The outer deployer owns the whole release:
 until every dependency/resource/OOM audit passes, any error or termination must

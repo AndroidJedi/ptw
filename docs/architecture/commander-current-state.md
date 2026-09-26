@@ -2,17 +2,30 @@
 
 Updated: 2026-09-26
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: migration-aware preserving release `landing-performance-20260925`,
-accepted runtime code revision `c443c2d6ca7c7008b0771e7caa5626eb3aacff07`
+Deployment: migration-aware preserving release `natal-studio-20260926`,
+accepted runtime code revision `abe9607cfa4f4a687995b3e73f10902762bb7cb2`
 with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Commander, Validation, Gateway and the three companion services run the paired
-release; GOD/Plan/Release retain their accepted images. All are healthy.
-Owner Hosting version `b298a13378206bec` and public Landing Hosting version
-`6fb915a9a9e5cf64` are live. Migration 018 preserved every existing business row.
-All eleven Astra canaries (jobs 1145–1155), Pexels, schema, authorization,
-dependencies, skills, approved-Post persistence, resource and Hosting audits passed.
+Source branch: `release/natal-studio-20260926`; the separate development branch
+retains unreviewed shared legal drafts, which this release excludes. Commander,
+Validation, Gateway and the three companion services run the release; GOD/Plan/
+Release retain their accepted images. All are healthy. Owner Hosting version
+`4c091cf9ae4dab1c` and public Landing Hosting version `a58d548065fe9808`
+are live. Migration 019 and the in-place fingerprint check preserved every
+pre-existing business row; the root-only PostgreSQL backup is retained.
+Structured and image canaries, Pexels, schema, approved-Post access, resource,
+and Hosting audits passed. The 24-hour resource timer is active for
+2026-09-27 10:09 UTC. The live Natal page returns 200 and its unauthenticated
+private creation route returns 401.
 
-## Natal Studio timeout recovery — local correction
+The first publisher invocation completed the VPS cutover but stopped before
+Owner Hosting because its local browser fixtures lacked the release worktree's
+Python virtual environment. The exact 132-case desktop/360px/iPhone WebKit
+suite passed after restoring that local dependency; Owner Hosting was then
+published and its live audit passed. No second migration or provider run was
+submitted. The source assets and code are deployed; Sanlarix template
+acceptance, Project application, Post approval and publication remain separate.
+
+## Natal Studio timeout recovery — deployed
 
 A real water-quality creation stopped during template composition after an Astra
 timeout. Natal Studio incorrectly converted the linked provider failure to a
@@ -39,11 +52,11 @@ WebKit, Commander tests/demo and canonical skill checks. Browser evidence includ
 localized repeated-timeout recovery and continuation with unchanged Brief/design
 IDs. The corrected local service was restarted only after the old attempt ended;
 the real recovery notice passed desktop/mobile/WebKit checks without overflow.
-The owner's original creation was then resumed through its actual Continue
+The owner's original local creation was then resumed through its actual Continue
 button, preserving Brief and template IDs. Its live inference remains separate
-from scripted test evidence. Production has not changed.
+from scripted test evidence.
 
-## Natal Studio unified creation page — implemented locally
+## Natal Studio unified creation page — deployed
 
 `?page=create` is a standalone Natal product page with collapsible input, Brief,
 Post, Landing, agent-edit and export sections. It accepts ideas/pasted briefs,
@@ -65,7 +78,8 @@ passed, and all six UA/EN bound renders have no geometry errors. Original source
 wordmark bytes remain historical evidence only. The corrected pair is available
 in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`, linked to the
 original proposed template run. No acceptance or provider result was fabricated.
-Local product: `http://127.0.0.1:5173/?e2e=1&page=create`.
+Live product: `https://provethemwrong-86123.firebaseapp.com/?page=create`.
+The local draft records remain local; deployment did not import them.
 
 A separate real-Astra canary produced a canonical Brief, a coordinated pair,
 actual copy and generated art. Actual-PNG review detected a cropped mobile house;
@@ -79,8 +93,8 @@ integrity: the final Linux backend run passed 87 tests, web checks passed 128,
 and 30 browser cases passed. Exported HTML passed desktop/mobile Chromium and
 WebKit checks for clipping, overflow, embedded images and inactive draft actions.
 All 19 migrations and append-only/CAS guards passed in a disposable
-PostgreSQL database. Production remains on the accepted release above; migration
-019, new source and local template records have not been deployed there.
+PostgreSQL database. Migration 019 and new source are live. Local template
+records have not been imported into production.
 
 Canonical skills: `natal-creation-studio`, updated `template-from-website` and
 `template-creation-agent`; desktop links and verifier are synchronized. See
@@ -106,7 +120,7 @@ The local app was restarted; the exact proposed state survived and its three
 previews/review action passed real desktop/360px/iPhone checks.
 Review: `http://127.0.0.1:42749/`; evidence: `.local/sanlarix-template/`.
 These are global declarative designs, not a new native Project Landing definition.
-Acceptance, Project application and production deployment/publication have not run.
+Acceptance, Project application and publication have not run.
 
 New canonical `skills/template-from-website` covers URL inspection, temporary
 references, explicitly requested source reuse, typed composition and visual review.
@@ -117,9 +131,10 @@ Linux-image asset/quality checks, all 24 Templates/Post browser cases (scripted
 inference), deterministic Studio audit, Commander 44 cases (seven local/five current
 image dependency skips), demo, skills and whitespace. The old Commander image
 lacks Git and failed five repository checks; the current Validation image passed
-those checks. Source changes remain local.
+those checks. Source assets and template authoring code are deployed; the
+proposed template state remains local.
 
-## Square Post refinement — local, template acceptance pending
+## Square Post refinement — renderer deployed, template acceptance pending
 
 Repeated Natal marks now use a count- and aspect-aware grid with square slots,
 bounded rotation and full rotated-canvas clearance. Compiler v8 invalidates
@@ -139,7 +154,8 @@ Verified: 65 focused template/renderer tests, deterministic Studio geometry audi
 Owner build, desktop/360px/iPhone WebKit checks of both Post and proposal, plus
 the before/after review, Commander 44 tests (seven local dependency skips), demo,
 skills and whitespace. Evidence: `.local/post-template-refinement/`; review:
-`http://127.0.0.1:42747/`. No deployment, publication or Post approval ran.
+`http://127.0.0.1:42747/`. The renderer source is deployed; this proposal
+remains local and no publication or Post approval ran.
 
 ## Shared Landing legal documents — implemented locally, draft review pending
 

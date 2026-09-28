@@ -2,6 +2,36 @@
 
 Updated: 2026-09-28
 
+## 2026-09-28 — Fixed benefit boxes produced uneven text and repeated marks
+
+Independent benefit boxes shrank longer text and kept following items at fixed
+positions. Dense repeated Natal motifs added more background marks than the
+owner wanted. The owner requested equal benefit font sizes, wrapping with a
+hanging bullet indent, equal spacing, and three smaller scattered marks.
+
+Bounded template `text_groups` now share font controls and use the renderer's
+actual text measurements to wrap and place following benefits. Template-owned
+bullets keep continuation lines indented, and empty benefits consume no space.
+Documents without groups keep their existing rendering. The immutable v5 Natal
+template replaces the repeated regions with three individual small marks.
+Project geometry remains advisory as requested in the preceding incident.
+
+The preserving release passed 441 backend tests, 129 Owner unit tests, 132
+desktop/mobile/WebKit browser cases, all eleven real provider canaries, Pexels,
+and deployment audits. After a root-only checksummed PostgreSQL backup, normal
+append-only Template Authoring acceptance and the Project apply API selected v5
+for Creative `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6`. Existing text, settings,
+assets, history and the one approved version were preserved; no Post approval
+or publication ran. Unrelated application fingerprints across 72 tables were
+unchanged. The live PNG matched the reviewed exact-image PNG byte for byte.
+A guarded Validation restart preserved all 72 table fingerprints, Post state,
+PNG digest, version history and accepted template reference.
+The public Owner Console audit also passed after restart.
+
+The canonical Template Creation and local Studio tuning skills now document
+shared-size wrapping, hanging bullets, blank-item flow and the owner's sparse
+motif request. Canonical skill verification passed.
+
 ## 2026-09-28 — Project Post overflow blocked the owner's preview
 
 The authored water Post returned HTTP 400 with "Post text does not fit this

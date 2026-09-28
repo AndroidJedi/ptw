@@ -153,6 +153,13 @@ edit them. Keep old approved PNGs byte-identical.
 
 ## Visual layout guard
 
+For flowing authored benefits, use bounded `text_groups`, share font controls,
+and measure with the real renderer. Longer copy must wrap and move following
+items down with the same gap; continuation lines stay after the template-owned
+bullet. Inspect native Ukrainian/English and empty items, preserving copy and
+historical definitions. Sparse Natal motifs can use three individually composed
+small marks with irregular clear positions; do not recreate a dense repeat grid.
+
 For typography, positioning, spacing, component-layout, preview, or Studio CSS
 changes, also read `../studio-ui-visual-audit/SKILL.md` and run its deterministic
 geometry audit. Inspect the exact representative PNG at full resolution and

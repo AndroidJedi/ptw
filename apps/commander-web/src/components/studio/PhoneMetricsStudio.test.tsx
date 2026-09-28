@@ -188,6 +188,28 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('updates every flowing benefit when any grouped font control changes', async () => {
+    const authored = structuredClone(detail)
+    authored.editor_key = 'post.declarative.react'
+    authored.template_fields = ['benefit_primary', 'benefit_secondary', 'benefit_tertiary'].map(id => ({
+      id, role: 'description', font_family: 'Inter', font_size: 28, typography_group: 'benefits',
+    }))
+    authored.content.template_text = { benefit_primary: 'First', benefit_secondary: 'Second', benefit_tertiary: 'Third' }
+    const { api, post } = studioApi(authored)
+    render(<PhoneMetricsStudio api={api} language="en" basePath={basePath} detail={authored} onDetail={vi.fn()} />)
+    fireEvent.click(screen.getByText('Font and size for each text field').closest('details')!.querySelector('summary')!)
+    fireEvent.change(screen.getByLabelText('benefit_secondary font size'), { target: { value: '34' } })
+    fireEvent.change(screen.getByLabelText('benefit_tertiary font family'), { target: { value: 'Oswald' } })
+    for (const field of authored.template_fields) {
+      expect(screen.getByLabelText(`${field.id} font size`)).toHaveValue('34')
+      expect(screen.getByLabelText(`${field.id} font family`)).toHaveValue('Oswald')
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      configuration: expect.objectContaining({ template_typography: Object.fromEntries(authored.template_fields!.map(field => [field.id, { font_family: 'Oswald', font_size: 34 }])) }),
+    }), expect.anything()))
+  })
+
   it('previews and saves authored background colors and can restore template defaults', async () => {
     const authored = structuredClone(detail)
     authored.editor_key = 'post.declarative.react'

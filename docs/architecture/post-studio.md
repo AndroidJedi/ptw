@@ -74,6 +74,10 @@ size. Project preview, Save and Approve do not reject layout overflow, overlap
 or canvas-bound findings: the owner reviews the actual PNG and decides whether
 to change it. Schema, field bounds, exact template identity and stale-state
 checks remain enforced. Global Templates authoring retains its quality gate.
+Accepted `text_groups` replace independent benefit boxes with shared typography,
+template-owned bullets, hanging indents and content-driven vertical flow. Editing
+any grouped font control updates all peers; long copy wraps at the same size,
+blank items leave no empty row, and adjacent items retain the configured gap.
 The original Phone configuration
 and prior template drafts are retained. The exact accepted definition is pinned
 in workspace selection, state hashes, checkpoints and approved records, so later

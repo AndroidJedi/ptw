@@ -2,17 +2,50 @@
 
 Updated: 2026-09-28
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `post-third-benefit-20260928-f4f7edf`,
-accepted code revision `f4f7edf8e7fc34d9d7006c3f3b514c50518a4362`
+Deployment: selective preserving release `post-benefit-flow-20260928-525525f`,
+accepted code revision `525525f0d7777c7349a6e3701e5e1c22dd95ba59`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/post-third-benefit-20260928`, based on the prior live
-editor-controls revision and excluding unrelated development legal drafts.
+Source branch: `release/post-benefit-flow-20260928`, based on the prior live
+third-benefit revision and excluding unrelated development legal drafts.
 Only Validation changed its application image; the other accepted service images
-were reused. No migration ran. Owner Hosting version `08a0bd59f36e1afb` is live;
+were reused. No migration ran. Owner Hosting version `545248e2ebfb2af2` is live;
 public Landing Hosting is unchanged. All eleven real provider canaries, Pexels,
 data-preservation, dependency/resource and public Owner Hosting audits passed.
 
-## Third Post benefit and advisory layout checks — deployed and applied
+## Flowing Post benefits and sparse Natal marks — deployed and applied
+
+The owner-requested v5 template groups the three benefit fields at
+28px with 18px gaps and a 24px hanging bullet indent. The template owns the dots;
+existing copy remains intact. Actual font measurement determines wrapping and
+following Y positions; blank items consume no row. Group font controls change
+together and persist. Three smaller individually composed Natal marks replace
+the two dense repeat regions, leaving title, support, hero, footer and badges
+unchanged.
+
+`text_groups` is a bounded reusable template setting, available in the catalog
+and strict patch schema. Old documents without it retain their rendering.
+The current saved water Post was exported read-only, including its owner's
+latest third benefit. Local native PNG review, 59 Template tests, 129 Owner web
+tests/build, three desktop/mobile/WebKit real-HTTP save/approve/restart cases,
+Studio geometry audit, Commander tests/demo and skills checks passed. The exact
+Linux image passed 441 backend tests; 44 Commander checks passed
+with five image dependency skips. All eleven live provider canaries, Pexels,
+authority/dependency/resource audits and the full Owner browser gate passed.
+Version 5 is registered as `design_ee8759d1b6034ee2bffe`, digest
+`8bfb0074e1b4965d8a9753e9959161fda504f904dda2588e72c514313407769f`.
+Normal append-only Template Authoring acceptance and the Project apply API
+selected v5 for Post `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6` in Project
+`01a0dd88-46c1-7ec4-b69b-ee2133ca7daa`, under the maintenance lock after a
+root-only checksummed PostgreSQL backup. Existing copy, settings, assets,
+history and the one approved version were preserved. No Post approval or
+publication ran. Unrelated application fingerprints across 72 tables remained
+unchanged. The live PNG is byte-identical to the reviewed Linux PNG. A guarded
+Validation restart preserved all 72 table fingerprints, the exact Post state,
+preview PNG digest, version history and accepted template reference.
+The public Owner Console audit passed again after restart.
+Review artifacts are in `.local/benefit-flow-review/`.
+
+## Third Post benefit and advisory layout checks — previous verified release
 
 Project Post previews now return PNGs with advisory layout diagnostics instead
 of rejecting overflow, overlap or canvas-bound findings. Save and the owner's
@@ -22,7 +55,7 @@ keeps its separate quality gate. A deliberately overflowing live preview returne
 HTTP 200 without changing saved state or approved versions.
 
 The owner's Post `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6` in Project
-`01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` now uses
+`01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` was switched to
 `design_ee8759d1b6034ee2bffe` v4, digest
 `c1f1b6d5e4ac64666ab209eb60e9332d7605f745f99666451f324de6ae217923`.
 Only `benefit_tertiary` was added below the second benefit; its editable Project

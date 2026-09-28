@@ -1,6 +1,6 @@
 # Shared Landing terms and policies
 
-Status: implemented locally; not deployed or legally finalised.
+Status: deployed on 2026-09-28; operator details remain visibly unfinalised.
 
 The shared renderer links every Project Landing and App Showcase footer to
 `/legal/terms`, `/legal/privacy` and `/legal/cookies`, with `?lang=uk|en`.
@@ -127,6 +127,15 @@ footer clicks with/without the marketing footer in both languages, direct legal
 documents/reload, and private fullscreen navigation to mocked public responses.
 The real public origin was inspected separately in Chromium: all three
 `/legal/*?lang=en` paths returned HTTP 200 but rendered **Page not found**.
-The updated public shell still needs deployment before those live destinations
-open the documents. Evidence is under `.local/policy-review/`; an HTTP status
-alone does not prove a policy is readable.
+That failure was resolved by the owner-authorised preserving web release.
+Both Hosting targets are live, with no backend restart or migration. The full
+release gate passed 135 Owner and 56 public browser cases. Twenty live-origin
+cases verified actual policy documents and the deployed renderer with mocked
+Landing snapshots. The real published `/water-quality` page separately passed
+all three policy clicks and automatic carousel checks on desktop, 360px and
+iPhone WebKit without intercepted traffic. Its publication digest, template,
+settings, copy and selected asset URLs stayed unchanged. The operator profile
+still displays **Draft for review**.
+Initial evidence is under `.local/policy-review/`; deployed evidence is under
+`.local/landing-auto-policy-release/.local/`. An HTTP status alone does not prove
+a policy is readable.

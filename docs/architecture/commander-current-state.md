@@ -2,37 +2,41 @@
 
 Updated: 2026-09-28
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `post-benefit-flow-20260928-525525f`,
-accepted code revision `525525f0d7777c7349a6e3701e5e1c22dd95ba59`
+Deployment: selective preserving release `landing-auto-policies-20260928-4ac510d`,
+accepted code revision `4ac510de49201fcc6ce69d75dca40cbdb202f0b5`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/post-benefit-flow-20260928`, based on the prior live
-third-benefit revision and excluding unrelated development legal drafts.
-Only Validation changed its application image; the other accepted service images
-were reused. No migration ran. Owner Hosting version `545248e2ebfb2af2` is live;
-public Landing Hosting is unchanged. All eleven real provider canaries, Pexels,
-data-preservation, dependency/resource and public Owner Hosting audits passed.
+Source branch: `release/landing-auto-policies-20260928`, based on the accepted
+Post benefit-flow release and scoped to both web shells and their documentation.
+All application images were reused; no service restarted and no migration ran.
+Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
+`26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
+public-shell and actual published Landing browser audits passed.
 
-## App Showcase automatic benefit cards — verified locally
+## App Showcase automatic benefit cards and policy pages — deployed
 
 The shared marketing rail now cycles cards smoothly without previous/next or
 playback buttons; the store buttons sit directly below it. Saved autoplay/speed
 controls remain authoritative. Hover and focus pause independently, clearing
 both resumes playback, and live reduced-motion changes stop/resume it. Editing
 stays static; fullscreen/public rendering animates. Template identities, approved
-snapshots and domain records are unchanged. Deployment remains separate.
+snapshots and domain records are unchanged.
 
-Verified: 129 Owner web and 19 public web unit tests, both builds, 14 affected
-browser checks with mocked API snapshots on desktop/tablet/360px/iPhone WebKit,
-actual scroll/wrap and screenshot review, Commander 44 checks (seven local/five
-Linux-image skips), demo, canonical skill verification and whitespace. Browser
-captures are under `apps/landing-web/test-results/`.
+Verified in the exact release checkout: 129 Owner web and 19 public web unit
+tests, both builds, 135 Owner and 56 public browser cases, Commander 44 checks
+(five isolated-receiver skips), demo, canonical skill verification and whitespace.
+The tracked publisher repeated the full Owner browser gate before Hosting.
+Twenty live-origin cases verified deployed UI with mocked Landing snapshots and
+real bilingual legal documents. The actual published `/water-quality` page
+passed desktop/360px/iPhone WebKit checks without mocked traffic: automatic
+scrolling, zero carousel controls, two store links and all three policy clicks.
+Its publication digest, exact template, copy, settings and asset URLs stayed
+unchanged. Evidence is under `.local/landing-auto-policy-release/.local/`.
 
-Policy follow-up: 19 focused browser checks passed for actual public-footer
-clicks in both languages/footer layouts, direct document/reload, and private
-fullscreen navigation with mocked public responses. A separate real-origin
-Chromium audit found that all three live legal routes return HTTP 200 with
-**Page not found**. The public shell needs deployment; these checks do not claim
-live policies are available. Evidence: `.local/policy-review/`.
+The initial policy audit found HTTP 200 responses displaying **Page not found**.
+The public shell now serves Terms, Privacy and Cookies in both languages, and
+App Showcase links reach the actual documents. Existing explicit owner URLs
+remain authoritative. The incomplete operator profile retains its visible
+**Draft for review** status; deployment did not finalise legal facts.
 
 ## Flowing Post benefits and sparse Natal marks — deployed and applied
 

@@ -21,7 +21,7 @@ from .template_assets import (ASSET_IDS, IMAGE_ASSET_IDS, RENDERER_VERSION, asse
     document_asset_manifest, image_asset_catalog, is_fixed_image)
 from .template_registry import TemplateCapabilities, TemplateDefinition, TemplateIdentity
 
-COMPONENT_VERSION = 6
+COMPONENT_VERSION = 7
 COMPONENT_TYPES = (
     "text", "image", "cutout_image", "button", "store_badge", "card",
     "overlay", "decoration", "brand_motif", "phone", "brand",
@@ -161,7 +161,7 @@ def component(value: Any) -> dict:
 
 
 def normalize_document(value: Any) -> dict:
-    if not isinstance(value, Mapping) or set(value) != DOCUMENT_FIELDS:
+    if not isinstance(value, Mapping) or set(value) not in (DOCUMENT_FIELDS, DOCUMENT_FIELDS | {"text_groups"}):
         raise ValueError("Template design fields are invalid")
     if len(canonical(value).encode()) > MAX_DOCUMENT_BYTES:
         raise ValueError("Template design exceeds its compact byte budget")
@@ -180,9 +180,32 @@ def normalize_document(value: Any) -> dict:
     components = [component(v) for v in value["components"]]
     if len({v["id"] for v in components}) != len(components):
         raise ValueError("Component IDs must be unique")
-    return {"name": bounded_text(value["name"], 80, "Template name"),
+    result = {"name": bounded_text(value["name"], 80, "Template name"),
             "description": bounded_text(value["description"], 320, "Template description"),
             "canvas": dict(canvas), "background": color(value["background"]), "components": components}
+    if "text_groups" in value:
+        groups = value["text_groups"]
+        if not isinstance(groups, list) or len(groups) > 4:
+            raise ValueError("Template permits at most four text groups")
+        used, group_ids, by_id = set(), set(), {c["id"]: c for c in components}
+        result["text_groups"] = []
+        for group in groups:
+            if not isinstance(group, dict) or set(group) != {"id", "items", "gap", "bullet_indent"}:
+                raise ValueError("Text group fields are invalid")
+            identifier = group["id"]
+            items = group["items"]
+            if not isinstance(identifier, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", identifier) or identifier in group_ids:
+                raise ValueError("Text group IDs must be unique reusable names")
+            if (not isinstance(items, list) or not 2 <= len(items) <= 8
+                    or any(not isinstance(item, str) or item not in by_id or by_id[item]["type"] != "text" for item in items)
+                    or len(set(items)) != len(items) or used.intersection(items)
+                    or any(f"{item}_bullet" in by_id for item in items)):
+                raise ValueError("Text groups require distinct, unshared text components")
+            result["text_groups"].append({"id": identifier, "items": list(items),
+                "gap": number(group["gap"], 0, 100), "bullet_indent": number(group["bullet_indent"], 12, 100)})
+            group_ids.add(identifier)
+            used.update(items)
+    return result
 
 
 def new_component(identifier: str, kind: str, role: str, bounds: list, text: str = "") -> dict:
@@ -228,7 +251,9 @@ def catalog(surface: str, types: list[str] | None = None) -> dict:
                                    "Google Play": ["google_play_badge_en", "owner_google_play_badge_v1"]},
             "image_assets": image_asset_catalog(),
             "priority": ["existing settings", "existing composition", "reusable parameter", "reusable component", "exception with justification"],
-            "component_example": new_component("section_title", "text", "headline", [60, 40, 880, 150], "Section title")}
+            "component_example": new_component("section_title", "text", "headline", [60, 40, 880, 150], "Section title"),
+            "text_groups": "Optional groups flow text downward from the first item's box with shared first-item typography, fixed native-pixel gap and template-owned bullets. Blank items consume no space; group typography overrides apply together.",
+            "text_groups_example": [{"id": "benefits", "items": ["benefit_primary", "benefit_secondary"], "gap": 18, "bullet_indent": 24}]}
 
 
 def apply_edits(documents: Mapping[str, dict], edits: Any) -> dict:
@@ -259,7 +284,7 @@ def apply_edits(documents: Mapping[str, dict], edits: Any) -> dict:
             found[0][parts[2]] = deepcopy(edit["value"])
         elif len(parts) == 2 and parts[0] == "canvas" and parts[1] in target["canvas"]:
             target["canvas"][parts[1]] = edit["value"]
-        elif len(parts) == 1 and parts[0] in {"name", "description", "background"}:
+        elif len(parts) == 1 and parts[0] in {"name", "description", "background", "text_groups"}:
             target[parts[0]] = edit["value"]
         else:
             raise ValueError("Template patch path is not editable")
@@ -329,7 +354,8 @@ def _motif_nodes(c: Mapping[str, Any], props: dict, *, seed_value: str) -> list[
 
 
 def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
-              content: Mapping[str, str] | None = None, variant_seed: str = "") -> PrimitiveTemplate:
+              content: Mapping[str, str] | None = None, variant_seed: str = "",
+              typography: Mapping[str, Mapping] | None = None) -> PrimitiveTemplate:
     doc = normalize_document(document)
     width = 360 if mobile else doc["canvas"]["width"]
     height = doc["canvas"]["mobile_height"] if mobile else doc["canvas"]["height"]
@@ -393,11 +419,58 @@ def primitive(document: Mapping[str, Any], *, surface: str, mobile: bool = False
                                and node["props"]["width"] == width
                                and node["props"]["height"] == height), 0)
         children[after_backdrop:after_backdrop] = repeated_motifs
-    return PrimitiveTemplate.from_dict({"schema": PRIMITIVE_TEMPLATE_SCHEMA, "template_id": "declarative_design",
+    result = PrimitiveTemplate.from_dict({"schema": PRIMITIVE_TEMPLATE_SCHEMA, "template_id": "declarative_design",
         "template_type": surface, "version": 1, "status": "draft",
         "root": {"id": "canvas", "type": "frame", "props": {"width": width, "height": height, "background_color": doc["background"]}, "children": children},
         "semantic_roles": roles, "assets": assets, "rules": [],
         "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": [], "change_note": "Declarative template compiler v1"}})
+    return layout_text_groups(result, doc, mobile=mobile, typography=typography)
+
+
+def layout_text_groups(template: PrimitiveTemplate, document: Mapping[str, Any], *,
+                       mobile: bool = False, typography: Mapping[str, Mapping] | None = None) -> PrimitiveTemplate:
+    """Flow template-owned bullets using shared type and measured wrapped height."""
+    groups = document.get("text_groups", [])
+    if not groups:
+        return template
+    from .studio_primitives import PrimitivePreviewRenderer
+    renderer = PrimitivePreviewRenderer(StudioRenderer()._font)
+    result = deepcopy(template.document)
+    children = result["root"]["children"]
+    nodes = {n["id"]: n for n in children}
+    scale = .6 if mobile else 1
+    for group in groups:
+        anchor = nodes[group["items"][0]]["props"]
+        left, top, width = anchor["x"], anchor["y"], anchor["width"]
+        appearance = next(((typography or {})[item] for item in group["items"] if item in (typography or {})), {})
+        font = {key: appearance.get(key, anchor[key]) for key in ("font_family", "font_size")}
+        font["font_size"] *= scale if appearance else 1
+        gap, indent = group["gap"] * scale, group["bullet_indent"] * scale
+        if width <= indent:
+            raise ValueError("Text group width must leave space after its bullet")
+        cursor = top
+        for item in group["items"]:
+            node = nodes[item]
+            props = node["props"]
+            # Keep the owner's original copy in authority; an existing pasted
+            # bullet is presentation-only and must not produce a second dot.
+            text = re.sub(r"^\s*[•●▪◦]\s*", "", props["text"], count=1).strip()
+            props.update(font, font_weight=anchor["font_weight"], text=text,
+                         x=left + indent, y=cursor, width=width - indent,
+                         text_align="left", text_fit="fixed", max_lines=100, break_words=True)
+            if not props["visible"] or not text:
+                props["visible"] = False
+                continue
+            measured = renderer.measure_text(props, props["width"])
+            props["height"] = max(1, math.ceil(max(measured["ink_height"], measured["line_box_height"])))
+            diameter = max(3, font["font_size"] * .2)
+            bullet = {"id": f"{item}_bullet", "type": "shape", "props": {
+                "position": "absolute", "x": left, "y": cursor + font["font_size"] * .35 - diameter / 2,
+                "width": diameter, "height": diameter, "shape": "ellipse", "fill": props["color"],
+                "opacity": props["opacity"], "z_index": props["z_index"]}}
+            children.insert(children.index(node), bullet)
+            cursor += props["height"] + gap
+    return PrimitiveTemplate.from_dict(result)
 
 
 def resolved_assets(document: Mapping[str, Any], assets: Mapping[str, Any] | None = None) -> dict:

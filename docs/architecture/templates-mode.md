@@ -33,6 +33,16 @@ Change template action explicitly applies one accepted version to an existing
 Post, preserving copy, raw image and approved history. The Post still requires
 its own approval before publication.
 
+Optional `text_groups` define up to four flowing bullet groups, each with 2–8
+distinct text-component IDs, a 0–100px gap and a 12–100px bullet indent. The first
+component anchors the group and supplies shared typography. Each nonempty item
+keeps that size, wraps inside the indented width and moves the next item down by
+its measured line height plus the gap. The renderer owns each bullet; wrapped
+lines align with the text, and pasted leading bullets never create duplicate
+dots. Empty items consume no space. Grouped font controls change together and
+persist with the Project. Historical documents without groups retain their
+original independent fixed boxes and approved PNGs.
+
 Three bounded asset classes cover the external design reference without reference-specific
 renderer code. `brand_motif` repeats the canonical Natal symbol with configurable
 placement, opacity and deterministic `rotation_degrees`. `store_badge` resolves

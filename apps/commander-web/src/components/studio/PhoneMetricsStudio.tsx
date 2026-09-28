@@ -184,13 +184,14 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const setTemplateTypography = (fieldId: string, update: Partial<{ font_family: StudioFontFamily; font_size: number }>) => {
     const field = detail.template_fields?.find((item) => item.id === fieldId)
     if (!field) return
-    setConfiguration(current => ({
-      ...current,
-      template_typography: {
+    const peers = detail.template_fields?.filter(item => item.id === fieldId || (field.typography_group && item.typography_group === field.typography_group)) || [field]
+    setConfiguration(current => {
+      const appearance = { font_family: field.font_family, font_size: field.font_size, ...current.template_typography?.[fieldId], ...update }
+      return { ...current, template_typography: {
         ...current.template_typography,
-        [fieldId]: { font_family: field.font_family, font_size: field.font_size, ...current.template_typography?.[fieldId], ...update },
-      },
-    }))
+        ...Object.fromEntries(peers.map(item => [item.id, { ...appearance }])),
+      } }
+    })
   }
 
   useEffect(() => {

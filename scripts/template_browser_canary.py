@@ -22,7 +22,23 @@ parser.add_argument('--project-post', action='store_true')
 args=parser.parse_args()
 if not args.directory.name.startswith('ptw-template-browser-'):
     raise ValueError('Use a disposable browser fixture directory')
-provider=ScriptedTemplateProvider(adjust=True)
+class ProjectTemplateProvider(ScriptedTemplateProvider):
+    def call(self, **kwargs):
+        if kwargs['input_payload']['phase'] != 'compose':
+            return super().call(**kwargs)
+        from validation_pipeline.template_components import new_component
+        ids = ['benefit_primary', 'benefit_secondary', 'benefit_tertiary']
+        edits = [{'surface':'post', 'path':'components.visual.box', 'value':[430,330,510,440]}]
+        edits += [{'surface':'post', 'path':'components.append', 'value':{
+            **new_component(item, 'text', 'description', [60,340 + index * 55,340,40], 'Body text'),
+            'font_size':28, 'font_weight':400}} for index,item in enumerate(ids)]
+        edits += [{'surface':'post', 'path':'text_groups', 'value':[
+            {'id':'benefits', 'items':ids, 'gap':18, 'bullet_indent':24}]}]
+        result = kwargs['response_validator']({'edits':edits,'differences':[],'capability_gap':None,'complete':False})
+        return {'response':result,'invocation':{'provider':'scripted-test','model':self.model,
+            'reasoning_effort':kwargs.get('reasoning_effort'),'attempts':[{'status':'completed'}]}}
+
+provider=(ProjectTemplateProvider if args.project_post else ScriptedTemplateProvider)(adjust=True)
 service=TemplateAuthoringService(TemplateStore(args.directory/'templates.sqlite3'),provider)
 if not args.project_post and not service.store.list('run'):
     provider.timeout_phase = 'compare'

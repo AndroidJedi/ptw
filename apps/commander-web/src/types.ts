@@ -473,7 +473,7 @@ export interface StudioPhoneMetricsDetail {
   template_reference?: { surface: 'post'; template_id: string; template_version: number; template_sha256: string }
   template_name?: string
   editor_key?: string
-  template_fields?: Array<{ id: string; role: string; font_family: StudioFontFamily; font_size: number }>
+  template_fields?: Array<{ id: string; role: string; font_family: StudioFontFamily; font_size: number; typography_group?: string }>
   template_palette_defaults?: StudioPostPalette | null
   creative_id: string
   project_id: string

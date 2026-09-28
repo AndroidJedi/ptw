@@ -52,6 +52,12 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
     const overflowingHeadline = 'Owner edited headline that deliberately overflows the template '.repeat(6)
     await page.getByRole('textbox', { name: 'title · Headline', exact: true }).fill(overflowingHeadline)
     await page.getByText('Font and size for each text field', { exact: true }).click()
+    const benefitIds = ['benefit_primary', 'benefit_secondary', 'benefit_tertiary']
+    for (const field of benefitIds) {
+      await page.getByRole('textbox', { name: `${field.replaceAll('_', ' ')} · Supporting text`, exact: true }).fill('• A benefit that wraps naturally onto a second line')
+    }
+    await page.getByRole('slider', { name: 'benefit_secondary font size' }).fill('32')
+    for (const field of benefitIds) await expect(page.getByRole('slider', { name: `${field} font size` })).toHaveValue('32')
     await page.getByRole('slider', { name: 'title font size' }).fill('180')
     await page.getByRole('button', { name: 'Update preview' }).click()
     await expect(page.getByText('Preview up to date', { exact: true })).toBeVisible({ timeout: 15000 })
@@ -66,11 +72,13 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
     expect(before.versions).toHaveLength(1)
     expect(before.content.template_text.title).toBe(overflowingHeadline.trim())
     expect(before.configuration.template_typography.title.font_size).toBe(180)
+    for (const field of benefitIds) expect(before.configuration.template_typography[field].font_size).toBe(32)
     await stop(); await launch(); await page.reload()
     await page.getByText('Text and bullets', { exact: true }).click()
     await expect(page.getByRole('textbox', { name: 'title · Headline', exact: true })).toHaveValue(overflowingHeadline.trim())
     await page.getByText('Font and size for each text field', { exact: true }).click()
     await expect(page.getByRole('slider', { name: 'title font size' })).toHaveValue('180')
+    for (const field of benefitIds) await expect(page.getByRole('slider', { name: `${field} font size` })).toHaveValue('32')
     await expect(page.locator('.phone-metrics-canvas-panel img')).toBeVisible()
     const after = await fetch(url + path, { headers }).then(r => r.json())
     expect(after.template_reference).toEqual(before.template_reference)

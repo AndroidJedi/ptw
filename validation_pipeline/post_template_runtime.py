@@ -17,7 +17,11 @@ class AuthoredPostDefinition(PostTemplateDefinition):
 
 
 def text_fields(document):
-    return [{"id": c["id"], "role": c["role"], "font_family": c["font_family"], "font_size": c["font_size"]} for c in document["components"]
+    groups = {item: group["id"] for group in document.get("text_groups", []) for item in group["items"]}
+    components = {c["id"]: c for c in document["components"]}
+    anchors = {item: components[group["items"][0]] for group in document.get("text_groups", []) for item in group["items"]}
+    return [{"id": c["id"], "role": c["role"], "font_family": anchors.get(c["id"], c)["font_family"], "font_size": anchors.get(c["id"], c)["font_size"],
+             **({"typography_group": groups[c["id"]]} if c["id"] in groups else {})} for c in document["components"]
             if c["type"] in {"text", "button"}]
 
 
@@ -106,6 +110,12 @@ def post_definition(record):
                     raise ValueError("Post font family is unsupported")
                 size = number(appearance["font_size"], 12, 180)
                 normalized["template_typography"][field_id] = {"font_family": family, "font_size": size}
+            for group in doc.get("text_groups", []):
+                appearances = [normalized["template_typography"][item] for item in group["items"] if item in normalized["template_typography"]]
+                if appearances:
+                    if any(value != appearances[0] for value in appearances):
+                        raise ValueError("Text group fields must use the same font and size")
+                    normalized["template_typography"].update({item: deepcopy(appearances[0]) for item in group["items"]})
         return normalized
 
     def content(value):
@@ -120,8 +130,10 @@ def post_definition(record):
     def build(configuration, value, *, variant_seed=""):
         themed = apply_palette(doc, configuration.get("template_palette"))
         result = deepcopy(primitive(themed, surface="post", content=content(value)["template_text"],
-                                    variant_seed=variant_seed).document)
+                                    variant_seed=variant_seed,
+                                    typography=configuration.get("template_typography")).document)
         result.update(template_id=identity.template_id, version=identity.template_version)
+        grouped = {item for group in doc.get("text_groups", []) for item in group["items"]}
         for node in result["root"]["children"]:
             default_size = node["props"].get("font_size")
             appearance = None
@@ -129,7 +141,7 @@ def post_definition(record):
                 appearance = configuration.get("template_typography", {}).get(node["id"])
                 if appearance:
                     node["props"].update(appearance)
-            if node["type"] == "text":
+            if node["type"] == "text" and node["id"] not in grouped:
                 # A changed size is exact: fail visibly if the template box is
                 # too small instead of silently shrinking the owner's choice.
                 exact_size = appearance and appearance["font_size"] != default_size

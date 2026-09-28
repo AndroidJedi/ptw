@@ -45,9 +45,13 @@ COMPONENT_SCHEMA = obj({
     "repeat_max": {"type": "integer", "minimum": 1, "maximum": 8},
     "box": BOX_SCHEMA, "mobile_box": BOX_SCHEMA, "enabled": {"type": "boolean"},
     "gradient": {"type": "array", "items": text_schema(7), "maxItems": 2}})
+TEXT_GROUPS_SCHEMA = {"type": "array", "maxItems": 4, "items": obj({
+    "id": text_schema(40), "items": {"type": "array", "minItems": 2, "maxItems": 8, "items": text_schema(40)},
+    "gap": {"type": "number", "minimum": 0, "maximum": 100},
+    "bullet_indent": {"type": "number", "minimum": 12, "maximum": 100}})}
 EDIT_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "path": text_schema(100),
     "value": {"anyOf": [text_schema(320), {"type": "number"}, {"type": "boolean"}, BOX_SCHEMA,
-        {"type": "array", "items": text_schema(7), "maxItems": 2}, COMPONENT_SCHEMA]}})
+        {"type": "array", "items": text_schema(7), "maxItems": 2}, COMPONENT_SCHEMA, TEXT_GROUPS_SCHEMA]}})
 DIFFERENCE_SCHEMA = obj({"surface": {"type": "string", "enum": ["post", "landing"]}, "role": {"type": "string", "enum": list(ROLES)},
     "issue": text_schema(), "severity": {"type": "string", "enum": ["minor", "meaningful"]}, "solvable": {"type": "boolean"}})
 DIFFERENCE_CATEGORIES = {"component_missing", "image_fixture", "typography", "appearance", "image_crop", "layout", "component_style", "visual_match"}

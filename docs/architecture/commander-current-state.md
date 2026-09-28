@@ -1,51 +1,117 @@
 # Commander current state
 
 Updated: 2026-09-28
-Branch: `release/post-third-benefit-20260928`
-Deployment baseline: accepted revision `983b565791b6ee81964563951493db5d34ac5cbd`
-with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-This preserving release adds only the third-benefit review utility and advisory
-Project Post geometry checks to that source. The owner authorized deployment,
-registration of the new template version and application to the linked Post.
+Branch: `candidate/ptw-prod-access-20260922`
+Deployment: selective preserving release `post-third-benefit-20260928-f4f7edf`,
+accepted code revision `f4f7edf8e7fc34d9d7006c3f3b514c50518a4362`
+with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
+Source branch: `release/post-third-benefit-20260928`, based on the prior live
+editor-controls revision and excluding unrelated development legal drafts.
+Only Validation changed its application image; the other accepted service images
+were reused. No migration ran. Owner Hosting version `08a0bd59f36e1afb` is live;
+public Landing Hosting is unchanged. All eleven real provider canaries, Pexels,
+data-preservation, dependency/resource and public Owner Hosting audits passed.
 
-## Third Post benefit and advisory layout checks — preserving candidate
+## Flowing Post benefits and sparse Natal marks — reviewed candidate
 
-Project Post previews return PNGs even when text overflows, overlaps or exceeds
-canvas bounds. Save and explicit owner Approve retain that behavior; schema,
-field bounds, integrity, exact identity and stale-state guards remain enforced.
-Global Templates quality checks remain separate.
+The owner-requested next template version groups the three benefit fields at
+28px with 18px gaps and a 24px hanging bullet indent. The template owns the dots;
+existing copy remains intact. Actual font measurement determines wrapping and
+following Y positions; blank items consume no row. Group font controls change
+together and persist. Three smaller individually composed Natal marks replace
+the two dense repeat regions, leaving title, support, hero, footer and badges
+unchanged.
 
-A reviewed v4 candidate of `design_ee8759d1b6034ee2bffe` adds only
-`benefit_tertiary` below the second benefit. Existing component geometry and
-Project copy remain unchanged; the new field begins empty. The preparation
-utility creates local exact-Post and neutral previews without authority writes.
-Acceptance and content-preserving Project application follow the code release.
-No Post approval or publication is part of this deployment.
+`text_groups` is a bounded reusable template setting, available in the catalog
+and strict patch schema. Old documents without it retain their rendering.
+The current saved water Post was exported read-only, including its owner's
+latest third benefit. Local native PNG review, 59 Template tests, 129 Owner web
+tests/build, three desktop/mobile/WebKit real-HTTP save/approve/restart cases,
+Studio geometry audit, Commander tests/demo and skills checks passed. Exact
+Linux-image tests, deployment and append-only template application are pending.
+Review artifacts are in `.local/benefit-flow-review/`.
 
-Verified before release: 16 focused backend cases on desktop and the current
-Linux Validation image, 28 Studio web unit tests, Owner build, three real-HTTP
-Post browser cases on desktop/360px/iPhone WebKit (scripted inference),
-deterministic Studio audit, Commander 44 cases (seven desktop/five image skips),
-demo, canonical skills and whitespace. The current Linux Validation image
-passed all applicable checks; the old Commander image lacks Pillow/Git.
+## Third Post benefit and advisory layout checks — deployed and applied
 
-## Authored Post editor controls — preserving release candidate
+Project Post previews now return PNGs with advisory layout diagnostics instead
+of rejecting overflow, overlap or canvas-bound findings. Save and the owner's
+explicit Approve share that behavior; schema, field bounds, exact-reference,
+integrity and stale-state checks remain enforced. Global Templates authoring
+keeps its separate quality gate. A deliberately overflowing live preview returned
+HTTP 200 without changing saved state or approved versions.
 
-The Project Post editor exposes each authored text field by component name, with
-per-field font family and 12–180px size controls. Overrides persist with the
-Post and survive reload and a switch away/back to the exact template. A direct
-link jumps from preview to controls; at narrower widths controls appear above
-the preview. The count and placement of separate bullet fields still belong to
-the accepted template version, so a third bullet requires a reviewed Templates
-revision and explicit application to the Project Post. Historical approved PNGs
-and accepted template definitions remain unchanged.
+The owner's Post `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6` in Project
+`01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` now uses
+`design_ee8759d1b6034ee2bffe` v4, digest
+`c1f1b6d5e4ac64666ab209eb60e9332d7605f745f99666451f324de6ae217923`.
+Only `benefit_tertiary` was added below the second benefit; its editable Project
+value starts empty. Existing normalized components, copy, settings, images,
+history and the one approved version were preserved. The normal append-only
+Template Authoring acceptance and Project template-apply API were used under the
+maintenance lock after a root-only checksummed PostgreSQL backup. This is an
+explicit owner-directed component revision with zero model calls; no provider
+composition or visual comparison was fabricated.
+Unrelated application fingerprints across 72 tables were unchanged. A guarded
+Validation restart preserved all 72 tables, the exact Post state/PNG digest,
+version history and accepted template reference; the public Owner audit passed
+again after restart.
 
-Verified before release: 13 focused Python template/switch tests, 28 Studio web
-unit tests, Owner build, real-HTTP Post flows on desktop, 360px and iPhone
-WebKit, deterministic visual audit, Commander 44 tests (seven local dependency
-skips), demo and whitespace. No Project or template authority was changed.
+Registration's renderer-contract guard rejected the desktop preview before any
+registration or Project write. Regeneration and review in the exact deployed
+Linux image passed; its generated canonical asset digests determine the final
+identity. The read-only snapshot and reviewed PNGs are in
+`.local/third-benefit-review/deployed-review/`;
+`scripts/prepare_post_benefit_revision.py` reproduces them without authority writes.
 
-## Natal Studio timeout recovery — local correction
+Verified: 437 full Validation tests in the exact release image, 44 Commander
+tests (five image dependency skips), 20 Gateway tests, 128 Owner web tests/build,
+132 real-HTTP browser cases on desktop/360px/iPhone WebKit (scripted inference),
+deterministic Studio audit, Commander demo, canonical skill checks and whitespace.
+
+## Authored Post editor controls — deployed
+
+The Project Post editor now exposes every authored text field by its component
+name, with per-field font family and 12–180px size controls. Overrides persist
+with the Post, survive reload and a switch away/back to the same exact template,
+and leave accepted template definitions and prior approved PNGs unchanged. A
+direct link jumps from preview to controls; at narrower browser widths the
+controls move above the large preview. Separate bullet positions remain a
+property of an accepted template version; adding a third requires a Templates
+revision and explicit application to the Project Post. The prior accepted
+editor-controls release is live and is the base of the third-benefit release
+above.
+
+Verified: 13 focused Python template/switch tests, 28 Studio web unit tests,
+Owner build, three real-HTTP Post template browser flows (desktop, 360px and
+iPhone WebKit), deterministic Studio visual audit, Commander 44 tests (seven
+local dependency skips), demo and whitespace. No template version or Project
+data was changed by these checks.
+
+## Sanlarix template production registration — verified
+
+The initial Natal Studio release included the Sanlarix-inspired source assets
+and authoring code, but its completed local template run was absent from the
+production PostgreSQL authority. Under the PTW maintenance lock, a root-only
+checksummed PostgreSQL backup preceded an exact import of the local run's 28
+append-only revisions, four request receipts and six digest-checked preview PNGs.
+Production's own Template Authoring service accepted the converged pair as
+Post `design_fa4f8f8810034ce4856d` v1 (digest
+`edb4e34014834032ef064df237479968a5578886f7e6f716fd0b44d2912e41e0`)
+and Landing `design_a14fbcf57247479a8d1a` v1 (digest
+`75086fe5e18b97403b26a19dfc1d29445dacb98ae20224fa1f2d934da5019dc2`).
+The source-company logo is absent from both accepted documents; canonical Natal
+brand components remain. The local source run remains proposed in its own
+authority, while production run `569caf85-fb98-4ded-8793-cafca0e01854` is
+accepted at revision 29.
+
+The exact production authenticated HTTP gallery and version endpoints return
+both registered cards and all three digest-matched preview PNGs. The live Owner
+Hosting page returns HTTP 200 and its unauthenticated private Templates route
+returns 401. No application image, migration, Hosting release, Project artifact,
+Post approval or publication changed during this data registration. The local
+Natal creation draft remains local.
+
+## Natal Studio timeout recovery — deployed
 
 A real water-quality creation stopped during template composition after an Astra
 timeout. Natal Studio incorrectly converted the linked provider failure to a
@@ -72,11 +138,11 @@ WebKit, Commander tests/demo and canonical skill checks. Browser evidence includ
 localized repeated-timeout recovery and continuation with unchanged Brief/design
 IDs. The corrected local service was restarted only after the old attempt ended;
 the real recovery notice passed desktop/mobile/WebKit checks without overflow.
-The owner's original creation was then resumed through its actual Continue
+The owner's original local creation was then resumed through its actual Continue
 button, preserving Brief and template IDs. Its live inference remains separate
-from scripted test evidence. Production has not changed.
+from scripted test evidence.
 
-## Natal Studio unified creation page — implemented locally
+## Natal Studio unified creation page — deployed
 
 `?page=create` is a standalone Natal product page with collapsible input, Brief,
 Post, Landing, agent-edit and export sections. It accepts ideas/pasted briefs,
@@ -96,9 +162,12 @@ remain temporary; reused photos retain source and normalized digests.
 The Sanlarix pair now uses canonical Natal branding. Actual Astra comparison
 passed, and all six UA/EN bound renders have no geometry errors. Original source
 wordmark bytes remain historical evidence only. The corrected pair is available
-in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`, linked to the
-original proposed template run. No acceptance or provider result was fabricated.
-Local product: `http://127.0.0.1:5173/?e2e=1&page=create`.
+locally in Natal Studio as creation `4c8dcfd7-e0d9-4656-a686-2cc4c001d520`,
+linked to the original template run. Its source composition history remains
+explicit; no successful provider composition was fabricated.
+Live product: `https://provethemwrong-86123.firebaseapp.com/?page=create`.
+The local creation draft records remain local; the reusable template pair is
+registered separately in production Templates.
 
 A separate real-Astra canary produced a canonical Brief, a coordinated pair,
 actual copy and generated art. Actual-PNG review detected a cropped mobile house;
@@ -112,14 +181,14 @@ integrity: the final Linux backend run passed 87 tests, web checks passed 128,
 and 30 browser cases passed. Exported HTML passed desktop/mobile Chromium and
 WebKit checks for clipping, overflow, embedded images and inactive draft actions.
 All 19 migrations and append-only/CAS guards passed in a disposable
-PostgreSQL database. Production remains on the accepted release above; migration
-019, new source and local template records have not been deployed there.
+PostgreSQL database. Migration 019 and new source are live. The later exact
+production template registration is recorded above.
 
 Canonical skills: `natal-creation-studio`, updated `template-from-website` and
 `template-creation-agent`; desktop links and verifier are synchronized. See
 [`natal-creation-studio.md`](natal-creation-studio.md) for authority and boundaries.
 
-## Sanlarix template pair and website-inspiration skill — local review ready
+## Sanlarix template pair and website-inspiration skill — production accepted
 
 Owner-requested Sanlarix Landing and square ad reuse four original registered
 assets: home/business photographs, transparent equipment and green backdrop;
@@ -129,7 +198,7 @@ A generic image-asset catalog supports fixed decorative/background art and
 replaceable photo fixtures. Project hero replacement preserves fixed art; previous
 accepted definitions and their image contracts are unchanged.
 
-Combined run `569caf85-fb98-4ded-8793-cafca0e01854` is proposed. Actual Astra
+Combined local run `569caf85-fb98-4ded-8793-cafca0e01854` remains proposed. Actual Astra
 `xhigh` analysis succeeded; two composition calls failed (timeout, stopped stalled
 retry). The owner-directed local composition is explicitly recorded separately,
 then real Astra `xhigh` comparison passed with zero differences and geometry errors.
@@ -139,7 +208,8 @@ The local app was restarted; the exact proposed state survived and its three
 previews/review action passed real desktop/360px/iPhone checks.
 Review: `http://127.0.0.1:42749/`; evidence: `.local/sanlarix-template/`.
 These are global declarative designs, not a new native Project Landing definition.
-Acceptance, Project application and production deployment/publication have not run.
+The production copy is accepted as described above. Project application and
+publication have not run.
 
 New canonical `skills/template-from-website` covers URL inspection, temporary
 references, explicitly requested source reuse, typed composition and visual review.
@@ -150,9 +220,10 @@ Linux-image asset/quality checks, all 24 Templates/Post browser cases (scripted
 inference), deterministic Studio audit, Commander 44 cases (seven local/five current
 image dependency skips), demo, skills and whitespace. The old Commander image
 lacks Git and failed five repository checks; the current Validation image passed
-those checks. Source changes remain local.
+those checks. The local proposal and its review evidence remain available;
+the exact accepted pair is now in production Templates.
 
-## Square Post refinement — local, template acceptance pending
+## Square Post refinement — renderer deployed, template acceptance pending
 
 Repeated Natal marks now use a count- and aspect-aware grid with square slots,
 bounded rotation and full rotated-canvas clearance. Compiler v8 invalidates
@@ -172,7 +243,39 @@ Verified: 65 focused template/renderer tests, deterministic Studio geometry audi
 Owner build, desktop/360px/iPhone WebKit checks of both Post and proposal, plus
 the before/after review, Commander 44 tests (seven local dependency skips), demo,
 skills and whitespace. Evidence: `.local/post-template-refinement/`; review:
-`http://127.0.0.1:42747/`. No deployment, publication or Post approval ran.
+`http://127.0.0.1:42747/`. The renderer source is deployed; this proposal
+remains local and no publication or Post approval ran.
+
+## Shared Landing legal documents — implemented locally, draft review pending
+
+All Landing footers now link reusable Ukrainian/English Terms & conditions,
+Privacy and Cookie pages at `/legal/{terms,privacy,cookies}`. Explicit owner
+privacy/terms URLs remain overrides; stored definitions, approvals and publication
+records are unchanged. Legal routes bypass Project lookup and optional tracking.
+The shared operator profile is deliberately incomplete and visibly draft, with
+no effective date: operator identity/address, markets, retention, transfer and
+representative details require confirmation and legal review. The earlier Natal
+Sesh documents were inspected, without copying their meetup-specific conditions.
+Future paid/regulated services still need their own terms and implementation.
+
+The public shell now offers separate opt-in choices for first-party analytics
+and Meta advertising, equal accept/reject actions, persistent Cookie settings,
+180-day versioned preferences, cross-tab updates and withdrawal. Withdrawal stops
+application events, revokes Pixel consent, removes queued PageViews and clears
+accessible Pixel cookies. Analytics reports consequently cover consenting visits.
+
+Verified: 19 public and 128 Owner unit tests, both builds, all 44 public browser
+checks at 1280/768/360px and iPhone WebKit, and all 75 affected Owner
+Landing/Templates cases across the initial run and focused rerun. The rerun fixed
+a now-ambiguous navigation selector and passed an unchanged WebKit gallery-filter
+test that transiently retained All templates. Legal-page/consent screenshots were
+reviewed; captures are under `.local/legal-review` and public browser test results.
+Commander tests/demo, canonical skills and whitespace checks pass. Commander runs
+44 cases with seven local dependency skips; the current Linux Validation image
+passes with five isolated-receiver skips. The older Commander image lacks Git and
+cannot run five repository checks; the current-image rerun resolves that limit.
+No deployment or owner publication ran. See
+[legal scope, source research and business-specific completion](landing-legal.md).
 
 ## Landing delivery and durable operations — deployed and verified
 

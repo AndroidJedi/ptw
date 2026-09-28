@@ -105,6 +105,7 @@ TEXT_PROPERTIES: dict[str, dict[str, Any]] = {
     "vertical_align": _spec("enum", "top", values=("top", "center", "bottom")),
     "max_lines": _spec("integer", 20, minimum=1, maximum=100),
     "wrap_text": _spec("enum", "word", values=("word", "none")),
+    "break_words": _spec("boolean", False),
     "text_fit": _spec("enum", "fixed", values=("fixed", "shrink", "truncate")),
     "casing": _spec("enum", "none", values=("none", "upper", "lower", "title")),
 }
@@ -1272,6 +1273,12 @@ class PrimitivePreviewRenderer:
     def __init__(self, font_resolver: Callable[[int, str, int | None], Any]) -> None:
         self.font_resolver = font_resolver
 
+    def measure_text(self, props: Mapping[str, Any], width: float) -> dict[str, Any]:
+        """Measure wrapping with the same font and layout used for PNG paint."""
+        node = {"id": "measurement", "type": "text", "props": props}
+        command = _Command(node, props, _Box(0, 0, width, 1), (), 1, (0,))
+        return _deep_copy(self._text_layer(command, str(props["text"])).info["ptw_text_layout"])
+
     def _commands(
         self, template: PrimitiveTemplate, semantic_data: Mapping[str, Any], width: int, height: int,
     ) -> list[_Command]:
@@ -1410,7 +1417,7 @@ class PrimitivePreviewRenderer:
             return 0.0
         return sum(draw.textlength(char, font=font) for char in text) + spacing * (len(text) - 1)
 
-    def _wrap_text(self, draw: Any, text: str, font: Any, width: int, spacing: float) -> list[str]:
+    def _wrap_text(self, draw: Any, text: str, font: Any, width: int, spacing: float, *, break_words: bool = False) -> list[str]:
         lines: list[str] = []
         for paragraph in text.splitlines() or [""]:
             words = paragraph.split()
@@ -1419,6 +1426,17 @@ class PrimitivePreviewRenderer:
                 continue
             current = ""
             for word in words:
+                if break_words and self._text_width(draw, word, font, spacing) > width:
+                    if current:
+                        lines.append(current)
+                        current = ""
+                    for character in word:
+                        if current and self._text_width(draw, current + character, font, spacing) > width:
+                            lines.append(current)
+                            current = character
+                        else:
+                            current += character
+                    continue
                 candidate = word if not current else f"{current} {word}"
                 if not current or self._text_width(draw, candidate, font, spacing) <= width:
                     current = candidate
@@ -1650,7 +1668,7 @@ class PrimitivePreviewRenderer:
             source_lines = (
                 [text]
                 if props["wrap_text"] == "none"
-                else self._wrap_text(draw, text, font, width, letter_spacing)
+                else self._wrap_text(draw, text, font, width, letter_spacing, break_words=bool(props["break_words"]))
             )
             lines = source_lines[: int(props["max_lines"])]
             line_height = size * float(props["line_height"])

@@ -167,6 +167,11 @@ child widths, not just page overflow. Do not reuse an inner grid class on its
 section wrapper. CSS masks using Vite inline SVG URLs need quoted `url("…")`;
 assert computed maskImage is not `none` and inspect icon silhouettes. Test all
 three preview widths plus iPhone WebKit, gradient propagation, inherited single
-logo color, optional motifs, carousel focus/hover/reduced-motion behavior,
-per-item visibility and store fallback navigation. Private completion hints must
-not reach public pages. Reference reviews keep visible source attribution.
+logo color, optional motifs, button-free card autoplay/wrap, independent
+focus/hover pause and resume, and live reduced-motion changes. Scroll-snap padding
+may keep the first card above zero scrollLeft; compare actual card positions.
+Also verify per-item visibility and store fallback navigation. Private completion
+hints must not reach public pages. Reference reviews keep visible source attribution.
+Click each policy link and assert its document heading in both languages/footer
+layouts. Probe the real public origin separately: Hosting can return HTTP 200
+while the app renders a 404. Local routing success does not prove deployment.

@@ -66,7 +66,10 @@
 .lp-faq details[open] svg { transform: rotate(180deg); }
 .lp-faq details > p { padding: 0 36px 24px 0; font-size: 16px; opacity: .75; }
 .lp-faq-cards details { border: 0; background: var(--lp-surface); border-radius: min(var(--lp-radius), 14px); padding: 0 22px; margin-bottom: 12px; }
-.lp-footer { display: flex; justify-content: flex-end; padding: 20px 0; border-top: 1px solid color-mix(in srgb, var(--lp-text) 14%, transparent); font-size: 12px; }
+.lp-footer { display: flex; justify-content: space-between; flex-wrap:wrap; gap:20px; padding: 20px 0; border-top: 1px solid color-mix(in srgb, var(--lp-text) 14%, transparent); font-size: 13px; }
+.lp-footer .natal-legal-links,.as-legal-footer .natal-legal-links { display:flex; gap:8px 20px; flex-wrap:wrap; }
+.as-legal-footer { padding:24px 0; font-size:13px; }
+.as-legal-footer a { display:inline-flex; align-items:center; min-height:44px; color:inherit; text-underline-offset:3px; }
 .lp-page :is(a, button, summary):focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 5px; }
 .lp-editing .lp-section { cursor: pointer; }
 .lp-editing .lp-section:hover, .lp-editing .lp-selected { outline: 2px solid var(--lp-accent); outline-offset: -2px; }

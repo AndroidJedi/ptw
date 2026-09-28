@@ -1,6 +1,69 @@
 # PTW incident log
 
-Updated: 2026-09-25
+Updated: 2026-09-28
+
+## 2026-09-28 — Fixed benefit boxes produced uneven text and repeated marks
+
+Independent benefit boxes shrank longer text and kept following items at fixed
+positions. Dense repeated Natal motifs added more background marks than the
+owner wanted. The owner requested equal benefit font sizes, wrapping with a
+hanging bullet indent, equal spacing, and three smaller scattered marks.
+
+Bounded template `text_groups` now share font controls and use the renderer's
+actual text measurements to wrap and place following benefits. Template-owned
+bullets keep continuation lines indented, and empty benefits consume no space.
+Documents without groups keep their existing rendering. The immutable v5 Natal
+template replaces the repeated regions with three individual small marks.
+Project geometry remains advisory as requested in the preceding incident.
+
+The preserving release passed 441 backend tests, 129 Owner unit tests, 132
+desktop/mobile/WebKit browser cases, all eleven real provider canaries, Pexels,
+and deployment audits. After a root-only checksummed PostgreSQL backup, normal
+append-only Template Authoring acceptance and the Project apply API selected v5
+for Creative `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6`. Existing text, settings,
+assets, history and the one approved version were preserved; no Post approval
+or publication ran. Unrelated application fingerprints across 72 tables were
+unchanged. The live PNG matched the reviewed exact-image PNG byte for byte.
+A guarded Validation restart preserved all 72 table fingerprints, Post state,
+PNG digest, version history and accepted template reference.
+The public Owner Console audit also passed after restart.
+
+The canonical Template Creation and local Studio tuning skills now document
+shared-size wrapping, hanging bullets, blank-item flow and the owner's sparse
+motif request. Canonical skill verification passed.
+
+## 2026-09-28 — Project Post overflow blocked the owner's preview
+
+The authored water Post returned HTTP 400 with "Post text does not fit this
+template" because Project rendering treated geometry findings as a blocking
+template-quality failure. The owner requested direct visual review and a third
+benefit position. Project Post layout findings are now advisory for preview,
+Save and explicit Approve; schema, bounds, integrity and stale-state guards
+remain enforced, as does the separate global Templates quality gate.
+
+The preserving selective release changed only Validation's application image
+and Owner Hosting, without migrations. All eleven real provider canaries,
+Pexels, authority-preservation and deployment audits passed. An intentionally
+overflowing live preview returned HTTP 200 without changing saved state or
+approved versions. The exact image passed 437 Validation tests; the Owner suite
+passed 128 unit and 132 desktop/mobile/WebKit browser cases.
+
+After a checksummed root-only PostgreSQL backup, normal append-only Template
+Authoring acceptance registered v4 and the Project apply API selected it for
+Creative `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6`. Only `benefit_tertiary`
+was added, initially empty. Existing copy/settings, images, history, the one
+approved version and all unrelated application fingerprints across 72 tables
+were preserved. No Post approval or publication ran.
+A guarded Validation restart preserved the exact Post state and preview PNG
+digests, version history and all 72 table fingerprints. The exact-version and
+Studio catalog reads passed, and the public Owner audit passed again.
+
+Registration initially rejected a desktop-generated renderer-contract digest
+before any authority write. Preparing and reviewing the same components in the
+exact deployed Linux image passed the unchanged guard. The canonical Owner
+Console incident skill records advisory Project geometry, immutable benefit
+revisions and exact-renderer registration; the local Studio skill preserves the
+owner's preview decision and existing copy.
 
 ## 2026-09-25 — Landing performance release recovered after provider timeout
 

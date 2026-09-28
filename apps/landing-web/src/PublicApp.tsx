@@ -4,6 +4,9 @@ import { LandingPage } from '../../commander-web/src/landing/LandingPage'
 import type { LandingConfiguration, LandingContent } from '../../commander-web/src/types'
 import natalLogo from '../../../natal/assets/logo-natal.png'
 import { MetaPixelConsent } from './MetaPixelConsent'
+import { LegalLinks } from '../../commander-web/src/landing/LegalLinks'
+import { LegalPage, legalRoute } from './legal/LegalPage'
+import { PrivacyProvider, usePrivacy } from './privacyPreferences'
 
 export type PublicLanding = {
   canonical_url: string
@@ -39,21 +42,28 @@ function NotFound() {
   return <main className="natal-public-state"><NatalMark /><h1>Page not found</h1><p>This Natal page is unavailable.</p><a href="/">Go to Natal</a></main>
 }
 
-function PublicShell({ children, path, language = 'en' }: { children: ReactNode; path: string; language?: string }) {
-  return <>{children}<MetaPixelConsent path={path} language={language} /></>
+function PublicShell({ children, path, language = 'en', track = true }: { children: ReactNode; path: string; language?: string; track?: boolean }) {
+  return <>{children}<MetaPixelConsent path={path} language={language} track={track} /></>
 }
 
 export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_API_ORIGIN }: { path?: string; apiOrigin?: string }) {
+  return <PrivacyProvider><PublicPage path={path} apiOrigin={apiOrigin} /></PrivacyProvider>
+}
+
+function PublicPage({ path, apiOrigin }: { path: string; apiOrigin: string }) {
+  const { preferences } = usePrivacy()
   const [snapshot, setSnapshot] = useState<PublicLanding | null>(null)
   const [failed, setFailed] = useState(false)
   const match = routePattern.exec(path)
   const root = path === '/' || path === ''
+  const legal = legalRoute(path)
+  const legalLanguage = new URLSearchParams(window.location.search).get('lang') === 'uk' ? 'uk' : 'en'
   const visitId = useRef(crypto.randomUUID())
   const viewedDigest = useRef<string | undefined>(undefined)
   const analyticsRoute = match ? `/${match[1]}` : ''
   const attributionToken = new URLSearchParams(window.location.search).get('ptw_attribution')
   const emit = useCallback((eventType: 'landing_view' | 'primary_cta_click' | 'contact_click', surface: 'page' | 'hero' | 'phone' | 'telegram' | 'instagram' | 'email', target: 'page' | 'contacts' | 'telegram' | 'instagram' | 'email' | 'phone') => {
-    if (!snapshot || !analyticsRoute) return
+    if (!preferences?.analytics || !snapshot || !analyticsRoute) return
     const width = window.innerWidth
     const body = {
       event_id: crypto.randomUUID(), visit_id: visitId.current,
@@ -66,9 +76,11 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
       method: 'POST', mode: 'cors', credentials: 'omit', keepalive: true,
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }).catch(() => undefined)
-  }, [analyticsRoute, apiOrigin, attributionToken, snapshot])
+  }, [analyticsRoute, apiOrigin, attributionToken, snapshot, preferences?.analytics])
 
   useEffect(() => {
+    if (legal) return
+    setSnapshot(null); setFailed(false)
     if (root) { setMetadata(); return }
     if (!match) { setFailed(true); return }
     const controller = new AbortController()
@@ -89,13 +101,14 @@ export function PublicApp({ path = window.location.pathname, apiOrigin = PUBLIC_
   }, [apiOrigin, path]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!snapshot || viewedDigest.current === snapshot.version_sha256) return
+    if (!preferences?.analytics || !snapshot || viewedDigest.current === snapshot.version_sha256) return
     viewedDigest.current = snapshot.version_sha256
     emit('landing_view', 'page', 'page')
-  }, [emit, snapshot])
+  }, [emit, snapshot, preferences?.analytics])
 
-  if (root) return <PublicShell path={path}><main className="natal-public-state natal-public-home"><NatalMark /><h1>Natal</h1><p>Digital products and services by Natal.</p></main></PublicShell>
-  if (!match || failed) return <PublicShell path={path}><NotFound /></PublicShell>
-  if (!snapshot) return <PublicShell path={path}><main className="natal-public-state" role="status"><NatalMark /><p>Loading Natal page…</p></main></PublicShell>
-  return <PublicShell path={path} language={snapshot.configuration.presentation?.language}><main className="natal-public-landing"><LandingPage configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} imageVariants={snapshot.asset_variants} onAnalyticsEvent={emit} /></main></PublicShell>
+  if (legal) return <PublicShell path={path} language={legalLanguage} track={false}><LegalPage document={legal} language={legalLanguage} /></PublicShell>
+  if (root) return <PublicShell path={path}><main className="natal-public-state natal-public-home"><NatalMark /><h1>Natal</h1><p>Digital products and services by Natal.</p><LegalLinks language="en" origin="" /></main></PublicShell>
+  if (!match || failed) return <PublicShell path={path} track={false}><NotFound /></PublicShell>
+  if (!snapshot) return <PublicShell path={path} track={false}><main className="natal-public-state" role="status"><NatalMark /><p>Loading Natal page…</p></main></PublicShell>
+  return <PublicShell path={path} language={snapshot.configuration.presentation?.language || 'uk'}><main className="natal-public-landing"><LandingPage legalOrigin="" configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} imageVariants={snapshot.asset_variants} onAnalyticsEvent={emit} /></main></PublicShell>
 }

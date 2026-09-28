@@ -12,10 +12,12 @@ import { phoneDefaults, resolvedAppFeature } from './model'
 import './fonts.css'
 import './landing.css'
 import './showcase.css'
+import { LegalLinks } from './LegalLinks'
 
 export type LandingPageProps = {
   configuration: LandingConfiguration; content: LandingContent; imageUrls: Record<string, string>
   imageVariants?: LandingImageVariants
+  legalOrigin?: string
   showDraftHints?: boolean; editing?: boolean; selected?: Section; onSelect?: (section: Section) => void
   onAnalyticsEvent?: (eventType: 'primary_cta_click' | 'contact_click', surface: 'hero' | 'phone' | 'telegram' | 'instagram' | 'email', target: 'contacts' | 'telegram' | 'instagram' | 'email' | 'phone') => void
 }
@@ -23,7 +25,7 @@ export function LandingPage(props: LandingPageProps) {
   return props.configuration.showcase ? <AppShowcasePage {...props} /> : <ProjectLandingPage {...props} />
 }
 
-function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
+function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, legalOrigin, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {
   const id = useId().replace(/:/g, '')
   const root = useRef<HTMLElement>(null)
   const p = configuration.presentation || defaults
@@ -68,7 +70,7 @@ function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, 
   const section = (key: Exclude<Section, 'theme'>, className: string, children: ReactNode) => <section id={`${id}-${key}`} data-section={key} tabIndex={-1} className={`lp-section ${className} ${editing && selected === key ? 'lp-selected' : ''}`} onClickCapture={event => {
     if (editing) { event.preventDefault(); event.stopPropagation(); onSelect?.((event.target as HTMLElement).closest('[data-phone-editor]') ? 'app_feature' : key) }
   }}>{editing && <button className="lp-edit-section" onClick={() => onSelect?.(key)} aria-label={`${p.language === 'uk' ? 'Редагувати' : 'Edit'}: ${t[key]}`}><Pencil aria-hidden="true" />{t[key]}</button>}{children}</section>
-  const extra = (part: Parameters<typeof MarketingSections>[0]['part']) => <MarketingSections imageVariants={imageVariants} showDraftHints={showDraftHints} configuration={configuration} content={content} imageUrls={imageUrls} editing={editing} selected={selected} onSelect={onSelect} onAnalyticsEvent={onAnalyticsEvent} contactId={`${id}-contacts`} part={part} />
+  const extra = (part: Parameters<typeof MarketingSections>[0]['part']) => <MarketingSections legalOrigin={legalOrigin} imageVariants={imageVariants} showDraftHints={showDraftHints} configuration={configuration} content={content} imageUrls={imageUrls} editing={editing} selected={selected} onSelect={onSelect} onAnalyticsEvent={onAnalyticsEvent} contactId={`${id}-contacts`} part={part} />
   const proof = content.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
   const featureIcons = [ScanLine, Layers, Check]
   return <div className="lp-container"><article ref={root} className={`lp-page lp-button-${components.button_style} lp-card-${components.card_style} lp-icon-${components.icon_style} lp-panel-${components.contact_style} ${editing ? 'lp-editing' : ''}`} style={style} lang={p.language} aria-label="Landing live preview">
@@ -93,7 +95,7 @@ function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, 
       })}</div></div>)}
       {section('faq', `lp-faq lp-faq-${configuration.faq.style}`, <><div className="lp-section-heading"><span className="lp-eyebrow">FAQ</span><h2>{t.faq}</h2></div><div>{content.faq.map((item, index) => <details key={index}><summary>{item.question}<ChevronDown aria-hidden="true" /></summary><p>{item.answer}</p></details>)}</div></>)}
       {extra('footer')}
-      <footer className="lp-footer">{anchor('hero', t.top, undefined, <ArrowRight aria-hidden="true" />)}</footer>
+      <footer className="lp-footer">{!configuration.marketing?.footer_enabled && <LegalLinks language={p.language} privacyUrl={content.marketing?.privacy_url} termsUrl={content.marketing?.terms_url} origin={legalOrigin} editing={editing} onSelect={() => onSelect?.('contacts')} />}{anchor('hero', t.top, undefined, <ArrowRight aria-hidden="true" />)}</footer>
     </div>
   </article></div>
 }

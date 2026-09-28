@@ -12,8 +12,6 @@
 .lp-page .mk-card-arrow svg { width:36px; height:36px; }
 .lp-page .mk-icon { display:block; width:44px; height:44px; background:var(--mk-gradient); mask-size:contain; mask-position:center; mask-repeat:no-repeat; }
 .lp-page .mk-notch-card h3 { font-size:25px; line-height:1.3; margin:28px 0 12px; }
-.mk-rail-controls { display:flex; justify-content:center; gap:12px; margin:10px 0 30px; }
-.mk-rail-controls button { border:1px solid #dce4ed; background:white; color:var(--lp-text); border-radius:50px; padding:10px 15px; cursor:pointer; min-height:44px; }
 .mk-stores { position:relative; display:flex; justify-content:center; flex-wrap:wrap; gap:24px; margin:32px 0 0; }
 .lp-page .mk-store { display:inline-flex; align-items:center; justify-content:center; gap:15px; padding:15px 28px; min-height:56px; border-radius:99px; background:var(--mk-start); color:#fff; font-weight:650; max-width:100%; text-align:center; font-size:17px; }
 .lp-page .mk-store img { width:25px; height:28px; object-fit:contain; flex-shrink:0; }
@@ -59,8 +57,8 @@
 .mk-footer .mk-logo { background:var(--mk-start); }
 .mk-footer a { display:flex; gap:12px; align-items:center; margin:14px 0; font-size:15px; }.mk-footer .mk-stores { margin:0; gap:0; justify-content:flex-start; }.mk-footer .mk-store { margin:8px 0; font-size:14px; padding:12px 20px; }
 .lp-page .mk-footer h3 { font-size:18px; margin:0 0 20px; }
-.mk-legal { display:flex; flex-direction:column; align-items:flex-start; gap:7px; margin-top:20px; }
-.mk-footer .mk-legal a,.mk-footer .mk-legal span { margin:0; font-size:11px; line-height:1.35; color:inherit; opacity:.72; }
+.mk-legal { display:flex; flex-direction:column; align-items:flex-start; gap:0; margin-top:20px; }
+.mk-footer .mk-legal a { margin:0; display:inline-flex; align-items:center; min-height:44px; font-size:13px; line-height:1.4; color:inherit; }
 .mk-footer .mk-legal a { text-decoration:underline; text-underline-offset:3px; }
 .mk-footer .mk-policy-pending { cursor:default; }
 .as-page:has(.mk-section) .as-hero-wrap { background:var(--mk-gradient); }.as-page:has(.mk-section) .as-hero { position:relative; }.as-page:has(.mk-section) .as-nav { position:relative; }

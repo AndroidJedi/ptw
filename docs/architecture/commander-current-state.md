@@ -1,32 +1,55 @@
 # Commander current state
 
-Updated: 2026-09-26
+Updated: 2026-09-28
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: migration-aware preserving release `natal-studio-20260926`,
-accepted runtime code revision `abe9607cfa4f4a687995b3e73f10902762bb7cb2`
-with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/natal-studio-20260926`; the separate development branch
-retains unreviewed shared legal drafts, which this release excludes. Commander,
-Validation, Gateway and the three companion services run the release; GOD/Plan/
-Release retain their accepted images. All are healthy. Owner Hosting version
-`4c091cf9ae4dab1c` and public Landing Hosting version `a58d548065fe9808`
-are live. Migration 019 and the in-place fingerprint check preserved every
-pre-existing business row; the root-only PostgreSQL backup is retained.
-Structured and image canaries, Pexels, schema, approved-Post access, resource,
-and Hosting audits passed. The 24-hour resource timer is active for
-2026-09-27 10:09 UTC. The live Natal page returns 200 and its unauthenticated
-private creation route returns 401.
+Deployment: selective preserving release `post-third-benefit-20260928-f4f7edf`,
+accepted code revision `f4f7edf8e7fc34d9d7006c3f3b514c50518a4362`
+with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
+Source branch: `release/post-third-benefit-20260928`, based on the prior live
+editor-controls revision and excluding unrelated development legal drafts.
+Only Validation changed its application image; the other accepted service images
+were reused. No migration ran. Owner Hosting version `08a0bd59f36e1afb` is live;
+public Landing Hosting is unchanged. All eleven real provider canaries, Pexels,
+data-preservation, dependency/resource and public Owner Hosting audits passed.
 
-The first publisher invocation completed the VPS cutover but stopped before
-Owner Hosting because its local browser fixtures lacked the release worktree's
-Python virtual environment. The exact 132-case desktop/360px/iPhone WebKit
-suite passed after restoring that local dependency; Owner Hosting was then
-published and its live audit passed. No second migration or provider run was
-submitted. The source assets and code are deployed; Sanlarix template
-records were subsequently imported and accepted at the owner's explicit deploy
-request. Project application, Post approval and publication remain separate.
+## Third Post benefit and advisory layout checks — deployed and applied
 
-## Authored Post editor controls — local only
+Project Post previews now return PNGs with advisory layout diagnostics instead
+of rejecting overflow, overlap or canvas-bound findings. Save and the owner's
+explicit Approve share that behavior; schema, field bounds, exact-reference,
+integrity and stale-state checks remain enforced. Global Templates authoring
+keeps its separate quality gate. A deliberately overflowing live preview returned
+HTTP 200 without changing saved state or approved versions.
+
+The owner's Post `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6` in Project
+`01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` now uses
+`design_ee8759d1b6034ee2bffe` v4, digest
+`c1f1b6d5e4ac64666ab209eb60e9332d7605f745f99666451f324de6ae217923`.
+Only `benefit_tertiary` was added below the second benefit; its editable Project
+value starts empty. Existing normalized components, copy, settings, images,
+history and the one approved version were preserved. The normal append-only
+Template Authoring acceptance and Project template-apply API were used under the
+maintenance lock after a root-only checksummed PostgreSQL backup. This is an
+explicit owner-directed component revision with zero model calls; no provider
+composition or visual comparison was fabricated.
+Unrelated application fingerprints across 72 tables were unchanged. A guarded
+Validation restart preserved all 72 tables, the exact Post state/PNG digest,
+version history and accepted template reference; the public Owner audit passed
+again after restart.
+
+Registration's renderer-contract guard rejected the desktop preview before any
+registration or Project write. Regeneration and review in the exact deployed
+Linux image passed; its generated canonical asset digests determine the final
+identity. The read-only snapshot and reviewed PNGs are in
+`.local/third-benefit-review/deployed-review/`;
+`scripts/prepare_post_benefit_revision.py` reproduces them without authority writes.
+
+Verified: 437 full Validation tests in the exact release image, 44 Commander
+tests (five image dependency skips), 20 Gateway tests, 128 Owner web tests/build,
+132 real-HTTP browser cases on desktop/360px/iPhone WebKit (scripted inference),
+deterministic Studio audit, Commander demo, canonical skill checks and whitespace.
+
+## Authored Post editor controls — deployed
 
 The Project Post editor now exposes every authored text field by its component
 name, with per-field font family and 12–180px size controls. Overrides persist
@@ -35,8 +58,9 @@ and leave accepted template definitions and prior approved PNGs unchanged. A
 direct link jumps from preview to controls; at narrower browser widths the
 controls move above the large preview. Separate bullet positions remain a
 property of an accepted template version; adding a third requires a Templates
-revision and explicit application to the Project Post. This local editor update
-has not been deployed or applied to the owner’s production creative.
+revision and explicit application to the Project Post. The prior accepted
+editor-controls release is live and is the base of the third-benefit release
+above.
 
 Verified: 13 focused Python template/switch tests, 28 Studio web unit tests,
 Owner build, three real-HTTP Post template browser flows (desktop, 360px and

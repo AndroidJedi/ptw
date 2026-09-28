@@ -127,6 +127,15 @@ these brand defaults outside Creative Skill learning and Landing.
 
 ## Applying a Project Post template
 
+Project Post layout findings are advisory. Render the actual PNG even when text
+overflows, overlaps or leaves the canvas; Save and owner-directed Approve must
+not reinstate that geometry gate. Keep schema, bounded fields, exact identities
+and stale-state checks. Global Templates proposals retain their quality gate.
+For an owner-requested third benefit, create a new exact template version with
+`benefit_tertiary`; retain previous component geometry and copy, and start the
+new Project field empty. `scripts/prepare_post_benefit_revision.py` prepares
+local review artifacts from a read-only snapshot without mutating authority.
+
 Use the Post editor's compact Change template chooser for accepted Post versions.
 Resolve the exact surface, ID, version and digest through the authoring registry;
 never admit a pending proposal or a Landing definition. Carry pending editor copy

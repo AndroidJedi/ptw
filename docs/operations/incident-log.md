@@ -1,6 +1,39 @@
 # PTW incident log
 
-Updated: 2026-09-25
+Updated: 2026-09-28
+
+## 2026-09-28 — Project Post overflow blocked the owner's preview
+
+The authored water Post returned HTTP 400 with "Post text does not fit this
+template" because Project rendering treated geometry findings as a blocking
+template-quality failure. The owner requested direct visual review and a third
+benefit position. Project Post layout findings are now advisory for preview,
+Save and explicit Approve; schema, bounds, integrity and stale-state guards
+remain enforced, as does the separate global Templates quality gate.
+
+The preserving selective release changed only Validation's application image
+and Owner Hosting, without migrations. All eleven real provider canaries,
+Pexels, authority-preservation and deployment audits passed. An intentionally
+overflowing live preview returned HTTP 200 without changing saved state or
+approved versions. The exact image passed 437 Validation tests; the Owner suite
+passed 128 unit and 132 desktop/mobile/WebKit browser cases.
+
+After a checksummed root-only PostgreSQL backup, normal append-only Template
+Authoring acceptance registered v4 and the Project apply API selected it for
+Creative `01a0dda1-04e1-722a-a8c2-6eb3edfbf6f6`. Only `benefit_tertiary`
+was added, initially empty. Existing copy/settings, images, history, the one
+approved version and all unrelated application fingerprints across 72 tables
+were preserved. No Post approval or publication ran.
+A guarded Validation restart preserved the exact Post state and preview PNG
+digests, version history and all 72 table fingerprints. The exact-version and
+Studio catalog reads passed, and the public Owner audit passed again.
+
+Registration initially rejected a desktop-generated renderer-contract digest
+before any authority write. Preparing and reviewing the same components in the
+exact deployed Linux image passed the unchanged guard. The canonical Owner
+Console incident skill records advisory Project geometry, immutable benefit
+revisions and exact-renderer registration; the local Studio skill preserves the
+owner's preview decision and existing copy.
 
 ## 2026-09-25 — Landing performance release recovered after provider timeout
 

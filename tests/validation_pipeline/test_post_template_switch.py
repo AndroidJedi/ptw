@@ -113,6 +113,40 @@ class PostTemplateSwitchTests(unittest.TestCase):
         self.assertEqual(self.detail['content'], restored['content'])
         self.assertEqual(self.detail['phone_screen_history'], restored['phone_screen_history'])
 
+    def test_layout_overflow_renders_and_owner_can_save_and_approve(self):
+        changed = self.switch(self.request())
+        configuration = deepcopy(changed['configuration'])
+        configuration['template_typography'] = {
+            'title': {'font_family': 'Inter', 'font_size': 180},
+        }
+        content = deepcopy(changed['content'])
+        content['template_text']['title'] = 'Long owner headline ' * 20
+        before = self.workspace.state_sha256()
+        rendered = self.workspace.render_preview(state_sha256=before,
+            configuration=configuration, content=content)
+        self.assertTrue(rendered['bytes'].startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertTrue(any('overflows' in issue['issue'] for issue in rendered['layout_issues']))
+        self.assertEqual(before, self.workspace.state_sha256())
+        saved = self.service.checkpoint(self.project, self.creative, kind='save',
+            base_sha256=before, configuration=configuration, content=content)
+        detail = saved['creative']
+        approved = self.service.checkpoint(self.project, self.creative, kind='approve',
+            base_sha256=detail['state_sha256'], configuration=configuration,
+            content=content, change_note='Owner reviewed overflowing layout')
+        self.assertEqual(1, len(approved['creative']['versions']))
+        self.assertEqual(rendered['bytes'], self.workspace.version_render(1)['bytes'])
+
+    def test_layout_overlap_and_canvas_bounds_are_advisory(self):
+        changed = self.switch(self.request())
+        failures = [
+            {'role': 'headline', 'issue': 'Component exceeds canvas bounds', 'solvable': True},
+            {'role': 'description', 'issue': 'Visible text overlaps headline', 'solvable': True},
+        ]
+        with patch('validation_pipeline.template_previews.geometry', return_value=([], failures)):
+            rendered = self.workspace.render_preview(state_sha256=changed['state_sha256'])
+        self.assertEqual(failures, rendered['layout_issues'])
+        self.assertTrue(rendered['bytes'].startswith(b'\x89PNG'))
+
     def test_custom_copy_save_and_historical_phone_clone_after_switch(self):
         self.service.checkpoint(self.project, self.creative, kind='approve', base_sha256=self.detail['state_sha256'], configuration=self.detail['configuration'], content=self.detail['content'], change_note='Phone')
         changed = self.switch(self.request())

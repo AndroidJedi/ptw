@@ -131,6 +131,52 @@ class TemplateQualityTests(unittest.TestCase):
             doc['components'].append(new_component(f'meta_{i}', 'text', 'meta', [60, 410 + 90 * i, 880, 80], 'Caption'))
         self.assertEqual(content['stats'][0]['label'], bind_content(doc, content)['template_text']['benefit'])
 
+    def test_third_benefit_revision_keeps_copy_and_exposes_empty_editable_slot(self):
+        from copy import deepcopy
+        from uuid import uuid4
+        from validation_pipeline.post_template_runtime import post_definition
+        from validation_pipeline.post_templates import POST_TEMPLATE_REGISTRY
+        from validation_pipeline.studio_workspace import PostStudioWorkspace
+        from validation_pipeline.template_components import sha
+        from validation_pipeline.template_registry import TemplateRegistry
+        old = seed('post')
+        old['components'] = [c for c in old['components'] if c['type'] not in {'image', 'phone'}]
+        for index, name in enumerate(('primary', 'secondary')):
+            old['components'].append(new_component(f'benefit_{name}', 'text', 'description',
+                [60, 390 + index * 100, 880, 80], 'Body text'))
+        new = deepcopy(old)
+        new['components'].append(new_component('benefit_tertiary', 'text', 'description',
+            [60, 590, 880, 80], 'Body text'))
+        def definition(document, version):
+            return post_definition({'surface': 'post', 'template_id': 'benefit_revision',
+                'template_version': version, 'template_sha256': sha(document), 'document': document})
+        first, second = definition(old, 1), definition(new, 2)
+        registry = TemplateRegistry('post', (*POST_TEMPLATE_REGISTRY.all(), first, second))
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = PostStudioWorkspace(Path(directory), template_registry=lambda: registry)
+            def switch(reference):
+                current = workspace.detail()
+                return workspace.switch_template(base_sha256=current['state_sha256'],
+                    template_reference=reference, request_id=str(uuid4()),
+                    configuration=current['configuration'], content=current['content'])
+            current = switch(first.identity.to_reference())
+            content = deepcopy(current['content'])
+            content['template_text'].update(benefit_primary='First owner benefit', benefit_secondary='Second owner benefit')
+            workspace.save_configuration(base_sha256=current['state_sha256'],
+                configuration=current['configuration'], content=content)
+            current = switch(second.identity.to_reference())
+            self.assertEqual('', current['content']['template_text']['benefit_tertiary'])
+            for key, text in content['template_text'].items():
+                self.assertEqual(text, current['content']['template_text'][key])
+            self.assertIn('benefit_tertiary', {f['id'] for f in current['template_fields']})
+            content = deepcopy(current['content'])
+            content['template_text']['benefit_tertiary'] = 'Third owner benefit'
+            workspace.save_configuration(base_sha256=current['state_sha256'],
+                configuration=current['configuration'], content=content)
+            reopened = PostStudioWorkspace(Path(directory), template_registry=lambda: registry)
+            self.assertEqual('Third owner benefit', reopened.detail()['content']['template_text']['benefit_tertiary'])
+            self.assertEqual(old, first.document)
+
     def test_neutral_screens_have_portrait_safe_areas_and_walkthrough_preserves_white(self):
         screens = [app_screen(index) for index in range(3)]
         self.assertEqual(3, len(set(screens)))

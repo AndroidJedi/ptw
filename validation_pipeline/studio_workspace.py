@@ -897,9 +897,10 @@ class PostStudioWorkspace:
         rendered["resolved"]["component_settings"] = self._component_settings(config, normalized_content)
         if self._definition().editor_key == "post.declarative.react":
             from .template_previews import geometry
-            _observations, failures = geometry(rendered)
-            if failures:
-                raise ValueError("Post text does not fit this template. Shorten the text or choose another template.")
+            # Layout findings are advisory in a Project Post. The owner reviews
+            # the actual PNG and decides whether to edit, save or approve it.
+            # Global template authoring retains its separate quality checks.
+            _observations, rendered["layout_issues"] = geometry(rendered)
         return rendered
 
     @staticmethod

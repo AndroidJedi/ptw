@@ -1,11 +1,33 @@
 # Commander current state
 
-Updated: 2026-09-26
-Branch: `release/post-editor-controls-20260926`
-Deployment baseline: migration-aware preserving release `natal-studio-20260926`,
-accepted runtime code revision `abe9607cfa4f4a687995b3e73f10902762bb7cb2`
+Updated: 2026-09-28
+Branch: `release/post-third-benefit-20260928`
+Deployment baseline: accepted revision `983b565791b6ee81964563951493db5d34ac5cbd`
 with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-This branch adds only the authored Post editor controls to that accepted source.
+This preserving release adds only the third-benefit review utility and advisory
+Project Post geometry checks to that source. The owner authorized deployment,
+registration of the new template version and application to the linked Post.
+
+## Third Post benefit and advisory layout checks — preserving candidate
+
+Project Post previews return PNGs even when text overflows, overlaps or exceeds
+canvas bounds. Save and explicit owner Approve retain that behavior; schema,
+field bounds, integrity, exact identity and stale-state guards remain enforced.
+Global Templates quality checks remain separate.
+
+A reviewed v4 candidate of `design_ee8759d1b6034ee2bffe` adds only
+`benefit_tertiary` below the second benefit. Existing component geometry and
+Project copy remain unchanged; the new field begins empty. The preparation
+utility creates local exact-Post and neutral previews without authority writes.
+Acceptance and content-preserving Project application follow the code release.
+No Post approval or publication is part of this deployment.
+
+Verified before release: 16 focused backend cases on desktop and the current
+Linux Validation image, 28 Studio web unit tests, Owner build, three real-HTTP
+Post browser cases on desktop/360px/iPhone WebKit (scripted inference),
+deterministic Studio audit, Commander 44 cases (seven desktop/five image skips),
+demo, canonical skills and whitespace. The current Linux Validation image
+passed all applicable checks; the old Commander image lacks Pillow/Git.
 
 ## Authored Post editor controls — preserving release candidate
 

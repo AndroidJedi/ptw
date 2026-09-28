@@ -132,6 +132,13 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
 
 ## Brief, Studio, and provider checks
 
+- Project Post geometry findings must not block preview, Save or the owner's
+  explicit Approve. Preserve the actual PNG and bounded layout diagnostics;
+  schema, field bounds, integrity and stale-state checks still apply. Keep the
+  global Templates authoring quality gate separate. A new benefit position is
+  an immutable template revision, not a rewrite of accepted versions. Preserve
+  existing copy and start a newly added Project text field empty.
+
 - Treat `structured bridge request N failed` as a bridge job ID, not an HTTP
   status. Correlate that ID across the Product Brief attempt, provider
   invocation, platform `jobs` row, and worker log without exposing prompts or

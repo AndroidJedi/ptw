@@ -70,7 +70,11 @@ without matching copy begin empty. The count and placement of separate bullet
 fields still come from the accepted template version; adding another position
 requires a new version in Templates and an explicit Project switch. Unchanged
 text can shrink within its box; an explicit font-size override renders at that
-size and preview/approval reject overflow. The original Phone configuration
+size. Project preview, Save and Approve do not reject layout overflow, overlap
+or canvas-bound findings: the owner reviews the actual PNG and decides whether
+to change it. Schema, field bounds, exact template identity and stale-state
+checks remain enforced. Global Templates authoring retains its quality gate.
+The original Phone configuration
 and prior template drafts are retained. The exact accepted definition is pinned
 in workspace selection, state hashes, checkpoints and approved records, so later
 template versions do not alter an existing Post. Manual Agent remains specific

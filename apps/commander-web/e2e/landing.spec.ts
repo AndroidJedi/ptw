@@ -544,6 +544,22 @@ test('App Showcase uses static screens with individual inspectors and responsive
 })
 
 
+test('App Showcase full-screen policy links navigate to the public origin', async ({ page }) => {
+  await page.route('https://natal-service.com/legal/**', route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><html><body><h1>Public policy route fixture</h1></body></html>',
+  }))
+  for (const kind of ['privacy', 'terms', 'cookies']) {
+    await setup(page, true)
+    await editorSection(page, 'Page design').click()
+    await page.getByRole('button', { name: 'Enable showcase sections' }).click()
+    await page.getByRole('button', { name: 'View Landing' }).click()
+    const url = `https://natal-service.com/legal/${kind}?lang=uk`
+    await page.getByRole('dialog').locator(`.mk-legal a[href="${url}"]`).click()
+    await expect(page).toHaveURL(url)
+    await expect(page.getByRole('heading', { name: 'Public policy route fixture' })).toBeVisible()
+  }
+})
+
 for (const showcase of [false, true]) test(`Marketing sections work in ${showcase ? 'App Showcase' : 'original Landing'}`, async ({ page }) => {
   await setup(page, showcase)
   await editorSection(page, 'Page design').click()
@@ -576,6 +592,8 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
   const dialog = page.getByRole('dialog')
   for (const [name, width] of [['Desktop', 1280], ['Tablet', 768], ['Mobile', 360]] as const) {
     await dialog.getByRole('button', { name: `${name} ${width}` }).click()
+    await expect(dialog.locator('.mk-section-carousel button')).toHaveCount(0)
+    await expect(dialog.locator('.mk-section-carousel .mk-store')).toHaveCount(2)
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
     await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
     await expect(dialog.locator('.mk-mockup img')).toHaveCount(1)

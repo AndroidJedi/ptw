@@ -174,6 +174,51 @@ test('public marketing sections use exact mockup bytes, store links and sample r
   for (const name of ['Telegram', 'Instagram', 'Threads']) await expect(page.locator('.mk-socials').getByRole('img', { name, exact: true })).toBeVisible()
 })
 
+test('App Showcase cards animate without controls and pause for focus and reduced motion', async ({ page }, info) => {
+  test.setTimeout(60_000)
+  const { default: defaults } = await import('../../commander-web/src/landing/marketing-defaults.json', { with: { type: 'json' } })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.route('**/api/v1/public/landings/automatic-showcase', route => route.fulfill({ json: {
+    canonical_url: 'https://natal-service.com/automatic-showcase', project_name: 'Automatic showcase', version_sha256: digest,
+    template_reference: { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) },
+    configuration: { ...configuration, showcase: { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }, marketing: { ...defaults.configuration, carousel_speed: 3 } },
+    content: { ...content, marketing: { ...defaults.content, store_label: 'Explore Natal' }, app_screens: [1, 2, 3].map(i => ({ title: `Task ${i}`, description: 'An illustrative app screen.', visual_direction: '' })) },
+    assets: {},
+  } }))
+  await page.goto('/automatic-showcase')
+  await page.getByRole('button', { name: 'Reject optional' }).click()
+  const section = page.locator('.mk-section-carousel'), rail = section.locator('.mk-rail')
+  await rail.scrollIntoViewIfNeeded()
+  await page.mouse.move(0, 0)
+  await expect(section.getByRole('button')).toHaveCount(0)
+  await expect(section.locator('.mk-store')).toHaveCount(2)
+  const position = () => rail.evaluate(el => el.scrollLeft)
+  await expect.poll(position, { timeout: 6000 }).toBeGreaterThan(10)
+
+  await rail.focus()
+  await rail.evaluate(el => el.scrollTo({ left: 0, behavior: 'instant' }))
+  if (!info.project.use.isMobile) {
+    await rail.hover()
+    await page.mouse.move(0, 0)
+  }
+  await page.waitForTimeout(3500)
+  expect(await position()).toBeLessThanOrEqual(10)
+  await rail.evaluate(el => (el as HTMLElement).blur())
+  await expect.poll(position, { timeout: 6000 }).toBeGreaterThan(10)
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await rail.evaluate(el => el.scrollTo({ left: 0, behavior: 'instant' }))
+  await page.waitForTimeout(3500)
+  expect(await position()).toBeLessThanOrEqual(10)
+  await section.screenshot({ path: info.outputPath('automatic-showcase-cards.png') })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect.poll(position, { timeout: 6000 }).toBeGreaterThan(10)
+
+  await rail.evaluate(el => el.scrollTo({ left: el.scrollWidth, behavior: 'instant' }))
+  await expect.poll(position, { timeout: 6000 }).toBeLessThanOrEqual(10)
+  expect(await page.locator('.as-page').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+})
+
 test('every legal document opens directly in both languages, stays untracked and fits the viewport', async ({ page }, testInfo) => {
   let requests = 0
   page.on('request', request => { if (/facebook|\/api\/v1\/public\//.test(request.url())) requests += 1 })
@@ -207,6 +252,34 @@ test('the basic template links to shared terms without consuming a project slug'
   await expect(page.getByRole('heading', { name: 'Terms & conditions', exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Terms & conditions', exact: true })).toBeVisible()
+})
+
+for (const marketingFooter of [true, false]) test(`App Showcase opens all policies from its ${marketingFooter ? 'marketing' : 'basic'} footer`, async ({ page }) => {
+  const { default: defaults } = await import('../../commander-web/src/landing/marketing-defaults.json', { with: { type: 'json' } })
+  let language = 'en'
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.route('**/api/v1/public/landings/showcase-policies', route => route.fulfill({ json: {
+    canonical_url: 'https://natal-service.com/showcase-policies', project_name: 'Policy links fixture', version_sha256: digest,
+    template_reference: { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) },
+    configuration: { ...configuration, presentation: { ...configuration.presentation, language }, showcase: { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }, marketing: { ...defaults.configuration, footer_enabled: marketingFooter } },
+    content: { ...content, marketing: defaults.content, app_screens: [1, 2, 3].map(i => ({ title: `Task ${i}`, description: 'An illustrative app screen.', visual_direction: '' })) },
+    assets: {},
+  } }))
+  let apiRequests = 0
+  page.on('request', request => { if (request.url().includes('/api/v1/public/')) apiRequests++ })
+  for (language of ['en', 'uk']) for (const kind of ['terms', 'privacy', 'cookies']) {
+    await page.goto('/showcase-policies')
+    const reject = page.getByRole('button', { name: /Reject optional|Відхилити необов’язкові/ })
+    if (await reject.isVisible()) await reject.click()
+    const link = page.locator(`.as-page footer .natal-legal-links a[href="/legal/${kind}?lang=${language}"]`)
+    const title = await link.innerText(), before = apiRequests
+    await link.click()
+    await expect(page).toHaveURL(new RegExp(`/legal/${kind}\\?lang=${language}$`))
+    await expect(page.locator('.natal-legal-main').getByRole('heading', { name: title, exact: true })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', language)
+    expect(apiRequests).toBe(before)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
 })
 
 test('separate choices gate requests and withdrawal persists across reloads', async ({ page }) => {

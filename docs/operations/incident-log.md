@@ -2,6 +2,30 @@
 
 Updated: 2026-09-28
 
+## 2026-09-28 — Policy links reached the public shell's visual 404
+
+App Showcase's shared policy links were implemented locally but absent from
+the deployed public shell. All three `/legal/*?lang=en` requests returned HTTP
+200 while Chromium rendered **Page not found**. Checking only status codes or
+local hrefs would have incorrectly reported working policies.
+
+The owner-authorised preserving release published both web shells, with every
+backend image reused, no service restart and no migration. It passed 129 Owner
+and 19 public unit tests, both builds, 135 Owner and 56 public browser cases,
+Commander checks/demo, skills and dependency/resource/auth/CORS audits. Twenty
+live-origin checks verified the deployed renderer with mocked Landing snapshots
+and actual bilingual policy documents. The real published `/water-quality`
+Landing passed desktop/360px/iPhone WebKit checks without mocked traffic: its
+benefits auto-scroll with zero navigation/playback buttons, its two store links
+remain, and all three footer policies open actual documents. Publication digest,
+exact template reference, settings, copy and selected asset URLs were unchanged.
+Explicit owner policy URLs and the incomplete profile's draft status remain.
+
+The canonical Studio visual-audit skill now requires actual footer clicks,
+rendered document headings and a separate public-origin probe; HTTP 200 and local
+routing alone do not prove deployment. Evidence is in
+`.local/landing-auto-policy-release/.local/`.
+
 ## 2026-09-28 — Fixed benefit boxes produced uneven text and repeated marks
 
 Independent benefit boxes shrank longer text and kept following items at fixed

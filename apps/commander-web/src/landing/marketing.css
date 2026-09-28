@@ -12,8 +12,6 @@
 .lp-page .mk-card-arrow svg { width:36px; height:36px; }
 .lp-page .mk-icon { display:block; width:44px; height:44px; background:var(--mk-gradient); mask-size:contain; mask-position:center; mask-repeat:no-repeat; }
 .lp-page .mk-notch-card h3 { font-size:25px; line-height:1.3; margin:28px 0 12px; }
-.mk-rail-controls { display:flex; justify-content:center; gap:12px; margin:10px 0 30px; }
-.mk-rail-controls button { border:1px solid #dce4ed; background:white; color:var(--lp-text); border-radius:50px; padding:10px 15px; cursor:pointer; min-height:44px; }
 .mk-stores { position:relative; display:flex; justify-content:center; flex-wrap:wrap; gap:24px; margin:32px 0 0; }
 .lp-page .mk-store { display:inline-flex; align-items:center; justify-content:center; gap:15px; padding:15px 28px; min-height:56px; border-radius:99px; background:var(--mk-start); color:#fff; font-weight:650; max-width:100%; text-align:center; font-size:17px; }
 .lp-page .mk-store img { width:25px; height:28px; object-fit:contain; flex-shrink:0; }

@@ -314,8 +314,13 @@ rows, four-step walkthrough with a separate complete mockup image, photo/benefit
 panel, reference-review cards, four service values, motif CTA and contact/footer
 columns. Native copied icons are CSS masks tinted by the selected gradient;
 store SVGs retain their source colors. Eight optional Natal symbol decorations
-have bounded opacity. Carousel playback pauses on focus/hover and respects
-reduced motion. All new controls and bounded copy are available to Landing Agent.
+have bounded opacity. The benefit cards cycle smoothly without previous/next or
+playback buttons; store buttons follow the rail directly. Saved autoplay and
+speed settings still apply. Swipe and keyboard scrolling remain available;
+playback pauses while hovered or focused and resumes once both clear. Reduced
+motion changes stop/resume autoplay immediately. Editing stays static, while
+fullscreen and public pages animate. All new controls and bounded copy are
+available to Landing Agent.
 Every footer links Terms & conditions, Privacy policy and Cookie policy to the
 shared bilingual Natal legal pages. Explicit owner privacy/terms URLs override
 those defaults without modifying stored snapshots. See [legal documents and

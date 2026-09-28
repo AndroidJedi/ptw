@@ -1,13 +1,13 @@
 # Commander current state
 
-Updated: 2026-09-26
+Updated: 2026-09-28
 Branch: `release/post-editor-controls-20260926`
-Deployment baseline: migration-aware preserving release `natal-studio-20260926`,
-accepted runtime code revision `abe9607cfa4f4a687995b3e73f10902762bb7cb2`
+Deployment: preserving release `post-editor-controls-20260926-983b565`,
+accepted runtime code revision `983b565791b6ee81964563951493db5d34ac5cbd`
 with companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-This branch adds only the authored Post editor controls to that accepted source.
+Owner Console Hosting was published on 2026-09-28.
 
-## Authored Post editor controls — preserving release candidate
+## Authored Post editor controls — deployed
 
 The Project Post editor exposes each authored text field by component name, with
 per-field font family and 12–180px size controls. Overrides persist with the
@@ -21,7 +21,24 @@ and accepted template definitions remain unchanged.
 Verified before release: 13 focused Python template/switch tests, 28 Studio web
 unit tests, Owner build, real-HTTP Post flows on desktop, 360px and iPhone
 WebKit, deterministic visual audit, Commander 44 tests (seven local dependency
-skips), demo and whitespace. No Project or template authority was changed.
+skips), demo and whitespace. The exact release checkout also passed all 128
+Owner unit tests and all 132 browser tests before cutover. Validation alone was
+rebuilt/restarted; live structured/media/Pexels, dependency, schema, skill,
+resource and read-only Telegram canaries passed. Existing approved Post access
+remained readable. No migration, reset or Project/template authority mutation
+ran.
+
+The publisher's later browser rerun initially failed one unrelated iPhone
+Commander attachment check; that case passed three isolated reruns. Further
+local repeats suffered long stalls and unrelated timeouts, including serial
+and focused runs. Hosting was completed from the unchanged release checkout
+using its completed pre-cutover full verification. Recheck the local browser
+runner before treating those repeat results as product regressions.
+Firebase confirmed the Owner Console release. Subsequent SSH inspection found
+the expected Validation image and all production containers healthy. Two local
+live Owner audits reached the app/security/API checks but timed out on different
+retired routes; the VPS audit connection also reset. The complete post-publish
+audit remains unverified because of those connection failures.
 
 ## Natal Studio timeout recovery — local correction
 

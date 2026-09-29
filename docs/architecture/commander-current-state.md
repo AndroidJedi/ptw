@@ -2,17 +2,18 @@
 
 Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `ptw-updates-20260929-6ae164e`,
-accepted application revision `6ae164e18fbd7d3a7b459e949ea6e7f3878e5777`
+Deployment: selective preserving release `water-feedback-20260929-f3c8065`,
+accepted application revision `f3c806529afeddf997f6de2bd5dc588644e8788b`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
 Source branch: `release/ptw-updates-20260929`, containing every reviewed workspace
-change. Validation and Owner Gateway run the new release tag; Commander/GOD and
-all companion images are preserved. No migration or reset ran. Owner Hosting
-version `146c03ebab4ae49d` and public Landing Hosting version `5c35af8a3f67b5a9`
+change. Validation runs the feedback release; Owner Gateway retains the prior
+combined release, and Commander/GOD and all companion images are preserved.
+No migration or reset ran. Owner Hosting version `26f5bac301a70154` and public
+Landing Hosting version `085a88ff58d3858e`
 are live. All 11 structured/media canaries, Pexels, unchanged database-authority
 comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
-## Domain-specific feedback preservation — reviewed correction
+## Domain-specific feedback preservation — deployed and published
 
 The owner clarified that feedback copy must follow the product domain while its
 section remains visible. Marketing pages now retain three labelled illustrative
@@ -28,10 +29,20 @@ the original draft/version and checks other Project Landings. No inference or
 schema migration is involved. Template, composer, Manual Agent and VPS skills
 now preserve feedback structure when adapting copy to another domain.
 
-Verified locally: 139 Owner and 15 public unit checks/builds, 138 Owner and 60
-public browser cases, focused normalization/persistence and correction-budget
-checks, skill verification and desktop/360px/iPhone frozen Water review. Live
-release and the explicit feedback publication remain the next acceptance steps.
+Verified: 454 built-image backend checks, 28 exact-image focused checks,
+139 Owner and 15 public unit checks/builds, 138 Owner and 60 public browser cases,
+canonical skills, correction budgets and frozen Water review. All 11 live
+structured/media canaries passed, with database preservation and dependency/
+resource audits. The unchanged intermittent Commander screenshot check passed
+its focused and full 138-case reruns before Owner Hosting publication. A transient
+Firebase finalization transport failure recovered on the same-source retry. The named publication created replacement Landing
+`724809d9-07ee-5e6f-8957-874b3871bc44` v1, digest
+`9dd171092f8b5a2c8b6ff9c34243a4cabf0f0d37a5daa282135ecf625dfedd1e`,
+in Water Project `01a0dd88-46c1-7ec4-b69b-ee2133ca7daa`. Its original draft,
+approved version and other Project Landings are unchanged. Live desktop/360px/
+iPhone checks verified all three exact cards, labels, layout, five alpha dialogs,
+automatic accepted Natal events and every unchanged artwork digest. No sample
+visitor inquiry or outbound notification was sent.
 Evidence: `.local/feedback-*` and `.local/water-quality-feedback-*`.
 
 ## Combined reviewed release — deployed

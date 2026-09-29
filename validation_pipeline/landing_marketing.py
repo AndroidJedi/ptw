@@ -29,6 +29,7 @@ TEXT_LIMITS = {"introduction": 360, "comparison_heading": 140, "walkthrough_head
     "walkthrough_visual_direction": 600, "benefits_heading": 140, "benefits_supporting": 300,
     "benefit_highlight_title": 90, "benefit_highlight_text": 200, "cta_heading": 180, "cta_text": 300, "store_label": 60}
 URL_FIELDS = ("apple_url", "google_url", "privacy_url", "terms_url")
+FEEDBACK_LIMITS = {"topic": 120, "statement": 360}
 
 
 def normalize_configuration(value):
@@ -53,7 +54,10 @@ def normalize_configuration(value):
 
 def normalize_content(value):
     from .landing_workspace import _object, _text
-    value = _object(value, set(DEFAULT_CONTENT), "marketing content")
+    expected = set(DEFAULT_CONTENT)
+    if isinstance(value, dict) and "feedback_examples" in value:
+        expected.add("feedback_examples")
+    value = _object(value, expected, "marketing content")
     result = {key: _text(value[key], key, 0, limit) for key, limit in TEXT_LIMITS.items()}
     for key in URL_FIELDS:
         result[key] = _text(value[key], key, 0, 2048)
@@ -72,6 +76,14 @@ def normalize_content(value):
             if type(item["enabled"]) is not bool:
                 raise ValueError("Landing item visibility must be boolean")
             result[key].append({"enabled": item["enabled"], **{k: _text(item[k], k, 0, limit) for k, limit in limits.items()}})
+    if "feedback_examples" in value:
+        examples = value["feedback_examples"]
+        if not isinstance(examples, list) or len(examples) != 3:
+            raise ValueError("Landing feedback examples require three items")
+        result["feedback_examples"] = [
+            {key: _text(item[key], key, 0, limit) for key, limit in FEEDBACK_LIMITS.items()}
+            for item in (_object(item, set(FEEDBACK_LIMITS), "feedback example") for item in examples)
+        ]
     return result
 
 
@@ -134,6 +146,10 @@ def approval_ready(configuration, content):
         return
     if not v:
         raise ValueError("Complete the additional sections in Landing Studio")
+    if c["reference_reviews_enabled"] and "feedback_examples" in v and any(
+        not all(item[field] for field in FEEDBACK_LIMITS) for item in v["feedback_examples"]
+    ):
+        raise ValueError("Complete or hide the missing feedback examples in Landing Studio")
     for flag, key, fields in (("comparison_enabled", "comparison_rows", ("text",)), ("walkthrough_enabled", "walkthrough_steps", ("title", "description")), ("benefits_enabled", "values", ("title", "description"))):
         if c[flag] and any(item["enabled"] and not all(item[k] for k in fields) for item in v[key]):
             raise ValueError(f"Complete or hide the missing {key} in Landing Studio")

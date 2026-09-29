@@ -39,7 +39,7 @@ description: Populate one selected bounded private PTW Landing template from an 
   colors/lighting to the supplied gradient without changing owner-selected colors.
 - Social proof requires verified owner evidence for this exact product/domain.
   Reference/template testimonials never become Project copy. Return a heading
-  and empty `items`; the server preserves verified proof and hides its absence.
+  and empty `items`; the server preserves verified proof.
   Never rewrite unrelated quotes or invent customers, ratings, logos, results,
   credentials, measurements or placeholder claims.
 - Contacts are owner evidence. Return heading/supporting copy and empty email,
@@ -77,7 +77,10 @@ in the Brief's language. Reuse supported benefits. Never invent prices, legal
 protection, response times or availability. Unsupported items remain empty with
 `enabled: true`; Studio supplies completion hints and hide controls. Preserve
 item counts. Store/legal URLs remain empty for owner destinations. Reference
-reviews are a private editor placeholder; never generate/adapt public testimonials.
+feedback stays visible as labelled illustrative expectations from this product's
+benefits when proof is absent. Preserve that section when adapting domain copy;
+never invent customers, ratings or past experience. Supplied `feedback_examples`
+may contain hypothetical wants; use only supplied schema fields.
 
 `walkthrough_visual_direction` describes one cohesive 4:3 composition of three
 or four complete, staggered, front-facing phones with coherent readable UI.
@@ -100,7 +103,6 @@ filled. Preview/public rendering share these rules. They are engineering
 constraints, not performance learning: never score images or add semantic retries.
 Failed/stale image work retains selected artwork; approved versions are immutable.
 
-Keep this canonical skill below 7 KiB so the 8 KiB runtime prompt budget retains
-room for its bounded validation correction. Run the skill verifier and a real
+Stay below 7 KiB, reserving correction room in the 8 KiB prompt budget. Run the skill verifier and a real
 canonical-prompt invalid-first/valid-second bridge regression after edits; never
 raise budgets or weaken validators to accommodate prose.

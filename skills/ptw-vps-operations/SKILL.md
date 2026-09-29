@@ -26,6 +26,14 @@ Save/Approve/Publish endpoints, retains the previous version, and compares all
 other Landing application fingerprints. Never infer authorization to refresh
 other Projects from one example.
 
+For an explicitly requested live feedback correction, review the named published
+snapshot first. `scripts/update_published_landing_feedback.py` takes its exact
+Project/digest, a stable UUID and three bounded example cards. Run without
+`--publish` for review, then publish under the maintenance lock through normal
+Save/Approve/Publish. Preserve old versions, any original unsaved draft and
+artwork; verify unrelated Projects. Deploy the compatible renderer/validator
+first. Example expectations must stay labelled, separate from verified quotes.
+
 Operate `/root/ptw` and `/opt/ptw/platform` as unrelated histories and
 databases. Their authenticated structured/media bridge is the only generation
 integration. Never move credentials between them or mutate platform data during

@@ -646,6 +646,7 @@ export interface LandingMarketingConfiguration {
   downloads_enabled: boolean; missing_store_target: 'contacts' | 'hide'
 }
 export interface LandingMarketingContent {
+  feedback_examples?: Array<{ topic: string; statement: string }>
   introduction: string; comparison_heading: string; comparison_rows: Array<{ text: string; enabled: boolean }>
   walkthrough_heading: string; walkthrough_steps: Array<{ title: string; description: string; enabled: boolean }>
   walkthrough_visual_direction: string; benefits_heading: string; benefits_supporting: string

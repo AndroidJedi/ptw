@@ -331,10 +331,14 @@ Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. Historical
-reference-review artwork retains its provenance, but the shared renderer never
-shows reference quotes, names, portraits or ratings on a public Landing. Only
-verified Project evidence can appear in the immutable evidence block, outside
-Agent edit authority. A private editor placeholder explains that requirement.
+reference-review artwork retains its provenance, but reference quotes, names,
+portraits and ratings never become Project feedback. The feedback section stays
+visible with three domain-specific, labelled example expectations when verified
+proof is absent. Optional `content.marketing.feedback_examples` holds exactly
+three editable `topic`/`statement` pairs (120/360 characters); legacy pages derive
+cards from their own three features without changing stored state or template
+identity. Explicit hiding remains available. Verified evidence stays in the
+immutable evidence block, outside Agent edit authority.
 
 Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
 Empty destinations open the early-access form or hide
@@ -391,11 +395,22 @@ worker capability before accepting new image requests.
 
 ## Product proof and early-access inquiries
 
-Shared marketing templates never display reference-site testimonials, names,
-portraits or star ratings publicly. The retained `reference_reviews_enabled`
-setting now controls an explanatory private editor placeholder; its legacy
-default is retained so exact historical template identities remain unchanged. Only the Project’s verified `social_proof.items` produce public quotes.
-Empty evidence hides the section, including for historical published snapshots.
+Shared marketing templates preserve the feedback section when its copy needs
+domain adaptation. `reference_reviews_enabled` controls the illustrative cards,
+with its historical default/identity unchanged. When verified `social_proof.items`
+exist, the normal proof block displays those quotes without duplicate examples.
+Otherwise three cards show clearly labelled example expectations, with no invented
+customer names, portraits, ratings or past results. Optional `feedback_examples`
+persist through Save/Approve/restart; incomplete visible examples prevent approval.
+The Manual Agent may edit supplied example fields, while verified proof remains
+protected. Reference-site or cross-domain copy is never reused as evidence.
+
+An owner-directed live correction uses `scripts/update_published_landing_feedback.py`
+with a named Project/slug, current published digest, stable request UUID and a
+reviewed three-card JSON file. Read-only review precedes explicit `--publish`
+under the maintenance lock. The helper copies approved artwork into a replacement
+draft, then uses normal Save/Approve/Publish. Previous approved versions, the
+original draft and other Project Landings remain intact; no inference is used.
 
 Store buttons without a published store URL open a single bilingual early-access
 form. Marketing social icons use it while both store URLs are empty. The form

@@ -1,5 +1,26 @@
 # PTW incident log
 
+## 2026-09-29 — Domain feedback copy incorrectly removed its section
+
+The shared renderer correctly stopped displaying unrelated rental testimonials,
+but interpreted missing verified proof as permission to remove the owner's
+requested feedback section. The owner clarified that its copy must be adapted
+to the Water product while preserving the cards.
+
+The correction separates verified customer quotes from labelled illustrative
+expectations. Three editable bounded example cards remain visible for early-stage
+products, with a legacy fallback to their own feature copy and an explicit hide
+control. There are no invented names, ratings or past results. Water's reviewed
+examples cover comparing labels, understanding composition and choosing by
+taste/mineralization. A named, digest/UUID-bound publication helper retains the
+original draft, versions and artwork; it never rewrites approved snapshots.
+
+Template/composer/Manual Agent skills now require preserving the section during
+domain adaptation. The VPS skill documents compatible-code-first deployment,
+read-only review and the normal Save/Approve/Publish route. Canonical prompt
+budgets remain unchanged; skill verification and correction-budget checks pass.
+Production acceptance is recorded after the preserving release and live review.
+
 Updated: 2026-09-29
 
 ## 2026-09-29 — Landing correction exhausted the prompt budget during release

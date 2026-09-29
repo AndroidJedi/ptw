@@ -64,6 +64,9 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   for (const [slot, section] of (content.app_screens ? [['app_screen_1', 'app_screen_1'], ['app_screen_2', 'app_screen_2'], ['app_screen_3', 'app_screen_3'], ['visual_break_visual', 'visual_break']] : [['hero_visual', 'hero'], ['visual_break_visual', 'visual_break']]) as Array<[string, Section]>) if (!assets.some(a => a.slot === slot && a.available)) issues.push({ section, path: `${section}.visual`, en: 'Generate this section’s artwork', uk: 'Створіть зображення для цієї секції' })
   const marketing = configuration.marketing, extra = content.marketing
   if (marketing && extra) {
+    if (marketing.reference_reviews_enabled) extra.feedback_examples?.forEach((item, i) => {
+      if (!item.topic.trim() || !item.statement.trim()) issues.push({ section: 'social_proof', path: `marketing.feedback_examples.${i}`, en: `Complete or hide feedback example ${i + 1}`, uk: `Заповніть або приховайте приклад відгуку ${i + 1}` })
+    })
     for (const [flag, key, section, fields] of [
       ['comparison_enabled', 'comparison_rows', 'comparison', ['text']],
       ['walkthrough_enabled', 'walkthrough_steps', 'walkthrough', ['title', 'description']],

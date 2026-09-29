@@ -23,6 +23,62 @@ def complete_marketing():
 
 
 class MarketingTests(unittest.TestCase):
+    def test_feedback_publication_patch_changes_only_optional_examples(self):
+        from scripts.update_published_landing_feedback import feedback_content
+        original = complete_content(); original['marketing'] = complete_marketing()
+        snapshot = deepcopy(original)
+        examples = [{'topic': 'Composition', 'statement': 'I want to understand the label.'} for _ in range(3)]
+        revised = feedback_content(original, examples)
+        self.assertEqual(original, snapshot)
+        self.assertEqual(revised['social_proof'], original['social_proof'])
+        revised['marketing'].pop('feedback_examples')
+        self.assertEqual(revised, original)
+        with self.assertRaisesRegex(ValueError, 'Complete all three'):
+            feedback_content(original, [{'topic': '', 'statement': ''} for _ in range(3)])
+
+    def test_optional_feedback_survives_save_approval_restart_without_changing_legacy_content(self):
+        legacy = complete_marketing()
+        self.assertEqual(marketing.normalize_content(legacy), legacy)
+        self.assertNotIn('feedback_examples', legacy)
+        v = complete_content(); v['marketing'] = legacy
+        v['social_proof']['items'] = []
+        v['marketing']['feedback_examples'] = [
+            {'topic': 'Compare water labels', 'statement': 'I want to compare water composition in one place.'},
+            {'topic': 'Understand composition', 'statement': 'I would like plain explanations of mineralization.'},
+            {'topic': 'Match my taste', 'statement': 'I want a choice that reflects my preferences.'},
+        ]
+        with TemporaryDirectory() as root:
+            w = LandingWorkspace(root, image_provider=FakeImages())
+            c = w._configuration(); c['marketing'] = deepcopy(marketing.DEFAULT_CONFIGURATION)
+            d = w.save_configuration(base_sha256=w.state_sha256(), configuration=c, content=v)
+            for slot in w.visual_slots:
+                d = w.generate_visual(base_sha256=d['state_sha256'], slot=slot, visual_direction='Full mockup composition', prompt='sample')
+            w.approve_configuration(base_sha256=d['state_sha256'], configuration=c, content=v, change_note='Product feedback expectations')
+            restored = LandingWorkspace(root, image_provider=FakeImages())
+            self.assertEqual(restored.detail()['content'], v)
+            self.assertEqual(restored.version_detail(1)['content'], v)
+            self.assertEqual(restored.detail()['content']['social_proof']['items'], [])
+
+    def test_feedback_count_shape_and_lengths_and_visible_incomplete_approval(self):
+        v = complete_marketing()
+        v['feedback_examples'] = [{'topic': 'Topic', 'statement': 'An illustrative expectation.'} for _ in range(3)]
+        self.assertEqual(marketing.normalize_content(v), v)
+        for mutate in (
+            lambda x: x['feedback_examples'].pop(),
+            lambda x: x['feedback_examples'][0].update(attribution='Invented visitor'),
+            lambda x: x['feedback_examples'][0].update(topic='x' * 121),
+            lambda x: x['feedback_examples'][0].update(statement='x' * 361),
+        ):
+            bad = deepcopy(v); mutate(bad)
+            with self.assertRaises(ValueError): marketing.normalize_content(bad)
+        v['feedback_examples'][0]['statement'] = ''
+        self.assertEqual(marketing.normalize_content(v), v)
+        c = {'marketing': deepcopy(marketing.DEFAULT_CONFIGURATION)}
+        with self.assertRaisesRegex(ValueError, 'feedback examples'):
+            marketing.approval_ready(c, {'marketing': v})
+        c['marketing']['reference_reviews_enabled'] = False
+        marketing.approval_ready(c, {'marketing': v})
+
     def test_preserving_normalization_and_bounded_sections(self):
         directory = TemporaryDirectory(); self.addCleanup(directory.cleanup)
         legacy = LandingWorkspace(directory.name)

@@ -1,26 +1,17 @@
 import { Check, RefreshCcw, Send, Sparkles, Target, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
+import { BriefContent, MarketingApproachSelect } from '../components/MarketingApproach'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
 import type {
-  ProductBrief, ProductBriefDocument, StudioCreativeSummary, StudioTemplateSummary,
+  ProductBrief, MarketingApproach, StudioCreativeSummary, StudioTemplateSummary,
   ValidationProject,
 } from '../types'
 
 const activeStatuses = new Set(['queued', 'generating'])
-
-function BriefDocument({ value, language }: { value: ProductBriefDocument; language: Language }) {
-  const tr = (en: string, uk: string) => translate(language, en, uk)
-  return <div className="brief-document">
-    <section><small>{tr('POSITIONING HYPOTHESIS', 'ГІПОТЕЗА ПОЗИЦІОНУВАННЯ')}</small><h2>{value.promise}</h2><p>{value.product}</p></section>
-    <section><dl><dt>{tr('First customer', 'Перший клієнт')}</dt><dd>{value.target_audience}</dd><dt>{tr('Main pain', 'Головний біль')}</dt><dd>{value.main_pain}</dd><dt>CTA</dt><dd>{value.cta}</dd></dl></section>
-    <section><small>{tr('STRONG VALIDATION OFFER', 'СИЛЬНА ВАЛІДАЦІЙНА ПРОПОЗИЦІЯ')}</small><h2>{value.offer}</h2><p>{value.trust_strategy}</p></section>
-    <section><small>{tr('KEY BENEFITS', 'КЛЮЧОВІ ПЕРЕВАГИ')}</small><ul>{value.key_benefits.map((item) => <li key={item}>{item}</li>)}</ul></section>
-  </div>
-}
 
 export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onCreative = () => {}, language }: {
   api: ApiClient
@@ -36,6 +27,17 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [projectName, setProjectName] = useState('')
   const [rawIdea, setRawIdea] = useState('')
   const [correction, setCorrection] = useState('')
+  const [marketingApproach, setMarketingApproach] = useState<MarketingApproach>('benefit_led')
+  const [correctionApproach, setCorrectionApproach] = useState<MarketingApproach>('benefit_led')
+  const pendingRequest = useRef<{ fingerprint: string; request_id: string } | null>(null)
+  const requestId = (input: unknown) => {
+    const fingerprint = JSON.stringify(input)
+    if (pendingRequest.current?.fingerprint !== fingerprint) pendingRequest.current = { fingerprint, request_id: crypto.randomUUID() }
+    return pendingRequest.current.request_id
+  }
+  const sourceApproach = selected?.document?.positioning?.marketing_approach || 'benefit_led'
+  const approachChanged = correctionApproach !== sourceApproach
+  useEffect(() => { setCorrectionApproach(sourceApproach) }, [selected?.brief_id, sourceApproach])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -55,7 +57,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     onProjectBriefChanged(detail.project_id, detail.project_name, detail.brief_id, detail.status)
   }
   useEffect(() => {
-    setItems(null); setSelected(null); setError('')
+    setItems(null); setSelected(null); setError(''); setMarketingApproach('benefit_led'); setCorrection(''); pendingRequest.current = null
     void load().catch((cause: Error) => setError(cause.message))
   }, [api, projectId])
   useEffect(() => {
@@ -79,19 +81,21 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     setBusy(true); setError(''); setNotice('')
     try {
       const result = await api.post<{ project: ValidationProject; brief: ProductBrief }>(`/api/v1/projects/${encodeURIComponent(projectId)}/briefs`, {
-        request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(), language,
+        request_id: requestId([projectId, rawIdea.trim(), language, marketingApproach]), raw_idea: rawIdea.trim(), language, marketing_approach: marketingApproach,
       })
-      setRawIdea(''); setNotice(tr('The first Product Brief is being generated from the idea.', 'З ідеї генерується перший продуктовий бриф.')); await load(result.brief.brief_id, result.project.project_id)
+      pendingRequest.current = null; setRawIdea(''); setNotice(tr('The first Product Brief is being generated from the idea.', 'З ідеї генерується перший продуктовий бриф.')); await load(result.brief.brief_id, result.project.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const correct = async () => {
-    if (!selected || !correction.trim()) return
+    if (!selected || (!correction.trim() && !approachChanged)) return
     setBusy(true); setError('')
     try {
       const result = await api.post<{ brief: ProductBrief }>(`/api/v1/briefs/${selected.brief_id}/correct`, {
-        request_id: crypto.randomUUID(), instruction: correction.trim(),
+        request_id: requestId([selected.brief_id, correction.trim(), correctionApproach, language]),
+        instruction: correction.trim() || tr('Apply the selected marketing approach to the same idea.', 'Застосуй обраний маркетинговий підхід до тієї самої ідеї.'),
+        marketing_approach: correctionApproach,
       })
-      setCorrection(''); setNotice(tr('A complete immutable replacement Brief is being generated.', 'Генерується повний незмінний бриф на заміну.')); await load(result.brief.brief_id)
+      pendingRequest.current = null; setCorrection(''); setNotice(tr('A complete immutable replacement Brief is being generated.', 'Генерується повний незмінний бриф на заміну.')); await load(result.brief.brief_id)
       await onProjectsRefresh(result.brief.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
@@ -157,15 +161,16 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
     {!items.length ? <section className="panel brief-create"><Target className="empty-mark" /><div><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2><p>{tr('This creates the first immutable Product Brief inside the Project.', 'Це створить перший незмінний продуктовий бриф усередині проєкту.')}</p></div>
       <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder={tr('Describe one product idea…', 'Опишіть одну продуктову ідею…')} />
+      <MarketingApproachSelect value={marketingApproach} onChange={setMarketingApproach} language={language} disabled={busy} />
       <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={createBrief}><Sparkles />{tr('Generate first Product Brief', 'Згенерувати перший продуктовий бриф')}</button>
     </section> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>{tr('BRIEF HISTORY', 'ІСТОРІЯ БРИФІВ')}</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? tr('Current Brief', 'Поточний бриф') : tr('Earlier Brief', 'Попередній бриф')} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? tr('approved', 'схвалено') : tr('not approved', 'не схвалено')} · {new Date(item.created_at).toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US')}</span></button>)}</aside>
       {selected && <div className="panel brief-detail"><small>{selected.base_brief_id ? tr('REPLACEMENT BRIEF', 'БРИФ НА ЗАМІНУ') : tr('CURRENT IMMUTABLE BRIEF', 'ПОТОЧНИЙ НЕЗМІННИЙ БРИФ')}</small>
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}
         {selected.status === 'failed' && <ErrorState message={operationFailureMessage({ operation: 'brief', detail: selected.error_message, code: selected.error_code, reference: selected.brief_id }, language)} retry={() => void retry()} language={language} />}
-        {selected.document && <><BriefDocument value={selected.document} language={language} />
+        {selected.document && <><BriefContent value={selected.document} language={language} />
           <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p><button className="secondary" data-contract="approved-brief-existing-creative-v1" disabled={busy} onClick={() => void openOrCreateCreative()}><Sparkles />{tr('Open or create its creative', 'Відкрити або створити креатив')}</button></> : <button className="primary" disabled={busy} onClick={() => void openApproval()}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
-          <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
+          <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><MarketingApproachSelect value={correctionApproach} onChange={setCorrectionApproach} language={language} disabled={busy} replacement /><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || (!correction.trim() && !approachChanged)} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
         </>}
       </div>}
     </div>}

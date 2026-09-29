@@ -70,11 +70,13 @@ describe('Product Brief workspace', () => {
     />)
 
     const input = await screen.findByPlaceholderText('Опишіть одну продуктову ідею…')
+    expect(screen.getByLabelText('Маркетинговий підхід')).toHaveValue('benefit_led')
+    fireEvent.change(screen.getByLabelText('Маркетинговий підхід'), { target: { value: 'identity_led' } })
     fireEvent.change(input, { target: { value: 'An English idea' } })
     fireEvent.click(screen.getByRole('button', { name: 'Згенерувати перший продуктовий бриф' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/projects/project-1/briefs', expect.objectContaining({
-      raw_idea: 'An English idea', language: 'uk',
+      raw_idea: 'An English idea', language: 'uk', marketing_approach: 'identity_led',
     })))
   })
 

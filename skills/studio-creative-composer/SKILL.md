@@ -5,6 +5,8 @@ description: Populate one selected PTW Studio template from an approved Product 
 
 # Studio Creative Composer
 
+For V2 Briefs, express the supplied positioning through one concise hook, a supported benefit and a recognizable subject/action. Inherit its marketing_approach; do not independently reframe the product.
+
 Turn one approved Product Brief into one editable Studio creative using the
 selected live template catalog.
 

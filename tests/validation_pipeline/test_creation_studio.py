@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from tests.validation_pipeline.test_local_briefs import BRIEF
+from tests.validation_pipeline.test_local_briefs import BRIEF, brief_response
 from tests.validation_pipeline.test_template_authoring import ScriptedTemplateProvider
 from validation_pipeline.creation_studio import CreationStudio, BriefAdapter, XhighProvider
 from validation_pipeline.creation_export import export_bundle, landing_html
@@ -35,13 +35,14 @@ class CreationProvider(ScriptedTemplateProvider):
         self.compose_timeouts = 0
         self.pause_comparison = False
         self.invalid_composition = False
+        self.newline_binding = False
 
     def call(self, **kwargs):
         phase = kwargs['input_payload'].get('phase')
         if kwargs['mode'].startswith('product_brief'):
             if '[design timeout]' in str(kwargs['input_payload']):
                 self.compose_timeouts = 2
-            value = deepcopy(BRIEF)
+            value = brief_response(kwargs)
             if kwargs['mode'] == 'product_brief_revision':
                 value['product'] = 'Calm focus planner'
         elif phase == 'observe':
@@ -52,6 +53,8 @@ class CreationProvider(ScriptedTemplateProvider):
             value = {'bindings': {}, 'image_direction': 'A calm workspace with a notebook and soft daylight, without text.', 'replace_image': False}
             for surface, doc in kwargs['input_payload']['definitions'].items():
                 value['bindings'][surface] = {c['id']: {'title': 'A calmer daily plan', 'support': 'Bring priorities together. Free early access.', 'action': 'Request early access'}.get(c['id'], 'Plan your day') for c in doc['components'] if c['type'] in {'text', 'button'}}
+            if self.newline_binding:
+                value['bindings']['post']['title'] = 'A title\nwith newline'
         elif phase == 'review':
             value = {'ready': True, 'issues': [], 'edits': []}
             self.review_count += 1
@@ -108,6 +111,52 @@ class CreationTests(unittest.TestCase):
 
     def start(self, **changes):
         return self.service.start(self.request(**changes))
+
+    def test_marketing_switch_replaces_brief_and_art_but_keeps_design(self):
+        run = self.start(marketing_approach="identity_led")
+        self.assertEqual("ready", run["status"], run.get("error"))
+        self.assertEqual("identity_led", run["brief"]["document"]["positioning"]["marketing_approach"])
+        images_before = self.service.image_provider.calls
+        original = deepcopy(run)
+        request = {"request_id": str(uuid4()), "base_sha256": run["state_sha256"], "target": "all",
+                   "instruction": "Apply the selected approach", "marketing_approach": "benefit_led"}
+        changed = self.service.mutate(run["run_id"], request, action="edit")
+        self.assertEqual("ready", changed["status"], changed.get("error"))
+        self.assertNotEqual(original["brief"]["brief_id"], changed["brief"]["brief_id"])
+        self.assertEqual(original["documents"], changed["documents"])
+        self.assertEqual(original["template_run_id"], changed["template_run_id"])
+        self.assertEqual(images_before + 1, self.service.image_provider.calls)
+        self.assertEqual(original["brief"], changed["previous_output"]["brief"])
+        self.assertEqual("benefit_led", changed["brief"]["document"]["positioning"]["marketing_approach"])
+        self.assertFalse(self.briefs.get_brief(changed["brief"]["brief_id"])["approved"])
+        self.assertEqual(changed["state_sha256"], self.service.mutate(run["run_id"], request, action="edit")["state_sha256"])
+        for target in ("post", "landing"):
+            with self.assertRaisesRegex(ValueError, "Brief or complete package"):
+                self.service.mutate(changed["run_id"], {**request, "request_id": str(uuid4()), "base_sha256": changed["state_sha256"], "target": target}, action="edit")
+        calls = [c for c in self.provider.calls if c["input_payload"].get("phase") == "bind"]
+        self.assertEqual("identity_led", calls[0]["input_payload"]["brief"]["positioning"]["marketing_approach"])
+        self.assertEqual("benefit_led", calls[-1]["input_payload"]["brief"]["positioning"]["marketing_approach"])
+
+    def test_control_characters_fail_binding_before_render_and_keep_source(self):
+        self.provider.newline_binding = True
+        run = self.start(marketing_approach="identity_led")
+        self.assertEqual("failed", run["status"])
+        self.assertEqual("content", run["failed_stage"])
+        self.assertIsNotNone(run["brief"])
+        self.assertEqual({}, run["bindings"])
+        self.provider.newline_binding = False
+        restored = self.service.mutate(run["run_id"], {"request_id": str(uuid4()), "base_sha256": run["state_sha256"]}, action="retry")
+        self.assertEqual("ready", restored["status"], restored.get("error"))
+        self.assertEqual(run["brief"]["brief_id"], restored["brief"]["brief_id"])
+
+    def test_template_only_rejects_approach_and_start_request_pins_it(self):
+        with self.assertRaisesRegex(ValueError, "templates have no"):
+            self.start(mode="templates", marketing_approach="identity_led")
+        request = self.request(mode="brief")
+        run = self.service.start(request)
+        self.assertEqual(run["run_id"], self.service.start({**request, "marketing_approach": "benefit_led"})["run_id"])
+        with self.assertRaises(TemplateConflict):
+            self.service.start({**request, "marketing_approach": "identity_led"})
 
     def test_package_is_durable_and_exportable_without_approving_domain_entities(self):
         request = self.request()

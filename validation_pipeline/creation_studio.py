@@ -10,9 +10,10 @@ from uuid import NAMESPACE_URL, uuid5
 
 from .creation_references import capture_website, normalized_png, website_url
 from .domain import _text, require_language
+from .marketing import approach, brief_approach
 from .template_agent import artifact, obj, text_schema, EDIT_SCHEMA
 from .template_authoring import ACTIVE as TEMPLATE_ACTIVE, MAX_CALLS, MAX_TOTAL_ITERATIONS, TemporaryReferences, uuid
-from .template_components import render, sha, apply_edits
+from .template_components import render, sha, apply_edits, bounded_text
 from .template_previews import geometry
 from .template_store import TemplateConflict
 
@@ -43,10 +44,10 @@ class BriefAdapter:
         actor = "natal-creation-studio"
         if correction:
             method = self.authority.correct_brief if self.local else self.authority.create_revision
-            brief, _ = method(run["brief"]["brief_id"], request_id=key(run, "brief-edit"), instruction=correction, requested_by=actor)
+            brief, _ = method(run["brief"]["brief_id"], request_id=key(run, "brief-edit"), instruction=correction, requested_by=actor, marketing_approach=run.get("marketing_approach", brief_approach(run["brief"])))
         else:
             project, _ = self.authority.create_project(request_id=key(run, "project"), name=raw_idea[:100].replace("\n", " "), requested_by=actor)
-            value = self.authority.create_brief(project_id=project["project_id"], request_id=key(run, "brief"), raw_idea=raw_idea[:10000], required_language=run["language"], requested_by=actor)
+            value = self.authority.create_brief(project_id=project["project_id"], request_id=key(run, "brief"), raw_idea=raw_idea[:10000], required_language=run["language"], requested_by=actor, marketing_approach=run.get("marketing_approach", "benefit_led"))
             brief = value[1] if self.local else value[0]
         if brief["status"] in {"queued", "failed"}:
             generator = self.generator() if callable(self.generator) else self.generator
@@ -160,8 +161,11 @@ class CreationStudio:
 
     def start(self, request):
         expected = {"request_id", "mode", "scope", "instruction", "url", "language", "reuse_images", "reference_ids"}
-        if not expected <= set(request) or set(request) - expected - {"template_source_id"} or request["mode"] not in MODES or request["scope"] not in {"post", "landing", "combined"}:
+        if not expected <= set(request) or set(request) - expected - {"template_source_id", "marketing_approach"} or request["mode"] not in MODES or request["scope"] not in {"post", "landing", "combined"}:
             raise ValueError("Creation request fields are invalid")
+        selected_approach = approach(request.get("marketing_approach", "benefit_led"))
+        if request["mode"] == "templates" and "marketing_approach" in request:
+            raise ValueError("Reusable templates have no marketing approach")
         identifier = uuid(request["request_id"])
         instruction = request["instruction"]
         if not isinstance(instruction, str) or len(instruction) > 6000 or request["language"] not in {"en", "uk"} or type(request["reuse_images"]) is not bool:
@@ -173,7 +177,7 @@ class CreationStudio:
         refs = [uuid(v) for v in refs]
         if not instruction.strip() and not url and not refs:
             raise ValueError("Provide an idea, brief, website or image")
-        digest = sha(request)
+        digest = sha({k: v for k, v in request.items() if k != "marketing_approach" or v != "benefit_led"})
         source = None
         if request.get("template_source_id"):
             source = self.templates.store.get("run", uuid(request["template_source_id"]))
@@ -192,6 +196,7 @@ class CreationStudio:
             scope = request["scope"] if request["mode"] == "templates" else (request["mode"] if request["mode"] in {"post", "landing"} else "combined")
             run = tx.append("run", identifier, {"run_id": identifier, "operation_id": identifier,
                 "mode": request["mode"], "scope": scope, "language": request["language"], "instruction": instruction.strip(),
+                **({"marketing_approach": selected_approach} if request["mode"] != "templates" else {}),
                 "url": url, "reuse_images": request["reuse_images"], "had_references": bool(refs),
                 "status": "queued", "error": None, "failed_stage": None, "observation": None, "source": None,
                 "brief": None, "template_run_id": source["run_id"] if source else None, "source_template_id": source["run_id"] if source else None, "documents": {}, "bindings": {}, "image_assets": [], "previews": {},
@@ -202,7 +207,7 @@ class CreationStudio:
 
     def mutate(self, identifier, request, *, action):
         fields = {"request_id", "base_sha256"} | ({"instruction", "target"} if action == "edit" else set())
-        if set(request) != fields or action not in {"edit", "retry", "accept"}:
+        if not fields <= set(request) or set(request) - fields - ({"marketing_approach"} if action == "edit" else set()) or action not in {"edit", "retry", "accept"}:
             raise ValueError("Creation action fields are invalid")
         request_id = uuid(request["request_id"])
         digest = sha({"run_id": identifier, "action": action, **request})
@@ -218,6 +223,10 @@ class CreationStudio:
             if run["state_sha256"] != request["base_sha256"] or run["status"] in ACTIVE:
                 raise TemplateConflict("Creation changed. Refresh before editing.")
             if action == "edit":
+                selected_approach = approach(request.get("marketing_approach", run.get("marketing_approach", "benefit_led")))
+                if "marketing_approach" in request and (run["mode"] == "templates" or request["target"] not in {"brief", "all"}):
+                    raise ValueError("Change the marketing approach through the Brief or complete package")
+                approach_changed = selected_approach != run.get("marketing_approach", "benefit_led")
                 if request["target"] not in {"all", "brief", "post", "landing"} or not isinstance(request["instruction"], str) or not 1 <= len(request["instruction"].strip()) <= 2000 or len(request["instruction"].encode()) > 2600:
                     raise ValueError("Choose an edit target and a message within 2000 characters / 2600 UTF-8 bytes")
                 if request["target"] in {"post", "landing"} and request["target"] not in run["documents"]:
@@ -226,9 +235,11 @@ class CreationStudio:
                     raise ValueError("This creation has no Brief")
                 if run["status"] not in {"ready", "needs_review", "failed"} or not (run["brief"] or run["documents"]):
                     raise TemplateConflict("Finish or retry the current operation before editing")
-                overrides = [p for p in run.get("render_overrides", []) if request["target"] == "brief" or request["target"] not in {"all", p["surface"]}]
+                overrides = [p for p in run.get("render_overrides", []) if approach_changed or request["target"] == "brief" or request["target"] not in {"all", p["surface"]}]
                 run = {**run, "content_attempt": 0, "visual_attempt": 0, "design_retries": 0, "design_continuations": 0, "render_overrides": overrides, "fit_bindings": None, "previous_output": {k: deepcopy(run.get(k)) for k in ("brief", "documents", "bindings", "previews", "image_assets", "surface_images")},
-                    "operation_id": request_id, "previews": {}, "edit": {"target": request["target"], "instruction": request["instruction"].strip(), "brief_done": False, "design_done": False},
+                    "operation_id": request_id, "previews": {},
+                    **({"marketing_approach": selected_approach} if run["mode"] != "templates" else {}),
+                    "edit": {"target": "brief" if approach_changed else request["target"], "instruction": request["instruction"].strip(), "brief_done": False, "design_done": approach_changed, "approach_changed": approach_changed},
                     "messages": [*run["messages"], {"role": "user", "text": request["instruction"].strip(), "target": request["target"]}][-12:]}
             elif action == "retry" and run["status"] not in {"failed", "interrupted", "needs_review"}:
                 raise TemplateConflict("Only an unfinished creation can be retried")
@@ -412,6 +423,7 @@ class CreationStudio:
                         for component_id, copy in values.items():
                             if not isinstance(copy, str):
                                 raise ValueError("Bound copy must be text")
+                            bounded_text(copy, 500, component_id)
                             _text(copy, component_id, 500)
                         require_language(run["language"], list(values.values()), "Creation copy")
                     if not isinstance(value["image_direction"], str) or not 24 <= len(value["image_direction"]) <= 1800:
@@ -428,14 +440,15 @@ class CreationStudio:
                     previous = (run.get("previous_output") or {}).get("bindings", {})
                     if other in previous and other in fields and set(previous[other]) == set(fields[other]):
                         bindings[other] = previous[other]
-                run = self.update(self.get(identifier), bindings=bindings, image_direction=output["image_direction"], image_assets=[] if output["replace_image"] and run.get("edit") else run["image_assets"])
+                run = self.update(self.get(identifier), bindings=bindings, image_direction=output["image_direction"], image_assets=[] if run.get("edit") and (output["replace_image"] or run["edit"].get("approach_changed")) else run["image_assets"])
             stage = "image"
             run = self.update(run, status=stage)
             has_slots = any(c["type"] in {"image", "phone", "cutout_image"} and c["role"] in {"hero", "secondary_media"} for d in run["documents"].values() for c in d["components"])
             if has_slots and not run["image_assets"]:
                 if self.image_provider is None:
                     raise RuntimeError("Image generation is unavailable")
-                image = self.image_provider.generate("Create artwork for this Natal concept. No logos, advertising text, metrics or testimonials. " + run["image_direction"])
+                image = self.image_provider.generate("Create artwork for this Natal concept. No logos, advertising text, metrics or testimonials. " + run["image_direction"]
+                    + "\nBrief positioning (hypothesis, not evidence): " + __import__("json").dumps(run["brief"]["document"].get("positioning", {}), ensure_ascii=False))
                 records = [{"sha256": self.media(normalized_png(image["bytes"])), "origin": "generated", "source": image.get("source", {})}]
                 changed_surfaces = [run["edit"]["target"]] if run.get("edit") and run["edit"]["target"] in {"post", "landing"} else list(run["documents"])
                 run = self.update(run, image_assets=records, surface_images={**run.get("surface_images", {}), **{s: records for s in changed_surfaces}})

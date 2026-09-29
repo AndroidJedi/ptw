@@ -66,6 +66,8 @@ def export_bundle(service, run):
     stream = BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as bundle:
         payload = {k: run[k] for k in ("run_id", "mode", "language", "brief", "documents", "bindings", "source", "image_assets", "template_versions")}
+        if run.get("marketing_approach"):
+            payload["marketing_approach"] = run["marketing_approach"]
         payload["surface_images"] = run.get("surface_images", {})
         bundle.writestr("natal-draft.json", json.dumps(payload, ensure_ascii=False, indent=2))
         if run["brief"]:

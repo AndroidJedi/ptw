@@ -13,6 +13,47 @@ Landing Hosting version `085a88ff58d3858e`
 are live. All 11 structured/media canaries, Pexels, unchanged database-authority
 comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
+## Shared marketing approaches — implemented and verified locally
+
+Project Briefs and Natal Create now offer Benefit-led (default) and Identity-led
+with English/Ukrainian explanations. Both Brief views display bounded V2
+positioning. Existing Post, Landing, Manual Agent and artwork generation consume
+their exact source Brief; editors show the inherited approach. Template-only
+creation has no marketing selector. No additional agent or inference stage was
+added.
+
+Migration 020 adds nullable immutable generation settings: selected approach,
+policy version/digest/text and output-contract version. Historical reservations
+remain V1, including queued/failed retries. New generation and corrections are
+V2; unchanged-approach corrections inherit their frozen policy. Changed input
+needs a new request, while repeated requests return the existing reservation.
+Project replacements require fresh approval. Natal changes retain their template
+and prior output while replacing the Brief and regenerating copy/artwork.
+HumanFeedback/WeightUpdate and reviewed Analytics authority remain intact.
+
+Verified: 474 full backend checks in the Validation image, then 36 focused
+checks covering the final lineage, correction and Ukrainian budget cases;
+143 Owner unit tests/build; all 147 desktop/360px/iPhone browser checks and
+12 focused final browser checks. Project browser cases use mocked APIs; Natal
+uses real local HTTP/storage/renderer with scripted inference. Disposable
+PostgreSQL checks cover migration, V1/V2 generation, concurrency, immutable
+settings, duplicate corrections and restart persistence. Canonical skills,
+Commander demo, whitespace and 54 Commander checks passed (five isolated
+receiver skips). The Commander image required Git installed in its disposable
+test container for repository tests; its application image was unchanged.
+
+The real private trial produced six Brief/copy/artwork examples for a consumer
+utility, personal service and business tool, holding each pair's idea, language,
+selected model and templates constant. Review and limitations are recorded in
+[`marketing-approaches-trial.md`](marketing-approaches-trial.md); the private
+gallery and receipts are under `.local/marketing-approaches-trial/`. A real
+newline-copy renderer failure moved into bounded provider response validation.
+No trial preference activated a learning rule or established conversion evidence.
+
+Production remains unchanged. A future release must apply migration 020 and
+compatible backend/readers before exposing the frontend selector, and run the
+updated V2 production canaries. No rollout or production canary ran here.
+
 ## Studio Agent copy recovery and full Brief context — deployed
 
 The reported Ukrainian Landing request exceeded the server-built provider

@@ -27,9 +27,24 @@ BRIEF = {
 }
 
 
+def brief_response(kwargs, value=None):
+    """Scripted inference follows the requested version; legacy fixtures stay V1."""
+    from copy import deepcopy
+    result = deepcopy(BRIEF if value is None else value)
+    if kwargs["output_schema"]["properties"]["schema_version"]["const"] == 2:
+        result.update(schema_version=2, positioning={
+            "marketing_approach": kwargs["input_payload"]["marketing_approach"],
+            "desired_identity": "Prepared for my day",
+            "customer_tension": "Important work gets lost among tasks",
+            "category_frame": "A practical daily planning companion",
+            "functional_value": "See priorities together",
+        })
+    return result
+
+
 class FakeProvider:
     def call(self, **kwargs):
-        response = kwargs["response_validator"](BRIEF)
+        response = kwargs["response_validator"](brief_response(kwargs))
         return {
             "response": response,
             "invocation": {"provider": "test", "mode": kwargs["mode"]},

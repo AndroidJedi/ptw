@@ -887,3 +887,8 @@ html.commander-keyboard-open .bottom-nav { display: none; }
 .ads-website-destination { display: grid; gap: 8px; min-width: 0; }
 .ads-website-destination a, .post-publishing > a, .post-publications a { color: inherit; overflow-wrap: anywhere; }
 .post-publishing-actions a { text-decoration: none; }
+
+.marketing-approach-select { display: grid; gap: 8px; margin: 16px 0; min-width: 0; }
+.marketing-approach-select select { min-height: 44px; width: 100%; max-width: 100%; }
+.marketing-approach-select p, .marketing-approach-badge { font-size: 0.875rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.marketing-approach-badge { margin: 8px 0; }

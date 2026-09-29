@@ -26,6 +26,11 @@ Updated: 2026-09-24
 
 ## Product Brief
 
+- Project Briefs and Natal Create expose a bilingual Marketing approach selector:
+  Benefit-led by default or Identity-led. Show compact V2 positioning in the Brief.
+  Post/Landing editors show the inherited approach; changes use a Brief replacement.
+  Reusable-template-only creation has no approach selector.
+
 - One raw idea creates one Project, permanent Source, and immutable Brief.
 - Correction creates a new complete Brief with feedback and weight lineage.
 - Approval requires an honor confirmation and a common-template selection.

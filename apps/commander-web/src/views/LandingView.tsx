@@ -1,3 +1,4 @@
+import { MarketingApproachBadge } from '../components/MarketingApproach'
 import { LandingOperationOverlay } from '../landing/LandingOperationOverlay'
 import { useLandingOperation } from '../landing/useLandingOperation'
 import { useLandingImages } from '../landing/useLandingImages'
@@ -370,7 +371,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const preview = (editing: boolean) => <LandingCanvas width={width}><LandingPage showDraftHints configuration={configuration} content={content} imageUrls={images} editing={editing} selected={section} onSelect={value => { setSection(value); setMode('edit') }} /></LandingCanvas>
   const publicUrl = publication?.canonical_url || `https://natal-service.com/${slug}`
   return <section className="landing-studio">
-    {overlay}<header className="landing-action-bar"><div><h1>{templateName(detail)}</h1><p role="status">{busy ? tr('Working…', 'Виконуємо…') : dirty ? tr('Unsaved changes', 'Незбережені зміни') : checkpointPending ? tr('Draft updated · Save to capture your changes', 'Чернетку оновлено · Збережіть свої зміни') : notice || tr('Private draft', 'Приватна чернетка')}</p></div><div className="landing-actions">
+    {overlay}<MarketingApproachBadge value={detail.marketing_approach} language={language} /><header className="landing-action-bar"><div><h1>{templateName(detail)}</h1><p role="status">{busy ? tr('Working…', 'Виконуємо…') : dirty ? tr('Unsaved changes', 'Незбережені зміни') : checkpointPending ? tr('Draft updated · Save to capture your changes', 'Чернетку оновлено · Збережіть свої зміни') : notice || tr('Private draft', 'Приватна чернетка')}</p></div><div className="landing-actions">
       <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}><LayoutTemplate />{tr('Change template', 'Змінити шаблон')}</button>
       <button className="primary" aria-label={tr('Save Landing', 'Зберегти лендінг')} disabled={busy} onClick={() => void save(false)}><Save />{tr('Save', 'Зберегти')}</button>
       <details className="landing-more"><summary aria-label={tr('More actions', 'Інші дії')}><MoreHorizontal /></summary><div>

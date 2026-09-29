@@ -30,7 +30,7 @@ IMAGE_POLICY = (
     "unless requested inside the picture. This operation changes artwork, not editor settings. "
     "Return the result as-is; do not score, reject or regenerate for visual quality."
 )
-BRIEF_FIELDS = ("product", "target_audience", "main_pain", "promise", "key_benefits", "offer", "language")
+BRIEF_FIELDS = ("product", "target_audience", "main_pain", "promise", "key_benefits", "offer", "language", "positioning")
 
 
 def canonical(value: Any) -> str:

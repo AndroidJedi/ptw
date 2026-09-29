@@ -433,3 +433,10 @@ still select components. Configured real store links retain their destinations.
 Public receipts and the owner-only **Visitor inquiries** inbox are described in
 [Landing legal and measurement](landing-legal.md). No approval, publication,
 learning or outbound notification runs when a visitor submits a form.
+
+## Inherited marketing approach
+
+The editor displays the exact source Brief's Benefit-led or Identity-led approach.
+V2 positioning is included in composition, Manual Agent and image context within
+existing prompt budgets. Newer Briefs never replace an existing artifact's source.
+To change approach, create a Brief replacement; keep approved versions immutable.

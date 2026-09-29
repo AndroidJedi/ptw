@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowUp, Download, Plus, Sparkles } from 'lucide-react'
 import type { ApiClient } from '../api'
 import type { Language } from '../i18n'
+import type { MarketingApproach, ProductBriefDocument } from '../types'
+import { BriefContent, MarketingApproachSelect } from '../components/MarketingApproach'
 import { ImageReferenceInput, imageReferencePayload } from '../components/ImageReferenceInput'
 import natalLogo from '../../../../natal/assets/logo-natal.png'
 import './CreationStudioView.css'
@@ -9,11 +11,12 @@ import './CreationStudioView.css'
 type Mode = 'pack' | 'brief' | 'post' | 'landing' | 'templates'
 type Preview = { sha256: string; failures: unknown[] }
 type Creation = {
+  marketing_approach?: MarketingApproach
   run_id: string; operation_id: string; state_sha256: string; mode: Mode; scope: string; status: string; instruction: string; language: Language
   error: string | null; failed_stage: string | null; template_run_id: string | null; template_versions: unknown[]
   recovery?: { code: string; stage: string; can_retry: boolean; can_edit: boolean; has_brief: boolean; issues: string[] } | null
   design_retries?: number
-  brief: { brief_id: string; project_id: string; document: Record<string, string | string[] | number>; document_sha256: string } | null
+  brief: { brief_id: string; project_id: string; document: ProductBriefDocument; document_sha256: string } | null
   documents: Record<string, unknown>; previews: Record<string, Preview>
   messages: { role: string; text: string; target: string }[]
 }
@@ -36,6 +39,8 @@ function PreviewImage({ api, preview, label }: { api: ApiClient; preview: Previe
 export function CreationStudioView({ api, language }: { api: ApiClient; language: Language }) {
   const tr = (en: string, uk: string) => language === 'uk' ? uk : en
   const [mode, setMode] = useState<Mode>('pack'), [scope, setScope] = useState('combined')
+  const [marketingApproach, setMarketingApproach] = useState<MarketingApproach>('benefit_led')
+  const [editApproach, setEditApproach] = useState<MarketingApproach>('benefit_led')
   const [instruction, setInstruction] = useState(''), [website, setWebsite] = useState(''), [reuse, setReuse] = useState(false)
   const [file, setFile] = useState<File | null>(null), [outputLanguage, setOutputLanguage] = useState(language)
   const [designs, setDesigns] = useState<{ run_id: string; name: string; surfaces: string[] }[]>([]), [design, setDesign] = useState('')
@@ -45,7 +50,11 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
   const [message, setMessage] = useState(''), [target, setTarget] = useState('all'), [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 600px)').matches)
   const inFlight = useRef(false), selectedRef = useRef(selected), agentInput = useRef<HTMLTextAreaElement>(null), agentSection = useRef<HTMLDetailsElement>(null)
   const pendingRequest = useRef<{ fingerprint: string; value: Record<string, unknown> } | null>(null)
+  const pendingMutation = useRef<{ fingerprint: string; value: Record<string, unknown> } | null>(null)
   selectedRef.current = selected
+  const sourceApproach = run?.marketing_approach || run?.brief?.document.positioning?.marketing_approach || 'benefit_led'
+  useEffect(() => { setEditApproach(sourceApproach) }, [run?.run_id, run?.operation_id, sourceApproach])
+  const approachChanged = Boolean(run?.brief && ['all', 'brief'].includes(target) && editApproach !== sourceApproach)
   const active = busy || Boolean(run && activeStates.has(run.status))
   const choices: [Mode, string, string][] = [
     ['pack', 'Brief + Post + Landing', 'Бриф + Допис + Лендінг'], ['brief', 'Brief', 'Бриф'], ['post', 'Post', 'Допис'], ['landing', 'Landing', 'Лендінг'], ['templates', 'Reusable templates', 'Шаблони'],
@@ -78,7 +87,7 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
     inFlight.current = true; setBusy(true); setError('')
     try {
       const sourceDesign = ['brief', 'templates'].includes(mode) ? '' : design
-      const fingerprint = JSON.stringify([mode, scope, instruction, website, reuse, outputLanguage, sourceDesign, file?.name, file?.lastModified, file?.size])
+      const fingerprint = JSON.stringify([mode, scope, instruction, website, reuse, outputLanguage, sourceDesign, file?.name, file?.lastModified, file?.size, mode === 'templates' ? null : marketingApproach])
       let value = pendingRequest.current?.fingerprint === fingerprint ? pendingRequest.current.value : null
       if (!value) {
         const refs: string[] = []
@@ -86,7 +95,7 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
           const uploaded = await api.post<{ reference_id: string }>(`${root}/references`, { request_id: crypto.randomUUID(), image: await imageReferencePayload(file) })
           refs.push(uploaded.reference_id)
         }
-        value = { request_id: crypto.randomUUID(), mode, scope, instruction, url: website.trim(), language: outputLanguage, reuse_images: reuse, reference_ids: refs, ...(sourceDesign ? { template_source_id: sourceDesign } : {}) }
+        value = { request_id: crypto.randomUUID(), mode, scope, instruction, url: website.trim(), language: outputLanguage, reuse_images: reuse, reference_ids: refs, ...(mode !== 'templates' ? { marketing_approach: marketingApproach } : {}), ...(sourceDesign ? { template_source_id: sourceDesign } : {}) }
         pendingRequest.current = { fingerprint, value }
       }
       const result = await api.post<Creation>(`${root}/runs`, value)
@@ -100,7 +109,14 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
     const id = run.run_id
     inFlight.current = true; setBusy(true); setError('')
     try {
-      const result = await api.post<Creation>(`${root}/runs/${id}/${action}`, { request_id: crypto.randomUUID(), base_sha256: run.state_sha256, ...(action === 'edit' ? { target, instruction: message } : {}) })
+      const input = { base_sha256: run.state_sha256, ...(action === 'edit' ? {
+        target, instruction: message.trim() || tr('Apply the selected marketing approach to the same idea.', 'Застосуй обраний маркетинговий підхід до тієї самої ідеї.'),
+        ...(run.brief && ['all', 'brief'].includes(target) ? { marketing_approach: editApproach } : {}),
+      } : {}) }
+      const fingerprint = JSON.stringify([id, action, input])
+      if (pendingMutation.current?.fingerprint !== fingerprint) pendingMutation.current = { fingerprint, value: { request_id: crypto.randomUUID(), ...input } }
+      const result = await api.post<Creation>(`${root}/runs/${id}/${action}`, pendingMutation.current.value)
+      pendingMutation.current = null
       if (selectedRef.current === id) { setRun(result); if (action === 'edit') setMessage('') }
     } catch (cause) { setError((cause as Error).message) }
     finally { inFlight.current = false; setBusy(false) }
@@ -139,7 +155,7 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
 
   return <div className="creation-studio">
     <a className="creation-console-link" href="?page=briefs">← {tr('PTW console', 'Панель PTW')}</a>
-    <header className="creation-heading"><div><img src={natalLogo} alt="Natal" /><span>STUDIO</span></div><button className="secondary" disabled={active} onClick={() => { select(null); setInstruction(''); setWebsite(''); setFile(null); setMessage(''); setDesign(''); setMode('pack') }}><Plus size={16} />{tr('New creation', 'Нове створення')}</button></header>
+    <header className="creation-heading"><div><img src={natalLogo} alt="Natal" /><span>STUDIO</span></div><button className="secondary" disabled={active} onClick={() => { select(null); setInstruction(''); setWebsite(''); setFile(null); setMessage(''); setDesign(''); setMode('pack'); setMarketingApproach('benefit_led') }}><Plus size={16} />{tr('New creation', 'Нове створення')}</button></header>
     <div className="creation-intro"><p>{tr('FROM A SPARK TO SOMETHING REAL', 'ВІД ІДЕЇ ДО ГОТОВОЇ КОНЦЕПЦІЇ')}</p><h1>{tr('Your next idea starts here.', 'Ваша наступна ідея починається тут.')}</h1><p>{tr('Describe it. Add a reference. Create your Brief, Post and Landing in one place.', 'Опишіть ідею. Додайте референс. Створіть бриф, допис і лендінг в одному місці.')}</p></div>
     {history.length > 0 && <label className="creation-history">{tr('Your creations', 'Ваші роботи')}<select aria-label={tr('Your creations', 'Ваші роботи')} value={selected || ''} disabled={busy} onChange={event => select(event.target.value || null)}><option value="">{tr('New creation', 'Нове створення')}</option>{history.map(item => <option key={item.run_id} value={item.run_id}>{item.instruction.slice(0, 65) || tr('From reference', 'За референсом')} · {label(item.status)}</option>)}</select></label>}
     {error && <p className="creation-error" role="alert">{error}</p>}
@@ -156,6 +172,7 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
           {website && <label className="creation-check"><input type="checkbox" checked={reuse} onChange={event => setReuse(event.target.checked)} disabled={active} />{tr('Reuse photos from this website', 'Використати фотографії з цього сайту')}</label>}
           <small>{tr('Layout and visual style inspire the result. Your templates use Natal branding.', 'Референс задає структуру та стиль. Ваші шаблони використовують бренд Natal.')}</small>
         </div></details>
+        {mode !== 'templates' && <MarketingApproachSelect value={marketingApproach} onChange={setMarketingApproach} language={language} disabled={active} />}
         <div className="creation-submit"><label>{tr('Content language', 'Мова матеріалів')}<select value={outputLanguage} onChange={event => setOutputLanguage(event.target.value as Language)} disabled={active}><option value="uk">Українська</option><option value="en">English</option></select></label><button className="primary" disabled={active || !(instruction.trim() || website || file)} onClick={() => void create()}><Sparkles size={17} />{tr('Create with agent', 'Створити з агентом')}</button></div>
       </div>
     </details>
@@ -172,12 +189,13 @@ export function CreationStudioView({ api, language }: { api: ApiClient; language
         </div>
       </div>}
       {!recovery && run.error && <p className="creation-error" role="alert">{run.error}</p>}
-      {run.brief && <details className="creation-section" open><summary><span className="creation-number">02</span><span>{tr('Brief', 'Бриф')}</span><small>{tr('The idea, clarified', 'Чітко сформульована ідея')}</small></summary><div className="creation-section-body"><dl className="creation-brief">{Object.entries(run.brief.document).filter(([key]) => !['schema_version', 'language'].includes(key)).map(([key, value]) => <div key={key}><dt>{({ product: tr('Product', 'Продукт'), target_audience: tr('Audience', 'Аудиторія'), main_pain: tr('Problem', 'Проблема'), promise: tr('Promise', 'Обіцянка'), key_benefits: tr('Benefits', 'Переваги'), cta: tr('Action', 'Дія'), trust_strategy: tr('Trust', 'Довіра'), offer: tr('Offer', 'Пропозиція') }[key] || key)}</dt><dd>{Array.isArray(value) ? value.map(item => <p key={item}>{item}</p>) : value}</dd></div>)}</dl><button className="secondary" disabled={!canEdit} onClick={() => ask('brief')}>{tr('Ask agent to edit Brief', 'Редагувати бриф через агента')}</button></div></details>}
+      {run.brief && <details className="creation-section" open><summary><span className="creation-number">02</span><span>{tr('Brief', 'Бриф')}</span><small>{tr('The idea, clarified', 'Чітко сформульована ідея')}</small></summary><div className="creation-section-body"><BriefContent value={run.brief.document} language={language} /><button className="secondary" disabled={!canEdit} onClick={() => ask('brief')}>{tr('Ask agent to edit Brief', 'Редагувати бриф через агента')}</button></div></details>}
       {(['post', 'landing'] as const).filter(surface => run.previews[`${surface}:desktop`]).map(surface => <details key={`${run.run_id}:${surface}`} className="creation-section" open><summary><span className="creation-number">{surface === 'post' ? '03' : '04'}</span><span>{surface === 'post' ? tr('Post', 'Допис') : tr('Landing', 'Лендінг')}</span><small>{tr('Draft', 'Чернетка')}</small></summary><div className="creation-section-body"><div className="creation-preview-tools"><button className="secondary" disabled={!canEdit} onClick={() => ask(surface)}>{tr('Edit with agent', 'Редагувати через агента')}</button>{surface === 'landing' && <div role="group" aria-label={tr('Landing viewport', 'Розмір лендінгу')}><button aria-pressed={!mobile} onClick={() => setMobile(false)}>Desktop</button><button aria-pressed={mobile} onClick={() => setMobile(true)}>Mobile</button></div>}</div><div className={`creation-preview ${surface} ${surface === 'landing' && mobile ? 'mobile' : ''}`}><PreviewImage api={api} preview={run.previews[`${surface}:${surface === 'landing' && mobile ? 'mobile' : 'desktop'}`] || run.previews[`${surface}:desktop`]} label={`${surface} ${tr('draft', 'чернетка')}`} /></div></div></details>)}
       <details ref={agentSection} className="creation-section creation-agent" open><summary><span className="creation-number">↗</span><span>{tr('Make it yours', 'Доведіть до свого бачення')}</span><small>Astra · xhigh</small></summary><div className="creation-section-body">
         {run.messages.length > 0 && <div className="creation-messages">{run.messages.map((item, index) => <p key={index}>{item.text}</p>)}</div>}
         <label>{tr('Edit', 'Редагувати')}<select value={target} onChange={event => setTarget(event.target.value)} disabled={!canEdit}><option value="all">{tr('Whole package / idea', 'Увесь набір / ідею')}</option>{run.brief && <option value="brief">{tr('Brief', 'Бриф')}</option>}{Object.keys(run.documents).map(surface => <option value={surface} key={surface}>{surface === 'post' ? 'Post' : 'Landing'}</option>)}</select></label>
-        <div className="creation-composer"><textarea ref={agentInput} aria-label={tr('Message to agent', 'Повідомлення агенту')} rows={3} value={message} maxLength={2000} onChange={event => setMessage(event.target.value)} disabled={!canEdit} placeholder={tr('“Make the headline shorter and the background warmer…”', '«Скороти заголовок і зроби фон теплішим…»')} /><button className="primary" aria-label={tr('Send edit', 'Надіслати правку')} disabled={!canEdit || !message.trim()} onClick={() => void change('edit')}><ArrowUp /></button></div>
+        {run.brief && ['all', 'brief'].includes(target) && <MarketingApproachSelect value={editApproach} onChange={setEditApproach} language={language} disabled={!canEdit} replacement />}
+        <div className="creation-composer"><textarea ref={agentInput} aria-label={tr('Message to agent', 'Повідомлення агенту')} rows={3} value={message} maxLength={2000} onChange={event => setMessage(event.target.value)} disabled={!canEdit} placeholder={tr('“Make the headline shorter and the background warmer…”', '«Скороти заголовок і зроби фон теплішим…»')} /><button className="primary" aria-label={tr('Send edit', 'Надіслати правку')} disabled={!canEdit || (!message.trim() && !approachChanged)} onClick={() => void change('edit')}><ArrowUp /></button></div>
       </div></details>
       <details className="creation-section" open={run.status === 'ready'}><summary><span className="creation-number">✓</span><span>{tr('Take it with you', 'Збережіть результат')}</span><small>PNG · HTML · JSON</small></summary><div className="creation-section-body creation-export"><p>{tr('Download your draft package to share or continue working on it. Landing exports include a responsive HTML preview.', 'Завантажте чернетки, щоб поділитися ними або продовжити роботу. Експорт лендінгу містить адаптивне HTML-прев’ю.')}</p><button className="primary" disabled={active || run.status !== 'ready'} onClick={() => void download()}><Download size={17} />{tr('Download package', 'Завантажити набір')}</button>{run.mode === 'templates' && <button className="secondary" disabled={active || run.status !== 'ready' || Boolean(run.template_versions.length)} onClick={() => void change('accept')}>{run.template_versions.length ? tr('Saved in Templates', 'Збережено у шаблонах') : tr('Save to Templates', 'Зберегти у шаблони')}</button>}<small>{tr('These are private drafts. Public links and campaign publishing are separate steps.', 'Це приватні чернетки. Публічні посилання та запуск реклами — окремі кроки.')}</small></div></details>
     </>}

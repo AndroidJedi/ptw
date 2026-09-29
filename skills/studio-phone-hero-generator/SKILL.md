@@ -5,6 +5,8 @@ description: Compose domain-aware Post artwork using the shared image policy, cu
 
 # Studio Phone Hero Generator
 
+When Brief positioning is supplied, illustrate its customer situation and supported task. Identity-led imagery uses a believable desired outcome; it never invents status, capabilities or health results.
+
 Use the versioned image-generation context. Direct owner instructions control
 image content and appearance, followed by current image settings, approved Brief
 context, accepted Project rules, accepted global rules and template defaults.

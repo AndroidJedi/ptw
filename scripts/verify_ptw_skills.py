@@ -6,9 +6,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 SKILLS = (
     "commander-god-mode",
     "product-brief-generator",
@@ -40,6 +42,9 @@ def is_generated_skill_artifact(path: Path) -> bool:
 
 def main() -> None:
     canonical_root = ROOT / "skills"
+    from validation_pipeline.marketing import generation_settings, verified_settings
+    for selected in ("benefit_led", "identity_led"):
+        verified_settings(generation_settings(selected, reference=canonical_root / "product-brief-generator/references/marketing-approaches.md"))
     for name in SKILLS:
         skill = canonical_root / name
         require((skill / "SKILL.md").is_file(), f"missing {name}/SKILL.md")

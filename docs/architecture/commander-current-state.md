@@ -2,18 +2,18 @@
 
 Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `water-feedback-20260929-f3c8065`,
-accepted application revision `f3c806529afeddf997f6de2bd5dc588644e8788b`
+Deployment: selective preserving release `studio-brief-context-20260929-f20b4ea`,
+accepted application revision `f20b4ea58bb8de7e7da41c16e43d4eae5beea53d`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
 Source branch: `release/ptw-updates-20260929`, containing every reviewed workspace
-change. Validation runs the feedback release; Owner Gateway retains the prior
+change. Validation runs the Brief-context release; Owner Gateway retains the prior
 combined release, and Commander/GOD and all companion images are preserved.
-No migration or reset ran. Owner Hosting version `26f5bac301a70154` and public
+No migration or reset ran. Owner Hosting version `18f60d15da474826` and public
 Landing Hosting version `085a88ff58d3858e`
 are live. All 11 structured/media canaries, Pexels, unchanged database-authority
 comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
-## Studio Agent copy recovery and full Brief context — locally verified, deployment pending
+## Studio Agent copy recovery and full Brief context — deployed
 
 The reported Ukrainian Landing request exceeded the server-built provider
 contract before inference: 21,354 B input / 33,979 B total against 20/32 KiB.
@@ -47,8 +47,16 @@ with candidate full-Brief envelopes. Landing fits at 29,536 B total; Post at
 14,347 B. Deployed domain validators accepted two copy edits per surface, zero
 image actions and unchanged saved state. The earlier desktop CLI replay hit its 420-second
 deadline; its failure did not trigger a blind retry or mutate a draft.
-Production code, operations, drafts, images, versions and publications are unchanged.
-Evidence: `.local/agent-copy-recovery/`.
+The owner-authorized preserving rollout passed all 11 live provider canaries,
+Pexels, exact database-authority comparison, service/resource audits and approved
+Post access. Its exact release checkout passed 143 Owner unit tests/build and
+all 141 desktop/360px/iPhone browser cases before Hosting publication. The live
+Hosting/auth/CORS audit passed; unchanged service images and public Hosting were
+preserved. Both deployed services then passed fresh attempt-1 copy edits with
+their full source Brief and every allowed editable leaf verified. Landing fits
+at 28,808 B total and authored Post at 14,322 B; both saved drafts stayed identical.
+Evidence: `.local/agent-copy-recovery/` and
+`.local/ptw-combined-release/.local/studio-brief-release.log`.
 
 ## Domain-specific feedback preservation — deployed and published
 

@@ -11,7 +11,7 @@ exceeded 32 KiB. The 295-character instruction itself was valid. The generic
 dialog incorrectly asked the owner to correct it and described nonexistent
 completed images.
 
-The local fix compacts Landing component semantics and the canonical shared
+The fix compacts Landing component semantics and the canonical shared
 Manual Agent skill while preserving all editable copy and validation boundaries.
 The first compact revision built a 19,209 B input / 30,146 B total contract.
 At the owner's request, both editing surfaces now load the full approved source
@@ -42,7 +42,13 @@ canonical skills and whitespace. The real service envelope tests exercise
 Landing, Phone Metrics and authored Post copy with full Brief context, unsaved
 values and the corrective attempt without saved-state mutation. A later Project
 Brief does not replace a draft's source Brief.
-This source fix is not deployed.
+The owner-authorized selective release `studio-brief-context-20260929-f20b4ea`
+is deployed at `f20b4ea58bb8de7e7da41c16e43d4eae5beea53d`. Only Validation
+and Owner Hosting changed; other service images and public Hosting were retained.
+All 11 live provider canaries, Pexels, exact database-authority comparison,
+service/resource and approved-Post audits passed. The exact release checkout
+passed 143 Owner unit tests/build and all 141 desktop/360px/iPhone browser cases.
+Owner Hosting `18f60d15da474826` passed the live auth/CORS/bundle audit.
 
 The separate desktop CLI replay timed out at its existing 420-second deadline
 and left the temporary draft unchanged. A subsequent real `gpt-6-astra` / `high`
@@ -56,6 +62,15 @@ The current accepted authored Post also passed a real full-Brief `gpt-6-astra` /
 total. Deployed validation accepted title/support copy edits and zero image
 actions, and the complete saved Post detail stayed identical. Both checks used
 temporary workspace hydration and the existing bridge credentials at runtime.
+
+After acceptance, fresh calls through the deployed Landing and authored Post
+services verified automatic full-Brief context, canonical document digests and
+every allowed editable leaf. Both completed on attempt 1 with copy-only edits,
+zero image actions and identical saved draft detail. Their contracts fit at
+28,808 B total (Landing) and 14,322 B (Post). No migration, reset, PTW operation,
+checkpoint, version, approval or publication was created by these checks.
+Evidence: `.local/agent-copy-recovery/deployed-brief-canaries.log` and
+`.local/ptw-combined-release/.local/studio-brief-release.log`.
 
 ## 2026-09-29 — Domain feedback copy incorrectly removed its section
 

@@ -17,7 +17,7 @@ from .phone_hero_styles import (
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v4"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v5"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
@@ -416,6 +416,26 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     """
 
     declarations = _SURFACE_COMPONENT_CONTRACTS.get(surface)
+    if surface.startswith("post:") and catalog.get("schema") == "ptw.studio.authored-post-catalog.v1":
+        declarations = {
+            "authored.text": {
+                "purpose": "The selected accepted Post template's named text and button fields, each with its semantic role.",
+                "dependencies": ["Edit only content.template_text fields. Preserve unrelated legacy Phone Metrics copy; it is not displayed by this template.", "The template owns field count, positions and bullet marks. New fields or layout changes require a new accepted template version."],
+            },
+            "authored.typography": {
+                "purpose": "Independent font family and 12–180px font size for each named text field.",
+                "dependencies": ["Use the listed font families and bounds. Fields sharing typography_group must use the same font and size; editing one updates every peer.", "Font changes affect this draft only, leaving the accepted template definition unchanged."],
+            },
+            "authored.brand": {
+                "purpose": "The shared Natal symbol and name colors for every lock-up in this Post.",
+                "dependencies": ["Only symbol_color and name_color are editable. Preserve canonical identity, alpha, dimensions and placement."],
+            },
+        }
+        if any(item.get("component_id") == "authored.palette" for item in catalog.get("components", [])):
+            declarations["authored.palette"] = {
+                "purpose": "The selected template's full-canvas background gradient colors.",
+                "dependencies": ["Edit gradient_start and gradient_end as #RRGGBB colors. Preserve fixed badges, cards and registered artwork."],
+            }
     if surface == "landing:app_showcase":
         declarations = {key: value for key, value in _SURFACE_COMPONENT_CONTRACTS["landing:project_landing"].items() if key != "project_landing.app_feature"}
         declarations["app_showcase.screens"] = {
@@ -424,8 +444,8 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
         }
     if declarations is not None and any(item.get("component_id") == "landing.marketing" for item in catalog.get("components", [])):
         declarations = {**declarations, "landing.marketing": {
-            "purpose": "Optional gradient sections, a single Natal logo/name color, decorative symbols, carousel, six comparison rows, four workflow steps, four values, attributed reference reviews, store buttons and footer.",
-            "dependencies": ["Use one of the ten gradient_id presets for domain mood. Preserve the single logo_color and optional motifs. Each comparison row/step/value has an independent enabled toggle; leave unsupported text empty and visible for owner completion.", "walkthrough_visual is a complete multi-phone mockup composition; app_screen slots remain hardware-free interiors. Use content.marketing.walkthrough_visual_direction in its image action. Editing depicted UI requires generation/enhancement.", "Never invent store or legal URLs, evidence or testimonials. Sample review layouts remain clearly marked as demonstration content and cannot become Natal evidence."],
+            "purpose": "Optional gradient sections, a single Natal logo/name color, decorative symbols, carousel, six comparison rows, four workflow steps, four values, a private review placeholder, store buttons and footer.",
+            "dependencies": ["Use one of the ten gradient_id presets for domain mood. Preserve the single logo_color and optional motifs. Each comparison row/step/value has an independent enabled toggle; leave unsupported text empty and visible for owner completion.", "walkthrough_visual is a complete multi-phone mockup composition; app_screen slots remain hardware-free interiors. Use content.marketing.walkthrough_visual_direction in its image action. Editing depicted UI requires generation/enhancement.", "Never invent store or legal URLs, evidence or testimonials. A reference-review setting controls only a private editor placeholder. Public quotes require verified evidence for this exact product. Empty store targets open the shared early-access form; configured store URLs retain their destination."],
         }}
     if declarations is None:
         raise ValueError(f"Studio Agent surface contract is unavailable: {surface}")
@@ -465,6 +485,13 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
             "id": identifier, "name": _BACKGROUND_NAMES[identifier],
         } for identifier in PHONE_HERO_BACKGROUND_DIRECTIVES],
     })
+    if catalog.get("schema") == "ptw.studio.authored-post-catalog.v1":
+        result["text_fields"] = deepcopy(catalog["text_fields"])
+        result["typography"] = deepcopy(catalog["typography"])
+        result["image_dependencies"] = [
+            "phone_screen is the shared raw artwork used by this template's mutable image components; it does not mean this Post uses the Phone Metrics layout.",
+            "Use the supplied image tools for requested artwork changes. Preserve fixed registered images, badges, Natal marks and component geometry.",
+        ]
     if surface == "post:phone_metrics":
         result["owner_phrase_mappings"] = {
             "hide_or_remove_phone_device": {

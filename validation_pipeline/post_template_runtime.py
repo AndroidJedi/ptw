@@ -149,9 +149,22 @@ def post_definition(record):
         return PrimitiveTemplate.from_dict(result)
 
     def catalog():
+        components = [
+            {"component_id": "authored.text", "role": "copy",
+             "setting_ids": [f'content.template_text.{field["id"]}' for field in fields]},
+            {"component_id": "authored.typography", "role": "typography",
+             "setting_ids": [f'configuration.template_typography.{field["id"]}' for field in fields]},
+            {"component_id": "authored.brand", "role": "brand",
+             "setting_ids": ["configuration.logo.symbol_color", "configuration.logo.name_color"]},
+        ]
+        if palette_defaults(doc):
+            components.append({"component_id": "authored.palette", "role": "background",
+                               "setting_ids": ["configuration.template_palette"]})
         return {"schema": "ptw.studio.authored-post-catalog.v1", **identity.to_reference(),
                 "name": doc["name"], "canvas": doc["canvas"], "semantic_roles": [f["role"] for f in fields],
-                "components": [], "asset_slots": PHONE_METRICS_DEFINITION.asset_slots(),
+                "components": components, "text_fields": deepcopy(fields),
+                "typography": {"font_families": list(STUDIO_FONT_FAMILIES), "minimum": 12, "maximum": 180},
+                "asset_slots": PHONE_METRICS_DEFINITION.asset_slots(),
                 "sha256": sha(doc)}
 
     def settings(configuration, value):
@@ -171,7 +184,7 @@ def post_definition(record):
         default_configuration=PHONE_METRICS_DEFINITION.default_configuration,
         default_content=lambda: bind_content(doc, PHONE_METRICS_DEFINITION.default_content()),
         normalize_configuration=configuration, normalize_content=content,
-        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",), supports_manual_agent=False, supports_generation=False),
+        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",), supports_generation=False),
         renderer_key="post.declarative.pillow.v1", editor_key="post.declarative.react",
         build_template=build, semantic_data=lambda configuration, value: {},
         asset_slots=PHONE_METRICS_DEFINITION.asset_slots,

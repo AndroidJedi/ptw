@@ -1,5 +1,16 @@
 # PTW service operations
 
+The host storage guard keeps daily recovery copies within seven complete points
+and 4 GiB, preserves the latest two checksum-verified copies, and reserves 3 GiB
+of free disk during streaming exports. `scripts/install_ptw_storage_guard.sh`
+installs the root-owned backup cron, persistent 15-minute storage timer, bounded
+journald and backup-log rotation after an explicit storage-maintenance request.
+Run `scripts/ptw_storage_guard.py check` for the reserve and inspect
+`ptw-storage-guard.service` / `.timer` for retention status. Oversized protected
+copies or insufficient authority headroom require off-host backup/storage
+expansion; failed attempts clean only their own staging. See
+[`storage recovery`](../../skills/ptw-vps-operations/references/storage-recovery.md).
+
 Normal non-migration releases use the component planner and selective publisher:
 
 ```sh

@@ -1,4 +1,5 @@
 from copy import deepcopy
+import hashlib
 from io import BytesIO
 from pathlib import Path
 import unittest
@@ -13,6 +14,7 @@ from validation_pipeline.template_components import new_component, seed
 from validation_pipeline.template_previews import render_designs
 from validation_pipeline.template_store import TemplateStore
 from validation_pipeline.studio_workspace import PostStudioWorkspace
+from validation_pipeline.provider import enforce_structured_contract_budget
 
 
 class PostTemplateSwitchTests(unittest.TestCase):
@@ -42,6 +44,120 @@ class PostTemplateSwitchTests(unittest.TestCase):
     def switch(self, request):
         return self.service.mutate(self.project, self.creative, 'switch_template', **request)
 
+    def agent(self, detail, *, screenshots=None, configuration=None, content=None):
+        return self.service.manual_agent_edit(self.project, self.creative,
+            request_id=str(uuid4()), base_sha256=detail['state_sha256'],
+            message='Adjust the text and artwork using this screenshot', history=[],
+            configuration=configuration or detail['configuration'],
+            content=content or detail['content'], screenshots=screenshots or [])
+
+    def test_authored_agent_edits_named_fields_and_plans_reference_image_without_writes(self):
+        changed = self.switch(self.request())
+        self.fixture.provider.manual_edits = [
+            {'path': 'content.template_text.title', 'value': 'An agent-adjusted headline'},
+            {'path': 'configuration.template_typography.title.font_size', 'value': 64},
+            {'path': 'configuration.logo.symbol_color', 'value': '#112233'},
+        ]
+        self.fixture.provider.manual_image_actions = [{
+            'slot': 'phone_screen', 'visual_direction': 'A complete subject inspired by the screenshot',
+            'enhance_current': False, 'reference_index': 1,
+        }]
+        before = {path.relative_to(self.fixture.root): path.read_bytes()
+                  for path in self.fixture.root.rglob('*') if path.is_file()}
+        screenshot = fixture._png('#314159')
+        result = self.agent(changed, screenshots=[screenshot])
+        self.assertEqual('An agent-adjusted headline', result['content']['template_text']['title'])
+        self.assertEqual(64, result['configuration']['template_typography']['title']['font_size'])
+        self.assertEqual('#112233', result['configuration']['logo']['symbol_color'])
+        self.assertEqual(changed['content']['hero_title'], result['content']['hero_title'])
+        self.assertEqual(self.fixture.provider.manual_image_actions, result['image_actions'])
+        call = self.fixture.provider.calls[-1]
+        enforce_structured_contract_budget(mode=call['mode'], system_prompt=call['system_prompt'],
+            input_payload=call['input_payload'], output_schema=call['output_schema'])
+        paths = call['output_schema']['properties']['edits']['items']['properties']['path']['enum']
+        self.assertIn('content.template_text.title', paths)
+        self.assertIn('configuration.template_typography.title.font_size', paths)
+        for path in ('content.hero_title', 'content.stats[0].value', 'configuration.device.x',
+                     'configuration.logo.enabled', 'configuration.template_palette.gradient_start'):
+            self.assertNotIn(path, paths)
+        contract = call['input_payload']['agent_control_contract']
+        self.assertEqual(changed['template_fields'], contract['text_fields'])
+        self.assertEqual(180, contract['typography']['maximum'])
+        self.assertEqual(hashlib.sha256(screenshot).hexdigest(), call['input_artifacts'][0]['sha256'])
+        self.assertNotIn('bytes_base64', call['input_payload']['image_tools']['screenshot_references'][0])
+        after = {path.relative_to(self.fixture.root): path.read_bytes()
+                 for path in self.fixture.root.rglob('*') if path.is_file()}
+        self.assertEqual(before, after)
+        self.assertEqual(changed['state_sha256'], self.service.detail(self.project, self.creative)['state_sha256'])
+
+    def test_authored_agent_noop_preserves_unsaved_copy_and_existing_font_overrides(self):
+        changed = self.switch(self.request())
+        configuration = deepcopy(changed['configuration'])
+        configuration['template_typography'] = {'title': {'font_family': 'Oswald', 'font_size': 62}}
+        content = deepcopy(changed['content'])
+        content['template_text']['title'] = 'Pending owner copy'
+        self.fixture.provider.manual_edits = []
+        result = self.agent(changed, configuration=configuration, content=content)
+        self.assertEqual(configuration, result['configuration'])
+        self.assertEqual(content, result['content'])
+        self.assertEqual([], result['changed_paths'])
+        result = self.agent(changed)
+        self.assertEqual(changed['configuration'], result['configuration'])
+        self.assertNotIn('template_typography', result['configuration'])
+
+    def test_authored_agent_rejects_hidden_paths_invalid_fonts_and_bounds(self):
+        changed = self.switch(self.request())
+        for path, value in [('configuration.device.x', 200),
+                            ('content.template_text.unknown', 'Extra'),
+                            ('configuration.template_typography.title.font_size', 181),
+                            ('configuration.template_typography.title.font_family', 'Invented font')]:
+            with self.subTest(path=path, value=value):
+                self.fixture.provider.manual_edits = [{'path': path, 'value': value}]
+                with self.assertRaises(ValueError):
+                    self.agent(changed)
+                self.assertEqual(changed['state_sha256'], self.workspace.state_sha256())
+        before_calls = len(self.fixture.provider.calls)
+        stale = {**changed, 'state_sha256': '0' * 64}
+        with self.assertRaises(RuntimeError): self.agent(stale)
+        self.assertEqual(before_calls, len(self.fixture.provider.calls))
+
+    def test_authored_agent_shares_group_fonts_and_exposes_only_existing_palette(self):
+        document = deepcopy(self.authoring.read(self.reference)['document'])
+        document['components'].insert(0, {
+            **new_component('backdrop', 'decoration', 'decoration', [0, 0, 1000, 1000]),
+            'gradient': ['#1676CB', '#24C4CC'],
+        })
+        for index, item in enumerate(['benefit_primary', 'benefit_secondary']):
+            document['components'].append({
+                **new_component(item, 'text', 'description', [60, 400 + index * 70, 340, 40], 'Body text'),
+                'font_family': 'Inter', 'font_size': 28,
+            })
+        document['text_groups'] = [{'id': 'benefits', 'items': ['benefit_primary', 'benefit_secondary'],
+                                   'gap': 18, 'bullet_indent': 24}]
+        renders = render_designs({'post': document})
+        run = self.authoring.start({'request_id': str(uuid4()), 'scope': 'post',
+            'instruction': 'Grouped benefits and gradient', 'source': self.reference})
+        with self.authoring.store.transaction() as tx:
+            for preview in renders.values(): tx.media(preview['bytes'])
+        previews = {key: {name: value for name, value in preview.items() if name != 'bytes'}
+                    for key, preview in renders.items()}
+        run = self.authoring._update(run, documents={'post': document}, previews=previews,
+            status='proposed', phase='compare')
+        reference = self.authoring.decide(run['run_id'], {'request_id': str(uuid4()),
+            'base_sha256': run['state_sha256'], 'decision': 'accept'})['accepted_versions'][0]
+        changed = self.switch(self.request(reference))
+        self.fixture.provider.manual_edits = []
+        self.assertEqual(changed['configuration'], self.agent(changed)['configuration'])
+        self.fixture.provider.manual_edits = [
+            {'path': 'configuration.template_typography.benefit_secondary.font_size', 'value': 32},
+            {'path': 'configuration.template_palette.gradient_end', 'value': '#445566'},
+        ]
+        result = self.agent(changed)
+        for item in ['benefit_primary', 'benefit_secondary']:
+            self.assertEqual({'font_family': 'Inter', 'font_size': 32}, result['configuration']['template_typography'][item])
+        self.assertEqual({'gradient_start': '#1676CB', 'gradient_end': '#445566'}, result['configuration']['template_palette'])
+        self.assertEqual(self.reference['template_sha256'], self.authoring.read(self.reference)['template_sha256'])
+
     def test_catalog_uses_injected_registry_and_each_choice_is_applicable(self):
         catalog = self.service.templates()
         self.assertEqual({'phone_metrics', self.reference['template_id']}, {
@@ -51,6 +167,7 @@ class PostTemplateSwitchTests(unittest.TestCase):
             item for item in catalog['items']
             if item['template_id'] == self.reference['template_id']
         )
+        self.assertTrue(authored['capabilities']['supports_manual_agent'])
         self.assertFalse(authored['capabilities']['supports_generation'])
         exact_reference = {
             'surface': 'post',

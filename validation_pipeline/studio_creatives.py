@@ -1062,15 +1062,26 @@ class StudioCreativeService:
         if base_sha256 != detail["state_sha256"]:
             raise RuntimeError("Studio creative changed; reload before using Agent mode")
         template_id = self._template_id(detail)
-        if template_id == PHONE_METRICS_TEMPLATE_ID:
-            editor_configuration = normalize_phone_metrics_config(configuration)
-            agent_configuration = deepcopy(editor_configuration)
-            agent_configuration.setdefault("visual_mode", "phone")
-            editor_content = normalize_phone_metrics_content(content)
-            image_slots = ["phone_screen"] if detail.get("phone_screen_generation_available") else []
-        else:  # pragma: no cover - registry validation makes this unreachable
-            raise ValueError("Post template is not registered")
         workspace = self._workspace(creative_id)
+        definition = workspace._definition()
+        if not definition.capabilities.supports_manual_agent:
+            raise ValueError("Studio Agent is unavailable for this Post template")
+        editor_configuration = definition.normalize_configuration(configuration)
+        editor_content = definition.normalize_content(content)
+        agent_configuration = deepcopy(editor_configuration)
+        if template_id == PHONE_METRICS_TEMPLATE_ID:
+            agent_configuration.setdefault("visual_mode", "phone")
+        elif definition.editor_key == "post.declarative.react":
+            agent_configuration["template_typography"] = {
+                field["id"]: deepcopy(editor_configuration.get("template_typography", {}).get(
+                    field["id"], {"font_family": field["font_family"], "font_size": field["font_size"]},
+                )) for field in detail["template_fields"]
+            }
+            if detail.get("template_palette_defaults"):
+                agent_configuration.setdefault("template_palette", deepcopy(detail["template_palette_defaults"]))
+        else:
+            raise ValueError("Post template is not registered")
+        image_slots = ["phone_screen"] if detail.get("phone_screen_generation_available") else []
         workspace.component_settings(
             state_sha256=detail["state_sha256"],
             configuration=editor_configuration, content=editor_content,
@@ -1112,6 +1123,29 @@ class StudioCreativeService:
                 ):
                     next_configuration.pop("visual_mode")
                 next_content = normalize_phone_metrics_content(edited["content"])
+            else:
+                # Match the editor's shared typography controls before the
+                # template normalizer checks complete group consistency.
+                typography = edited["configuration"]["template_typography"]
+                for group in definition.document.get("text_groups", []):
+                    changed = [typography[item] for item in group["items"]
+                               if typography[item] != agent_configuration["template_typography"][item]]
+                    if changed:
+                        if any(appearance != changed[0] for appearance in changed):
+                            raise ValueError("Text group fields must use the same font and size")
+                        typography.update({item: deepcopy(changed[0]) for item in group["items"]})
+                # Supplying editable defaults must not itself create overrides.
+                for field_id in list(typography):
+                    if (field_id not in editor_configuration.get("template_typography", {})
+                            and typography[field_id] == agent_configuration["template_typography"][field_id]):
+                        typography.pop(field_id)
+                if not typography and "template_typography" not in editor_configuration:
+                    edited["configuration"].pop("template_typography")
+                if ("template_palette" not in editor_configuration
+                        and edited["configuration"].get("template_palette") == agent_configuration.get("template_palette")):
+                    edited["configuration"].pop("template_palette", None)
+                next_configuration = definition.normalize_configuration(edited["configuration"])
+                next_content = definition.normalize_content(edited["content"])
             workspace.component_settings(
                 state_sha256=detail["state_sha256"],
                 configuration=next_configuration, content=next_content,
@@ -1211,7 +1245,7 @@ class StudioCreativeService:
                        if asset["slot"] == "phone_screen"), {})
         config = detail["configuration"]
         direction = self._creative_direction(creative) or {}
-        settings = {**direction, "palette": config.get("background", {})}
+        settings = {**direction, "palette": config.get("template_palette", config.get("background", {}))}
         definition = self._workspace(str(creative["creative_id"]))._definition()
         artwork_slots = [{key: item[key] for key in ("id", "type", "box", "mobile_box", "fit", "rotation", "enabled") if key in item}
                          for item in getattr(definition, "document", {}).get("components", [])

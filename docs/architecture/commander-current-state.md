@@ -1,38 +1,116 @@
 # Commander current state
 
-Updated: 2026-09-28
+Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `post-benefit-flow-20260928-525525f`,
-accepted code revision `525525f0d7777c7349a6e3701e5e1c22dd95ba59`
+Deployment: selective preserving release `landing-auto-policies-20260928-4ac510d`,
+accepted code revision `4ac510de49201fcc6ce69d75dca40cbdb202f0b5`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/post-benefit-flow-20260928`, based on the prior live
-third-benefit revision and excluding unrelated development legal drafts.
-Only Validation changed its application image; the other accepted service images
-were reused. No migration ran. Owner Hosting version `545248e2ebfb2af2` is live;
-public Landing Hosting is unchanged. All eleven real provider canaries, Pexels,
-data-preservation, dependency/resource and public Owner Hosting audits passed.
+Source branch: `release/landing-auto-policies-20260928`, based on the accepted
+Post benefit-flow release and scoped to both web shells and their documentation.
+All application images were reused; no service restarted and no migration ran.
+Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
+`26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
+public-shell and actual published Landing browser audits passed.
 
-## App Showcase automatic benefit cards — verified locally
+## Authored Post Agent with screenshots — local implementation
+
+Accepted authored Posts now expose the same Agent instruction/screenshot panel
+as Landing. The exact definition supplies bounded named copy, fonts/groups,
+available gradient colors and Natal colors; hidden Phone Metrics controls remain
+outside its edit authority. Existing image actions reuse the raw-art workflow.
+No-op turns preserve optional overrides, and grouped font changes update every
+peer without rewriting the accepted template. Temporary screenshots are scoped
+to the Post and exact accepted definition.
+
+Text-only responses update the unsaved preview without configuration writes,
+checkpoints or approval. Image direction comparison now uses its actual values,
+so JSON key order cannot cause an unintended write or close Agent mode. Other
+editor mutations wait for completion, and failures restore actionable controls.
+
+Verified: 50 focused backend checks locally and in the Validation image, 136
+Owner web tests/build, three real-HTTP browser flows with scripted inference
+(desktop/360px/iPhone WebKit, screenshots, unsaved state, Save/Approve and
+restart), deterministic Studio geometry audit, 54 Commander checks with five
+isolated receiver skips, demo, canonical skill validators and whitespace.
+The required Commander image suite retains its existing missing-Git failure;
+12 storage/Telegram runtime checks passed separately in the Validation image.
+No deployment or production Project write ran. Studio Tune and Manual Agent
+skills describe the new authored-template boundary.
+
+## Water Landing measurement, early access and product proof — verified candidate
+
+The owner authorised commit and deployment after local review. The verified
+candidate starts Natal measurement and Meta PageView without an arrival prompt,
+honours earlier explicit refusals and exposes separate opt-out controls in Privacy.
+Shared footers contain Terms and Privacy; the Cookie document remains directly
+readable. Both language policies describe the actual behavior and remain drafts
+while operator details are incomplete.
+
+App Showcase no longer renders rental reference quotes, portraits or ratings on
+public pages. Verified exact-product proof remains the only public review source;
+the legacy review flag now controls a private editor placeholder without changing
+accepted template identities. Empty store destinations and early-stage social
+icons open one accessible question/contact form. Stable retry UUIDs, the active
+published digest, bounded inputs and a persistent rate bound protect append-only
+inquiry receipts in the existing audit authority. Landing Studio has an owner-only
+latest-50 inbox. No notification sender or schema migration was introduced.
+
+Verified locally: 446 built-image backend tests, 21 Gateway tests, 134 Owner and
+15 public web unit tests, both builds, 81 affected Owner and 60 public browser
+cases, disposable PostgreSQL concurrency/restart checks, 54 Commander checks
+(five isolated receiver skips in the image), demo, skills and whitespace. Frozen
+Water Landing snapshot review passed desktop/360px/iPhone image and dialog fit;
+all POST/provider requests were intercepted. No live publication, domain, data,
+application service or Hosting change was made. Template/composer skills contain
+the reusable proof and early-access rules. Evidence: `.local/water-quality-*`.
+
+## Owner session recovery and bounded VPS storage — installed
+
+The full 24 GB host caused healthcheck ENOSPC failures across all 12 containers
+while authenticated Project/Landing reads returned 401 after Google sign-in.
+Reclaim restored service health without application restarts; Firebase lookup
+passed and the owner confirmed the actual Landing opened. The obsolete backup
+retention glob matched no dated directories, leaving 7 GB of copies; journald
+had also reached 2 GB.
+
+Owner-authorized maintenance installed the canonical storage guard and backup
+cron, persistent 15-minute timer, 256 MiB journal cap and backup-log rotation.
+Seven complete recovery points fit within 4 GiB, the latest two are verified
+before retention deletes older copies, and streaming exports protect 3 GiB of
+free disk and remove their own failed staging. A real fresh database/assets
+backup passed its manifest, dump/archive readability and private modes; about
+5 GiB remained free afterward. All services, dependencies and the public
+Owner boundary passed. Application images, Hosting, credentials and domain
+authority were unchanged. Both incident/VPS skills carry the reusable route.
+Verified: 54 Commander checks (five isolated receiver skips), 20 Gateway tests,
+12 focused built-image checks, demo, skill validators and whitespace. See the
+incident log for the image-wide missing-Git limitation and operational detail.
+
+## App Showcase automatic benefit cards and policy pages — deployed
 
 The shared marketing rail now cycles cards smoothly without previous/next or
 playback buttons; the store buttons sit directly below it. Saved autoplay/speed
 controls remain authoritative. Hover and focus pause independently, clearing
 both resumes playback, and live reduced-motion changes stop/resume it. Editing
 stays static; fullscreen/public rendering animates. Template identities, approved
-snapshots and domain records are unchanged. Deployment remains separate.
+snapshots and domain records are unchanged.
 
-Verified: 129 Owner web and 19 public web unit tests, both builds, 14 affected
-browser checks with mocked API snapshots on desktop/tablet/360px/iPhone WebKit,
-actual scroll/wrap and screenshot review, Commander 44 checks (seven local/five
-Linux-image skips), demo, canonical skill verification and whitespace. Browser
-captures are under `apps/landing-web/test-results/`.
+Verified in the exact release checkout: 129 Owner web and 19 public web unit
+tests, both builds, 135 Owner and 56 public browser cases, Commander 44 checks
+(five isolated-receiver skips), demo, canonical skill verification and whitespace.
+The tracked publisher repeated the full Owner browser gate before Hosting.
+Twenty live-origin cases verified deployed UI with mocked Landing snapshots and
+real bilingual legal documents. The actual published `/water-quality` page
+passed desktop/360px/iPhone WebKit checks without mocked traffic: automatic
+scrolling, zero carousel controls, two store links and all three policy clicks.
+Its publication digest, exact template, copy, settings and asset URLs stayed
+unchanged. Evidence is under `.local/landing-auto-policy-release/.local/`.
 
-Policy follow-up: 19 focused browser checks passed for actual public-footer
-clicks in both languages/footer layouts, direct document/reload, and private
-fullscreen navigation with mocked public responses. A separate real-origin
-Chromium audit found that all three live legal routes return HTTP 200 with
-**Page not found**. The public shell needs deployment; these checks do not claim
-live policies are available. Evidence: `.local/policy-review/`.
+The initial policy audit found HTTP 200 responses displaying **Page not found**.
+The public shell now serves Terms, Privacy and Cookies in both languages, and
+App Showcase links reach the actual documents. Existing explicit owner URLs
+remain authoritative. The incomplete operator profile retains its visible
+**Draft for review** status; deployment did not finalise legal facts.
 
 ## Flowing Post benefits and sparse Natal marks — deployed and applied
 

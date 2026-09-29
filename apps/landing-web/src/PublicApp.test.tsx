@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, expect, it, vi } from 'vitest'
 import type { PublicLanding } from './PublicApp'
 import { PublicApp } from './PublicApp'
-import { CONSENT_KEY, CONSENT_MAX_AGE } from './privacyPreferences'
+import { CONSENT_KEY } from './privacyPreferences'
 import { legalProfileReady } from './legal/LegalPage'
 import profile from './legal/profile.json'
 
@@ -35,30 +35,25 @@ it('renders the umbrella with shared policies and no product directory', () => {
   render(<PublicApp path="/" apiOrigin="" />)
   expect(screen.getByRole('heading', { name: 'Natal' })).toBeVisible()
   expect(screen.getByText('Digital products and services by Natal.')).toBeVisible()
-  expect(within(screen.getByRole('navigation', { name: 'Policies' })).getAllByRole('link')).toHaveLength(3)
+  expect(within(screen.getByRole('navigation', { name: 'Policies' })).getAllByRole('link')).toHaveLength(2)
 })
 
-it('loads Meta Pixel only after explicit consent and tracks the current route once', () => {
-  render(<PublicApp path="/" apiOrigin="" />)
-  expect(document.querySelector('script[data-meta-pixel]')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }))
-  const script = document.querySelector('script[data-meta-pixel]')
-  expect(script).toHaveAttribute('src', 'https://connect.facebook.net/en_US/fbevents.js')
-  expect(script).toHaveAttribute('data-meta-pixel', '1056720310312959')
-  expect(window.fbq?.queue).toEqual([
-    ['consent', 'grant'],
-    ['set', 'autoConfig', false, '1056720310312959'],
-    ['init', '1056720310312959'],
-    ['track', 'PageView'],
-  ])
+it('starts Meta automatically without a permission panel and tracks once', () => {
+  const { rerender } = render(<PublicApp path="/" apiOrigin="" />)
+  expect(screen.queryByLabelText('Measurement preferences')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Cookie settings' })).not.toBeInTheDocument()
+  expect(document.querySelector('script[data-meta-pixel]')).toHaveAttribute('src', 'https://connect.facebook.net/en_US/fbevents.js')
+  expect(window.fbq?.queue.filter(command => command[0] === 'track')).toEqual([['track', 'PageView']])
+  rerender(<PublicApp path="/" apiOrigin="" />)
+  expect(window.fbq?.queue.filter(command => command[0] === 'track')).toHaveLength(1)
+  expect(window.localStorage.getItem(CONSENT_KEY)).toBeNull()
 })
 
-it('persists rejection without contacting Meta', () => {
-  render(<PublicApp path="/" apiOrigin="" />)
-  fireEvent.click(screen.getByRole('button', { name: 'Reject optional' }))
-  expect(JSON.parse(window.localStorage.getItem(CONSENT_KEY)!)).toMatchObject({ version: 2, analytics: false, marketing: false })
+it('honours an existing explicit refusal without showing a panel', () => {
+  window.localStorage.setItem('natal_privacy_preferences_v2', JSON.stringify({ version: 2, analytics: false, marketing: false }))
+  render(<PublicApp path="/" />)
   expect(document.querySelector('script[data-meta-pixel]')).toBeNull()
-  expect(window.fbq).toBeUndefined()
+  expect(screen.queryByLabelText('Measurement preferences')).not.toBeInTheDocument()
 })
 
 it('fetches and renders a published direct slug with the shared renderer', async () => {
@@ -116,64 +111,41 @@ it('uses Ukrainian legal copy and language links without changing document ident
   expect(screen.getByRole('link', { name: 'English' })).toHaveAttribute('href', '/legal/terms?lang=en')
 })
 
-it('gates first-party events separately from Meta and stops them after withdrawal', async () => {
+it('automatically sends first-party page and contact events without personal fields', async () => {
   const fetch = vi.fn(async () => new Response(JSON.stringify(snapshot), { status: 200 }))
   vi.stubGlobal('fetch', fetch)
   render(<PublicApp path="/sample-project" />)
   await screen.findByRole('heading', { name: 'A public promise' })
   const events = () => fetch.mock.calls.filter(call => String((call as unknown[])[0]).includes('landing-analytics'))
-  expect(events()).toHaveLength(0)
-  fireEvent.click(screen.getByRole('checkbox', { name: /Аналітика Natal/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Зберегти вибір' }))
   await waitFor(() => expect(events()).toHaveLength(1))
-  expect(window.fbq).toBeUndefined()
-  fireEvent.click(screen.getByRole('button', { name: 'Налаштування cookie' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Відхилити необов’язкові' }))
+  expect(window.fbq?.queue).toContainEqual(['track', 'PageView'])
   fireEvent.click(screen.getByRole('link', { name: /Instagram @natal_service/ }))
-  expect(events()).toHaveLength(1)
+  expect(events()).toHaveLength(2)
+  expect(events().map(call => String((call as unknown[])[1] && JSON.stringify((call as unknown[])[1]))).join(' ')).not.toContain('hello@example.com')
 })
 
-it('withdraws Meta permission, clears queued PageViews and first-party Pixel cookies', () => {
+it('offers measurement withdrawal in privacy only and clears queued Meta events', () => {
+  window.history.replaceState({}, '', '/legal/privacy')
+  render(<PublicApp />)
+  fireEvent.click(screen.getByRole('button', { name: 'Measurement settings' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Turn measurement off' }))
+  expect(JSON.parse(window.localStorage.getItem(CONSENT_KEY)!)).toMatchObject({ version: 3, analytics: false, marketing: false })
+  expect(screen.queryByLabelText('Measurement preferences')).not.toBeInTheDocument()
+})
+
+it('honours a cross-tab refusal and clears Pixel cookies', () => {
   render(<PublicApp path="/" />)
-  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }))
-  document.cookie = '_fbp=old; Path=/'
-  document.cookie = '_fbc=old; Path=/'
-  fireEvent.click(screen.getByRole('button', { name: 'Cookie settings' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Reject optional' }))
+  document.cookie = '_fbp=test; Path=/'
+  window.localStorage.setItem(CONSENT_KEY, JSON.stringify({ version: 3, analytics: false, marketing: false }))
+  act(() => { window.dispatchEvent(new StorageEvent('storage', { key: CONSENT_KEY })) })
   expect(window.fbq?.queue).toContainEqual(['consent', 'revoke'])
   expect(window.fbq?.queue.some(command => command[0] === 'track')).toBe(false)
   expect(document.cookie).not.toMatch(/_fb[pc]=/)
-  expect(JSON.parse(window.localStorage.getItem(CONSENT_KEY)!)).toMatchObject({ analytics: false, marketing: false })
 })
 
-it.each(['legacy', 'expired', 'malformed', 'future'])('does not silently reuse %s consent', state => {
-  if (state === 'legacy') window.localStorage.setItem('natal_meta_pixel_consent_v1', 'accepted')
-  else window.localStorage.setItem(CONSENT_KEY, state === 'malformed' ? '{oops' : JSON.stringify({ version: 2, analytics: true, marketing: true, savedAt: Date.now() + (state === 'future' ? 60000 : -CONSENT_MAX_AGE - 1) }))
+it('runs automatic measurement when storage is blocked', () => {
+  vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
   render(<PublicApp path="/" />)
-  expect(screen.getByLabelText('Privacy preferences')).toBeVisible()
-  expect(window.fbq).toBeUndefined()
-})
-
-it('honours rejection even when browser storage throws', () => {
-  const get = vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
-  const set = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked') })
-  render(<PublicApp path="/" />)
-  fireEvent.click(screen.getByRole('button', { name: 'Reject optional' }))
-  expect(screen.queryByLabelText('Privacy preferences')).not.toBeInTheDocument()
-  expect(window.fbq).toBeUndefined()
-  get.mockRestore(); set.mockRestore()
-})
-
-it('honours withdrawal from another tab and expires consent in a long-lived tab', () => {
-  vi.useFakeTimers()
-  window.localStorage.setItem(CONSENT_KEY, JSON.stringify({ version: 2, analytics: true, marketing: true, savedAt: Date.now() - CONSENT_MAX_AGE + 1000 }))
-  render(<PublicApp path="/" />)
-  expect(window.fbq).toBeDefined()
-  act(() => { vi.advanceTimersByTime(1002) })
-  expect(screen.getByLabelText('Privacy preferences')).toBeVisible()
-  expect(window.fbq?.queue).toContainEqual(['consent', 'revoke'])
-  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }))
-  window.localStorage.setItem(CONSENT_KEY, JSON.stringify({ version: 2, analytics: false, marketing: false, savedAt: Date.now() }))
-  act(() => { window.dispatchEvent(new StorageEvent('storage', { key: CONSENT_KEY })) })
-  expect(window.fbq?.queue.at(-1)).toEqual(['consent', 'revoke'])
+  expect(window.fbq?.queue).toContainEqual(['track', 'PageView'])
+  expect(screen.queryByLabelText('Measurement preferences')).not.toBeInTheDocument()
 })

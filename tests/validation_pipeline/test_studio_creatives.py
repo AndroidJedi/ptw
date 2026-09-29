@@ -39,6 +39,7 @@ class FakeStructuredProvider:
         self.manual_phone_screen_logo: bool | None = None
         self.manual_phone_stats: list[dict[str, str]] | None = None
         self.manual_creative_direction: dict[str, str] | None = None
+        self.manual_edits: list[dict] | None = None
 
     def generate(self, **request):
         self.calls.append(deepcopy(request))
@@ -63,9 +64,10 @@ class FakeStructuredProvider:
             }
         if request["mode"] == "studio_manual_edit":
             current = request["input_payload"]["current_editable_values"]
-            if "content.hero_title" not in current:
+            headline_path = "content.hero_title" if "content.hero_title" in current else "content.template_text.title"
+            if headline_path not in current:
                 raise AssertionError("manual Agent payload omitted the editable headline")
-            edits = [{"path": "content.hero_title", "value": "Owner-directed agent headline"}]
+            edits = [{"path": headline_path, "value": "Owner-directed agent headline"}]
             if self.manual_logo_colors:
                 edits.extend(
                     {"path": f"configuration.logo.{field}", "value": value}
@@ -91,7 +93,7 @@ class FakeStructuredProvider:
                     {"path": "creative_direction.background", "value": direction["background"]},
                 ))
             response = {
-                "edits": edits,
+                "edits": edits if self.manual_edits is None else deepcopy(self.manual_edits),
                 "image_actions": deepcopy(self.manual_image_actions),
                 "reply": "Adjusted the requested editor controls.",
             }
@@ -143,6 +145,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
             structured_provider=self.provider,
             composer_skill_path=repository / "skills/studio-creative-composer/SKILL.md",
             phone_skill_path=repository / "skills/studio-phone-hero-generator/SKILL.md",
+            manual_agent_skill_path=repository / "skills/studio-manual-agent/SKILL.md",
         )
 
     def tearDown(self) -> None:

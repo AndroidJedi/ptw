@@ -321,22 +321,24 @@ playback pauses while hovered or focused and resumes once both clear. Reduced
 motion changes stop/resume autoplay immediately. Editing stays static, while
 fullscreen and public pages animate. All new controls and bounded copy are
 available to Landing Agent.
-Every footer links Terms & conditions, Privacy policy and Cookie policy to the
+The local candidate footer links Terms & conditions and Privacy policy to the
 shared bilingual Natal legal pages. Explicit owner privacy/terms URLs override
-those defaults without modifying stored snapshots. See [legal documents and
-consent](landing-legal.md); the operator profile currently remains a visible draft.
+those defaults without modifying stored snapshots. The footer includes privacy
+and terms; the separate cookie link and cookie-settings footer are absent. See [legal documents and
+measurement](landing-legal.md); the operator profile currently remains a visible draft.
 
 Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
-Approval requires completing or hiding visible unfinished items. The three
-reference reviews/avatars from the supplied screenshots are bundled with source
-SHA-256 metadata and explicitly labelled as sample layouts, never Natal
-customer evidence. Their visibility is optional; real owner evidence remains the
-existing immutable evidence block, outside Agent edit authority.
+Approval requires completing or hiding visible unfinished items. Historical
+reference-review artwork retains its provenance, but the local candidate never
+shows reference quotes, names, portraits or ratings on a public Landing. Only
+verified Project evidence can appear in the immutable evidence block, outside
+Agent edit authority. A private editor placeholder explains that requirement.
 
 Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
-Empty destinations route to contacts or hide the individual button, according to
+In the local candidate, empty destinations open the early-access form or hide
+the individual button, according to
 an explicit setting. Optional privacy/terms overrides require owner HTTPS URLs.
 Composition and Agent cannot invent or change these endpoints. No download URLs are copied
 from the reference site. Save, Approve and Publish remain separate.
@@ -386,3 +388,21 @@ See [contract, companion release order and reproducible local audit](../operatio
 The rules are generation/engineering constraints, not performance learning or
 semantic retry heuristics. Production needs the separately versioned companion
 worker capability before accepting new image requests.
+
+## Product proof and early-access inquiries
+
+Shared marketing templates never display reference-site testimonials, names,
+portraits or star ratings publicly. The retained `reference_reviews_enabled`
+setting now controls an explanatory private editor placeholder; its legacy
+default is retained so exact historical template identities remain unchanged. Only the Project’s verified `social_proof.items` produce public quotes.
+Empty evidence hides the section, including for historical published snapshots.
+
+Store buttons without a published store URL open a single bilingual early-access
+form. Marketing social icons use it while both store URLs are empty. The form
+explains the early stage and collects a question and/or optional contact for a
+reply or alpha-launch notification. Requests retain their UUID after timeout or
+response loss; success requires a confirmed matching receipt. Editor interactions
+still select components. Configured real store links retain their destinations.
+Public receipts and the owner-only **Visitor inquiries** inbox are described in
+[Landing legal and measurement](landing-legal.md). No approval, publication,
+learning or outbound notification runs when a visitor submits a form.

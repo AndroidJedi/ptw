@@ -188,6 +188,59 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('applies screenshot-backed Agent edits to an authored Post without saving or approving', async () => {
+    const authored = structuredClone(detail)
+    authored.editor_key = 'post.declarative.react'
+    authored.template_fields = [{ id: 'title', role: 'headline', font_family: 'Inter', font_size: 48 }]
+    authored.content.template_text = { title: 'Original authored title' }
+    const { api } = studioApi(authored)
+    let finishAgent!: (result: unknown) => void
+    const post = vi.fn().mockImplementationOnce(() => new Promise(resolve => { finishAgent = resolve }))
+    api.post = post
+    const view = render(<PhoneMetricsStudio api={api} language="en" basePath={basePath} detail={authored} onDetail={vi.fn()} />)
+    await screen.findByText('Preview up to date')
+    fireEvent.click(screen.getByRole('button', { name: 'Agent mode' }))
+    fireEvent.change(screen.getByLabelText('Task'), { target: { value: 'Match the screenshot hierarchy' } })
+    const file = new File([new Uint8Array([1, 2, 3])], 'post-reference.png', { type: 'image/png' })
+    fireEvent.change(view.container.querySelector('.studio-agent-attach input')!, { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply task' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/agent`, expect.objectContaining({
+      message: 'Match the screenshot hierarchy',
+      content: expect.objectContaining({ template_text: { title: 'Original authored title' } }),
+      screenshots: [expect.objectContaining({ mime_type: 'image/png' })],
+    }), expect.anything()))
+    expect(screen.getByRole('button', { name: 'Save creative' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve creative' })).toBeDisabled()
+    const content = { ...authored.content, template_text: { title: 'Adjusted authored title' } }
+    finishAgent({ configuration: authored.configuration, content,
+      creative_direction: { style: 'cinematic', background: 'scene', schema: 'ptw.studio.phone-hero-direction.v1' },
+      image_actions: [], changed_paths: ['content.template_text.title'], reply: 'Adjusted the title.' })
+    await screen.findByText('Adjusted the title.')
+    expect(screen.getByLabelText('title · Headline')).toHaveValue('Adjusted authored title')
+    expect(view.container.querySelectorAll('.studio-agent-screenshot')).toHaveLength(0)
+    expect(post.mock.calls.map(([path]) => path)).toEqual([`${basePath}/agent`])
+    expect(api.postMedia).toHaveBeenLastCalledWith(`${basePath}/preview`, expect.objectContaining({ content }), 'image/png', expect.anything())
+    expect(screen.getByRole('button', { name: 'Save creative' })).toBeEnabled()
+  })
+
+  it('restores authored Post controls after an Agent failure', async () => {
+    const authored = structuredClone(detail)
+    authored.editor_key = 'post.declarative.react'
+    authored.template_fields = [{ id: 'title', role: 'headline', font_family: 'Inter', font_size: 48 }]
+    authored.content.template_text = { title: 'Preserved title' }
+    const { api, post } = studioApi(authored)
+    post.mockRejectedValueOnce(new Error('Agent timed out; the draft was not changed.'))
+    render(<PhoneMetricsStudio api={api} language="en" basePath={basePath} detail={authored} onDetail={vi.fn()} />)
+    await screen.findByText('Preview up to date')
+    fireEvent.click(screen.getByRole('button', { name: 'Agent mode' }))
+    fireEvent.change(screen.getByLabelText('Task'), { target: { value: 'Improve this title' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply task' }))
+    await screen.findByText('Agent timed out; the draft was not changed.')
+    expect(screen.getByRole('button', { name: 'Apply task' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save creative' })).toBeEnabled()
+    expect(screen.getByLabelText('title · Headline')).toHaveValue('Preserved title')
+  })
+
   it('updates every flowing benefit when any grouped font control changes', async () => {
     const authored = structuredClone(detail)
     authored.editor_key = 'post.declarative.react'

@@ -72,7 +72,7 @@ export function LegalPage({ document: kind, language }: { document: LegalDocumen
           <li><a href="https://ico.org.uk/make-a-complaint/">Information Commissioner’s Office (UK)</a></li>
         </ul></section>
       </>}
-      {kind !== 'terms' && <section><h2>{uk ? 'Керування приватністю' : 'Privacy controls'}</h2><button type="button" onClick={show}>{uk ? 'Налаштування cookie' : 'Cookie settings'}</button><p><a href="https://www.facebook.com/privacy/policy/">{uk ? 'Політика конфіденційності Meta' : 'Meta privacy policy'}</a> · <a href="https://www.facebook.com/privacy/policies/cookies/">{uk ? 'Політика cookie Meta' : 'Meta cookie policy'}</a></p></section>}
+      {kind !== 'terms' && <section><h2>{uk ? 'Керування приватністю' : 'Privacy controls'}</h2><button type="button" onClick={show}>{uk ? 'Налаштування вимірювання' : 'Measurement settings'}</button><p><a href="https://www.facebook.com/privacy/policy/">{uk ? 'Політика конфіденційності Meta' : 'Meta privacy policy'}</a> · <a href="https://www.facebook.com/privacy/policies/cookies/">{uk ? 'Політика cookie Meta' : 'Meta cookie policy'}</a></p></section>}
     </main>
     <footer className="natal-legal-footer"><LegalLinks language={language} origin="" /><a href="/">{uk ? 'До Natal' : 'Back to Natal'}</a></footer>
   </div>

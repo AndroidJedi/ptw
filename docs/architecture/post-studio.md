@@ -45,8 +45,9 @@ assets for a new immutable version.
 
 ## Change template on an existing Post
 
-The Post editor has one compact toolbar with Change template, Agent mode (for
-Phone Metrics), Save and Approve. A small Post selector replaces the creative
+The Post editor has one compact toolbar with Change template, Agent mode,
+Save and Approve for both Phone Metrics and accepted authored templates.
+A small Post selector replaces the creative
 history panel; secondary creation actions are under More actions. The chooser
 shows native previews of accepted Post templates only, including Phone Metrics.
 New designs become available after explicit acceptance in Templates.
@@ -81,8 +82,8 @@ blank items leave no empty row, and adjacent items retain the configured gap.
 The original Phone configuration
 and prior template drafts are retained. The exact accepted definition is pinned
 in workspace selection, state hashes, checkpoints and approved records, so later
-template versions do not alter an existing Post. Manual Agent remains specific
-to its supported editor. Initial Brief composition remains Phone Metrics.
+template versions do not alter an existing Post. Initial Brief composition
+remains Phone Metrics.
 
 Migration `014_project_post_templates.sql` widens the preserving workspace ID
 constraint for authored IDs; the runtime still requires exact accepted registry
@@ -127,6 +128,17 @@ complete browser-compatible draft. Unknown, duplicate, immutable, schema, social
 proof, or contact paths are rejected. Screenshots are normalized,
 metadata-stripped, digest-bound inputs for one turn and are never persisted in
 the creative, checkpoint, version, or chat.
+
+Authored Posts use the same instruction/screenshot panel as Landing. Their exact
+accepted definition supplies named text fields, font defaults/groups and available
+gradient controls. The agent can edit only visible authored copy, per-field
+typography, shared Natal colors, image direction and the existing raw-art slot;
+legacy Phone Metrics controls are excluded. A grouped font change updates every
+peer. Materialized defaults are removed when unchanged, so a no-op does not add
+font or palette overrides. Text-only responses update the unsaved draft and
+preview; image actions use the existing configuration/generation routes. Neither
+creates a Save/Approve checkpoint. Other editor mutations are disabled during
+the turn, and changing the exact template clears temporary agent screenshots.
 
 Generation skill context retains immutable snapshot IDs and digests, strips
 graph/audit fields, and includes only active rules for the requested surface up

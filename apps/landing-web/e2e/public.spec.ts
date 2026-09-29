@@ -70,19 +70,18 @@ test('renders the umbrella with shared legal links', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Natal' })).toBeVisible()
   await expect(page.getByText('Digital products and services by Natal.')).toBeVisible()
-  await expect(page.getByRole('navigation', { name: 'Policies' }).getByRole('link')).toHaveCount(3)
-  await expect(page.getByRole('button', { name: 'Allow all' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Policies' }).getByRole('link')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Measurement settings' })).toHaveCount(0)
 })
 
-test('does not contact Meta before consent and loads the Pixel after consent', async ({ page }) => {
+test('loads Meta automatically without a permission panel', async ({ page }) => {
   let metaRequests = 0
   await page.route(/https:\/\/(connect\.facebook\.net|www\.facebook\.com)\/.*/, async route => {
     metaRequests += 1
     await route.fulfill({ status: 204, body: '' })
   })
   await page.goto('/')
-  expect(metaRequests).toBe(0)
-  await page.getByRole('button', { name: 'Allow all' }).click()
+  await expect(page.getByLabel('Measurement preferences')).toHaveCount(0)
   await expect.poll(() => metaRequests).toBeGreaterThan(0)
 })
 
@@ -128,8 +127,6 @@ test('publishes the App Showcase screens through the shared renderer and preserv
   await expect(page.locator('.as-phone')).toHaveCount(5)
   await expect(page.locator('.as-screen > img').first()).toHaveAttribute('src', new RegExp(`/versions/${digest}/assets/app_screen_1/${digest}.png$`))
   await expect(page.locator('.as-cta').first()).toHaveAttribute('href', 'mailto:hello@example.com')
-  await page.getByRole('checkbox', { name: /Natal analytics/ }).check()
-  await page.getByRole('button', { name: 'Save preferences' }).click()
   await page.locator('.as-cta').first().click()
   await expect.poll(() => events.some(event => event.event_type === 'primary_cta_click' && event.target === 'email')).toBe(true)
   await expect(page.locator('.as-edit')).toHaveCount(0)
@@ -137,7 +134,7 @@ test('publishes the App Showcase screens through the shared renderer and preserv
   expect(await page.locator('.as-page').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
 
-test('public marketing sections use exact mockup bytes, store links and sample review layouts', async ({ page }) => {
+test('public marketing sections use exact mockup bytes, store links without unrelated sample reviews', async ({ page }) => {
   const { default: defaults } = await import('../../commander-web/src/landing/marketing-defaults.json', { with: { type: 'json' } })
   const marketing = structuredClone(defaults.content)
   marketing.apple_url = 'https://apps.apple.com/app/id123456'
@@ -154,16 +151,18 @@ test('public marketing sections use exact mockup bytes, store links and sample r
   await page.goto('/marketing')
   await expect(page.locator('.mk-mockup img')).toHaveAttribute('src', new RegExp(`/versions/${digest}/assets/walkthrough_visual/${digest}.png$`))
   await expect(page.getByRole('link', { name: 'App Store · Explore Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
-  await expect(page.locator('.mk-reference-note')).toContainText('These are not Natal customer reviews.')
+  await expect(page.locator('.mk-reference-note')).toHaveCount(0)
+  await expect(page.getByText('Микита, Івано-Франківськ')).toHaveCount(0)
   await expect(page.getByText('Complete manually in Landing Studio', { exact: false })).toHaveCount(0)
   expect(await page.locator('.lp-page').evaluate(root => root.scrollWidth <= root.clientWidth)).toBe(true)
   await page.getByRole('link', { name: 'Google Play · Explore Natal' }).first().click()
-  await expect(page.locator('.mk-footer')).toBeFocused()
+  await expect(page.getByRole('dialog', { name: 'We’re building the first version' })).toBeVisible()
+  await page.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.locator('.mk-footer a[href="mailto:welcome@natal-service.com"]')).toBeVisible()
   await expect(page.locator('.mk-footer a[href="tel:+380937256469"]')).toBeVisible()
   await expect(page.locator('.mk-legal')).toContainText('Privacy policy')
   await expect(page.locator('.mk-legal')).toContainText('Terms & conditions')
-  await expect(page.locator('.mk-legal a')).toHaveCount(3)
+  await expect(page.locator('.mk-legal a')).toHaveCount(2)
   await expect(page.locator('.mk-legal a').nth(1)).toHaveAttribute('href', '/legal/terms?lang=en')
   await expect(page.locator('.mk-legal .mk-policy-pending')).toHaveCount(0)
   await expect(page.locator('.mk-socials img')).toHaveCount(3)
@@ -186,7 +185,6 @@ test('App Showcase cards animate without controls and pause for focus and reduce
     assets: {},
   } }))
   await page.goto('/automatic-showcase')
-  await page.getByRole('button', { name: 'Reject optional' }).click()
   const section = page.locator('.mk-section-carousel'), rail = section.locator('.mk-rail')
   await rail.scrollIntoViewIfNeeded()
   await page.mouse.move(0, 0)
@@ -228,7 +226,7 @@ test('every legal document opens directly in both languages, stays untracked and
     await expect(page.locator('html')).toHaveAttribute('lang', language)
     await expect(page.locator('.natal-legal-main h1')).toBeVisible()
     await expect(page.locator('.natal-legal-draft')).toBeVisible()
-    await expect(page.locator('.natal-legal-footer .natal-legal-links a')).toHaveCount(3)
+    await expect(page.locator('.natal-legal-footer .natal-legal-links a')).toHaveCount(2)
     await expect(page.locator('.natal-legal-main a[href="mailto:welcome@natal-service.com"]')).toHaveCount(1)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     const small = await page.locator('.natal-legal-header nav a, .natal-legal-contents a').evaluateAll(links => links.some(link => link.getBoundingClientRect().height < 44))
@@ -238,15 +236,14 @@ test('every legal document opens directly in both languages, stays untracked and
   expect(requests).toBe(0)
   await page.getByRole('link', { name: 'English', exact: true }).click()
   await expect(page).toHaveURL(/\/legal\/cookies\?lang=en$/)
-  await page.getByRole('button', { name: 'Cookie settings', exact: true }).first().click()
-  await expect(page.getByLabel('Privacy preferences', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Reject optional', exact: true }).click()
+  await page.getByRole('button', { name: 'Measurement settings', exact: true }).first().click()
+  await expect(page.getByLabel('Measurement preferences', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Turn measurement off', exact: true }).click()
   expect(requests).toBe(0)
 })
 
 test('the basic template links to shared terms without consuming a project slug', async ({ page }) => {
   await page.goto('/published-project')
-  await page.getByRole('button', { name: 'Reject optional' }).click()
   await page.locator('.lp-footer').getByRole('link', { name: 'Terms & conditions' }).click()
   await expect(page).toHaveURL(/\/legal\/terms\?lang=en$/)
   await expect(page.getByRole('heading', { name: 'Terms & conditions', exact: true })).toBeVisible()
@@ -266,11 +263,9 @@ for (const marketingFooter of [true, false]) test(`App Showcase opens all polici
     assets: {},
   } }))
   let apiRequests = 0
-  page.on('request', request => { if (request.url().includes('/api/v1/public/')) apiRequests++ })
-  for (language of ['en', 'uk']) for (const kind of ['terms', 'privacy', 'cookies']) {
+  page.on('request', request => { if (request.url().includes('/api/v1/public/landings/')) apiRequests++ })
+  for (language of ['en', 'uk']) for (const kind of ['terms', 'privacy']) {
     await page.goto('/showcase-policies')
-    const reject = page.getByRole('button', { name: /Reject optional|Відхилити необов’язкові/ })
-    if (await reject.isVisible()) await reject.click()
     const link = page.locator(`.as-page footer .natal-legal-links a[href="/legal/${kind}?lang=${language}"]`)
     const title = await link.innerText(), before = apiRequests
     await link.click()
@@ -282,30 +277,19 @@ for (const marketingFooter of [true, false]) test(`App Showcase opens all polici
   }
 })
 
-test('separate choices gate requests and withdrawal persists across reloads', async ({ page }) => {
+test('automatic measurement can be turned off from privacy and stays off on reload', async ({ page }) => {
   let metaRequests = 0
   const events: Array<{ event_type: string }> = []
   await page.route(/https:\/\/(connect\.facebook\.net|www\.facebook\.com)\/.*/, route => { metaRequests += 1; return route.fulfill({ status: 204, body: '' }) })
   await page.route('**/api/v1/public/landing-analytics/events', route => { events.push(route.request().postDataJSON()); return route.fulfill({ status: 202, json: {} }) })
   await page.goto('/published-project')
-  await expect(page.getByRole('heading', { name: 'A published Natal product' })).toBeVisible()
-  expect(metaRequests).toBe(0); expect(events).toHaveLength(0)
-  const panel = page.getByLabel('Privacy preferences', { exact: true })
-  for (const checkbox of await panel.getByRole('checkbox').all()) await expect(checkbox).not.toBeChecked()
-  await page.getByRole('checkbox', { name: /Natal analytics/ }).check()
-  await page.getByRole('button', { name: 'Save preferences' }).click()
   await expect.poll(() => events.length).toBe(1)
-  expect(metaRequests).toBe(0)
-  await page.getByRole('button', { name: 'Cookie settings', exact: true }).click()
-  await page.getByRole('checkbox', { name: /Meta advertising/ }).check()
-  await page.getByRole('button', { name: 'Save preferences' }).click()
   await expect.poll(() => metaRequests).toBe(1)
-  await page.evaluate(() => { document.cookie = '_fbp=test; Path=/'; document.cookie = '_fbc=test; Path=/' })
-  await page.getByRole('button', { name: 'Cookie settings', exact: true }).click()
-  await page.getByRole('button', { name: 'Reject optional' }).click()
-  expect(await page.evaluate(() => document.cookie)).not.toMatch(/_fb[pc]=/)
-  await page.reload()
+  await expect(page.getByRole('button', { name: 'Cookie settings' })).toHaveCount(0)
+  await page.goto('/legal/privacy?lang=en')
+  await page.getByRole('button', { name: 'Measurement settings' }).click()
+  await page.getByRole('button', { name: 'Turn measurement off' }).click()
+  await page.goto('/published-project')
   await expect(page.getByRole('heading', { name: 'A published Natal product' })).toBeVisible()
-  await expect(panel).toHaveCount(0)
   expect(metaRequests).toBe(1); expect(events).toHaveLength(1)
 })

@@ -44,7 +44,10 @@ description: Populate one selected bounded private PTW Landing template from an 
   direct image requests override preset defaults.
 - Match hero-art colors and lighting to the supplied gradient while keeping the
   subject distinct. Never change owner-selected colors or return extra fields.
-- Social proof is owner evidence. Return its heading and an empty `items` array; never
+- Social proof must be verified owner evidence for this exact product/domain.
+  Reference-site or template testimonials never become Project copy. Hide absent
+  evidence; do not rewrite unrelated quotes into invented domain testimonials.
+  Return its heading and an empty `items` array; never
   invent quotes, customers, ratings, logos, results, credentials, or measurements.
 - Contacts are owner evidence. Return heading/supporting copy only and empty
   email, phone, and Telegram bot-link (`url`) fields. If the supplied schema

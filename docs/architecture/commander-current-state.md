@@ -12,6 +12,31 @@ Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
 `26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
 public-shell and actual published Landing browser audits passed.
 
+## Authored Post Agent with screenshots — local implementation
+
+Accepted authored Posts now expose the same Agent instruction/screenshot panel
+as Landing. The exact definition supplies bounded named copy, fonts/groups,
+available gradient colors and Natal colors; hidden Phone Metrics controls remain
+outside its edit authority. Existing image actions reuse the raw-art workflow.
+No-op turns preserve optional overrides, and grouped font changes update every
+peer without rewriting the accepted template. Temporary screenshots are scoped
+to the Post and exact accepted definition.
+
+Text-only responses update the unsaved preview without configuration writes,
+checkpoints or approval. Image direction comparison now uses its actual values,
+so JSON key order cannot cause an unintended write or close Agent mode. Other
+editor mutations wait for completion, and failures restore actionable controls.
+
+Verified: 50 focused backend checks locally and in the Validation image, 136
+Owner web tests/build, three real-HTTP browser flows with scripted inference
+(desktop/360px/iPhone WebKit, screenshots, unsaved state, Save/Approve and
+restart), deterministic Studio geometry audit, 54 Commander checks with five
+isolated receiver skips, demo, canonical skill validators and whitespace.
+The required Commander image suite retains its existing missing-Git failure;
+12 storage/Telegram runtime checks passed separately in the Validation image.
+No deployment or production Project write ran. Studio Tune and Manual Agent
+skills describe the new authored-template boundary.
+
 ## Water Landing measurement, early access and product proof — verified candidate
 
 The owner authorised commit and deployment after local review. The verified

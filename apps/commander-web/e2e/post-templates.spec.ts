@@ -30,9 +30,12 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
   try {
     await launch()
     const ids = await fetch(url + '/fixture', { headers }).then(r => r.json())
+    const path = `/api/v1/studio/projects/${ids.project_id}/creatives/${ids.creative_id}`
+    const postRequests: string[] = []
     await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
     await page.route('**/api/**', async route => {
       const request = new URL(route.request().url())
+      if (route.request().method() === 'POST') postRequests.push(request.pathname)
       const response = await route.fetch({ url: url + request.pathname + request.search, timeout: 120000 })
       await route.fulfill({ response })
     })
@@ -48,7 +51,37 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
     await dialog.getByRole('button', { name: 'Apply to this Post' }).click()
     await expect(dialog).not.toBeVisible({ timeout: 30000 })
     await expect(page.getByRole('link', { name: 'Edit text and fonts' })).toBeVisible()
+    const beforeAgent = await fetch(url + path, { headers }).then(r => r.json())
+    const beforeAgentRequests = postRequests.length
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.getByRole('button', { name: 'Agent mode', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByLabel('Task', { exact: true })).toBeVisible()
+    const screenshot = await page.screenshot()
+    await page.locator('.studio-agent-attach input').setInputFiles({
+      name: 'post-reference.png', mimeType: 'image/png', buffer: screenshot,
+    })
+    await expect(page.getByRole('button', { name: 'Remove screenshot: post-reference.png' })).toBeVisible()
+    await page.screenshot({ path: info.outputPath('post-agent-with-screenshot.png'), fullPage: true })
+    await page.locator('.phone-metrics-commandbar').screenshot({ path: info.outputPath('post-agent-panel.png') })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.getByLabel('Task', { exact: true }).fill('Make the headline clearer using the screenshot')
+    await expect(page.getByRole('button', { name: 'Apply task', exact: true })).toBeEnabled()
+    const agentResponse = page.waitForResponse(response => response.url().endsWith('/agent') && response.request().method() === 'POST')
+    await page.getByRole('button', { name: 'Apply task', exact: true }).click()
+    const response = await agentResponse
+    expect(response.ok(), await response.text()).toBeTruthy()
+    await expect(page.getByText('Adjusted the requested editor controls.', { exact: true })).toBeVisible()
+    await expect(page.locator('.studio-agent-screenshot')).toHaveCount(0)
+    await expect(page.getByLabel('Task', { exact: true })).toHaveValue('')
+    const afterAgent = await fetch(url + path, { headers }).then(r => r.json())
+    expect(afterAgent.state_sha256).toBe(beforeAgent.state_sha256)
+    expect(afterAgent.content).toEqual(beforeAgent.content)
+    expect(afterAgent.versions).toEqual(beforeAgent.versions)
+    expect(postRequests.slice(beforeAgentRequests).filter(request => !request.endsWith('/preview'))).toEqual([`${path}/agent`])
+    await page.getByRole('button', { name: 'Close Agent' }).click()
     await page.getByText('Text and bullets', { exact: true }).click()
+    await expect(page.getByRole('textbox', { name: 'title · Headline', exact: true })).toHaveValue('Owner-directed agent headline')
     const overflowingHeadline = 'Owner edited headline that deliberately overflows the template '.repeat(6)
     await page.getByRole('textbox', { name: 'title · Headline', exact: true }).fill(overflowingHeadline)
     await page.getByText('Font and size for each text field', { exact: true }).click()
@@ -67,7 +100,6 @@ test('apply accepted layout to an existing Post, edit, approve and restore after
     await page.getByRole('button', { name: 'Approve creative' }).click()
     expect((await approval).ok(), diagnostic).toBeTruthy()
     await expect(page.getByRole('button', { name: 'Approve creative' })).toBeEnabled({ timeout: 15000 })
-    const path = `/api/v1/studio/projects/${ids.project_id}/creatives/${ids.creative_id}`
     const before = await fetch(url + path, { headers }).then(r => r.json())
     expect(before.versions).toHaveLength(1)
     expect(before.content.template_text.title).toBe(overflowingHeadline.trim())

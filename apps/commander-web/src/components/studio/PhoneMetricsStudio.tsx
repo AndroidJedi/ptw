@@ -427,7 +427,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       setConfiguration(nextConfiguration); setContent(nextContent)
       setMetricSources(result.metric_provenance)
       const nextDirection = result.creative_direction
-      const directionChanged = Boolean(nextDirection) && JSON.stringify(nextDirection) !== JSON.stringify(detail.generation?.creative_direction || null)
+      const directionChanged = Boolean(nextDirection) && (['style', 'background'] as const)
+        .some(key => nextDirection![key] !== detail.generation?.creative_direction?.[key])
       let saved = detail
       if (result.image_actions.length || directionChanged) {
         saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
@@ -445,7 +446,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       }
       const changed = [
         ...(['style', 'background'] as const).filter(key => nextDirection && nextDirection[key] !== detail.generation?.creative_direction?.[key]),
-        ...(JSON.stringify(nextConfiguration.background) !== JSON.stringify(detail.configuration.background) ? ['palette'] : []),
+        ...(JSON.stringify(authored ? nextConfiguration.template_palette : nextConfiguration.background) !== JSON.stringify(authored ? detail.configuration.template_palette : detail.configuration.background) ? ['palette'] : []),
       ]
       const action = result.image_actions[0]
       if (action) {
@@ -480,7 +481,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     <section className="studio-commandbar phone-metrics-commandbar">
       <div><small>{tr('TEMPLATE', 'ШАБЛОН')}</small><strong>{detail.template_name || 'Phone & metrics'} · v{detail.catalog.template_version}</strong></div>
       <PostTemplatePicker api={api} language={language} basePath={basePath} detail={detail} configuration={configuration} content={content} disabled={mutationBusy || previewBusy} onApply={value => { applyDetail(value); void render(value); setNotice(tr('Template applied. Review your Post before approving.', 'Шаблон застосовано. Перевірте допис перед схваленням.')) }} />
-      {!authored && <StudioManualAgent compact api={api} language={language} endpoint={`${basePath}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={mutationBusy || previewBusy} onApply={applyAgentResult} />}
+      <StudioManualAgent key={`${basePath}:${detail.template_reference?.template_sha256 || detail.template_id}`} compact api={api} language={language} endpoint={`${basePath}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={mutationBusy || previewBusy} onBegin={() => setBusy(true)} onFailure={() => setBusy(false)} onApply={applyAgentResult} />
       <button className="secondary" disabled={mutationBusy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       <button className="primary" disabled={mutationBusy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>

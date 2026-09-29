@@ -71,7 +71,8 @@ if args.project_post:
         workspace_factory=lambda path: PostStudioWorkspace(path, image_provider=FakeImageProvider()),
         structured_provider=FakeStructuredProvider(),
         composer_skill_path=ROOT/'skills/studio-creative-composer/SKILL.md',
-        phone_skill_path=ROOT/'skills/studio-phone-hero-generator/SKILL.md')
+        phone_skill_path=ROOT/'skills/studio-phone-hero-generator/SKILL.md',
+        manual_agent_skill_path=ROOT/'skills/studio-manual-agent/SKILL.md')
     fixture.service.template_registry = service.post_registry
     if not fixture.store.list('projects'):
         fixture.generate_creative()

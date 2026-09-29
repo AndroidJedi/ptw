@@ -147,9 +147,12 @@ Verify the full apply/edit/preview/save/approve/restart path against real local
 HTTP and disposable PostgreSQL. Clone and Landing-source reads must resolve the
 approved record's template, never infer it from the creative's current layout.
 Keep initial Brief generation on its supported composer definitions. Authored
-layouts expose their own text fields and use the shared image workflow; do not
-show unrelated Phone Metrics controls or allow the Phone-only Manual Agent to
-edit them. Keep old approved PNGs byte-identical.
+layouts expose their own text fields and use the shared image workflow and
+instruction/screenshot Agent panel. Derive authored Agent paths from the exact
+accepted definition, including font/palette defaults; omit hidden legacy Phone
+Metrics controls. Preserve no-op configuration, propagate grouped font changes,
+and verify screenshot-backed draft preview with no Save/Approve writes. Keep old
+approved PNGs byte-identical.
 
 ## Visual layout guard
 

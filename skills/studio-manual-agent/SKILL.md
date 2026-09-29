@@ -69,6 +69,15 @@ People, devices and interactions are allowed in artwork. Text, labels, charts,
 UI and logos are omitted by default but allowed when requested inside the image.
 The server carries the exact owner message alongside the generated interpretation.
 
+Accepted authored Post templates expose their own named `content.template_text`
+fields and `configuration.template_typography` controls. Use the supplied field
+roles, font families and 12–180px bounds; fields with the same typography group
+share font and size. Optional `template_palette` controls change only the full
+background gradient. `phone_screen` is the shared raw artwork slot even when the
+template has no phone. Preserve its fixed images, badges, geometry and Natal
+identity. Hidden legacy Phone Metrics fields are outside this editor's authority;
+new text positions or layout changes require a new accepted template version.
+
 App Showcase Landing has three static `app_screen_1/2/3` image slots and a
 supporting `visual_break_visual`. Match each screen action to the corresponding
 `content.app_screens[index].visual_direction`. Editing text inside a screenshot

@@ -17,6 +17,15 @@ before changing code or runtime state.
 
 ## Public boundary
 
+When several Owner endpoints return 401 after a completed Google sign-in,
+check VPS free bytes/inodes and actual Docker healthcheck output before asking
+for another login. `no space left on device` across unrelated containers is a
+storage incident; the generic Firebase error does not identify its cause.
+Read the storage recovery route in `ptw-vps-operations`. After reclaim, verify
+Firebase's owner lookup without printing identity tokens, all container health,
+and the owner's actual authenticated read. Close the incident only after fixing
+the accumulating writer/retention schedule and verifying its installed timer.
+
 For slow Landing images, measure the public snapshot and each selected asset
 separately from fonts and bundled artwork. New assets prepare bounded `webp-v1`
 display copies on writes; snapshot and image reads must never encode or backfill

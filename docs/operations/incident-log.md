@@ -1,6 +1,51 @@
 # PTW incident log
 
-Updated: 2026-09-28
+Updated: 2026-09-29
+
+## 2026-09-29 — Full VPS caused widespread health failures and Owner 401s
+
+The owner completed Google sign-in but Project and Landing template reads still
+returned HTTP 401. The 24 GB root filesystem had zero available bytes, all 12
+containers were unhealthy, and their healthcheck execution reported
+`no space left on device`. Daily recovery copies occupied 7 GB and journald
+about 2 GB. The legacy retention glob expected ten date digits instead of the
+actual eight, so it matched no recovery directory. Cleanup was also conditional
+on a successful backup; the final failed gzip attempt could not reach it.
+
+Maintenance first enumerated all container image references and removed only
+unreferenced images under the shared lock. This reclaimed just 53 MB, proving
+image cache was not the accumulating source. Services recovered without any
+application restart, Firebase owner lookup and key retrieval passed, and the
+owner confirmed that the actual Landing opened after refresh. All 12 services
+became healthy; the accepted application revision and Hosting were unchanged.
+
+The owner explicitly requested recurrence prevention and skill updates.
+`scripts/install_ptw_storage_guard.sh` installed the canonical root-owned
+backup writer, replaced the obsolete checkout-based cron, enabled a persistent
+15-minute storage guard, capped journald at 256 MiB with a 3 GiB keep-free
+reserve, and added backup-log rotation. Retention keeps at most seven complete
+copies within 4 GiB, verifies the newest two replacements before deletion and
+preserves incomplete or symlinked records. Streaming exports enforce both
+free-space and replacement byte budgets; failures remove only their own staging.
+Low headroom or oversized protected recovery points fail visibly rather than
+consuming the reserve. The pre-existing failed copy remains incident evidence.
+
+A real new recovery copy contains the current complete PostgreSQL dump and
+historical assets volume, accepted-revision metadata and a SHA-256 manifest.
+The manifest, `pg_restore --list`, archive listing and private file modes passed.
+Post-backup free space remained about 5 GiB. Timer enablement/next-elapse,
+successful retention service, installed-script digest, all container health,
+the quick dependency audit and public Owner auth/CORS/Hosting audit passed.
+No domain row, credential, application image or publication was changed.
+
+Verification: 54 Commander checks (five isolated receiver skips), 20 Gateway
+tests, 12 focused built-image checks, Commander demo, canonical skill verifier,
+both changed skill validators, Python compilation, shell syntax and whitespace.
+The image-wide command also exposed its existing missing `git` dependency;
+those Git-dependent cases passed in the local virtual environment, while the
+FastAPI/storage cases passed in the image. Canonical Owner incident and VPS
+skills now route this misleading 401 to storage diagnosis and require the
+writer/retention/timer repair before closing recovery.
 
 ## 2026-09-28 — Policy links reached the public shell's visual 404
 

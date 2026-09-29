@@ -37,6 +37,11 @@ into a complete compatible release, read
 
 ## Start safely
 
+For ENOSPC, a growing backup/log directory, or widespread health failures with
+Owner HTTP 401, read [references/storage-recovery.md](references/storage-recovery.md).
+Use the canonical storage guard for retention and bounded backup writes; a
+one-time prune without repairing the accumulating writer is incomplete recovery.
+
 Recovery Git checkouts can reset group-write permissions on changed skill
 files. After restoring the accepted source, explicitly run the accepted skill
 sync installer and the verifier from the restored live repository before

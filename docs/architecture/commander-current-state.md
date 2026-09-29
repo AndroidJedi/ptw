@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-28
+Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
 Deployment: selective preserving release `landing-auto-policies-20260928-4ac510d`,
 accepted code revision `4ac510de49201fcc6ce69d75dca40cbdb202f0b5`
@@ -11,6 +11,28 @@ All application images were reused; no service restarted and no migration ran.
 Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
 `26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
 public-shell and actual published Landing browser audits passed.
+
+## Owner session recovery and bounded VPS storage — installed
+
+The full 24 GB host caused healthcheck ENOSPC failures across all 12 containers
+while authenticated Project/Landing reads returned 401 after Google sign-in.
+Reclaim restored service health without application restarts; Firebase lookup
+passed and the owner confirmed the actual Landing opened. The obsolete backup
+retention glob matched no dated directories, leaving 7 GB of copies; journald
+had also reached 2 GB.
+
+Owner-authorized maintenance installed the canonical storage guard and backup
+cron, persistent 15-minute timer, 256 MiB journal cap and backup-log rotation.
+Seven complete recovery points fit within 4 GiB, the latest two are verified
+before retention deletes older copies, and streaming exports protect 3 GiB of
+free disk and remove their own failed staging. A real fresh database/assets
+backup passed its manifest, dump/archive readability and private modes; about
+5 GiB remained free afterward. All services, dependencies and the public
+Owner boundary passed. Application images, Hosting, credentials and domain
+authority were unchanged. Both incident/VPS skills carry the reusable route.
+Verified: 54 Commander checks (five isolated receiver skips), 20 Gateway tests,
+12 focused built-image checks, demo, skill validators and whitespace. See the
+incident log for the image-wide missing-Git limitation and operational detail.
 
 ## App Showcase automatic benefit cards and policy pages — deployed
 

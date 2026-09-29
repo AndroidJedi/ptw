@@ -12,6 +12,10 @@ from validation_pipeline.studio_manual_agent import (
     agent_control_contract,
     manual_agent_request_constraints,
     manual_agent_payload,
+    manual_agent_brief_context,
+    manual_agent_editable_values,
+    manual_agent_value_tree,
+    _flatten_scalars,
     studio_manual_agent_provider_error,
     validate_manual_agent_semantics,
 )
@@ -86,16 +90,42 @@ class StudioAgentControlContractTests(unittest.TestCase):
             surface="post:phone_metrics", entity_id="creative-id", message="Hide the phone",
             history=[], configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
             catalog=catalog, screenshot_artifact_values=[], image_slots=[], current_images=[],
+            approved_product_brief=manual_agent_brief_context(
+                {"approved": True, "document": {"product": "A useful product"}},
+                brief_id="brief-id", project_id="project-id",
+            ),
         )
         self.assertNotIn("live_catalog", payload)
         self.assertNotIn("current_editor_state", payload)
         self.assertEqual("post:phone_metrics", payload["agent_control_contract"]["surface"])
-        self.assertIn("configuration.device.enabled", payload["current_editable_values"])
-        self.assertNotIn("configuration.schema", payload["current_editable_values"])
+        self.assertIn("enabled", payload["current_editable_values"]["configuration"]["device"])
+        self.assertNotIn("schema", payload["current_editable_values"]["configuration"])
+        flattened = {}
+        _flatten_scalars(payload["current_editable_values"], "", flattened)
+        self.assertEqual(manual_agent_editable_values(
+            catalog=catalog, configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
+        ), flattened)
         self.assertEqual(
             "ptw.studio.agent-request-constraints.v1",
             payload["request_constraints"]["schema"],
         )
+
+    def test_compact_values_preserve_array_indices_without_exposing_other_leaves(self):
+        values = {"content.rows[2].label": "Третій", "configuration.enabled": False,
+                  "content.rows[0].value": None}
+        tree = manual_agent_value_tree(values)
+        self.assertEqual({}, tree["content"]["rows"][1])
+        flattened = {}
+        _flatten_scalars(tree, "", flattened)
+        self.assertEqual(values, flattened)
+
+    def test_brief_context_rejects_unapproved_missing_and_mismatched_sources(self):
+        for brief in ({"document": {"product": "Draft"}},
+                      {"approved": True, "document": None},
+                      {"approved": True, "document": {"product": "Other"}, "brief_id": "other"},
+                      {"approved": True, "document": {"product": "Other"}, "project_id": "other"}):
+            with self.subTest(brief=brief), self.assertRaises(ValueError):
+                manual_agent_brief_context(brief, brief_id="brief", project_id="project")
 
     def test_compound_ukrainian_request_resolves_to_one_visible_artwork_and_numeric_metrics(self) -> None:
         message = (

@@ -26,7 +26,7 @@ from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio_creatives import STUDIO_COMPOSER_PROMPT_VERSION, creative_generation_schema
 from .studio_manual_agent import (
     STUDIO_MANUAL_AGENT_PROMPT_VERSION, apply_manual_agent_edits,
-    manual_agent_editable_values, manual_agent_payload,
+    manual_agent_brief_context, manual_agent_editable_values, manual_agent_payload,
     manual_agent_schema, response_reply, screenshot_artifacts,
 )
 from .studio_workspace import PostStudioWorkspace
@@ -204,6 +204,10 @@ def main() -> None:
                 catalog=phone_detail["catalog"], screenshot_artifact_values=manual_artifacts,
                 image_slots=["phone_screen"], current_images=[],
                 creative_direction=current_direction,
+                approved_product_brief=manual_agent_brief_context(
+                    {"approved": True, "document": base_document},
+                    brief_id=marker, project_id=marker,
+                ),
             ),
             input_artifacts=manual_artifacts,
             output_schema=manual_agent_schema(

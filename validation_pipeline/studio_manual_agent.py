@@ -11,13 +11,14 @@ from typing import Any, Mapping
 from uuid import UUID
 
 from .image_reference import decode_reference
+from .provider import StructuredContractError
 from .phone_hero_styles import (
     PHONE_HERO_BACKGROUND_DIRECTIVES,
     PHONE_HERO_STYLE_DIRECTIVES,
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v5"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v7"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
@@ -29,9 +30,12 @@ MAX_AGENT_EDITS = 64
 class StudioManualAgentProviderError(RuntimeError):
     """Sanitized provider failure that is not a Studio state conflict."""
 
-    def __init__(self, *, timed_out: bool) -> None:
+    def __init__(self, *, timed_out: bool, contract_failed: bool = False) -> None:
         self.timed_out = timed_out
+        self.contract_failed = contract_failed
         super().__init__(
+            "Studio Agent could not prepare its bounded request; the draft was not changed."
+            if contract_failed else
             "Studio Agent timed out before returning a validated edit; the draft was not changed."
             if timed_out else
             "Studio Agent provider could not return a validated edit; the draft was not changed."
@@ -49,7 +53,9 @@ def studio_manual_agent_provider_error(error: Exception) -> StudioManualAgentPro
         or "TimeoutExpired" in error_types
         or "TimeoutError" in error_types
     )
-    return StudioManualAgentProviderError(timed_out=timed_out)
+    return StudioManualAgentProviderError(
+        timed_out=timed_out, contract_failed=isinstance(error, StructuredContractError),
+    )
 
 
 def _normalized_instruction(value: str) -> str:
@@ -326,58 +332,58 @@ _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
     "landing:project_landing": {
         "project_landing.theme": {
             "name": "Theme and component treatment",
-            "purpose": "Coordinates the Landing palette, typography, rhythm, and reusable controls.",
+            "purpose": "Page palette, typography, spacing and component treatments.",
             "visible_result": "Applies Studio, Editorial, or Soft bloom design directions, or bounded individual colours/fonts/radius/spacing/button/card/icon/contact treatments.",
-            "dependencies": "A preset updates its coordinated values while preserving copy, crop settings, and generated images.",
+            "dependencies": "Presets preserve copy, crops and images.",
             "controllers": [{"name": "Theme", "allowed_values": "Studio, Editorial, Soft bloom; catalog fonts; 0–48 corner radius; 0.85–1.15 heading scale; compact/comfortable/airy spacing; bounded component styles."}],
         },
         "project_landing.hero": {
             "name": "Hero",
-            "purpose": "Controls the Landing’s first message, CTA, placement, and main artwork.",
+            "purpose": "Main title, supporting copy, CTA and artwork.",
             "visible_result": "Changes bounded title/supporting/CTA copy, alignment, artwork placement/crop, CTA destination, and image direction.",
-            "dependencies": "‘Image only’ removes the phone frame and app UI while retaining the selected hero artwork; the Landing has no separate device visibility control.",
+            "dependencies": "Image mode retains artwork without phone hardware or UI.",
             "controllers": [{"name": "Hero", "allowed_values": "left/center alignment; left/right/below image placement; contacts, Telegram bot, email, or phone CTA target; bounded crop focus."}],
         },
         "project_landing.app_feature": {
             "name": "App feature",
-            "purpose": "Controls the fixed app demonstration associated with the Hero.",
+            "purpose": "Hero's fixed three-row app demonstration.",
             "visible_result": "Changes phone screen theme/layout and its bounded title, description, action label, and three label/detail rows.",
-            "dependencies": "Uses the Landing visual mode: phone retains the renderer-owned frame; image shows hero artwork only. It is a demonstration, not a live app or booking flow.",
+            "dependencies": "Phone mode shows the frame; image mode shows artwork only. This is a demonstration.",
             "controllers": [{"name": "App screen", "allowed_values": "Light, Dark, or Glass theme; Overview, Booking, or Checklist layout; fixed three rows."}],
         },
         "project_landing.features": {
             "name": "Features",
-            "purpose": "Displays the fixed three Landing feature cards.",
+            "purpose": "Three feature cards and their copy.",
             "visible_result": "Changes bounded card copy and switches the group between three columns and a stacked layout.",
-            "dependencies": "Exactly three features remain required for approval.",
+            "dependencies": "Keep exactly three cards.",
             "controllers": [{"name": "Feature cards", "allowed_values": "three_columns or stacked; bounded title and description for each fixed card."}],
         },
         "project_landing.social_proof": {
             "name": "Social proof",
-            "purpose": "Displays supplied evidence when it exists.",
+            "purpose": "Supplied evidence presentation.",
             "visible_result": "Can switch the existing evidence presentation between cards and quote without changing its supplied evidence.",
-            "dependencies": "The agent must preserve the full evidence block exactly and cannot invent, remove, or edit proof.",
+            "dependencies": "Preserve all evidence exactly; only layout is editable.",
             "controllers": [{"name": "Evidence presentation", "allowed_values": "cards or quote; no evidence-content changes are allowed in Agent mode."}],
         },
         "project_landing.visual_break": {
             "name": "Visual break",
-            "purpose": "Controls the generated supporting artwork between page sections.",
+            "purpose": "Supporting artwork, crop and direction.",
             "visible_result": "Changes height, crop focus, visual direction, and the selected/generated artwork.",
-            "dependencies": "Generation is optional and only occurs after an explicit owner request.",
+            "dependencies": "Generate only for requested image changes.",
             "controllers": [{"name": "Supporting artwork", "allowed_values": "small, medium, or large; bounded crop focus and owner-directed visual direction."}],
         },
         "project_landing.contacts": {
             "name": "Contact panel",
-            "purpose": "Controls the presentation of owner-supplied contact information.",
+            "purpose": "Contact heading, supporting copy and layout.",
             "visible_result": "Changes heading, supporting copy, alignment, CTA target, and shared contact-panel treatment.",
-            "dependencies": "Email, phone, Telegram, and Instagram endpoints are immutable in Agent mode.",
+            "dependencies": "Preserve email, phone, Telegram and Instagram endpoints.",
             "controllers": [{"name": "Contact presentation", "allowed_values": "left/center alignment and Contrast/Surface/Accent treatment; no endpoint changes."}],
         },
         "project_landing.faq": {
             "name": "FAQ",
-            "purpose": "Displays the fixed three Landing questions and answers.",
+            "purpose": "Three FAQ questions and answers.",
             "visible_result": "Changes bounded question/answer copy and uses divided or card presentation.",
-            "dependencies": "Exactly three FAQs remain required for approval.",
+            "dependencies": "Keep exactly three FAQs.",
             "controllers": [{"name": "FAQ", "allowed_values": "divided or cards; bounded copy for each fixed question/answer."}],
         },
     },
@@ -439,13 +445,13 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     if surface == "landing:app_showcase":
         declarations = {key: value for key, value in _SURFACE_COMPONENT_CONTRACTS["landing:project_landing"].items() if key != "project_landing.app_feature"}
         declarations["app_showcase.screens"] = {
-            "purpose": "Three static AI-generated screen interiors and their visible captions. Each app_screen_1/2/3 has independent generation, enhancement and history. These images are not working apps.",
-            "dependencies": ["Use content.app_screens[index].visual_direction for each corresponding image action. Changing text inside a screen requires Generate or Enhance; caption edits alone do not modify pixels.", "Shared palette, configuration.showcase gradient_end, screen_scale and screen_offset tune the page. Preserve Natal identity and the Brief's claims."],
+            "purpose": "Three static screen interiors, captions, scale and offset.",
+            "dependencies": ["Match app_screen_1/2/3 actions to content.app_screens[index].visual_direction. Depicted UI edits need an image action; external captions are copy.", "Preserve Natal identity and source claims."],
         }
     if declarations is not None and any(item.get("component_id") == "landing.marketing" for item in catalog.get("components", [])):
         declarations = {**declarations, "landing.marketing": {
-            "purpose": "Optional gradient sections, a single Natal logo/name color, decorative symbols, carousel, six comparison rows, four workflow steps, four values, labelled feedback examples, store buttons and footer.",
-            "dependencies": ["Use one of the ten gradient_id presets for domain mood. Preserve the single logo_color and optional motifs. Each comparison row/step/value has an independent enabled toggle; leave unsupported text empty and visible for owner completion.", "walkthrough_visual is a complete multi-phone mockup composition; app_screen slots remain hardware-free interiors. Use content.marketing.walkthrough_visual_direction in its image action. Editing depicted UI requires generation/enhancement.", "Never invent store or legal URLs or testimonials. Preserve the feedback section when adapting its copy to the product. Supplied feedback_examples are illustrative expectations, clearly labelled by the renderer; edit their topic/statement without names, ratings or past results. Verified customer quotes stay in the protected social_proof block. Empty store targets open the shared early-access form; configured store URLs retain their destination."],
+            "purpose": "Gradients, motifs, carousel, comparison, steps, values, feedback examples, store buttons and footer.",
+            "dependencies": ["Use listed gradient presets and per-item enabled toggles. Unsupported copy stays blank for owner completion.", "walkthrough_visual contains complete phones; app_screen slots contain interiors. Match actions to the slot's visual_direction; depicted edits require image actions.", "Preserve feedback structure, verified proof and URLs. Feedback examples describe hypothetical wants without identities, ratings or past results. Empty store URLs open early access."],
         }}
     if declarations is None:
         raise ValueError(f"Studio Agent surface contract is unavailable: {surface}")
@@ -485,6 +491,13 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
             "id": identifier, "name": _BACKGROUND_NAMES[identifier],
         } for identifier in PHONE_HERO_BACKGROUND_DIRECTIVES],
     })
+    if surface.startswith("landing:"):
+        # The skill supplies the shared instructions. Keep the complete live
+        # component semantics and values, without repeating that guidance.
+        result.pop("instructions")
+        result.pop("immutable_boundaries")
+        result["image_style_options"] = [item["id"] for item in _STYLE_OPTIONS]
+        result["background_treatments"] = list(PHONE_HERO_BACKGROUND_DIRECTIVES)
     if catalog.get("schema") == "ptw.studio.authored-post-catalog.v1":
         result["text_fields"] = deepcopy(catalog["text_fields"])
         result["typography"] = deepcopy(catalog["typography"])
@@ -745,6 +758,47 @@ def manual_agent_editable_values(
 _PATH_PART = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
 
 
+def manual_agent_value_tree(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Transmit every allowed leaf without repeating its parent path."""
+
+    root: dict[str, Any] = {}
+    for path, value in values.items():
+        parts = [int(index) if index else key for key, index in _PATH_PART.findall(path)]
+        target: Any = root
+        for position, part in enumerate(parts[:-1]):
+            container = [] if isinstance(parts[position + 1], int) else {}
+            if isinstance(target, list):
+                while len(target) <= part:
+                    target.append({})
+                if not target[part]:
+                    target[part] = container
+            else:
+                target.setdefault(part, container)
+            target = target[part]
+        if isinstance(target, list):
+            while len(target) <= parts[-1]:
+                target.append({})
+        target[parts[-1]] = deepcopy(value)
+    return root
+
+
+def manual_agent_brief_context(
+    brief: Mapping[str, Any], *, brief_id: str, project_id: str,
+) -> dict[str, Any]:
+    """Pin the editor's approved source document, excluding graph/audit data."""
+
+    document = brief.get("document")
+    if not brief.get("approved") or not isinstance(document, Mapping) or not document:
+        raise ValueError("Studio Agent requires its approved source Product Brief")
+    if brief.get("brief_id", brief_id) != brief_id or brief.get("project_id", project_id) != project_id:
+        raise ValueError("Studio Agent source Product Brief does not match this draft")
+    document = deepcopy(dict(document))
+    digest = hashlib.sha256(json.dumps(
+        document, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    return {"brief_id": brief_id, "document_sha256": digest, "document": document}
+
+
 def _assign_path(root: dict[str, Any], path: str, value: Any) -> None:
     parts: list[str | int] = [
         int(index) if index else key
@@ -838,6 +892,7 @@ def manual_agent_payload(
     content: Mapping[str, Any], catalog: Mapping[str, Any],
     screenshot_artifact_values: list[dict[str, str]], image_slots: list[str],
     current_images: list[str], creative_direction: Mapping[str, Any] | None = None,
+    approved_product_brief: Mapping[str, Any],
 ) -> dict[str, Any]:
     request_constraints = manual_agent_request_constraints(
         surface=surface, message=message, image_slots=image_slots,
@@ -851,7 +906,8 @@ def manual_agent_payload(
         "entity_id": entity_id,
         "owner_message": message,
         "recent_conversation": deepcopy(history),
-        "current_editable_values": editable_values,
+        "approved_product_brief": deepcopy(dict(approved_product_brief)),
+        "current_editable_values": manual_agent_value_tree(editable_values),
         "agent_control_contract": agent_control_contract(surface, catalog),
         "request_constraints": request_constraints,
         "image_tools": {

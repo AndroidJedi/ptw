@@ -15,6 +15,7 @@ from validation_pipeline.template_previews import render_designs
 from validation_pipeline.template_store import TemplateStore
 from validation_pipeline.studio_workspace import PostStudioWorkspace
 from validation_pipeline.provider import enforce_structured_contract_budget
+from validation_pipeline.studio_manual_agent import StudioManualAgentProviderError
 
 
 class PostTemplateSwitchTests(unittest.TestCase):
@@ -113,8 +114,9 @@ class PostTemplateSwitchTests(unittest.TestCase):
                             ('configuration.template_typography.title.font_family', 'Invented font')]:
             with self.subTest(path=path, value=value):
                 self.fixture.provider.manual_edits = [{'path': path, 'value': value}]
-                with self.assertRaises(ValueError):
+                with self.assertRaises(StudioManualAgentProviderError) as caught:
                     self.agent(changed)
+                self.assertIsInstance(caught.exception.__cause__, ValueError)
                 self.assertEqual(changed['state_sha256'], self.workspace.state_sha256())
         before_calls = len(self.fixture.provider.calls)
         stale = {**changed, 'state_sha256': '0' * 64}

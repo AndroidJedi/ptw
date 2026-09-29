@@ -353,6 +353,35 @@ class StructuredBridgeTests(unittest.TestCase):
             bridge.posts[0]["idempotency_key"], bridge.posts[1]["idempotency_key"],
         )
 
+    def test_manual_agent_correction_preserves_prompt_and_reserved_bytes(self) -> None:
+        bridge = CorrectingFakeBridge()
+        prompt = "S" * 8100
+
+        def validate(response):
+            if response["texture_intensity"] == 0:
+                raise ValueError("Некоректна відповідь. " * 100)
+            return response
+
+        result = bridge.call(
+            mode="studio_manual_edit", system_prompt=prompt,
+            input_payload={"current_editable_values": {"content.hero.title": "Початковий текст"}},
+            output_schema={"type": "object"}, idempotency_key="manual:copy",
+            prompt_version="manual-test", response_validator=validate,
+        )
+        self.assertEqual(2, result["invocation"]["bridge_attempt"])
+        self.assertEqual([prompt, prompt], [post["system_prompt"] for post in bridge.posts])
+        self.assertLess(len(bridge.posts[1]["input_payload"][TEMPLATE_CORRECTION_KEY].encode()), 1024)
+        self.assertNotEqual(bridge.posts[0]["context_hash"], bridge.posts[1]["context_hash"])
+
+    def test_manual_preflight_rejects_missing_correction_room_before_submission(self) -> None:
+        bridge = FakeBridge()
+        with self.assertRaisesRegex(ValueError, "corrective attempt budget"):
+            bridge.call(mode="studio_manual_edit", system_prompt="Short skill",
+                input_payload={"state": "x" * (20 * 1024 - 512)},
+                output_schema={"type": "object"}, idempotency_key="manual:oversized",
+                prompt_version="manual-test", response_validator=lambda value: value)
+        self.assertIsNone(bridge.posted)
+
     def test_template_preflight_reserves_input_room_for_correction(self) -> None:
         budget = STRUCTURED_MODE_BUDGETS["template_creation"]["input_payload"]
         with self.assertRaisesRegex(ValueError, "corrective attempt budget"):

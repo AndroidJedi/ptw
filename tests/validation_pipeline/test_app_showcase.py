@@ -145,7 +145,7 @@ class AppShowcaseTests(unittest.TestCase):
         active.structured_provider = Agent(); detail = active.detail(pid, lid)
         result = active.manual_agent_edit(pid, lid, request_id=str(uuid4()), base_sha256=detail['state_sha256'], message='Change the label on screen two', history=[], screenshots=[], configuration=detail['configuration'], content=detail['content'])
         self.assertEqual(result['image_actions'][0]['slot'], 'app_screen_2')
-        self.assertIn('configuration.presentation.language', active.structured_provider.kwargs['input_payload']['current_editable_values'])
+        self.assertIn('language', active.structured_provider.kwargs['input_payload']['current_editable_values']['configuration']['presentation'])
         self.assertEqual(active.detail(pid, lid)['state_sha256'], detail['state_sha256'])
         self.assertEqual(result['content']['contacts'], detail['content']['contacts'])
 

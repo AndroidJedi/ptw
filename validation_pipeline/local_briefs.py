@@ -9,7 +9,8 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 
-from .domain import ProductBriefV1, infer_language, product_brief_schema
+from .domain import parse_product_brief, infer_language, product_brief_schema
+from .marketing import approach, brief_approach, generation_settings, correction_settings, verified_settings
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import LocalCodexStructuredProvider, sanitized
 from .service import load_product_brief_skill, product_brief_system_prompt
@@ -227,7 +228,7 @@ class LocalBriefService:
 
     def create_brief(
         self, *, project_id: str, request_id: str, raw_idea: str, required_language: str,
-        requested_by: str,
+        requested_by: str, marketing_approach: str = "benefit_led",
     ) -> tuple[dict[str, Any], dict[str, Any], bool]:
         project_id = _uuid(project_id, "project_id")
         request_id = _uuid(request_id, "request_id")
@@ -235,9 +236,11 @@ class LocalBriefService:
         if required_language not in {"uk", "en"}:
             raise ValueError("required_language must be uk or en")
         project = self.store.get("projects", project_id)
+        marketing_approach = approach(marketing_approach)
         fingerprint = {
             "project_id": project_id, "request_id": request_id, "raw_idea": raw_idea,
             "required_language": required_language,
+            **({"marketing_approach": marketing_approach} if marketing_approach != "benefit_led" else {}),
         }
         existing_brief_id = self.store.lookup_request(
             scope="brief-create", request_id=request_id, fingerprint=fingerprint,
@@ -249,6 +252,7 @@ class LocalBriefService:
             for item in self.store.list("briefs")
         ):
             raise ValueError("Project already has its first Product Brief")
+        settings = generation_settings(marketing_approach)
         brief_id, created = self.store.reserve_request(
             scope="brief-create", request_id=request_id,
             fingerprint=fingerprint,
@@ -269,6 +273,7 @@ class LocalBriefService:
             "owner_idea_source_id": source_id, "raw_idea": raw_idea,
             "base_brief_id": None, "feedback_id": None,
             "required_language": required_language, "status": "queued",
+            "generation_settings": settings,
             "document": None, "document_sha256": None, "failure_count": 0,
             "approved": False, "created_at": now, "updated_at": now,
         }
@@ -286,6 +291,7 @@ class LocalBriefService:
         brief = self.store.get("briefs", _uuid(brief_id, "brief_id"))
         if brief["status"] not in {"queued", "failed"}:
             return brief
+        settings = verified_settings(brief.get("generation_settings"))
         generating = {
             **brief, "status": "generating", "error_code": None,
             "error_message": None, "updated_at": utc_now(),
@@ -309,22 +315,23 @@ class LocalBriefService:
             "brief_id": brief_id, "raw_idea": brief["raw_idea"],
             "required_language": required_language, "base_brief": base,
             "owner_correction": correction,
+            **({"marketing_approach": settings["marketing_approach"], "policy_sha256": settings["policy_sha256"]} if settings else {}),
         }
         try:
             result = self._provider_call(
                 target_id=brief_id, mode=mode,
-                system_prompt=product_brief_system_prompt(self.product_context, required_language),
-                input_payload=payload, output_schema=product_brief_schema(required_language),
+                system_prompt=product_brief_system_prompt(self.product_context, required_language, settings),
+                input_payload=payload, output_schema=product_brief_schema(required_language, generation_settings=settings),
                 idempotency_key=f"{brief_id}:{mode}",
                 prompt_version=f"local-product-brief-v2:{mode}",
-                response_validator=lambda value: ProductBriefV1.from_dict(
+                response_validator=lambda value: parse_product_brief(
                     value, raw_idea=brief["raw_idea"],
-                    required_language=required_language,
+                    required_language=required_language, generation_settings=settings,
                 ).to_dict(),
             )
-            document = ProductBriefV1.from_dict(
+            document = parse_product_brief(
                 result["response"], raw_idea=brief["raw_idea"],
-                required_language=required_language,
+                required_language=required_language, generation_settings=settings,
             )
             completed = {
                 **generating, "status": "completed", "document": document.to_dict(),
@@ -368,16 +375,23 @@ class LocalBriefService:
 
     def correct_brief(
         self, brief_id: str, *, request_id: str, instruction: str,
-        requested_by: str,
+        requested_by: str, marketing_approach: str | None = None,
     ) -> tuple[dict[str, Any], bool]:
         base = self.get_brief(brief_id)
         if base["status"] != "completed":
             raise ValueError("only a completed Product Brief can be corrected")
         request_id = _uuid(request_id, "request_id")
         instruction = _compact(instruction, "instruction", 1, 2000)
+        selected = brief_approach(base) if marketing_approach is None else approach(marketing_approach)
+        fingerprint = {"base_brief_id": brief_id, "instruction": instruction,
+                       **({"marketing_approach": selected} if selected != brief_approach(base) else {})}
+        existing = self.store.lookup_request(scope="brief-correction", request_id=request_id, fingerprint=fingerprint)
+        if existing is not None:
+            return self.get_brief(existing), False
+        settings = correction_settings(base, marketing_approach)
         replacement_id, created = self.store.reserve_request(
             scope="brief-correction", request_id=request_id,
-            fingerprint={"base_brief_id": brief_id, "instruction": instruction},
+            fingerprint=fingerprint,
         )
         if not created:
             return self.get_brief(replacement_id), False
@@ -398,12 +412,13 @@ class LocalBriefService:
         excluded = {
             "product", "target_audience", "main_pain", "promise", "key_benefits",
             "cta", "trust_strategy", "offer", "document", "document_sha256",
-            "quality_gates", "provider_invocation_id", "project_name",
+            "quality_gates", "provider_invocation_id", "project_name", "positioning", "schema_version", "generation_settings",
         }
         replacement = {
             **{key: value for key, value in base.items() if key not in excluded},
             "brief_id": replacement_id, "request_id": request_id,
             "base_brief_id": brief_id, "feedback_id": feedback_id,
+            "generation_settings": settings,
             "status": "queued", "document": None, "document_sha256": None,
             "failure_count": 0, "approved": False,
             "created_at": utc_now(), "updated_at": utc_now(),

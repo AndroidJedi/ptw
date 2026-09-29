@@ -10,11 +10,13 @@ Create the smallest useful positioning hypothesis from one owner idea.
 ## Required references
 
 Read `references/output-contract.md` and `references/owner-lessons.md` before
-generating or correcting a Brief.
+generating or correcting a Brief. For V2 use the server-selected immutable policy
+from `references/marketing-approaches.md`; only that approach applies.
 
 ## Method
 
-1. Treat the raw idea as the only business input.
+1. Treat the raw idea as the only business-fact input. Marketing approach is
+   owner-selected guidance, not evidence. Apply the supplied policy snapshot.
 2. Use the server-supplied `required_language`, chosen by the owner when the
    Project is created. It is authoritative even when the raw idea is written in
    another language. The server constrains the output schema to that exact
@@ -58,7 +60,10 @@ generating or correcting a Brief.
   competitor, keyword, trend, or analytics providers.
 - Do not cite model knowledge as evidence or manufacture proof.
 - Do not generate Result candidates or channel content.
-- Do not add fields outside the v1 contract.
+- Follow the supplied versioned contract: V2 adds bounded positioning; historical
+  V1 reservations have no positioning. Never upgrade a reservation on retry.
+- An approach switch applies to this Brief only. Preserve feedback and weight
+  lineage without promoting that selection to a global lesson.
 
 ## Verification
 

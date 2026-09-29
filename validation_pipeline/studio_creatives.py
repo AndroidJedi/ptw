@@ -1036,7 +1036,9 @@ class StudioCreativeService:
 
     def summary(self, creative_id: str) -> dict[str, Any]:
         value = self.authority.get_creative(creative_id)
-        return {key: deepcopy(item) for key, item in value.items() if key != "learning_baseline"}
+        from .marketing import brief_approach
+        return {**{key: deepcopy(item) for key, item in value.items() if key != "learning_baseline"},
+                "marketing_approach": brief_approach(self.authority.brief(value["source_brief_id"]))}
 
     def detail(self, project_id: str, creative_id: str) -> dict[str, Any]:
         creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))

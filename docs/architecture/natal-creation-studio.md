@@ -110,3 +110,20 @@ with scripted inference. `scripts/creation_browser_canary.py` drives the same
 HTTP/storage/renderer implementation for desktop, 360px and iPhone WebKit tests
 in `e2e/creation-studio.spec.ts`. Keep scripted and real-provider evidence distinct.
 Exercise migration 019 only against disposable databases during development.
+
+## Marketing approach
+
+Idea-based creation exposes Benefit-led (default) and Identity-led before Brief,
+Post, Landing or package generation. Reusable-template-only creation rejects
+this option. The canonical Brief owns V2 positioning; both Brief views display
+its short summary and both content bindings consume it. Export JSON includes
+the selected approach and exact Brief document/digest.
+
+Changing approach through a Brief/package edit creates an immutable replacement,
+retains the selected template and prior output, and regenerates dependent copy
+and artwork. Post/Landing-only edits cannot change the approach. These remain
+unapproved concept drafts. Restart and request retries preserve the selection;
+this owner preference never becomes automatic performance learning.
+
+The [private paired trial](marketing-approaches-trial.md) records actual Brief,
+copy and artwork results separately from scripted browser and provider checks.

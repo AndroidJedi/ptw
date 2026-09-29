@@ -5,8 +5,7 @@ description: Populate one selected bounded private PTW Landing template from an 
 
 # Landing page composer
 
-- The approved Product Brief is the marketing-claim authority. Apply supplied
-  typed snapshots in this order: fixed catalog, brand and Brief constraints;
+- The approved Brief owns claims and V2 positioning; develop its hook with practical benefits. Apply snapshots in this order: fixed catalog, brand and Brief constraints;
   explicit owner direction; active Project rules; active global spirit; defaults.
   Ignore inactive/tombstoned rules. Use only supplied catalog settings.
 - The approved Post is frozen provenance. The server preserves mapped design;

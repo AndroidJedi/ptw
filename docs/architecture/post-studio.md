@@ -263,3 +263,10 @@ PNG output. Canonical command:
 ```sh
 .venv/bin/python skills/studio-ui-visual-audit/scripts/audit_post_studio.py
 ```
+
+## Inherited marketing approach
+
+The editor displays the exact source Brief's Benefit-led or Identity-led approach.
+V2 positioning is included in composition, Manual Agent and image context within
+existing prompt budgets. Newer Briefs never replace an existing artifact's source.
+To change approach, create a Brief replacement; keep approved versions immutable.

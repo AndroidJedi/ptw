@@ -1,3 +1,4 @@
+import { MarketingApproachBadge } from '../components/MarketingApproach'
 import { ImagePlus, Plus, RefreshCcw, Sparkles, WandSparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
@@ -161,6 +162,7 @@ export function StudioView({
 
   const creativePicker = creatives && creatives.length > 0 && <section className="post-contextbar" aria-label={tr('Project creatives', 'Креативи проєкту')}>
     <label>{tr('Post', 'Допис')} <select aria-label={tr('Select Post', 'Обрати допис')} value={detail?.creative_id || creativeId || ''} onChange={event => onCreative(event.target.value)}>{creatives.map(item => <option key={item.creative_id} value={item.creative_id}>#{item.ordinal} · {item.status === 'draft' ? tr('Draft', 'Чернетка') : item.status}</option>)}</select></label>
+    {detail && <MarketingApproachBadge value={detail.marketing_approach} language={language} />}
     {detail?.source_brief_id && detail.approved_version_count > 0 && <details className="post-more"><summary>{tr('More actions', 'Інші дії')}</summary><button className="secondary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></details>}
     {tuneMode && <button className="ghost studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
   </section>

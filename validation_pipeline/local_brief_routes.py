@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.params import Depends as DependsParameter
 
 from .local_briefs import LocalBriefService
+from .service import validate_create_input, validate_revision_input
 
 
 def local_brief_router(
@@ -70,13 +71,9 @@ def local_brief_router(
     def create_brief(
         project_id: str, request: Mapping[str, Any], background: BackgroundTasks,
     ) -> dict[str, Any]:
-        if set(request) != {"request_id", "raw_idea", "language"}:
-            raise HTTPException(status_code=400, detail="Product Brief request fields do not match v1")
         try:
             project, brief, created = service.create_brief(
-                project_id=project_id, request_id=str(request["request_id"]),
-                raw_idea=str(request["raw_idea"]),
-                required_language=str(request["language"]), requested_by="loopback:owner",
+                project_id=project_id, **validate_create_input(request), requested_by="loopback:owner",
             )
             if created:
                 background.add_task(service.generate_brief, brief["brief_id"])
@@ -105,12 +102,9 @@ def local_brief_router(
     def correct_brief(
         brief_id: str, request: Mapping[str, Any], background: BackgroundTasks,
     ) -> dict[str, Any]:
-        if set(request) != {"request_id", "instruction"}:
-            raise HTTPException(status_code=400, detail="Product Brief correction fields do not match v1")
         try:
             replacement, created = service.correct_brief(
-                brief_id, request_id=str(request["request_id"]),
-                instruction=str(request["instruction"]), requested_by="loopback:owner",
+                brief_id, **validate_revision_input(request), requested_by="loopback:owner",
             )
             if created:
                 background.add_task(service.generate_brief, replacement["brief_id"])

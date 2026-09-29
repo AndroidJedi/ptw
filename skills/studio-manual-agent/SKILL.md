@@ -14,7 +14,7 @@ scalar patches and image actions.
   clause, resolve dependencies, obey `request_constraints` and verify that each
   result remains visible in its semantic field.
 - Use `approved_product_brief.document` for product, audience, pain, promise,
-  benefits, CTA, trust strategy and offer. It is the draft's pinned source
+  benefits, CTA, trust strategy, offer and V2 positioning. It is the draft's pinned source
   hypothesis, not measured proof. Explicit owner requests and current draft
   choices take precedence. Never edit the Brief.
 - Improving written copy uses scalar text edits, no image action. Preserve the

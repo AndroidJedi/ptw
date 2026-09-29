@@ -173,11 +173,58 @@ class ProductBriefV1:
         return dict(self.value)
 
 
-def product_brief_schema(required_language: str | None = None) -> dict[str, Any]:
+POSITIONING_FIELDS = ("desired_identity", "customer_tension", "category_frame", "functional_value")
+
+
+@dataclass(frozen=True, slots=True)
+class ProductBriefV2(ProductBriefV1):
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any], *, raw_idea: str,
+                  required_language: str | None = None, marketing_approach: str | None = None) -> "ProductBriefV2":
+        from .marketing import approach
+
+        _exact(value, {"schema_version", "language", *BRIEF_FIELDS, "positioning"}, "product_brief")
+        if value.get("schema_version") != 2:
+            raise ValueError("Product Brief version must be 2")
+        base = ProductBriefV1.from_dict(
+            {**{k: v for k, v in value.items() if k != "positioning"}, "schema_version": 1},
+            raw_idea=raw_idea, required_language=required_language,
+        )
+        positioning = value["positioning"]
+        if not isinstance(positioning, Mapping):
+            raise ValueError("positioning must be an object")
+        _exact(positioning, {"marketing_approach", *POSITIONING_FIELDS}, "positioning")
+        selected = approach(positioning["marketing_approach"])
+        if marketing_approach is not None and selected != approach(marketing_approach):
+            raise ValueError("positioning marketing approach differs from the owner's selection")
+        normalized = {"marketing_approach": selected}
+        for field in POSITIONING_FIELDS:
+            item = positioning[field]
+            if not isinstance(item, str):
+                raise ValueError(f"positioning.{field} must be text")
+            normalized[field] = "" if field == "desired_identity" and not item.strip() else _text(item, field, 200)
+            if normalized[field]:
+                _require_brief_field_language(base.value["language"], normalized[field], field)
+        if len(_canonical(normalized)[0].encode("utf-8")) > 1024:
+            raise ValueError("positioning exceeds 1024 UTF-8 bytes; shorten its sentences")
+        document = {**base.to_dict(), "schema_version": 2, "positioning": normalized}
+        return cls(document, _canonical(document)[1], {**base.quality_gates, "positioning_bounded": True})
+
+
+def parse_product_brief(value: Mapping[str, Any], *, raw_idea: str,
+                        required_language: str | None = None,
+                        generation_settings: Mapping[str, Any] | None = None) -> ProductBriefV1:
+    if generation_settings is None:
+        return ProductBriefV1.from_dict(value, raw_idea=raw_idea, required_language=required_language)
+    return ProductBriefV2.from_dict(value, raw_idea=raw_idea, required_language=required_language,
+                                   marketing_approach=generation_settings["marketing_approach"])
+
+
+def product_brief_schema(required_language: str | None = None, *, generation_settings: Mapping[str, Any] | None = None) -> dict[str, Any]:
     if required_language not in {None, "uk", "en"}:
         raise ValueError("Product Brief schema language must be uk or en")
     copy = {"type": "string", "minLength": 1, "maxLength": 500}
-    return {
+    schema = {
         "type": "object",
         "properties": {
             "schema_version": {"type": "integer", "const": 1},
@@ -198,3 +245,14 @@ def product_brief_schema(required_language: str | None = None) -> dict[str, Any]
         "required": ["schema_version", "language", *BRIEF_FIELDS],
         "additionalProperties": False,
     }
+    if generation_settings is not None:
+        schema["properties"]["schema_version"]["const"] = 2
+        schema["properties"]["positioning"] = {
+            "type": "object", "additionalProperties": False,
+            "properties": {"marketing_approach": {"type": "string", "const": generation_settings["marketing_approach"]},
+                           **{field: {"type": "string", "minLength": 0 if field == "desired_identity" else 1, "maxLength": 200} for field in POSITIONING_FIELDS}},
+            "required": ["marketing_approach", *POSITIONING_FIELDS],
+            "description": "Complete object must fit 1024 UTF-8 bytes. Use short sentences.",
+        }
+        schema["required"].append("positioning")
+    return schema

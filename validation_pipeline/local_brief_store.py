@@ -75,7 +75,10 @@ class LocalBriefStore:
             paths = sorted(directory.glob("*.json")) if directory.exists() else []
             previous_sha256 = None
             if paths:
-                previous_sha256 = self._read_envelope(paths[-1])["record_sha256"]
+                previous = self._read_envelope(paths[-1])
+                previous_sha256 = previous["record_sha256"]
+                if kind == "briefs" and previous["payload"].get("generation_settings") != payload.get("generation_settings"):
+                    raise ValueError("immutable Brief generation settings cannot change")
             body = {
                 "schema": "ptw.local-append-record.v1",
                 "kind": kind,

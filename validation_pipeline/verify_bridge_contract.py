@@ -9,7 +9,8 @@ import tempfile
 from uuid import uuid4
 
 from .config import Settings
-from .domain import ProductBriefV1, product_brief_schema
+from .domain import parse_product_brief, product_brief_schema
+from .marketing import generation_settings
 from .landing_pages import (
     LANDING_COMPOSER_PROMPT_VERSION, landing_composition_payload,
     landing_generation_schema, validate_landing_composition,
@@ -82,27 +83,34 @@ def main() -> None:
         })
 
     for mode in ("product_brief", "product_brief_revision"):
+        brief_settings = generation_settings(
+            "benefit_led" if base_document is None else "identity_led",
+            reference=settings.product_brief_skill_path.parent / "references/marketing-approaches.md",
+        )
         value = provider.call(
             mode=mode,
-            system_prompt=product_brief_system_prompt(skill_snapshot, required_language),
+            system_prompt=product_brief_system_prompt(skill_snapshot, required_language, brief_settings),
             input_payload={
                 "brief_id": marker, "raw_idea": raw_idea,
                 "required_language": required_language, "base_brief": base_document,
+                "marketing_approach": brief_settings["marketing_approach"],
+                "policy_sha256": brief_settings["policy_sha256"],
                 "owner_correction": (
                     None if base_document is None
                     else {"section_id": "product_brief", "instruction": "Make the promise more concrete."}
                 ),
             },
-            output_schema=product_brief_schema(required_language),
-            prompt_version="ptw_brief_bridge_canary_v1",
+            output_schema=product_brief_schema(required_language, generation_settings=brief_settings),
+            prompt_version="ptw_brief_bridge_canary_v2",
             idempotency_key=f"canary:{marker}:{mode}",
-            response_validator=lambda response: ProductBriefV1.from_dict(
+            response_validator=lambda response: parse_product_brief(
                 response, raw_idea=raw_idea, required_language=required_language,
+                generation_settings=brief_settings,
             ).to_dict(),
         )
-        document = ProductBriefV1.from_dict(
+        document = parse_product_brief(
             value["response"], raw_idea=raw_idea,
-            required_language=required_language,
+            required_language=required_language, generation_settings=brief_settings,
         )
         base_document = document.to_dict()
         accept(value, mode)

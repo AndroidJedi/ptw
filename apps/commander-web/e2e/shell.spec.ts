@@ -519,3 +519,50 @@ test('deletes a Project only after exact name confirmation', async ({ page }) =>
   await expect(page.getByLabel('Existing Project')).toHaveCount(0)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
+
+test('Project marketing choice creates a visible hypothesis and immutable replacement', async ({ page }, info) => {
+  await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  const values: typeof brief[] = []
+  const createDocument = (approach: string) => ({ ...briefDocument, schema_version: 2, positioning: {
+    marketing_approach: approach, desired_identity: 'Ready to take a considered first step',
+    customer_tension: 'Want guidance without a large commitment', category_frame: 'A guided first conversation',
+    functional_value: 'Clear booking and real consultant profiles',
+  } })
+  await page.route('**/api/v1/briefs**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/briefs') return route.fulfill({ json: { items: values } })
+    const current = values.find(item => url.pathname.includes(item.brief_id))
+    if (url.pathname.endsWith('/correct')) {
+      const body = route.request().postDataJSON()
+      expect(body.marketing_approach).toBe('benefit_led')
+      expect(body.instruction).toBeTruthy()
+      const replacement = { ...brief, brief_id: '018f07ea-7f20-7000-8000-000000000099', approved: false, document: createDocument(body.marketing_approach) }
+      values.unshift(replacement)
+      return route.fulfill({ status: 202, json: { brief: replacement, created: true } })
+    }
+    return route.fulfill({ json: current })
+  })
+  await page.route(`**/api/v1/projects/${projectId}/briefs`, async route => {
+    const body = route.request().postDataJSON()
+    expect(body.marketing_approach).toBe('identity_led')
+    const created = { ...brief, approved: false, document: createDocument(body.marketing_approach) }
+    values.unshift(created)
+    return route.fulfill({ status: 202, json: { project, brief: created, created: true } })
+  })
+  await page.goto(`/?e2e=1&project=${projectId}`)
+  await expect(page.getByLabel('Marketing approach', { exact: true })).toHaveValue('benefit_led')
+  await page.getByLabel('Marketing approach', { exact: true }).selectOption('identity_led')
+  await page.getByPlaceholder('Describe one product idea…').fill('A guided first conversation')
+  await page.getByRole('button', { name: 'Generate first Product Brief', exact: true }).click()
+  await expect(page.locator('.marketing-approach-badge')).toContainText('Identity-led')
+  await expect(page.getByRole('region', { name: 'Positioning', exact: true })).toContainText('Clear booking')
+  await page.getByLabel('Marketing approach for replacement', { exact: true }).selectOption('benefit_led')
+  await page.getByRole('button', { name: 'Create replacement', exact: true }).click()
+  await expect(page.locator('.marketing-approach-badge')).toContainText('Benefit-led')
+  expect(values).toHaveLength(2)
+  expect(values[1].document).toEqual(createDocument('identity_led'))
+  await page.reload()
+  await expect(page.locator('.marketing-approach-badge')).toContainText('Benefit-led')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await page.screenshot({ path: info.outputPath('marketing-approach-project.png'), fullPage: true })
+})

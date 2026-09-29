@@ -213,8 +213,18 @@ export interface ValidationProject {
   updated_at: string
 }
 
+export type MarketingApproach = 'benefit_led' | 'identity_led'
+export interface BriefPositioning {
+  marketing_approach: MarketingApproach
+  desired_identity: string
+  customer_tension: string
+  category_frame: string
+  functional_value: string
+}
+
 export interface ProductBriefDocument {
-  schema_version: 1
+  schema_version: 1 | 2
+  positioning?: BriefPositioning
   language: 'uk' | 'en'
   product: string
   target_audience: string
@@ -426,6 +436,7 @@ export interface ImageInstructionContext {
 }
 
 export interface StudioCreativeSummary {
+  marketing_approach?: MarketingApproach
   creative_id: string
   project_id: string
   source_brief_id: string
@@ -470,6 +481,7 @@ export interface StudioCheckpointResponse<T> {
 }
 
 export interface StudioPhoneMetricsDetail {
+  marketing_approach?: MarketingApproach
   template_reference?: { surface: 'post'; template_id: string; template_version: number; template_sha256: string }
   template_name?: string
   editor_key?: string
@@ -722,6 +734,7 @@ export interface LandingSummary {
 }
 
 export interface LandingDetail extends LandingSummary {
+  marketing_approach?: MarketingApproach
   schema: 'ptw.landing.workspace.v1'
   template_id: 'project_landing' | 'app_showcase'
   catalog: { marketing_defaults?: LandingMarketingConfiguration; gradient_presets?: LandingGradient[]; section_order: string[]; font_families: StudioFontFamily[]; theme_presets?: LandingThemePreset[] }

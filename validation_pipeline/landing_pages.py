@@ -930,7 +930,9 @@ class LandingService:
         return self.summary(page["landing_id"]), created
 
     def summary(self, landing_id: str) -> dict[str, Any]:
-        return deepcopy(self.authority.get_page(landing_id))
+        from .marketing import brief_approach
+        value = deepcopy(self.authority.get_page(landing_id))
+        return {**value, "marketing_approach": brief_approach(self.authority.brief(value["source_brief_id"]))}
 
     def list_pages(self, project_id: str) -> dict[str, Any]:
         return {"items": [self.summary(item["landing_id"]) for item in self.authority.list_pages(project_id)], "next_cursor": None}

@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from .domain import ProductBriefV1, infer_language, product_brief_schema
+from .domain import parse_product_brief, infer_language, product_brief_schema
+from .marketing import approach, verified_settings
 from .provider import StructuredBridge
 from .repository import ValidationRepository
 
@@ -17,6 +18,8 @@ def load_product_brief_skill(path: Path) -> str:
     references = path.parent / "references"
     if references.is_dir():
         for item in sorted(references.glob("*.md")):
+            if item.name == "marketing-approaches.md":
+                continue  # The selected immutable policy is supplied by the reservation.
             parts.append(f"\nREFERENCE {item.name}:\n{item.read_text(encoding='utf-8')}")
     content = "\n".join(parts)
     if len(content) > 40_000:
@@ -24,16 +27,19 @@ def load_product_brief_skill(path: Path) -> str:
     return content
 
 
-def product_brief_system_prompt(skill_snapshot: str, required_language: str) -> str:
+def product_brief_system_prompt(skill_snapshot: str, required_language: str, settings: Mapping[str, Any] | None = None) -> str:
     return (
         "Use the canonical Product Brief Generator skill below. Return one strict "
-        "ProductBriefV1 object. The raw idea is the only business input. Choose one "
+        f"ProductBriefV{2 if settings else 1} object matching the supplied schema. "
+        "The raw idea is the only business-fact input. The selected marketing policy "
+        "is an owner preference, not evidence. Choose one "
         "hypothesis, include one honest low-friction offer, and never invent research, "
         "testimonials, ratings, results, or proof. The owner selected "
         f"required_language={required_language} when creating the Project; the language "
         "field and every "
-        "output string must use exactly that language. A correction returns a complete "
+        "human-facing copy string must use exactly that language. A correction returns a complete "
         "immutable replacement.\n\nCANONICAL_SKILL:\n" + skill_snapshot
+        + ("\n\nSELECTED_MARKETING_POLICY:\n" + settings["policy_text"] if settings else "\nThis historical reservation requires V1 without positioning.")
     )
 
 
@@ -81,12 +87,14 @@ class ValidationRunner:
                 or (brief.get("document") or {}).get("language")
                 or infer_language(source["content"])
             )
+            settings = verified_settings(brief.get("generation_settings"))
             payload = {
                 "brief_id": brief_id,
                 "raw_idea": source["content"],
                 "required_language": required_language,
                 "base_brief": None if base is None else base["document"],
                 "owner_correction": correction,
+                **({"marketing_approach": settings["marketing_approach"], "policy_sha256": settings["policy_sha256"]} if settings else {}),
             }
             provider_attempt_key = f"{brief_id}:{mode}:attempt-{attempt_number}"
             invocation = self.repository.create_invocation(
@@ -99,24 +107,24 @@ class ValidationRunner:
             provenance: dict[str, Any] = {}
             try:
                 def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
-                    return ProductBriefV1.from_dict(
+                    return parse_product_brief(
                         value, raw_idea=source["content"],
-                        required_language=required_language,
+                        required_language=required_language, generation_settings=settings,
                     ).to_dict()
 
                 result = self.bridge.call(
                     mode=mode,
-                    system_prompt=product_brief_system_prompt(self._skill(), required_language),
+                    system_prompt=product_brief_system_prompt(self._skill(), required_language, settings),
                     input_payload=payload,
-                    output_schema=product_brief_schema(required_language),
+                    output_schema=product_brief_schema(required_language, generation_settings=settings),
                     prompt_version=f"product_brief_v2:{mode}",
                     idempotency_key=provider_attempt_key,
                     response_validator=validate_response,
                 )
                 response = dict(result["response"])
                 provenance = dict(result["invocation"])
-                document = ProductBriefV1.from_dict(
-                    response, raw_idea=source["content"], required_language=required_language,
+                document = parse_product_brief(
+                    response, raw_idea=source["content"], required_language=required_language, generation_settings=settings,
                 )
                 self.repository.complete_invocation(
                     invocation["id"], document.to_dict(), provenance
@@ -139,7 +147,7 @@ class ValidationRunner:
 def validate_create_input(value: Mapping[str, Any]) -> dict[str, str]:
     from uuid import UUID
 
-    if set(value) != {"request_id", "raw_idea", "language"}:
+    if not {"request_id", "raw_idea", "language"} <= set(value) or set(value) - {"request_id", "raw_idea", "language", "marketing_approach"}:
         raise ValueError("Product Brief request fields do not match the v1 contract")
     raw = str(value.get("raw_idea") or "").strip()
     if not 1 <= len(raw) <= 10_000:
@@ -151,6 +159,7 @@ def validate_create_input(value: Mapping[str, Any]) -> dict[str, str]:
         "request_id": str(UUID(str(value["request_id"]))),
         "raw_idea": raw,
         "required_language": language,
+        **({"marketing_approach": approach(value["marketing_approach"])} if "marketing_approach" in value else {}),
     }
 
 
@@ -168,9 +177,10 @@ def validate_project_input(value: Mapping[str, Any]) -> dict[str, str]:
 def validate_revision_input(value: Mapping[str, Any]) -> dict[str, str]:
     from uuid import UUID
 
-    if set(value) != {"request_id", "instruction"}:
+    if not {"request_id", "instruction"} <= set(value) or set(value) - {"request_id", "instruction", "marketing_approach"}:
         raise ValueError("Product Brief correction fields do not match the v1 contract")
     instruction = str(value.get("instruction") or "").strip()
     if not 1 <= len(instruction) <= 2000:
         raise ValueError("instruction must contain 1-2000 characters")
-    return {"request_id": str(UUID(str(value["request_id"]))), "instruction": instruction}
+    return {"request_id": str(UUID(str(value["request_id"]))), "instruction": instruction,
+            **({"marketing_approach": approach(value["marketing_approach"])} if "marketing_approach" in value else {})}

@@ -36,6 +36,22 @@ BRIEF = {
     'offer': 'Перше порівняння трьох марок безкоштовне з поясненням вибору.',
 }
 
+BRIEF.update(schema_version=2, positioning={
+    "marketing_approach": "identity_led", "desired_identity": "Я роблю усвідомлений вибір",
+    "customer_tension": "Хочу зрозуміти етикетку без складної хімії",
+    "category_frame": "Помічник для щоденних покупок",
+    "functional_value": "Порівняння складу води та пояснення показників",
+})
+
+# Exercise the maximum serialized positioning budget, including Unicode bytes.
+for _field in ("desired_identity", "customer_tension", "category_frame", "functional_value"):
+    while len(BRIEF["positioning"][_field]) < 200:
+        trial = deepcopy(BRIEF["positioning"])
+        trial[_field] += "а"
+        if len(json.dumps(trial, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()) > 1024:
+            break
+        BRIEF["positioning"] = trial
+
 
 class CopyBridge(StructuredBridge):
     def __init__(self, path):

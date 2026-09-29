@@ -10,6 +10,7 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 
+from .marketing import approach, brief_approach, generation_settings, correction_settings
 from .domain import infer_language
 
 
@@ -221,7 +222,7 @@ class ValidationRepository:
                          brief.failure_count,brief.error_code,brief.error_message,brief.requested_by,
                          brief.created_at,brief.updated_at,brief.completed_at,
                          EXISTS(SELECT 1 FROM product_brief_approvals approval
-                                 WHERE approval.brief_id=brief.entity_id)
+                                 WHERE approval.brief_id=brief.entity_id),brief.generation_settings
                     FROM product_briefs brief
                     JOIN validation_projects project
                       ON project.entity_id=brief.project_id AND project.deleted_at IS NULL
@@ -242,6 +243,7 @@ class ValidationRepository:
             "updated_at": row[17].isoformat(),
             "completed_at": None if row[18] is None else row[18].isoformat(),
             "approved": bool(row[19]),
+            "generation_settings": None if row[20] is None else dict(row[20]),
             **({} if document is None else document),
         }
 
@@ -285,13 +287,14 @@ class ValidationRepository:
     def create_brief(
         self, *, project_id: str, request_id: str, raw_idea: str,
         required_language: str, requested_by: str,
-        reserve_operation: bool = False,
+        marketing_approach: str = "benefit_led", reserve_operation: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
         project_uuid = UUID(project_id)
         request_uuid = UUID(request_id)
         idea = raw_idea.strip()
+        marketing_approach = approach(marketing_approach)
         if not 1 <= len(idea) <= 10_000:
             raise ValueError("raw idea must contain 1-10000 characters")
         if required_language not in {"uk", "en"}:
@@ -324,7 +327,7 @@ class ValidationRepository:
                     or (value.get("document") or {}).get("language")
                     or infer_language(value["raw_idea"])
                 )
-                if value["raw_idea"] != idea or existing_language != required_language:
+                if value["raw_idea"] != idea or existing_language != required_language or brief_approach(value) != marketing_approach:
                     raise ValueError("request_id was already used with different Product Brief input")
                 if reserve_operation and value["status"] == "queued":
                     self._acquire_operation(connection, "product_brief", value["brief_id"])
@@ -335,6 +338,7 @@ class ValidationRepository:
             ).fetchone()
             if project[0] is not None or root is not None:
                 raise ValueError("Project already has its first Product Brief")
+            settings = generation_settings(marketing_approach)
             source_id, brief_id = (UUID(new_uuid7()) for _ in range(2))
             digest = hashlib.sha256(idea.encode()).hexdigest()
             connection.execute(
@@ -358,13 +362,13 @@ class ValidationRepository:
             )
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'product_brief',%s)",
-                (brief_id, Jsonb({"schema_version": 1})),
+                (brief_id, Jsonb({"schema_version": 2})),
             )
             connection.execute(
                 """INSERT INTO product_briefs(
-                       entity_id,project_id,request_id,owner_idea_source_id,status,requested_by
-                   ) VALUES(%s,%s,%s,%s,'queued',%s)""",
-                (brief_id, project_uuid, request_uuid, source_id, requested_by),
+                       entity_id,project_id,request_id,owner_idea_source_id,status,requested_by,generation_settings
+                   ) VALUES(%s,%s,%s,%s,'queued',%s,%s)""",
+                (brief_id, project_uuid, request_uuid, source_id, requested_by, Jsonb(settings)),
             )
             for source, relation, target, attributes in (
                 (project_uuid, "derived_from", source_id, {"input": "owner_idea"}),
@@ -382,7 +386,7 @@ class ValidationRepository:
 
     def create_revision(
         self, base_brief_id: str, *, request_id: str, instruction: str, requested_by: str,
-        reserve_operation: bool = False,
+        reserve_operation: bool = False, marketing_approach: str | None = None,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
@@ -393,22 +397,26 @@ class ValidationRepository:
         base = self.get_brief(base_brief_id)
         if base["status"] != "completed":
             raise ValueError("only a completed Product Brief can be corrected")
+        selected = brief_approach(base) if marketing_approach is None else approach(marketing_approach)
         with self.connection() as connection:
+            connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"brief-correction:{request_uuid}",))
             existing = connection.execute(
                 self._brief_select() + " WHERE brief.request_id=%s", (request_uuid,)
             ).fetchone()
             if existing is not None:
                 value = self._brief_row(existing)
-                if value["base_brief_id"] != base_brief_id:
+                feedback = connection.execute("SELECT instruction FROM commander_human_feedback WHERE entity_id=%s", (value["feedback_id"],)).fetchone()
+                if value["base_brief_id"] != base_brief_id or brief_approach(value) != selected or not feedback or feedback[0] != correction:
                     raise ValueError("request_id was already used for another Product Brief correction")
                 if reserve_operation and value["status"] == "queued":
                     self._acquire_operation(connection, "product_brief", value["brief_id"])
                 return value, False
+            settings = correction_settings(base, selected)
             feedback_id, weight_id, brief_id = (UUID(new_uuid7()) for _ in range(3))
             for entity_id, kind, attributes in (
                 (feedback_id, "human_feedback", {"domain": "product_brief"}),
                 (weight_id, "weight_update", {"component": "product_brief", "delta": 0}),
-                (brief_id, "product_brief", {"schema_version": 1}),
+                (brief_id, "product_brief", {"schema_version": 2}),
             ):
                 connection.execute(
                     "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,%s,%s)",
@@ -428,11 +436,11 @@ class ValidationRepository:
             connection.execute(
                 """INSERT INTO product_briefs(
                        entity_id,project_id,request_id,owner_idea_source_id,base_brief_id,
-                       feedback_id,status,requested_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,'queued',%s)""",
+                       feedback_id,status,requested_by,generation_settings
+                   ) VALUES(%s,%s,%s,%s,%s,%s,'queued',%s,%s)""",
                 (
                     brief_id, UUID(base["project_id"]), request_uuid,
-                    UUID(base["owner_idea_source_id"]), UUID(base_brief_id), feedback_id, requested_by,
+                    UUID(base["owner_idea_source_id"]), UUID(base_brief_id), feedback_id, requested_by, Jsonb(settings),
                 ),
             )
             for source, relation, target, attributes in (

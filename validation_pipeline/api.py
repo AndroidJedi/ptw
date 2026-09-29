@@ -26,6 +26,7 @@ from .landing_publication import DatabaseLandingPublicationAuthority
 from .landing_publication_routes import (
     landing_publication_owner_router, landing_publication_read_router,
 )
+from .landing_inquiries import LandingInquiries, DatabaseInquiryAudit, inquiry_router
 from .landing_workspace import LandingWorkspace
 from .meta_ads import MetaAdsConfiguration
 from .approved_posts import ApprovedPostSources
@@ -138,6 +139,7 @@ def create_app(
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url
     )
+    inquiries = LandingInquiries(DatabaseInquiryAudit(settings.database_url), landing_publications)
     meta_configuration = MetaAdsConfiguration.from_environment()
     approved_posts = ApprovedPostSources(
         studio_creatives, landing_publications, meta_configuration,
@@ -252,6 +254,8 @@ def create_app(
         landing_publications, prefix="/internal/v1/public/landings",
         dependencies=[Depends(authorize)],
     ))
+    app.include_router(inquiry_router(inquiries, prefix="/internal/v1/public/landings", public=True, dependencies=[Depends(authorize)]))
+    app.include_router(inquiry_router(inquiries, prefix="/internal/v1/landings", public=False, dependencies=project_dependencies))
     app.include_router(instagram_router(
         instagram_service, prefix="/internal/v1/instagram", dependencies=project_dependencies,
     ))

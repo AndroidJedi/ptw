@@ -1,9 +1,11 @@
 # Shared Landing terms and policies
 
-Status: deployed on 2026-09-28; operator details remain visibly unfinalised.
+Status: baseline deployed 2026-09-28. The 2026-09-29 automatic measurement and
+early-access changes are verified locally; the owner has authorised deployment.
+Operator details remain visibly unfinalised.
 
-The shared renderer links every Project Landing and App Showcase footer to
-`/legal/terms`, `/legal/privacy` and `/legal/cookies`, with `?lang=uk|en`.
+The local candidate renderer links every Project Landing and App Showcase footer to
+`/legal/terms` and `/legal/privacy`, with `?lang=uk|en`.
 The public shell serves these exact routes before Project lookup. They do not
 reserve Project slugs, use authenticated APIs, load remote fonts, or emit
 analytics/Meta requests. Unknown nested paths retain the visual 404. Private
@@ -74,36 +76,51 @@ implement the applicable online withdrawal function; an email address buried
 in generic terms is not a substitute. No checkout, account, payment, acceptance
 ledger, refund workflow or online withdrawal function is introduced by this work.
 
-## Consent behaviour
+## Local candidate measurement and early access behavior
 
-The public shell gives separate unchecked choices for first-party Natal
-measurement and Meta advertising. Reject optional and Allow all have equal
-presentation; Save preferences preserves independent choices. Viewing a page or
-following a legal link does not consent. First-party events are now also opt-in:
-reports count consenting visitors and should not be interpreted as all traffic.
-The backend event schema and graph authority are unchanged.
+The 2026-09-29 owner instruction replaces the arrival consent panel with automatic
+cookieless Natal events and Meta PageView. No Cookie policy link or Cookie settings
+button appears in the shared Landing footer. The existing cookie deep link remains
+readable; Privacy contains Measurement settings for independent opt-out. This is
+the requested operating behavior, not a representation that policy edits supply
+consent or satisfy every applicable jurisdiction. The operator profile remains an
+incomplete draft. Applicable prior-consent requirements cannot be removed by notice
+wording (see the ICO storage/access guidance below).
 
-`natal_privacy_preferences_v2` stores the choices, version and timestamp locally
-for at most 180 days of consent validity. Legacy Meta-only consent, malformed,
-future-dated and expired records grant nothing. Storage failures retain the
-current in-memory decision; cross-tab changes and long-lived expiry are handled.
-Cookie settings remains available on every public page and within privacy/cookie
-documents. Withdrawal stops application events, issues Meta consent revocation,
-removes queued PageViews and deletes accessible host/parent-domain `_fbp`/`_fbc`
-cookies. Third-party-domain cookies and already transmitted records cannot be
-erased by this code. Meta automatic configuration is disabled. New vendors or
-purposes require a new consent revision; editing policy copy is not fresh consent.
+`natal_measurement_preferences_v3` stores only choices explicitly saved through
+Privacy; no preference is written merely by viewing a page. Prior explicit v2
+refusals are honoured, including across tabs. Preferences persist until changed
+or browser storage is cleared; blocked storage preserves a changed decision only
+in the mounted tab. Turning off Meta revokes Pixel, removes queued PageViews and
+clears accessible host/parent-domain `_fbp`/`_fbc`. Legal documents, unavailable
+pages and loading states stay untracked. Meta automatic configuration stays off.
 
-These are browser request controls, not proof that Meta's remote processing or
-the operator's entire business complies with every privacy law. Initial and
-withdrawal behaviour is tested with intercepted provider requests, not a live
-advertising account. No production data or publication changes are needed.
+Empty store targets open the shared bilingual early-access dialog. On a marketing
+Landing without either store URL, Telegram, Instagram and Threads icons open the
+same form. A configured store URL continues to open its real destination. The
+form accepts a question, a contact (email or Telegram/Instagram link/nickname), or
+both; it explains the unavailable alpha and the requested reply/launch notice.
+Neither question nor contact enters Natal event payloads or explicit Meta events.
+
+The bounded public POST validates the exact currently published version, origin,
+content type, byte and field limits, honeypot and receipt UUID. Retries reconcile
+that UUID. Correspondence is stored as append-only `landing_inquiry.submitted`
+receipts in the existing PostgreSQL `commander_audit_events` authority, targeting
+the exact Landing version UUID and including Project/publication lineage IDs.
+No schema migration or Product Brief feedback/learning mutation is involved.
+The owner-only Landing Studio inbox exposes the latest 50 receipts with no-store
+responses; no visitor-facing read endpoint exists. A transactional publication
+lock protects against concurrent unpublish/deletion; a 30-per-minute publication
+bound survives process restart. Local development uses append-only inquiry records.
+Notifications are requested and stored, never automatically sent by this feature.
 
 ## Research and limits
 
-Primary sources checked 2026-09-25:
+Baseline primary sources checked 2026-09-25; current ICO storage/access exceptions
+rechecked 2026-09-29:
 
 - [ICO: information to provide](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/the-right-to-be-informed/what-privacy-information-should-we-provide/): identity, purposes, grounds, recipients, retention, transfers and rights. ICO flags ongoing guidance updates following the Data (Use and Access) Act.
+- [ICO: storage/access exceptions](https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-the-use-of-storage-and-access-technologies/what-are-the-exceptions/): statistics exceptions have narrow conditions and do not cover online advertising; notice changes alone do not satisfy prior-consent requirements.
 - [ICO: managing consent](https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-the-use-of-storage-and-access-technologies/how-do-we-manage-consent-in-practice/): meaningful refusal and accessible withdrawal.
 - [European Commission: individual data rights](https://commission.europa.eu/law/law-topic/data-protection/information-individuals_en) and [handling requests](https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/dealing-requests-individuals_en).
 - [Your Europe: unfair terms](https://europa.eu/youreurope/citizens/consumers/unfair-treatment/unfair-contract-terms/index_en.htm) and [shopping rights](https://europa.eu/youreurope/citizens/consumers/shopping/shopping-consumer-rights/index_en.htm).
@@ -117,8 +134,10 @@ Run both web unit suites/builds, public browser tests on 1280/768/360px and
 iPhone WebKit, and affected Owner Landing/Templates browser flows. Verify direct
 links, both languages, visible incomplete-profile status, explicit URL overrides,
 empty-URL defaults with/without the marketing footer, responsive wrapping,
-no optional requests before consent, purpose separation, withdrawal/reload,
-old/invalid/expired consent, blocked storage and cross-tab changes. Keep these
+automatic page measurement without an arrival panel, no form data in events,
+prior refusals, opt-out/reload, blocked storage and cross-tab changes. Verify all
+five early-stage actions, question/contact-only inputs, stable UUID retry, current
+version rejection, private inbox authentication and desktop/mobile/WebKit fit. Keep these
 as browser/UI checks with mocked snapshots/providers, not production end-to-end
 legal or payment verification.
 

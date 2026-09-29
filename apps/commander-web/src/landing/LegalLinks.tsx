@@ -16,7 +16,7 @@ export function LegalLinks({ language = 'uk', privacyUrl, termsUrl, origin, edit
   editing?: boolean; onSelect?: () => void; className?: string
 }) {
   return <nav className={`natal-legal-links ${className}`} aria-label={language === 'uk' ? 'Правові документи' : 'Policies'}>
-    {(['privacy', 'terms', 'cookies'] as const).map(document => <a key={document}
+    {(['privacy', 'terms'] as const).map(document => <a key={document}
       href={(document === 'privacy' ? privacyUrl : document === 'terms' ? termsUrl : '') || legalUrl(document, language, origin)}
       onClick={event => { if (editing) { event.preventDefault(); onSelect?.() } }}
     >{legalLabels[language][document]}</a>)}

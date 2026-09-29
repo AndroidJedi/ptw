@@ -1,0 +1,17 @@
+.natal-early-access { width:min(540px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); padding:0; border:0; border-radius:24px; color:#17263c; background:#fff; box-shadow:0 24px 80px #13243c44; overflow:auto; font:16px/1.5 'Landing Manrope',system-ui,sans-serif; }
+.natal-early-access::backdrop { background:#17263c88; }
+.natal-early-access__body { position:relative; padding:32px; }
+.natal-early-access h2 { margin:0 36px 16px 0; font-size:26px; line-height:1.2; }
+.natal-early-access p { margin:0 0 20px; }
+.natal-early-access form { display:grid; gap:16px; }
+.natal-early-access label { display:grid; gap:6px; }
+.natal-early-access input,.natal-early-access select,.natal-early-access textarea { box-sizing:border-box; width:100%; min-height:44px; padding:10px 12px; border:1px solid #b6c0d0; border-radius:10px; font:inherit; color:inherit; background:#fff; }
+.natal-early-access textarea { resize:vertical; }
+.natal-early-access button { min-height:44px; border:0; border-radius:10px; padding:10px 16px; font:inherit; cursor:pointer; color:#fff; background:#244caf; }
+.natal-early-access button:disabled { opacity:.6; cursor:wait; }
+.natal-early-access .natal-early-access__close { position:absolute; right:16px; top:16px; width:44px; padding:0; color:#17263c; background:transparent; font-size:28px; }
+.natal-early-access .natal-early-access__privacy { margin:0; font-size:13px; }
+.natal-early-access a { color:#244caf; }
+.natal-early-access [role=alert] { margin:0; color:#9c2536; }
+.natal-early-access .natal-early-access__trap { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+@media(max-width:600px) { .natal-early-access__body { padding:24px; }.natal-early-access h2 { font-size:23px; } }

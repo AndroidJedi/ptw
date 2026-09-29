@@ -13,16 +13,18 @@ import './fonts.css'
 import './landing.css'
 import './showcase.css'
 import { LegalLinks } from './LegalLinks'
+import { EarlyAccess, type LandingInquiry } from './EarlyAccess'
 
 export type LandingPageProps = {
   configuration: LandingConfiguration; content: LandingContent; imageUrls: Record<string, string>
   imageVariants?: LandingImageVariants
   legalOrigin?: string
+  onInquirySubmit?: (inquiry: LandingInquiry) => Promise<void>
   showDraftHints?: boolean; editing?: boolean; selected?: Section; onSelect?: (section: Section) => void
   onAnalyticsEvent?: (eventType: 'primary_cta_click' | 'contact_click', surface: 'hero' | 'phone' | 'telegram' | 'instagram' | 'email', target: 'contacts' | 'telegram' | 'instagram' | 'email' | 'phone') => void
 }
 export function LandingPage(props: LandingPageProps) {
-  return props.configuration.showcase ? <AppShowcasePage {...props} /> : <ProjectLandingPage {...props} />
+  return <EarlyAccess language={props.configuration.presentation?.language || 'uk'} legalOrigin={props.legalOrigin} submit={props.onInquirySubmit}>{props.configuration.showcase ? <AppShowcasePage {...props} /> : <ProjectLandingPage {...props} />}</EarlyAccess>
 }
 
 function ProjectLandingPage({ configuration, content, imageUrls, imageVariants, legalOrigin, showDraftHints, editing = false, selected, onSelect, onAnalyticsEvent }: LandingPageProps) {

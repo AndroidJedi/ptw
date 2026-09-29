@@ -6,6 +6,7 @@ import natalLogo from '../../../natal/assets/logo-natal.png'
 import { MetaPixelConsent } from './MetaPixelConsent'
 import { LegalLinks } from '../../commander-web/src/landing/LegalLinks'
 import { LegalPage, legalRoute } from './legal/LegalPage'
+import type { LandingInquiry } from '../../commander-web/src/landing/EarlyAccess'
 import { PrivacyProvider, usePrivacy } from './privacyPreferences'
 
 export type PublicLanding = {
@@ -110,5 +111,21 @@ function PublicPage({ path, apiOrigin }: { path: string; apiOrigin: string }) {
   if (root) return <PublicShell path={path}><main className="natal-public-state natal-public-home"><NatalMark /><h1>Natal</h1><p>Digital products and services by Natal.</p><LegalLinks language="en" origin="" /></main></PublicShell>
   if (!match || failed) return <PublicShell path={path} track={false}><NotFound /></PublicShell>
   if (!snapshot) return <PublicShell path={path} track={false}><main className="natal-public-state" role="status"><NatalMark /><p>Loading Natal page…</p></main></PublicShell>
-  return <PublicShell path={path} language={snapshot.configuration.presentation?.language || 'uk'}><main className="natal-public-landing"><LandingPage legalOrigin="" configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} imageVariants={snapshot.asset_variants} onAnalyticsEvent={emit} /></main></PublicShell>
+  const submitInquiry = async (inquiry: LandingInquiry) => {
+    const controller = new AbortController(), timer = window.setTimeout(() => controller.abort(), 20_000)
+    try {
+      const response = await fetch(`${apiOrigin}/api/v1/public/landings/${match[1]}/inquiries`, {
+        method: 'POST', mode: 'cors', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({ ...inquiry, landing_version_sha256: snapshot.version_sha256 }),
+      })
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}))
+        const code = response.status === 429 ? 'rate_limit' : failure.detail === 'Enter an email or a profile link/nickname for the selected channel' ? 'invalid_contact' : failure.detail === 'The page changed; reload before sending your inquiry' ? 'stale_page' : 'unconfirmed'
+        throw new Error(code)
+      }
+      const receipt = await response.json()
+      if (receipt.accepted !== true || receipt.request_id !== inquiry.request_id) throw new Error('unconfirmed')
+    } finally { window.clearTimeout(timer) }
+  }
+  return <PublicShell path={path} language={snapshot.configuration.presentation?.language || 'uk'}><main className="natal-public-landing"><LandingPage onInquirySubmit={submitInquiry} legalOrigin="" configuration={snapshot.configuration} content={snapshot.content} imageUrls={snapshot.assets} imageVariants={snapshot.asset_variants} onAnalyticsEvent={emit} /></main></PublicShell>
 }

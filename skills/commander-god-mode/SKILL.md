@@ -173,14 +173,18 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Meta Ads API automation and TikTok publishing are preserved but inactive.
   Do not remount their routes, jobs, or UI during ordinary Commander work. Use
   `$legacy-social-automation-recovery` only after an explicit owner request.
-- Public Landing analytics belong to the single `apps/landing-web` shell, not
-  immutable Landing snapshots. A Meta Pixel ID is public configuration; keep
-  tokens out of the browser. Load the external library and emit `PageView` only
-  after explicit visitor consent. First-party audience measurement has a separate
-  opt-in. Keep Cookie settings available, expire/version consent, revoke Pixel
-  consent and clear accessible Pixel cookies on withdrawal. Keep the Firebase CSP
-  allowlist narrow; test zero pre-consent requests, separate purposes, withdrawal,
-  reload, blocked storage and legal deep links on desktop/mobile browsers.
+- Public Landing measurement belongs to the shared `apps/landing-web` shell,
+  never immutable snapshots. Current owner-directed behavior starts cookieless
+  Natal events and Meta PageView automatically without an arrival permission panel
+  or cookie footer links. Keep policy wording truthful, honour existing explicit
+  refusals, and keep separate measurement controls in Privacy. Disable Meta automatic
+  events; inquiry questions/contacts must never enter analytics or Pixel payloads.
+  Empty store targets and early-stage social icons share a keyboard-accessible
+  bilingual inquiry dialog. Preserve request UUIDs after uncertain submission,
+  validate the active published digest, persist private receipts in PostgreSQL's
+  existing audit authority, and provide an owner-only bounded inbox. No outbound
+  notification is implied. Test desktop/mobile/WebKit, rejection/retry, purpose
+  separation, storage failures, privacy controls and legal deep links.
 - Project deletion is a tombstone boundary, not a graph cascade. Require the
   exact current Project name and a stable request UUID, reject active domain or
   provider work, hide the Project from every private scope, and make its public

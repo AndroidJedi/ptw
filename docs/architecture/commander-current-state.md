@@ -12,6 +12,33 @@ Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
 `26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
 public-shell and actual published Landing browser audits passed.
 
+## Water Landing measurement, early access and product proof — verified candidate
+
+The owner authorised commit and deployment after local review. The verified
+candidate starts Natal measurement and Meta PageView without an arrival prompt,
+honours earlier explicit refusals and exposes separate opt-out controls in Privacy.
+Shared footers contain Terms and Privacy; the Cookie document remains directly
+readable. Both language policies describe the actual behavior and remain drafts
+while operator details are incomplete.
+
+App Showcase no longer renders rental reference quotes, portraits or ratings on
+public pages. Verified exact-product proof remains the only public review source;
+the legacy review flag now controls a private editor placeholder without changing
+accepted template identities. Empty store destinations and early-stage social
+icons open one accessible question/contact form. Stable retry UUIDs, the active
+published digest, bounded inputs and a persistent rate bound protect append-only
+inquiry receipts in the existing audit authority. Landing Studio has an owner-only
+latest-50 inbox. No notification sender or schema migration was introduced.
+
+Verified locally: 446 built-image backend tests, 21 Gateway tests, 134 Owner and
+15 public web unit tests, both builds, 81 affected Owner and 60 public browser
+cases, disposable PostgreSQL concurrency/restart checks, 54 Commander checks
+(five isolated receiver skips in the image), demo, skills and whitespace. Frozen
+Water Landing snapshot review passed desktop/360px/iPhone image and dialog fit;
+all POST/provider requests were intercepted. No live publication, domain, data,
+application service or Hosting change was made. Template/composer skills contain
+the reusable proof and early-access rules. Evidence: `.local/water-quality-*`.
+
 ## Owner session recovery and bounded VPS storage — installed
 
 The full 24 GB host caused healthcheck ENOSPC failures across all 12 containers

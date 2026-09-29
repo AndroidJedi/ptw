@@ -548,7 +548,7 @@ test('App Showcase full-screen policy links navigate to the public origin', asyn
   await page.route('https://natal-service.com/legal/**', route => route.fulfill({
     contentType: 'text/html', body: '<!doctype html><html><body><h1>Public policy route fixture</h1></body></html>',
   }))
-  for (const kind of ['privacy', 'terms', 'cookies']) {
+  for (const kind of ['privacy', 'terms']) {
     await setup(page, true)
     await editorSection(page, 'Page design').click()
     await page.getByRole('button', { name: 'Enable showcase sections' }).click()
@@ -558,6 +558,20 @@ test('App Showcase full-screen policy links navigate to the public origin', asyn
     await expect(page).toHaveURL(url)
     await expect(page.getByRole('heading', { name: 'Public policy route fixture' })).toBeVisible()
   }
+})
+
+test('the private Landing inbox shows visitor questions and contact receipts for the selected Project', async ({ page }) => {
+  await setup(page)
+  await page.route(`**/api/v1/landings/projects/${project}/inquiries`, route => route.fulfill({ json: { items: [{ request_id: 'receipt-test', landing_version_id: 'version-test', source: 'google', slug: 'test-page', created_at: '2026-09-29T00:00:00Z', question: 'Could I suggest a data source?', contact: '@alpha_visitor', contact_channel: 'telegram' }] } }))
+  await page.getByLabel('More actions').click()
+  await page.getByRole('button', { name: 'Visitor inquiries', exact: true }).click()
+  const inbox = page.getByRole('dialog', { name: 'Visitor inquiries', exact: true })
+  await expect(inbox.getByText('Could I suggest a data source?')).toBeVisible()
+  await expect(inbox.getByText('@alpha_visitor')).toBeVisible()
+  await expect(inbox.getByRole('link')).toHaveCount(0)
+  await inbox.getByText('Technical details').click()
+  await expect(inbox.getByText(/receipt-test/)).toBeVisible()
+  expect(await inbox.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
 })
 
 for (const showcase of [false, true]) test(`Marketing sections work in ${showcase ? 'App Showcase' : 'original Landing'}`, async ({ page }) => {
@@ -595,12 +609,12 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-section-carousel button')).toHaveCount(0)
     await expect(dialog.locator('.mk-section-carousel .mk-store')).toHaveCount(2)
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
-    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
+    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(0)
     await expect(dialog.locator('.mk-mockup img')).toHaveCount(1)
-    await expect(dialog.locator('.mk-reference-note')).toContainText('Це не відгуки клієнтів Natal.')
+    await expect(dialog.locator('.mk-reference-note')).toHaveCount(0)
     await expect(dialog.locator('.mk-legal')).toContainText('Політика конфіденційності')
     await expect(dialog.locator('.mk-legal')).toContainText('Умови користування')
-    await expect(dialog.locator('.mk-legal a')).toHaveCount(3)
+    await expect(dialog.locator('.mk-legal a')).toHaveCount(2)
     await expect(dialog.locator('.mk-legal a').first()).toHaveAttribute('href', 'https://natal-service.com/privacy')
     await expect(dialog.locator('.mk-legal a').nth(1)).toHaveAttribute('href', 'https://natal-service.com/legal/terms?lang=uk')
     await expect(dialog.locator('.mk-legal .mk-policy-pending')).toHaveCount(0)
@@ -613,5 +627,5 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.getByText('Заповніть вручну в Landing Studio', { exact: false }).first()).toBeVisible()
   }
   await dialog.getByRole('link', { name: 'Google Play · Спробувати Natal' }).first().click()
-  await expect(dialog.locator('.mk-footer')).toBeFocused()
+  await expect(page.getByRole('dialog', { name: 'Готуємо першу версію' })).toBeVisible()
 })

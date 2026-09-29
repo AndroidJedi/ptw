@@ -23,12 +23,9 @@ import requirements from '../../../../validation_pipeline/studio_assets/app-show
 import employment from '../../../../validation_pipeline/studio_assets/app-showcase/employment.svg'
 import support from '../../../../validation_pipeline/studio_assets/app-showcase/support.svg'
 import line from '../../../../validation_pipeline/studio_assets/app-showcase/line-decor.svg'
-import iryna from '../../../../validation_pipeline/studio_assets/landing-display-v1/iryna.webp'
-import mykyta from '../../../../validation_pipeline/studio_assets/landing-display-v1/mykyta.webp'
-import maryna from '../../../../validation_pipeline/studio_assets/landing-display-v1/maryna.webp'
-import star from '../../../../validation_pipeline/studio_assets/app-showcase/star.svg'
 import './marketing.css'
 import { LegalLinks } from './LegalLinks'
+import { useEarlyAccess } from './EarlyAccess'
 
 export function NatalMark({ small = false }: { small?: boolean }) {
   return <span role={small ? undefined : 'img'} aria-label={small ? undefined : 'Natal'} aria-hidden={small || undefined} className={small ? 'mk-symbol' : 'mk-logo'} style={{ maskImage: `url("${small ? symbol : logo}")`, WebkitMaskImage: `url("${small ? symbol : logo}")` }} />
@@ -38,6 +35,7 @@ export function NatalMotifs({ enabled }: { enabled?: boolean }) {
 }
 type Props = LandingPageProps & { part: 'carousel' | 'comparison' | 'walkthrough' | 'benefits' | 'reviews' | 'values' | 'cta' | 'footer'; contactId: string }
 export function StoreButtons({ configuration: c, content: v, editing, onSelect, contactId, onAnalyticsEvent }: Omit<Props, 'part'>) {
+  const earlyAccess = useEarlyAccess()
   const m = c.marketing; const copy = v.marketing || marketingContentDefaults
   if (!m?.downloads_enabled) return null
   const uk = c.presentation?.language !== 'en'
@@ -46,16 +44,12 @@ export function StoreButtons({ configuration: c, content: v, editing, onSelect, 
     if (!url && m.missing_store_target === 'hide') return null
     return <a key={store} className="mk-store" href={url || `#${contactId}`} aria-label={`${store === 'apple' ? 'App Store' : 'Google Play'} · ${copy.store_label || v.hero.cta_label}`} {...(url ? { target: '_blank', rel: 'noopener noreferrer' } : {})} onClick={event => {
       if (editing) { event.preventDefault(); onSelect?.('downloads'); return }
-      if (!url) { event.preventDefault(); document.getElementById(contactId)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); document.getElementById(contactId)?.focus({ preventScroll: true }); onAnalyticsEvent?.('primary_cta_click', 'hero', 'contacts') }
+      if (!url) { event.preventDefault(); earlyAccess(store, event.currentTarget); onAnalyticsEvent?.('primary_cta_click', 'hero', 'contacts') }
     }}><img src={store === 'apple' ? apple : google} alt="" />{copy.store_label || (url ? (uk ? 'Завантажити додаток' : 'Download the app') : v.hero.cta_label)}</a>
   })}</div>
 }
-const references = [
-  { name: 'Ірина, Дніпро', image: iryna, text: 'Спершу сумнівалася, але подруга порадила спробувати. Розмістила квартиру безкоштовно, і вже наступного дня отримала 4 відгуки. Дуже круто, що не треба платити жодної копійки за розміщення.' },
-  { name: 'Микита, Івано-Франківськ', image: mykyta, text: 'Мені сподобалось, що все через телефон - не треба сидіти на дзвінках. Просто завантажив фото квартири, вказав умови й отримав повідомлення. Все просто і прозоро.' },
-  { name: 'Марина, Одеса', image: maryna, text: 'Здаю квартиру в Одесі. Завжди було напружено: агенти, дзвінки, покази. У застосунку сама призначаю зустріч, бачу профіль орендаря, можу відмовити. Це зручно та безпечно.' },
-]
 export function MarketingSections(props: Props) {
+  const earlyAccess = useEarlyAccess()
   const { configuration: c, content: v, imageUrls, editing, showDraftHints, onSelect, selected, part, contactId } = props
   const m = c.marketing, copy = v.marketing || marketingContentDefaults, uk = c.presentation?.language !== 'en'
   const rail = useRef<HTMLDivElement>(null)
@@ -88,7 +82,7 @@ export function MarketingSections(props: Props) {
   if (part === 'comparison' && m.comparison_enabled) return section('comparison', <><h2 className="mk-gradient-title">{copy.comparison_heading || (uk ? 'Що змінюється з Natal' : 'What changes with Natal')}</h2><div className="mk-comparison"><div className="mk-comparison-head"><span /><strong>{uk ? 'З Natal' : 'With Natal'}</strong></div>{copy.comparison_rows.map((item, i) => item.enabled && <div className={`mk-comparison-row ${!item.text ? 'mk-missing' : ''}`} key={i}><strong>{missing(item.text, i)}</strong><span>{item.text ? <Check aria-label={uk ? 'Так' : 'Yes'} /> : '—'}</span></div>)}</div></>)
   if (part === 'walkthrough' && m.walkthrough_enabled) return section('walkthrough', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.walkthrough_heading || (uk ? 'Як це працює?' : 'How does it work?')}</h2><div className="mk-how-grid"><ol>{copy.walkthrough_steps.map((s, i) => s.enabled && <li key={i}><span>{i + 1}</span><div><h3>{missing(s.title, i)}</h3><p>{s.description}</p></div></li>)}</ol><div className="mk-mockup">{imageUrls.walkthrough_visual ? <LandingImage variants={props.imageVariants?.walkthrough_visual} sizes="(max-width: 900px) 100vw, 60vw" src={imageUrls.walkthrough_visual} alt={copy.walkthrough_heading} loading="lazy" /> : editing && <p>{uk ? 'Створіть композицію мокапів у Landing Studio → Як це працює' : 'Generate the mockup composition in Landing Studio → How it works'}</p>}</div></div><StoreButtons {...props} /></>, 'mk-gradient-panel')
   if (part === 'benefits' && m.benefits_enabled) return section('visual_break', <><h2 className="mk-gradient-title">{copy.benefits_heading}</h2><div className="mk-benefits-grid">{imageUrls.visual_break_visual && <LandingImage variants={props.imageVariants?.visual_break_visual} sizes="(max-width: 900px) 100vw, 60vw" src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${c.presentation?.visual_break_focus.x ?? 50}% ${c.presentation?.visual_break_focus.y ?? 50}%` }} />}<div><h3>{copy.benefits_supporting}</h3><article><img className="mk-icon mk-review-icon" src={review} alt="" /><h3>{copy.benefit_highlight_title}</h3><p>{copy.benefit_highlight_text}</p></article></div></div></>)
-  if (part === 'reviews' && m.reference_reviews_enabled) return section('social_proof', <><h2 className="mk-gradient-title">{uk ? 'Приклад оформлення відгуків' : 'Sample review layout'}</h2><p className="mk-reference-note">{uk ? 'Демонстраційний вміст для макета. Це не відгуки клієнтів Natal.' : 'Demonstration content for the layout. These are not Natal customer reviews.'}</p><div className="mk-reviews">{references.map(r => <blockquote key={r.name}><header><img loading="lazy" decoding="async" src={r.image} alt="" /><div><strong>{r.name}</strong><span className="mk-stars" aria-label="5 / 5">{Array.from({ length: 5 }, (_, i) => <img key={i} src={star} alt="" />)}</span></div></header><p>{r.text}</p></blockquote>)}</div></>)
+  if (part === 'reviews' && m.reference_reviews_enabled && editing) return section('social_proof', <><h2 className="mk-gradient-title">{uk ? 'Відгуки про цей продукт' : 'Reviews of this product'}</h2><p className="mk-reference-note">{uk ? 'Додайте лише підтверджені відгуки, що стосуються цього продукту. Без них цей блок приховано на публічній сторінці.' : 'Add only verified reviews about this product. This section stays hidden on the public page until you supply them.'}</p></>)
   if (part === 'values' && m.benefits_enabled) return section('values', <div className="mk-values">{copy.values.map((value, i) => value.enabled && <article key={i}><span className="mk-icon" style={{ maskImage: `url("${[comment, requirements, employment, support][i]}")`, WebkitMaskImage: `url("${[comment, requirements, employment, support][i]}")` }} /><h3>{missing(value.title, i)}</h3><p>{value.description}</p></article>)}</div>)
   if (part === 'cta' && m.cta_enabled) return section('cta', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.cta_heading || v.contacts.heading}</h2><p>{copy.cta_text || v.contacts.supporting_text}</p><img className="mk-line" src={line} alt="" /><StoreButtons {...props} /></>, 'mk-gradient-panel')
   if (part === 'footer' && m.footer_enabled) return <footer id={contactId} data-section="contacts" tabIndex={-1} className="mk-footer" onClickCapture={e => { if (editing) { e.preventDefault(); e.stopPropagation(); onSelect?.('contacts') } }}>
@@ -99,6 +93,7 @@ export function MarketingSections(props: Props) {
     })}<div className="mk-socials">{([{ name: 'Telegram', image: telegramIcon, key: 'url' }, { name: 'Instagram', image: instagramIcon, key: 'instagram' }, { name: 'Threads', image: threadsIcon, key: null }] as const).map(social => {
       const href = social.key ? contactHref(social.key, v.contacts[social.key] || '') : ''
       const icon = <img src={social.image} alt={social.name} />
+      if (m.downloads_enabled && !copy.apple_url && !copy.google_url) return <button key={social.name} type="button" aria-label={social.name} onClick={event => { earlyAccess(social.name.toLowerCase() as 'telegram' | 'instagram' | 'threads', event.currentTarget); props.onAnalyticsEvent?.('primary_cta_click', 'hero', 'contacts') }}>{icon}</button>
       return href ? <a key={social.name} href={href} target="_blank" rel="noopener noreferrer" onClick={() => { if (!editing) props.onAnalyticsEvent?.('contact_click', social.key === 'url' ? 'telegram' : 'instagram', social.key === 'url' ? 'telegram' : 'instagram') }}>{icon}</a> : <span key={social.name}>{icon}</span>
     })}</div></div>
     <div><h3>{uk ? 'Почніть тут' : 'Start here'}</h3><StoreButtons {...props} /></div>

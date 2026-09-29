@@ -20,7 +20,7 @@ for (const marker of ['Digital products and services by Natal.', 'Page not found
 for (const forbidden of ['firebase/auth', 'serviceWorker.register', 'Google Identity', 'X-Firebase-AppCheck']) {
   if (javascript.includes(forbidden)) throw new Error(`Public Landing bundle contains forbidden capability: ${forbidden}`)
 }
-for (const marker of ['Terms & conditions', 'Cookie settings', 'natal_privacy_preferences_v2', 'Draft for review']) {
-  if (!javascript.includes(marker)) throw new Error(`Public Landing bundle is missing legal/consent marker: ${marker}`)
+for (const marker of ['Terms & conditions', 'Measurement settings', 'natal_measurement_preferences_v3', 'We’re building the first version', 'Draft for review']) {
+  if (!javascript.includes(marker)) throw new Error(`Public Landing bundle is missing legal/measurement marker: ${marker}`)
 }
-process.stdout.write('Verified the noindex Natal shell, public and legal routes, optional-tracking consent, visual 404, and absence of auth/service-worker code.\n')
+process.stdout.write('Verified the noindex Natal shell, public and legal routes, automatic measurement and early-access inquiries, visual 404, and absence of auth/service-worker code.\n')

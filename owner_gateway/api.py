@@ -761,6 +761,30 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
+    @app.get("/api/v1/landings/projects/{project_id}/inquiries")
+    async def landing_inquiry_inbox(project_id: str, response: Response, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        response.headers['Cache-Control'] = 'no-store'
+        return (await validation_bridge("GET", f"/internal/v1/landings/projects/{project_id}/inquiries", timeout=30)).json()
+
+    @app.post("/api/v1/public/landings/{slug}/inquiries", status_code=202)
+    async def public_landing_inquiry(slug: str, request: Request) -> dict[str, Any]:
+        if request.headers.get("origin", "").rstrip("/") not in settings.landing_public_origins:
+            raise HTTPException(status_code=403, detail="Landing inquiry origin is not allowed")
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+            raise HTTPException(status_code=415, detail="Landing inquiry requires application/json")
+        raw = bytearray()
+        async for chunk in request.stream():
+            raw.extend(chunk)
+            if len(raw) > 16384:
+                raise HTTPException(status_code=413, detail="Landing inquiry is too large")
+        try:
+            body = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=400, detail="Landing inquiry is invalid JSON") from error
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Landing inquiry must be an object")
+        return (await validation_bridge("POST", f"/internal/v1/public/landings/{slug}/inquiries", body=body, actor="public-landing", timeout=15)).json()
+
     @app.post("/api/v1/public/landing-analytics/events", status_code=202)
     async def public_landing_analytics_event(request: Request) -> dict[str, Any]:
         origin = request.headers.get("origin", "").rstrip("/")

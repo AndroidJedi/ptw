@@ -141,6 +141,7 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertEqual(
             {"POST"}, public_methods.pop("/api/v1/public/landing-analytics/events"),
         )
+        self.assertEqual({'POST'}, public_methods.pop('/api/v1/public/landings/{slug}/inquiries'))
         self.assertTrue(all(methods == {"GET", "HEAD"} for methods in public_methods.values()))
 
     def test_route_table_includes_project_studio_publishing_and_analytics(self) -> None:
@@ -364,11 +365,13 @@ class OwnerClaimsTests(unittest.TestCase):
         )
         from validation_pipeline.landing_routes import landing_page_router
         from validation_pipeline.landing_publication_routes import landing_publication_owner_router, landing_publication_read_router
-        expected = landing_page_router(object(), prefix="/internal/v1/landings").routes
+        from validation_pipeline.landing_inquiries import inquiry_router
+        expected = inquiry_router(object(), prefix="/internal/v1/landings", public=False).routes
+        expected += landing_page_router(object(), prefix="/internal/v1/landings").routes
         expected += landing_publication_owner_router(object(), prefix="/internal/v1/landings").routes
         self.assertEqual(contract(expected, "/internal/v1/landings"), contract(gateway.routes, "/api/v1/landings"))
         public = landing_publication_read_router(object(), prefix="/internal/v1/public/landings")
-        self.assertEqual(contract(public.routes, "/internal/v1/public/landings"), contract(gateway.routes, "/api/v1/public/landings"))
+        self.assertEqual(contract(public.routes + inquiry_router(object(), prefix="/internal/v1/public/landings", public=True).routes, "/internal/v1/public/landings"), contract(gateway.routes, "/api/v1/public/landings"))
 
     def test_image_references_cross_both_authenticated_gateway_routes_unchanged(self):
         from tests.validation_pipeline.test_image_reference import upload
@@ -571,3 +574,27 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertEqual(200, public_head.status_code)
         self.assertEqual(401, private.status_code)
         self.assertEqual(405, public_write.status_code)
+
+    def test_public_inquiries_require_exact_origin_and_bounded_json_and_keep_inbox_private(self) -> None:
+        class Verifier:
+            def verify(self, _token: str, _app_check: str):
+                raise AssertionError('Public submissions must not require owner credentials')
+
+        upstream = httpx.Response(202, json={'accepted': True, 'request_id': 'receipt'}, request=httpx.Request('POST', 'http://validation/internal/v1/public/landings/example/inquiries'))
+        forwarded = AsyncMock(return_value=upstream)
+        origin = 'https://natal-service.com'
+        configured = replace(self.settings, landing_public_origins=(origin,))
+        with patch('httpx.AsyncClient.request', forwarded), TestClient(create_app(configured, verifier=Verifier())) as client:
+            path = '/api/v1/public/landings/example/inquiries'
+            self.assertEqual(403, client.post(path, json={}).status_code)
+            self.assertEqual(403, client.post(path, headers={'Origin': origin + '.evil.test'}, json={}).status_code)
+            self.assertEqual(415, client.post(path, headers={'Origin': origin, 'Content-Type': 'text/plain'}, content='{}').status_code)
+            self.assertEqual(400, client.post(path, headers={'Origin': origin}, json=[]).status_code)
+            self.assertEqual(400, client.post(path, headers={'Origin': origin, 'Content-Type': 'application/json'}, content='{invalid').status_code)
+            self.assertEqual(413, client.post(path, headers={'Origin': origin}, json={'question': 'x' * 16384}).status_code)
+            self.assertEqual(401, client.get('/api/v1/landings/projects/project/inquiries').status_code)
+            forwarded.assert_not_awaited()
+            result = client.post(path, headers={'Origin': origin}, json={'request_id': 'receipt'})
+            self.assertEqual(202, result.status_code)
+            self.assertEqual({'accepted': True, 'request_id': 'receipt'}, result.json())
+            self.assertEqual('http://validation/internal/v1/public/landings/example/inquiries', forwarded.await_args.args[1])

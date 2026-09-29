@@ -11,6 +11,7 @@ import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
 import type { LandingVisualSlot, LandingTemplateReference, ImageInstructionContext, LandingConfiguration, LandingContent, LandingDetail, LandingPublication, LandingSummary, StudioManualAgentResult } from '../types'
 import { LandingPage } from '../landing/LandingPage'
+import { LandingInbox } from '../landing/LandingInbox'
 import { LandingInspector, LandingField } from '../landing/LandingInspector'
 import { LandingCanvas, LandingDialog } from '../landing/LandingCanvas'
 import { LandingTemplatePicker, type LandingTemplateRequest } from '../landing/LandingTemplatePicker'
@@ -34,7 +35,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [templateRetry, setTemplateRetry] = useState(0)
   const [templateId, setTemplateId] = useState('project_landing')
   const [templateOpen, setTemplateOpen] = useState(false)
-  const [panel, setPanel] = useState<'history' | 'publication' | null>(null)
+  const [panel, setPanel] = useState<'history' | 'publication' | 'inquiries' | null>(null)
   const drafts = useRef(new Map<string, PendingDraft>())
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [pages, setPages] = useState<LandingSummary[] | null>(null)
@@ -374,12 +375,14 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       <button className="primary" aria-label={tr('Save Landing', 'Зберегти лендінг')} disabled={busy} onClick={() => void save(false)}><Save />{tr('Save', 'Зберегти')}</button>
       <details className="landing-more"><summary aria-label={tr('More actions', 'Інші дії')}><MoreHorizontal /></summary><div>
         <button disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); setPanel('history') }}><History />{tr('History', 'Історія')}</button>
+        <button onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); setPanel('inquiries') }}>{tr('Visitor inquiries', 'Звернення відвідувачів')}</button>
         <button disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); setPanel('publication') }}><Globe2 />{tr('Approve & publish', 'Затвердити й опублікувати')}</button>
       </div></details>
     </div></header>
     {templateCatalogError}
     {error && <div className="landing-inline-error" role="alert">{error}<button className="ghost" onClick={() => setError('')}>{tr('Dismiss', 'Закрити')}</button></div>}
     {templateChooser}
+    {panel === 'inquiries' && <LandingDialog title={tr('Visitor inquiries', 'Звернення відвідувачів')} onClose={() => setPanel(null)}><LandingInbox api={api} projectId={projectId} language={language} /></LandingDialog>}
     {panel === 'history' && <LandingDialog title={tr('Landing history', 'Історія лендінгів')} onClose={() => setPanel(null)} className="landing-history-dialog"><div className="landing-history-list">{pages.map(item => <button key={item.landing_id} aria-current={item.landing_id === detail.landing_id ? 'true' : undefined} disabled={busy} onClick={() => { stashDraft(); setPanel(null); if (item.landing_id !== detail.landing_id) onLanding(item.landing_id) }}><strong>{templateName(item)}</strong><span>{tr('Draft', 'Варіант')} {item.ordinal} · {item.status === 'failed' ? tr('Needs retry', 'Потрібен повтор') : item.approved_version_count ? tr('Has approved version', 'Є затверджена версія') : tr('Not approved', 'Не затверджено')}{item.landing_id === detail.landing_id ? ` · ${tr('Current', 'Поточний')}` : ''}</span></button>)}</div></LandingDialog>}
     {panel === 'publication' && <LandingDialog title={tr('Approve & publish', 'Затвердити й опублікувати')} onClose={() => { if (!busy) setPanel(null) }} className="landing-publish-dialog">
       <div className="landing-approval-panel"><p>{tr('Approve a private version when you like the result. Publishing is a separate action.', 'Затвердьте приватну версію, коли результат вас влаштовує. Публікація — окрема дія.')}</p>

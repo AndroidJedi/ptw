@@ -19,7 +19,33 @@ Template/composer/Manual Agent skills now require preserving the section during
 domain adaptation. The VPS skill documents compatible-code-first deployment,
 read-only review and the normal Save/Approve/Publish route. Canonical prompt
 budgets remain unchanged; skill verification and correction-budget checks pass.
-Production acceptance is recorded after the preserving release and live review.
+The preserving application release passed all 11 structured/media canaries,
+Pexels, unchanged authority and dependency/resource audits. The owner-authorized
+named publication then created a replacement approved version through normal
+Save/Approve/Publish. The original draft/version, all artwork and other Project
+Landings are preserved. Real desktop/360px/iPhone browser checks verify the three
+exact Water examples, explicit labels, all five alpha dialogs, accepted Natal
+events and new public image bytes matching the original selected digests.
+Other page copy, settings and the exact template identity are unchanged.
+
+Owner Hosting stayed withheld after the unchanged iPhone Commander screenshot
+attachment test failed intermittently. Commander source/tests match the accepted
+baseline; delayed initial chat installation can clear pending images. The focused
+three-device recheck and complete 138-case rerun passed in the same clean, pushed
+release checkout, before finishing its remaining Owner Hosting/live-audit steps.
+No test or application gate was weakened or bypassed.
+
+The first Owner Firebase upload reached finalization but its HTTPS request failed
+at the transport layer before a release was created. The unchanged-source retry
+finalized and published successfully. Owner Hosting is `26f5bac301a70154` and
+public Hosting is `085a88ff58d3858e`; the live Owner audit verifies the current
+bundle and auth/CORS boundary. No application source or tests changed on retry.
+
+An initial audit incorrectly fetched prior public asset URLs after publication
+moved; those URLs correctly returned 404 at the active-version boundary. The
+audit now compares new public bytes to the original selected hashes, alongside
+the helper's retained private-version checks. VPS guidance records that boundary.
+No production asset was lost or rewritten.
 
 Updated: 2026-09-29
 

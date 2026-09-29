@@ -53,6 +53,9 @@ def main() -> None:
             # editing headroom that an ordinary skill update cannot break it.
             require(len((skill / "SKILL.md").read_bytes()) <= 5 * 1024,
                     "template-creation-agent skill exceeds its 5 KiB maintenance budget")
+        if name == "landing-page-composer":
+            require(len((skill / "SKILL.md").read_bytes()) <= 7 * 1024,
+                    "landing-page-composer skill leaves no runtime correction headroom")
 
     validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(

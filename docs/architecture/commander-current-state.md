@@ -12,6 +12,15 @@ Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
 `26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
 public-shell and actual published Landing browser audits passed.
 
+## Combined reviewed release — corrected candidate
+
+The first all-changes deployment failed its live Landing correction budget check.
+Both API images, accepted source/hosted checkout, skill mounts and both Hosting
+versions were restored; the deployed marker and database authority stayed intact.
+The corrected Landing skill retains runtime correction headroom, with a new
+canonical-prompt regression and skill-maintenance cap. Normal release acceptance
+is still pending; details and recovery evidence are in the incident log.
+
 ## Authored Post Agent with screenshots — local implementation
 
 Accepted authored Posts now expose the same Agent instruction/screenshot panel

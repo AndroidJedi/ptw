@@ -25,6 +25,7 @@ grep -Eiq '^content-security-policy:.*connect\.facebook\.net' "$directory/root.h
 grep -Eiq '^content-security-policy:.*www\.facebook\.com' "$directory/root.headers" || { echo "public Hosting CSP does not permit Meta Pixel measurement" >&2; exit 1; }
 grep -Fq '1056720310312959' "$directory/app.js" || { echo "public bundle has the wrong Meta Pixel ID" >&2; exit 1; }
 grep -Fq 'connect.facebook.net/en_US/fbevents.js' "$directory/app.js" || { echo "public bundle lacks the Meta Pixel library boundary" >&2; exit 1; }
-grep -Fq 'natal_meta_pixel_consent_v1' "$directory/app.js" || { echo "public bundle lacks the Meta Pixel consent boundary" >&2; exit 1; }
+grep -Fq 'natal_measurement_preferences_v3' "$directory/app.js" || { echo "public bundle lacks the measurement preference boundary" >&2; exit 1; }
+grep -Fq '/inquiries' "$directory/app.js" || { echo "public bundle lacks the early-access inquiry submission route" >&2; exit 1; }
 
-echo "Verified Natal public shell root, noindex policy, robots policy, consent-gated Meta Pixel, CSP, and deep-link rewrite at $origin"
+echo "Verified Natal public shell root, noindex policy, robots policy, automatic Meta Pixel, measurement preferences, early-access inquiries, CSP, and deep-link rewrite at $origin"

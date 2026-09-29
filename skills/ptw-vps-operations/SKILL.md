@@ -258,6 +258,10 @@ before the requested database exists; that is not migration-test readiness.
 ## Canaries and reset acceptance
 
 Normal releases must use the tracked `scripts/release_ptw_fast.sh` entrypoint.
+When public measurement behavior changes, update both the build verifier and
+deployed public-shell auditor before publishing. Retired consent-storage markers
+must not reject the new bundle. Browser acceptance must still verify actual
+request timing, prior refusals, privacy controls and form-data exclusion.
 Never stream deployment control code into `bash -s` when a child command could
 consume stdin. The tracked receiver accepts a bounded versioned stream of
 checksumed image/file artifacts and explicit `REUSE` records. Every

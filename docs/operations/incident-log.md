@@ -2,6 +2,31 @@
 
 Updated: 2026-09-29
 
+## 2026-09-29 — Landing correction exhausted the prompt budget during release
+
+The owner authorised deployment of all reviewed Landing and authored Post Agent
+changes. The first combined preserving candidate passed 450 backend checks,
+21 Gateway checks, both web builds and 138 Owner/60 public browser cases.
+After the public shell was published and both APIs became healthy, the live
+Landing composition canary rejected its first completed response. Its 8,144-byte
+canonical skill left insufficient room for the bounded correction under the
+unchanged 8 KiB mode limit; the second job was rejected before submission.
+
+The normal guard restored both prior API images and verified unchanged database
+authority. The manual publisher had already advanced its source checkout and
+public Hosting. Under both maintenance locks, recovery restored the accepted
+source and hosted checkout, canonical skill links/permissions and both accepted
+Hosting versions using the accepted recovery helper. The deployed marker stayed
+at the prior accepted revision and every service was healthy.
+
+The Landing skill was compacted without removing its exact-content, evidence,
+contact or visual boundaries. A 7 KiB skill-maintenance cap and a canonical-prompt
+invalid-first/valid-second bridge regression now protect correction headroom.
+The VPS skill also requires source/Hosting recovery after manual partial release;
+image health alone cannot prove complete rollback. Runtime byte limits, models,
+validators and first-attempt canary acceptance remain unchanged. The corrected
+candidate must complete the full preserving release before being reported live.
+
 ## 2026-09-29 — Full VPS caused widespread health failures and Owner 401s
 
 The owner completed Google sign-in but Project and Landing template reads still

@@ -262,6 +262,10 @@ When public measurement behavior changes, update both the build verifier and
 deployed public-shell auditor before publishing. Retired consent-storage markers
 must not reject the new bundle. Browser acceptance must still verify actual
 request timing, prior refusals, privacy controls and form-data exclusion.
+After a manual fast-release failure, verify the accepted source, hosted checkout
+and both Hosting versions as well as service images. Image rollback can leave
+candidate skills mounted. Restore only clean checkouts under both locks, disable
+hooks, then use accepted skill-sync and Hosting recovery helpers.
 Never stream deployment control code into `bash -s` when a child command could
 consume stdin. The tracked receiver accepts a bounded versioned stream of
 checksumed image/file artifacts and explicit `REUSE` records. Every

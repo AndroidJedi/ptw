@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 import base64
 import hashlib
 import unittest
@@ -301,6 +302,27 @@ class StructuredBridgeTests(unittest.TestCase):
             ["rejected", "completed"],
             [item["status"] for item in value["invocation"]["validation_attempts"]],
         )
+
+    def test_landing_canonical_prompt_allows_a_bounded_completed_response_correction(self) -> None:
+        bridge = CorrectingFakeBridge()
+        prompt = (Path(__file__).resolve().parents[2] / "skills/landing-page-composer/SKILL.md").read_text()
+
+        def validate(response):
+            if response["texture_intensity"] == 0:
+                raise ValueError("Landing content does not match the exact schema. " + "x" * 500)
+            return response
+
+        value = bridge.call(
+            mode="studio_creative_generation", system_prompt=prompt,
+            input_payload={"selected_template_id": "project_landing"}, output_schema={"type": "object"},
+            idempotency_key="landing:canonical-budget", prompt_version="landing-budget-v1",
+            response_validator=validate,
+        )
+        self.assertEqual(2, value["invocation"]["bridge_attempt"])
+        self.assertEqual(2, len(bridge.posts))
+        self.assertIn("CORRECTION_REQUIRED", bridge.posts[1]["system_prompt"])
+        self.assertLessEqual(len(bridge.posts[1]["system_prompt"].encode()),
+                             STRUCTURED_MODE_BUDGETS["studio_creative_generation"]["system_prompt"])
 
     def test_template_correction_keeps_near_limit_canonical_prompt_unchanged(self) -> None:
         bridge = CorrectingTemplateBridge()

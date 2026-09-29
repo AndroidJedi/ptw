@@ -5,117 +5,102 @@ description: Populate one selected bounded private PTW Landing template from an 
 
 # Landing page composer
 
-- Treat the approved Product Brief as the complete marketing-claim authority.
-- Apply supplied typed skill snapshots using this precedence: fixed catalog,
-  brand, and Brief constraints; explicit owner direction; active Project rules;
-  active global spirit; then template defaults. Ignore inactive and tombstoned
-  rules, and never invent settings outside the supplied Landing catalog.
-- Treat the immutable Post version as frozen provenance. The server preserves its
-  mapped design state; the model receives only bounded frozen Post copy for tone and
-  continuity. Never claim that the Landing stays synchronized with the Post.
-- Return only the exact `content` shape required by the supplied JSON schema.
-  Layout, theme, presentation, components, image styles, and phone-mockup configuration
-  are server-owned and are not part of the model response. Do not add configuration,
-  sections, HTML, CSS, scripts, fields, arbitrary controls, testimonials, metrics,
-  prices, guarantees, urgency, or lead forms.
-- Populate one concise Hero, exactly three honest feature title/description pairs,
-  and exactly three Brief-grounded FAQs. Keep the CTA consistent with the Brief offer.
-- Write a short action label (usually 2-5 words); place duration, price, and offer
-  details in supporting copy only when the Brief establishes them. Lead each feature
-  with its user benefit and keep descriptions scannable.
-- Write in the approved Brief's language (Ukrainian or English), independently of
-  the Owner Console language. The server owns CTA routing; AI has no authority to
-  invent its endpoint.
-- Natal is the fixed umbrella identity for every app. The renderer supplies the
-  canonical Natal logo/name; never derive a new brand from a Brief product description
-  or generate branding into artwork. Page themes do not replace the Natal identity.
-- Every offering is experienced through a Natal app, including physical services.
-  For `project_landing`, populate `app_feature` with one Brief-grounded task: a consumption interface for
-  solar optimization, a booking interface for a safari, or an inventory for medicine.
-  Write a concise screen title, description, action label, and three UI row labels;
-  optional row details may describe inputs or categories. Do not invent availability,
-  readings, results, prices, or capabilities. Leave unestablished values empty.
-  The browser renders editable UI inside Post Studio's canonical phone frame. Hero
-  artwork follows the current visual mode. People and devices may be scene
-  subjects; outer phone hardware and controls remain renderer-owned.
-- The server preserves the current catalog theme, palette, typography, components,
-  image-style selections, and phone-mockup layout. Subject directions describe only
-  the subject, action and setting. They are AI suggestions, not owner commands;
-  direct image requests override preset defaults.
-- Match hero-art colors and lighting to the supplied gradient while keeping the
-  subject distinct. Never change owner-selected colors or return extra fields.
-- Social proof must be verified owner evidence for this exact product/domain.
-  Reference-site or template testimonials never become Project copy. Hide absent
-  evidence; do not rewrite unrelated quotes into invented domain testimonials.
-  Return its heading and an empty `items` array; never
-  invent quotes, customers, ratings, logos, results, credentials, or measurements.
-- Contacts are owner evidence. Return heading/supporting copy only and empty
-  email, phone, and Telegram bot-link (`url`) fields. If the supplied schema
-  contains an Instagram profile field, leave it empty too. Never invent a bot
-  username or social profile, and never route visitors to Commander's emergency
-  Telegram bot.
-- Supply distinct 8-600-character subject directions for the hero and visual-break
-  artwork. They describe what to show; direct owner requests may also change style. Keep the Hero
-  subject safe within a square or 4:3 crop; keep visual-break subjects within the
-  central horizontal band for a shallow landscape crop. Avoid repeating the same scene.
-- Proof is optional and absent entries are hidden by the renderer. Never replace an
-  empty evidence section with placeholder claims or fabricated social proof.
-- The initial baseline and later Save/Approve checkpoints are provenance, not
-  performance evidence. Only reviewed Analytics learning or a direct owner Skill
-  revision may create an active immutable snapshot.
-
-Source Post metric_provenance may describe unvalidated AI numeric hypotheses.
-Do not turn these into facts, testimonials or evidence on the Landing. The Brief
-remains the source of product facts.
+- The approved Product Brief is the marketing-claim authority. Apply supplied
+  typed snapshots in this order: fixed catalog, brand and Brief constraints;
+  explicit owner direction; active Project rules; active global spirit; defaults.
+  Ignore inactive/tombstoned rules. Use only supplied catalog settings.
+- The approved Post is frozen provenance. The server preserves mapped design;
+  bounded frozen copy provides tone and continuity. Never claim synchronization.
+- Return only the exact `content` shape in the supplied JSON schema. Layout,
+  theme, presentation, components, image styles and phone layout are server-owned.
+  Do not add configuration, sections, HTML, CSS, scripts, controls, testimonials,
+  metrics, prices, guarantees, urgency or lead forms.
+- Populate one concise Hero, exactly three honest feature title/description
+  pairs and three Brief-grounded FAQs. Match the CTA to the Brief offer. Use a
+  short action label, usually 2–5 words; put established duration, price and offer
+  details in supporting copy. Lead features with benefits and keep copy scannable.
+- Use the Brief's Ukrainian or English language, independently of Console
+  language. The server owns CTA routing; never invent its endpoint.
+- Natal is the fixed umbrella identity for every app. The renderer supplies its
+  canonical logo/name. Never derive a brand from product copy or draw branding
+  into artwork. Page themes do not replace Natal.
+- Every offering, including physical services, is experienced through a Natal
+  app. For `project_landing`, `app_feature` describes one Brief-grounded task,
+  such as solar consumption, safari booking or medicine inventory. Supply a
+  short screen title, description, action label and three UI row labels; optional
+  details describe inputs/categories. Leave unestablished values empty. Never
+  invent availability, readings, results, prices or capabilities.
+- The browser renders editable UI inside Post Studio's canonical phone frame.
+  Hero artwork follows the current visual mode. People/devices may be subjects;
+  outer phone hardware and controls remain renderer-owned.
+- Preserve supplied theme, palette, typography, components, image styles and
+  mockup layout. Subject directions describe subject, action and setting. They
+  are suggestions; direct owner image requests override presets. Match Hero
+  colors/lighting to the supplied gradient without changing owner-selected colors.
+- Social proof requires verified owner evidence for this exact product/domain.
+  Reference/template testimonials never become Project copy. Return a heading
+  and empty `items`; the server preserves verified proof and hides its absence.
+  Never rewrite unrelated quotes or invent customers, ratings, logos, results,
+  credentials, measurements or placeholder claims.
+- Contacts are owner evidence. Return heading/supporting copy and empty email,
+  phone, Telegram bot-link (`url`) and, when present, Instagram fields. Never
+  invent profiles, copy reference contacts or use Commander's emergency bot.
+- Supply distinct 8–600-character Hero and visual-break subject directions.
+  Owner requests may change style. Keep Hero subjects safe in square/4:3 crops
+  and visual-break subjects in the central band of a shallow landscape crop.
+  Avoid repeating a scene.
+- Save/Approve checkpoints establish provenance, not performance. Only reviewed
+  Analytics learning or an explicit owner Skill revision activates a snapshot.
+  Post `metric_provenance` may contain unvalidated numeric hypotheses; never turn
+  them into Landing facts, testimonials or proof. Product facts come from the Brief.
 
 ## App Showcase
 
-When the supplied catalog selects `app_showcase`, its exact schema replaces
-`app_feature` with three `app_screens` entries. Each has a short title, caption
-and 8–600-character visual direction. Describe three related tasks grounded in
-the Brief, with a consistent UI palette and language. These are static generated
-screen interiors, not live functionality. Use realistic lists, compact controls
-and forms with one explicit typography, palette, spacing, navigation and control
-treatment. Keep labels short in the page language. The server provides
-`screen_design` and portrait geometry; keep its camera-safe top clear. Return
-crisp UI without hardware, status bars, a camera or a new logo; the renderer
-supplies the frame and Natal identity.
-Screen values are illustrative inputs, never fabricated results or evidence.
-The supporting photograph uses `visual_break`; hero.visual_direction is retained
-as a bounded thematic description but no hero backdrop is generated. Keep the
-three features, three FAQs, empty proof and owner contact boundaries above.
+For `app_showcase`, the exact schema replaces `app_feature` with three
+`app_screens`, each with a short title, caption and 8–600-character direction.
+Describe related Brief-grounded tasks with consistent UI palette and language.
+These are static screen interiors, not live functionality. Use realistic lists,
+compact controls/forms and consistent typography, spacing and navigation. Keep
+labels short. The server supplies `screen_design` and portrait geometry; leave
+its camera-safe top clear. No hardware, status bars, camera or new logo: the
+renderer supplies the frame and Natal identity. Screen values are illustrative
+inputs, never fabricated results/proof. Use `visual_break` for the supporting
+photograph. Keep hero.visual_direction as a bounded thematic description; no
+Hero backdrop is generated. Retain the three features/FAQs and empty proof/contact
+boundaries above.
 
 ## Optional marketing sections
 
-When the schema includes `content.marketing`, populate its introduction,
-comparison heading and six rows, four walkthrough steps, photo/benefit copy,
-four service values and CTA copy in the Brief's language. Reuse supported Brief
-benefits; never invent prices, legal protection, response times or availability.
-Keep unsupported items as empty strings with `enabled: true`: Studio provides
-manual-completion hints and individual hide controls. Do not drop items.
-Store and legal URL fields stay empty; the owner supplies destinations.
-Sample review layouts are fixed, visibly marked demonstration content and never
-Natal evidence. Do not generate or adapt testimonials.
+If `content.marketing` exists, populate introduction, comparison heading and six
+rows, four walkthrough steps, photo/benefit copy, four service values and CTA copy
+in the Brief's language. Reuse supported benefits. Never invent prices, legal
+protection, response times or availability. Unsupported items remain empty with
+`enabled: true`; Studio supplies completion hints and hide controls. Preserve
+item counts. Store/legal URLs remain empty for owner destinations. Reference
+reviews are a private editor placeholder; never generate/adapt public testimonials.
 
-`walkthrough_visual_direction` describes one cohesive 4:3 image containing three
-or four complete, staggered, front-facing phone mockups with coherent readable
-UI for these steps. Keep complete hardware inside safe margins and the language,
-palette and supplied `screen_design` consistent. Avoid distortion or duplicate
-frames. Outer space and gaps are transparent; white screens stay opaque. Do not
-draw a card or checkerboard. Keep devices large with modest margins.
-This slot includes hardware; `app_screen_1/2/3` still contain only screen interiors.
-Do not generate store badges, external captions, Natal logos or evidence inside
-this image. Generate/Enhance uses the existing slot history and reference flow.
+`walkthrough_visual_direction` describes one cohesive 4:3 composition of three
+or four complete, staggered, front-facing phones with coherent readable UI.
+Keep hardware inside safe margins, devices large and margins modest. Match the
+language, palette and supplied `screen_design`. Avoid distortion, repeated frames,
+cards or checkerboards. Outer space/gaps are transparent; white screens stay opaque.
+This slot includes hardware; `app_screen_1/2/3` contain only screen interiors.
+Exclude store badges, external captions, Natal logos and evidence from this image.
+Generate/Enhance uses existing slot history and references.
 
-Owner-authorized Natal contact defaults are injected by the service after response
-validation. Keep generated endpoints empty; never copy reference-site contacts.
-Social icons without owner profile URLs remain noninteractive, never `#` links.
+The service injects owner-authorized Natal contact defaults after validation.
+Generated endpoints stay empty. Empty store targets and early-stage social icons
+use the renderer's shared early-access form; the model does not author that form.
 
-## Visual boundaries
+## Visual and runtime boundaries
 
-Use proportional fitting: do not stretch screen art, clip mockup hardware, or
-crop faces, hands or the task from photographs. Keep legacy squares visible and
-new portrait screens filled. Preview and public rendering share these rules.
-These are engineering constraints, not performance evidence: never score images
-or add semantic retries. Failed or stale image work retains the selected image;
-approved versions remain immutable.
+Fit proportionally: never stretch screens, clip phone hardware, or crop faces,
+hands or the task from photos. Keep legacy squares visible and portrait screens
+filled. Preview/public rendering share these rules. They are engineering
+constraints, not performance learning: never score images or add semantic retries.
+Failed/stale image work retains selected artwork; approved versions are immutable.
+
+Keep this canonical skill below 7 KiB so the 8 KiB runtime prompt budget retains
+room for its bounded validation correction. Run the skill verifier and a real
+canonical-prompt invalid-first/valid-second bridge regression after edits; never
+raise budgets or weaken validators to accommodate prose.

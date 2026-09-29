@@ -321,7 +321,7 @@ playback pauses while hovered or focused and resumes once both clear. Reduced
 motion changes stop/resume autoplay immediately. Editing stays static, while
 fullscreen and public pages animate. All new controls and bounded copy are
 available to Landing Agent.
-The local candidate footer links Terms & conditions and Privacy policy to the
+The shared footer links Terms & conditions and Privacy policy to the
 shared bilingual Natal legal pages. Explicit owner privacy/terms URLs override
 those defaults without modifying stored snapshots. The footer includes privacy
 and terms; the separate cookie link and cookie-settings footer are absent. See [legal documents and
@@ -331,13 +331,13 @@ Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. Historical
-reference-review artwork retains its provenance, but the local candidate never
+reference-review artwork retains its provenance, but the shared renderer never
 shows reference quotes, names, portraits or ratings on a public Landing. Only
 verified Project evidence can appear in the immutable evidence block, outside
 Agent edit authority. A private editor placeholder explains that requirement.
 
 Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
-In the local candidate, empty destinations open the early-access form or hide
+Empty destinations open the early-access form or hide
 the individual button, according to
 an explicit setting. Optional privacy/terms overrides require owner HTTPS URLs.
 Composition and Agent cannot invent or change these endpoints. No download URLs are copied

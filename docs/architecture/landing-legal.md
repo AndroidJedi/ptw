@@ -1,10 +1,10 @@
 # Shared Landing terms and policies
 
-Status: baseline deployed 2026-09-28. The 2026-09-29 automatic measurement and
-early-access changes are verified locally; the owner has authorised deployment.
+Status: baseline deployed 2026-09-28; automatic measurement and early-access
+changes deployed 2026-09-29 in the combined preserving release.
 Operator details remain visibly unfinalised.
 
-The local candidate renderer links every Project Landing and App Showcase footer to
+The shared renderer links every Project Landing and App Showcase footer to
 `/legal/terms` and `/legal/privacy`, with `?lang=uk|en`.
 The public shell serves these exact routes before Project lookup. They do not
 reserve Project slugs, use authenticated APIs, load remote fonts, or emit
@@ -76,7 +76,7 @@ implement the applicable online withdrawal function; an email address buried
 in generic terms is not a substitute. No checkout, account, payment, acceptance
 ledger, refund workflow or online withdrawal function is introduced by this work.
 
-## Local candidate measurement and early access behavior
+## Automatic measurement and early access behavior
 
 The 2026-09-29 owner instruction replaces the arrival consent panel with automatic
 cookieless Natal events and Meta PageView. No Cookie policy link or Cookie settings

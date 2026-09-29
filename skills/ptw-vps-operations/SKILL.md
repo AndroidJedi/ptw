@@ -376,6 +376,16 @@ require the new markers while rejecting the retired provider actions. Withhold
 Owner Hosting when that full browser gate fails, even if the server cutover is
 healthy; correct the tests and finish through a new clean, pushed preserving
 release rather than bypassing the gate.
+If unchanged browser coverage fails intermittently after an accepted backend
+cutover, first verify the deployed revision and service health. Withhold Owner
+Hosting, investigate the failure and rerun the entire suite in that exact clean,
+pushed checkout. Only after the complete gate passes may the interrupted
+publisher's remaining Owner Hosting and live-audit steps finish. A source or
+test correction requires a new reviewed commit and preserving release.
+Live Meta can filter automated browsers even when the SDK and pixel configuration
+return HTTP 200. Verify application tracking intent separately, record actual
+beacons when observed and keep receipt unconfirmed when filtered; do not bypass
+the automation filter or substitute mocked calls for live delivery evidence.
 If a fresh post-cutover media enhancement canary alone returns `failed`, require
 the tracked deployer to restore the prior image and verify its deployed marker
 and health before retrying. Inspect only the bridge job's bounded status; never

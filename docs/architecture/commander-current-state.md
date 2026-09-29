@@ -2,26 +2,29 @@
 
 Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `landing-auto-policies-20260928-4ac510d`,
-accepted code revision `4ac510de49201fcc6ce69d75dca40cbdb202f0b5`
+Deployment: selective preserving release `ptw-updates-20260929-6ae164e`,
+accepted application revision `6ae164e18fbd7d3a7b459e949ea6e7f3878e5777`
 with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/landing-auto-policies-20260928`, based on the accepted
-Post benefit-flow release and scoped to both web shells and their documentation.
-All application images were reused; no service restarted and no migration ran.
-Owner Hosting version `2bebd0db35470e77` and public Landing Hosting version
-`26fd997f8c485e09` are live. Dependency/resource, private-route/auth/CORS,
-public-shell and actual published Landing browser audits passed.
+Source branch: `release/ptw-updates-20260929`, containing every reviewed workspace
+change. Validation and Owner Gateway run the new release tag; Commander/GOD and
+all companion images are preserved. No migration or reset ran. Owner Hosting
+version `146c03ebab4ae49d` and public Landing Hosting version `5c35af8a3f67b5a9`
+are live. All 11 structured/media canaries, Pexels, unchanged database-authority
+comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
-## Combined reviewed release — corrected candidate
+## Combined reviewed release — deployed
 
 The first all-changes deployment failed its live Landing correction budget check.
 Both API images, accepted source/hosted checkout, skill mounts and both Hosting
 versions were restored; the deployed marker and database authority stayed intact.
 The corrected Landing skill retains runtime correction headroom, with a new
-canonical-prompt regression and skill-maintenance cap. Normal release acceptance
-is still pending; details and recovery evidence are in the incident log.
+canonical-prompt regression and skill-maintenance cap. The corrected release
+passed all 11 live canaries on their first attempt. Owner publication remained
+withheld after an intermittent screenshot-attachment browser failure; the
+focused recheck and complete 138-case browser gate passed before publication.
+Details and recovery evidence are in the incident log.
 
-## Authored Post Agent with screenshots — local implementation
+## Authored Post Agent with screenshots — deployed
 
 Accepted authored Posts now expose the same Agent instruction/screenshot panel
 as Landing. The exact definition supplies bounded named copy, fonts/groups,
@@ -41,15 +44,15 @@ Owner web tests/build, three real-HTTP browser flows with scripted inference
 (desktop/360px/iPhone WebKit, screenshots, unsaved state, Save/Approve and
 restart), deterministic Studio geometry audit, 54 Commander checks with five
 isolated receiver skips, demo, canonical skill validators and whitespace.
-The required Commander image suite retains its existing missing-Git failure;
-12 storage/Telegram runtime checks passed separately in the Validation image.
-No deployment or production Project write ran. Studio Tune and Manual Agent
-skills describe the new authored-template boundary.
+The exact committed release also passed Commander checks/demo and canonical skill
+wiring in an isolated Docker clone. Production exact-template access and the
+real manual-edit canary passed without changing existing Project records.
+Studio Tune and Manual Agent skills describe the authored-template boundary.
 
-## Water Landing measurement, early access and product proof — verified candidate
+## Water Landing measurement, early access and product proof — deployed
 
 The owner authorised commit and deployment after local review. The verified
-candidate starts Natal measurement and Meta PageView without an arrival prompt,
+release starts Natal measurement and Meta PageView without an arrival prompt,
 honours earlier explicit refusals and exposes separate opt-out controls in Privacy.
 Shared footers contain Terms and Privacy; the Cookie document remains directly
 readable. Both language policies describe the actual behavior and remain drafts
@@ -64,14 +67,20 @@ published digest, bounded inputs and a persistent rate bound protect append-only
 inquiry receipts in the existing audit authority. Landing Studio has an owner-only
 latest-50 inbox. No notification sender or schema migration was introduced.
 
-Verified locally: 446 built-image backend tests, 21 Gateway tests, 134 Owner and
-15 public web unit tests, both builds, 81 affected Owner and 60 public browser
+Verified locally: 450 built-image backend tests plus the bounded-correction
+regression, 21 Gateway tests, 136 Owner and 15 public web unit tests, both builds,
+138 Owner and 60 public browser
 cases, disposable PostgreSQL concurrency/restart checks, 54 Commander checks
 (five isolated receiver skips in the image), demo, skills and whitespace. Frozen
 Water Landing snapshot review passed desktop/360px/iPhone image and dialog fit;
-all POST/provider requests were intercepted. No live publication, domain, data,
-application service or Hosting change was made. Template/composer skills contain
-the reusable proof and early-access rules. Evidence: `.local/water-quality-*`.
+all POST/provider requests were intercepted. Live desktop/360px/iPhone checks then
+verified all five early-access buttons, actual accepted Natal events, loaded Meta
+SDK/configuration and an iPhone Meta beacon. Meta filters some headless traffic;
+headless Chromium receipt remains unconfirmed. Invalid inquiry/origin checks and
+private inbox protection passed without storing sample contacts. The published
+Water Landing digest, content, configuration, artwork and template are unchanged.
+Template/composer skills contain the reusable proof and early-access rules.
+Evidence: `.local/ptw-combined-release/.local/` and `.local/water-quality-*`.
 
 ## Owner session recovery and bounded VPS storage — installed
 

@@ -12,6 +12,28 @@ version `146c03ebab4ae49d` and public Landing Hosting version `5c35af8a3f67b5a9`
 are live. All 11 structured/media canaries, Pexels, unchanged database-authority
 comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
+## Domain-specific feedback preservation — reviewed correction
+
+The owner clarified that feedback copy must follow the product domain while its
+section remains visible. Marketing pages now retain three labelled illustrative
+expectation cards when verified customer proof is absent. Optional bounded
+`feedback_examples` supplies separate editable copy; legacy pages derive their
+cards from their own features. Verified quotes remain protected and explicit
+hiding is still available. Existing template defaults and identities are intact.
+
+The Water revision has three reviewed expectations about comparing labels,
+understanding composition and matching taste/mineralization. Its normal
+Save/Approve/Publish helper copies approved artwork into a new draft, retains
+the original draft/version and checks other Project Landings. No inference or
+schema migration is involved. Template, composer, Manual Agent and VPS skills
+now preserve feedback structure when adapting copy to another domain.
+
+Verified locally: 139 Owner and 15 public unit checks/builds, 138 Owner and 60
+public browser cases, focused normalization/persistence and correction-budget
+checks, skill verification and desktop/360px/iPhone frozen Water review. Live
+release and the explicit feedback publication remain the next acceptance steps.
+Evidence: `.local/feedback-*` and `.local/water-quality-feedback-*`.
+
 ## Combined reviewed release — deployed
 
 The first all-changes deployment failed its live Landing correction budget check.

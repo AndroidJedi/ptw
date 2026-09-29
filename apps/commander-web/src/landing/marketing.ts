@@ -4,6 +4,9 @@ import data from './marketing-defaults.json'
 export const gradients = data.gradients
 export const marketingDefaults = data.configuration as LandingMarketingConfiguration
 export const marketingContentDefaults = data.content as LandingMarketingContent
+export function feedbackExamples(v: LandingContent): Array<{ topic: string; statement: string }> {
+  return v.marketing?.feedback_examples || v.features.map(feature => ({ topic: feature.title, statement: feature.description }))
+}
 export function marketingStyle(c: LandingConfiguration): CSSProperties {
   const m = c.marketing
   const g = gradients.find(g => g.id === m?.gradient_id) || gradients[0]

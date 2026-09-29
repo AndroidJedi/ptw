@@ -363,5 +363,8 @@ sections, domain gradients, optional motifs and complete generated walkthrough
 mockups. V1 remains resolvable by its exact identity. Existing original Landing
 pages can enable these sections explicitly in Studio without replacing their
 base template. Reference reviews are never displayed publicly or supplied as Project evidence.
-Private editor placeholders require verified quotes for the exact product; absent
-proof is hidden. Empty store targets use the shared early-access inquiry form.
+Preserve the feedback section when adapting domains. Verified quotes require
+exact-product evidence; absent proof uses three labelled example expectations
+from this product's own benefits, with editable bounded `feedback_examples`.
+Never invent customer identities, ratings or past results. Explicit hiding remains
+available. Empty store targets use the shared early-access inquiry form.

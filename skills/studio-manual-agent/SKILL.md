@@ -89,7 +89,10 @@ controls. Preserve the fixed three-screen structure and Natal identity.
 Landing marketing sections expose ten `gradient_id` presets, one `logo_color`
 for symbol and name, optional motifs, carousel motion, comparison row visibility,
 four workflow steps and service values. Preserve store/legal URLs like contact
-endpoints. Never turn sample review layouts into Natal evidence.
+endpoints. Preserve the feedback section when adapting its copy to the domain.
+Supplied `content.marketing.feedback_examples` are editable hypothetical wants,
+labelled as examples by the renderer. Keep all three relevant to the product;
+never invent names, ratings or past results, or alter protected `social_proof`.
 `walkthrough_visual` includes complete phone mockups; individual `app_screen_*`
 images remain screen interiors. Describe edits to depicted text as image actions;
 external captions remain ordinary bounded copy. Missing claims stay blank for

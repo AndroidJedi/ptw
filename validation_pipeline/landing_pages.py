@@ -35,7 +35,7 @@ from .local_codex import sanitized
 from .studio_creatives import _json_schema
 from .studio_manual_agent import (
     STUDIO_MANUAL_AGENT_PROMPT_VERSION, STUDIO_MANUAL_AGENT_REASONING_EFFORT,
-    apply_manual_agent_edits, manual_agent_editable_values, manual_agent_payload,
+    apply_manual_agent_edits, manual_agent_brief_context, manual_agent_editable_values, manual_agent_payload,
     manual_agent_schema, response_reply, screenshot_artifacts,
     studio_manual_agent_provider_error, validate_image_actions,
     validate_manual_agent_semantics,
@@ -994,6 +994,10 @@ class LandingService:
             configuration=agent_configuration, content=agent_content,
             catalog=detail["catalog"], screenshot_artifact_values=artifacts,
             image_slots=image_slots, current_images=current_images,
+            approved_product_brief=manual_agent_brief_context(
+                self.authority.brief(detail["source_brief_id"]),
+                brief_id=detail["source_brief_id"], project_id=detail["project_id"],
+            ),
         )
         editable_values = manual_agent_editable_values(
             catalog=detail["catalog"], configuration=agent_configuration,
@@ -1069,7 +1073,7 @@ class LandingService:
                 response_validator=validate_response,
                 **({"input_artifacts": artifacts} if artifacts else {}),
             )
-        except (RuntimeError, TimeoutError) as error:
+        except (RuntimeError, TimeoutError, KeyError, TypeError, ValueError) as error:
             raise studio_manual_agent_provider_error(error) from error
         response = dict(result["response"])
         response["changed_paths"] = _diff_paths(

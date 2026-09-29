@@ -123,6 +123,23 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
                 self.assertEqual(len(raised.exception.attempts), 1)
                 self.assertNotIn("should-not-persist", str(raised.exception))
 
+    def test_manual_correction_keeps_near_limit_skill_and_binds_hint_to_request(self):
+        prompts = []
+
+        def executor(command, **kwargs):
+            prompts.append(kwargs['input'])
+            _output_path(command).write_text(json.dumps({'value': len(prompts)}))
+            return subprocess.CompletedProcess(command, 0, stdout='', stderr='')
+
+        result = self._request(self._provider(executor), mode='studio_manual_edit',
+            system_prompt='S' * 8100, reasoning_effort='high')
+        self.assertEqual({'value': 2}, result['response'])
+        self.assertNotIn('CORRECTION_REQUIRED', prompts[1])
+        self.assertIn('_ptw_validation_correction', prompts[1])
+        attempts = result['invocation']['attempts']
+        self.assertNotEqual(attempts[0]['request_fingerprint'], attempts[1]['request_fingerprint'])
+        self.assertNotEqual(attempts[0]['input_sha256'], attempts[1]['input_sha256'])
+
     def test_visual_artifact_is_ephemeral_and_digest_bound(self):
         calls = []
         png = b"\x89PNG\r\n\x1a\nexample"

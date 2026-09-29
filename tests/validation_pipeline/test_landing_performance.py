@@ -55,6 +55,28 @@ class LandingPerformanceTests(unittest.TestCase):
             time.sleep(.01)
         self.fail('Operation did not finish')
 
+    def test_agent_service_failures_are_not_owner_validation_errors(self):
+        from validation_pipeline.provider import StructuredContractError
+        for error, category, retryable in ((ValueError('invalid model output'), 'provider', True),
+                                           (StructuredContractError('oversized server payload'), 'contract', False)):
+            with self.subTest(category=category):
+                active, pid, lid = self.build()
+                class Failed:
+                    def call(self, **_kwargs): raise error
+                active.structured_provider = Failed()
+                detail = active.detail(pid, lid)
+                operation = active.operations.start(pid, lid, {'kind': 'agent', 'request': {
+                    'request_id': str(uuid4()), 'base_sha256': detail['state_sha256'],
+                    'configuration': detail['configuration'], 'content': detail['content'],
+                    'message': 'Improve the written copy', 'history': [], 'screenshots': []}})
+                final = self.finished(active, pid, lid, operation['operation_id'])
+                self.assertEqual('failed', final['status'])
+                self.assertEqual(category, final['error']['category'])
+                self.assertEqual(retryable, final['error']['retryable'])
+                self.assertEqual([], final['jobs'])
+                self.assertIsNone(final['result'])
+                self.assertEqual(detail, active.detail(pid, lid))
+
     def test_parallel_slots_commit_independently_without_holding_page_reads(self):
         barrier = Barrier(2)
         gate = Event()

@@ -116,10 +116,18 @@ Agent mode does not transmit the full editor tree or duplicate the live catalog.
 One request contains:
 
 - the owner instruction;
+- the complete approved source Product Brief, pinned by its immutable ID and
+  canonical document digest and loaded by the server from this draft's lineage;
 - at most four recent messages within a 4 KiB aggregate budget;
-- only catalog-backed editable scalar paths and their current values;
+- a compact nested tree containing only catalog-backed editable scalar values;
 - bounded semantic controls and zero to four ephemeral screenshots;
 - current image-slot availability and explicit request invariants.
+
+The Brief supplies product, audience, pain, promise, benefits, CTA, trust strategy
+and offer even when these details are absent from the current copy. It is a
+validation hypothesis, not measured proof. Explicit owner instructions and
+current draft choices take precedence. A newer Project Brief does not replace
+the editor's source Brief. Audit, graph and raw-idea fields are excluded.
 
 The response contains at most 64 scalar `{path, value}` edits, bounded image
 actions, and one short reply. PTW applies edits to a server-owned copy of the
@@ -148,6 +156,21 @@ prompt, input payload, output schema, total contract, and response. Invocation
 metadata records the measured sizes. The existing one-worker serialization,
 420-second server timeout, and single corrective attempt after a completed but
 invalid response remain unchanged.
+
+Post and Landing manual edits reserve 1 KiB in input and total budgets for the
+single completed-response correction. Both provider transports keep the skill
+unchanged and put the byte-bounded correction in server-owned input, binding it
+to the request fingerprint and context digest. The canonical Manual Agent skill
+has a 5 KiB maintenance cap. Compact Landing component descriptions retain every
+editable value and dependency; copy-only requests do not require image actions.
+The value tree preserves array indices and every allowed leaf without repeating
+parent prefixes. The output schema and server validation retain the complete
+original path allowlist; the Brief is never an editable path. Populated Ukrainian
+Landing and both Post regression fixtures include their full source Brief within
+the same 20 KiB input / 32 KiB total budgets, including correction headroom.
+Provider output rejection and oversized server envelopes are sanitized service
+failures, distinct from invalid editor input. All path, type, claim, immutable
+endpoint, evidence and stale-state guards remain enforced.
 
 ## Phone Metrics
 

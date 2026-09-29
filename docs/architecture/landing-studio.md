@@ -133,13 +133,25 @@ Font files are bundled from canonical assets and their OFL notices ship in
 The editable Landing also exposes the shared Post Studio **Agent mode**. A turn
 may adjust only the complete bounded configuration/content supplied from the
 current unsaved editor and may request existing generation for `hero_visual`
-and/or `visual_break_visual`. Each image action must repeat that slot's returned
+and/or `visual_break_visual`. It also receives the full approved source Product
+Brief, loaded by the server from this Landing's immutable `source_brief_id` with
+its document digest. It uses that context for copy and artwork while preserving
+explicit owner instructions and current draft choices. The Brief is read-only
+context and a validation hypothesis, not verified customer proof.
+Each image action must repeat that slot's returned
 visual direction; enhancement requires an existing selected image. The browser
 persists the returned draft through the normal configuration route before calling
 the existing generation route. Contact endpoints and the full social-proof block
 are preserved exactly, while their ordinary supporting layout/copy controls stay
 editable. Up to four normalized screenshots are temporary inputs only. The agent
 cannot save, approve, publish, add sections, invent evidence, or modify code.
+
+Manual Agent byte budgets and correction headroom are shared with Post; see
+[Manual Agent performance contract](post-studio.md#manual-agent-performance-contract).
+A server-envelope failure is reported as a service contract error, rather than
+asking the owner to rewrite valid copy. Historical interpretation-phase validation
+failures also identify the agent response as the failed step. The operation
+dialog mentions preserved completed images only when a slot actually completed.
 
 Browser coverage includes desktop, 360px, iPhone WebKit, real font loading,
 maximum-length copy, focal points, section selection, contact actions, FAQ,

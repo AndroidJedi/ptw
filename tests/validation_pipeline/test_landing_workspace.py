@@ -500,7 +500,7 @@ class LandingDesignTests(unittest.TestCase):
                 return self.page
 
             def brief(self, _brief_id):
-                return {"document": {"language": "en"}}
+                return {"approved": True, "document": {"language": "en"}}
 
         class Provider:
             change_contact = False
@@ -574,7 +574,8 @@ class LandingDesignTests(unittest.TestCase):
             self.assertIn("content.app_feature.title", expanded["changed_paths"])
             provider.change_optional_controls = False
             provider.change_contact = True
-            with self.assertRaisesRegex(ValueError, "edit path"):
+            from validation_pipeline.studio_manual_agent import StudioManualAgentProviderError
+            with self.assertRaises(StudioManualAgentProviderError) as caught:
                 service.manual_agent_edit(
                     project_id, landing_id,
                     request_id="01900000-0000-7000-8000-000000000015",
@@ -582,6 +583,7 @@ class LandingDesignTests(unittest.TestCase):
                     history=[], configuration=initial["configuration"], content=initial["content"],
                     screenshots=[],
                 )
+            self.assertIn("edit path", str(caught.exception.__cause__))
 
     def test_natal_is_the_fixed_catalog_identity(self):
         from validation_pipeline.landing_workspace import landing_catalog

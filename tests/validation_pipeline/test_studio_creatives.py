@@ -64,8 +64,8 @@ class FakeStructuredProvider:
             }
         if request["mode"] == "studio_manual_edit":
             current = request["input_payload"]["current_editable_values"]
-            headline_path = "content.hero_title" if "content.hero_title" in current else "content.template_text.title"
-            if headline_path not in current:
+            headline_path = "content.hero_title" if "hero_title" in current["content"] else "content.template_text.title"
+            if "hero_title" not in current["content"] and "title" not in current["content"].get("template_text", {}):
                 raise AssertionError("manual Agent payload omitted the editable headline")
             edits = [{"path": headline_path, "value": "Owner-directed agent headline"}]
             if self.manual_logo_colors:
@@ -413,13 +413,15 @@ class StudioCreativeServiceTests(unittest.TestCase):
             "enhance_current": False,
             "reference_index": 0,
         }]
-        with self.assertRaisesRegex(ValueError, "would be invisible"):
+        from validation_pipeline.studio_manual_agent import StudioManualAgentProviderError
+        with self.assertRaises(StudioManualAgentProviderError) as caught:
             self.service.manual_agent_edit(
                 project_id, detail["creative_id"], request_id=new_uuid7(),
                 base_sha256=detail["state_sha256"], message=message,
                 history=[], configuration=detail["configuration"],
                 content=detail["content"], screenshots=[],
             )
+        self.assertIn("would be invisible", str(caught.exception.__cause__))
 
         self.provider.manual_phone_update = {
             "device_enabled": True, "visual_mode": "image",

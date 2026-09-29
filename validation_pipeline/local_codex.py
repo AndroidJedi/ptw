@@ -23,7 +23,7 @@ import time
 from typing import Any
 
 from .provider import (
-    OPTIONAL_TEMPLATE_MODE, TEMPLATE_CORRECTION_KEY, _input_artifacts,
+    INPUT_CORRECTION_RESERVES, TEMPLATE_CORRECTION_KEY, _input_artifacts,
     bridge_idempotency_key, bridge_request_fingerprint,
     enforce_structured_contract_budget, enforce_structured_response_budget,
     template_validation_correction,
@@ -258,13 +258,13 @@ class LocalCodexStructuredProvider:
             raise ValueError("local structured reasoning effort must be low, medium, high, or xhigh")
         for attempt in range(1, self.maximum_attempts + 1):
             attempt_payload = dict(input_payload)
-            if mode == OPTIONAL_TEMPLATE_MODE and last_error is not None:
+            if mode in INPUT_CORRECTION_RESERVES and last_error is not None:
                 attempt_payload[TEMPLATE_CORRECTION_KEY] = template_validation_correction(last_error)
             attempted_prompt = system_prompt + (
                 "\n\nCORRECTION_REQUIRED: The previous structured response was rejected by "
                 f"PTW validation: {self._sanitized_error_message(last_error)}. "
                 "Return a corrected object that obeys that exact constraint."
-                if last_error is not None and mode != OPTIONAL_TEMPLATE_MODE else ""
+                if last_error is not None and mode not in INPUT_CORRECTION_RESERVES else ""
             )
             contract_bytes = enforce_structured_contract_budget(
                 mode=mode, system_prompt=attempted_prompt,
@@ -273,8 +273,8 @@ class LocalCodexStructuredProvider:
             input_digest = sha256_json(sanitized(attempt_payload))
             request_fingerprint = bridge_request_fingerprint(
                 mode=mode,
-                system_prompt=system_prompt if mode != OPTIONAL_TEMPLATE_MODE else attempted_prompt,
-                input_payload=attempt_payload if mode == OPTIONAL_TEMPLATE_MODE else input_payload,
+                system_prompt=system_prompt if mode not in INPUT_CORRECTION_RESERVES else attempted_prompt,
+                input_payload=attempt_payload if mode in INPUT_CORRECTION_RESERVES else input_payload,
                 output_schema=output_schema, prompt_version=prompt_version,
                 model=self.model or "codex-cli-default",
                 input_artifact_digests=artifact_digests,

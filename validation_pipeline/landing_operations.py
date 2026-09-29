@@ -15,7 +15,7 @@ from .image_generation_policy import compile_image_prompt, image_provenance, IMA
 from .landing_delivery import prepare
 from .landing_operation_store import OperationStore, ACTIVE
 from .landing_workspace import normalize_configuration, normalize_content, sha256_json
-from .studio_manual_agent import manual_agent_request
+from .studio_manual_agent import StudioManualAgentProviderError, manual_agent_request
 
 
 def now():
@@ -25,12 +25,14 @@ def now():
 def failure(error, phase):
     name = type(error).__name__
     category = "timeout" if isinstance(error, (TimeoutError, ConnectionError)) or name in {"HTTPError", "ReadTimeout", "ConnectTimeout", "ConnectionError"} or "timed out" in str(error).lower() else "provider"
-    if isinstance(error, ValueError):
+    if isinstance(error, StudioManualAgentProviderError):
+        category = "contract" if error.contract_failed else "timeout" if error.timed_out else "provider"
+    elif isinstance(error, ValueError):
         category = "validation"
     elif isinstance(error, RuntimeError) and "changed" in str(error).lower():
         category = "stale"
     return {"phase": phase, "category": category, "code": name,
-            "retryable": category not in {"validation", "stale"}}
+            "retryable": category not in {"validation", "stale", "contract"}}
 
 
 class LandingOperations:

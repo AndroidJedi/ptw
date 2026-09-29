@@ -30,6 +30,10 @@ STRUCTURED_REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh"})
 TEMPLATE_CREATION_REASONING_EFFORT = "xhigh"
 TEMPLATE_CORRECTION_RESERVE_BYTES = 3072
 TEMPLATE_CORRECTION_KEY = "_ptw_validation_correction"
+INPUT_CORRECTION_RESERVES = {
+    OPTIONAL_TEMPLATE_MODE: TEMPLATE_CORRECTION_RESERVE_BYTES,
+    "studio_manual_edit": 1024,
+}
 STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
     "template_creation": {
         # Leave room for the bounded second-attempt validation correction while
@@ -52,6 +56,10 @@ STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
         "response": 16 * 1024,
     },
 }
+
+
+class StructuredContractError(ValueError):
+    """A server-built provider envelope cannot fit its bounded contract."""
 
 
 def _input_artifacts(
@@ -115,9 +123,10 @@ def _validation_error(error: Exception | str) -> str:
 
 def template_validation_correction(error: Exception | str) -> str:
     """One bounded, server-owned correction shared by local Codex and the bridge."""
+    message = _validation_error(error).encode("utf-8")[:500].decode("utf-8", errors="ignore")
     return (
         "The previous completed structured response was rejected by PTW "
-        f"validation: {_validation_error(error)}. Return a corrected object that obeys "
+        f"validation: {message}. Return a corrected object that obeys "
         "that exact constraint."
     )
 
@@ -159,20 +168,21 @@ def enforce_structured_contract_budget(
         output_schema=output_schema,
     )
     if contract_bytes["total"] > BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES:
-        raise ValueError("structured provider contract exceeds its safe byte budget")
+        raise StructuredContractError("structured provider contract exceeds its safe byte budget")
     budget = STRUCTURED_MODE_BUDGETS.get(mode)
     if budget is not None:
         for part in ("system_prompt", "input_payload", "output_schema", "total"):
             if contract_bytes[part] > budget[part]:
-                raise ValueError(
+                raise StructuredContractError(
                     f"{mode} {part.replace('_', ' ')} exceeds its compact byte budget"
                 )
-        if mode == OPTIONAL_TEMPLATE_MODE and TEMPLATE_CORRECTION_KEY not in input_payload:
+        reserve = INPUT_CORRECTION_RESERVES.get(mode, 0)
+        if reserve and TEMPLATE_CORRECTION_KEY not in input_payload:
             if any(
-                budget[part] - contract_bytes[part] < TEMPLATE_CORRECTION_RESERVE_BYTES
+                budget[part] - contract_bytes[part] < reserve
                 for part in ("input_payload", "total")
             ):
-                raise ValueError("template_creation contract leaves no corrective attempt budget")
+                raise StructuredContractError(f"{mode} contract leaves no corrective attempt budget")
     return contract_bytes
 
 
@@ -397,9 +407,9 @@ class StructuredBridge:
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         request_payload = dict(input_payload)
-        if correction is not None and mode == OPTIONAL_TEMPLATE_MODE:
-            # Keep the canonical skill inside its 6 KiB prompt budget. The
-            # first attempt reserves room in the input contract for this hint.
+        if correction is not None and mode in INPUT_CORRECTION_RESERVES:
+            # Keep the canonical skill unchanged. First-attempt preflight
+            # reserves room in both input and total budgets for this hint.
             request_payload[TEMPLATE_CORRECTION_KEY] = template_validation_correction(correction)
         context_hash = self._digest(request_payload)
         request_fingerprint = bridge_request_fingerprint(
@@ -410,7 +420,7 @@ class StructuredBridge:
             reasoning_effort=reasoning_effort,
         )
         prompt = system_prompt
-        if correction is not None and mode != OPTIONAL_TEMPLATE_MODE:
+        if correction is not None and mode not in INPUT_CORRECTION_RESERVES:
             prompt += (
                 "\n\nCORRECTION_REQUIRED: The previous completed structured response "
                 f"was rejected by PTW validation: {correction}. Return a corrected "

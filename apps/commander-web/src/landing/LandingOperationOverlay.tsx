@@ -52,6 +52,7 @@ export function LandingOperationOverlay({ language, operation, phase, error, ret
   const categories: Record<string, string> = {
     timeout: tr('The provider did not finish within its time limit. Retry checks the existing job before requesting more work.', 'Провайдер не завершив роботу вчасно. Перед повторенням перевіримо наявне завдання.'),
     provider: tr('The image or agent service could not complete this step. Completed changes remain available.', 'Сервіс зображень або агента не завершив цей крок. Виконані зміни збережено.'),
+    contract: tr('The agent service could not prepare this request. Your draft is unchanged. The service needs an update before this request can run.', 'Сервіс агента не зміг підготувати цей запит. Чернетку не змінено. Для виконання запиту потрібно оновити сервіс.'),
     interrupted: tr('The worker restarted before completion. Check and resume unfinished work; completed images will be reused.', 'Виконавець перезапустився до завершення. Перевірте й відновіть незавершену роботу; готові зображення використаємо повторно.'),
     validation: tr('The requested changes did not pass validation. Return to the editor, correct the request, and send it again.', 'Запитані зміни не пройшли перевірку. Поверніться в редактор, виправте запит і надішліть його знову.'),
     stale: tr('The Landing changed while this request was running. Return to the editor and review its latest state before sending a new request.', 'Лендінг змінився під час виконання. Поверніться в редактор і перевірте останній стан перед новим запитом.'),
@@ -60,16 +61,19 @@ export function LandingOperationOverlay({ language, operation, phase, error, ret
   const statusLabel = (status: string) => ({ queued: tr('Queued', 'У черзі'), generating: tr('Generating', 'Генерується'), preparing: tr('Preparing display images', 'Готуємо зображення для показу'), completed: tr('Completed', 'Завершено'), failed: tr('Failed', 'Помилка') }[status] || tr('Processing', 'Обробляється'))
   const jobs = operation?.jobs || initialJobs || []
   const done = jobs.filter(job => job.status === 'completed').length
+  const failureDescription = operation?.error?.category === 'validation' && operation.error.phase === 'interpreting'
+    ? tr('The agent could not return valid edits. Your draft is unchanged. Return to the editor and try the request again.', 'Агент не зміг повернути коректні зміни. Чернетку не змінено. Поверніться в редактор і повторіть запит.')
+    : categories[operation?.error?.category || 'provider']
   const elapsed = Math.max(0, Math.floor((tick - (Date.parse(operation?.started_at || startedAt || '') || began.current)) / 1000))
   return createPortal(<dialog ref={ref} className="landing-operation-overlay" aria-modal="true" aria-labelledby="landing-operation-title" tabIndex={-1} onCancel={event => event.preventDefault()}>
     <section className="landing-operation-card">
       {failed ? <AlertCircle size={32} /> : <LoaderCircle size={32} className="landing-operation-spin" />}
       <h2 id="landing-operation-title">{failed ? tr('This request needs attention', 'Цей запит потребує уваги') : tr('Updating your Landing', 'Оновлюємо ваш лендінг')}</h2>
-      <div role={failed ? 'alert' : 'status'} aria-live="polite"><p>{failed ? error || categories[operation?.error?.category || 'provider'] : descriptions[stage] || descriptions.preparing}</p>
+      <div role={failed ? 'alert' : 'status'} aria-live="polite"><p>{failed ? error || failureDescription : descriptions[stage] || descriptions.preparing}</p>
         {!!jobs.length && <p>{tr(`${done} of ${jobs.length} images completed.`, `Завершено ${done} із ${jobs.length} зображень.`)}</p>}</div>
       {!!jobs.length && <ul>{jobs.map(job => <li key={job.slot}><span>{slotLabel(job.slot)}</span><strong>{statusLabel(job.status)}</strong></li>)}</ul>}
       {!failed && <small>{tr('Elapsed', 'Минуло')}: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</small>}
-      {failed && <><p>{tr('Previously completed images are retained. Retry continues only unfinished work.', 'Раніше завершені зображення збережено. Повторення продовжить лише незавершену роботу.')}</p>
+      {failed && <>{done > 0 && <p>{tr('Previously completed images are retained. Retry continues only unfinished work.', 'Раніше завершені зображення збережено. Повторення продовжить лише незавершену роботу.')}</p>}
       {error?.includes('Reattach') && <label>{tr('Reattach the original screenshots in the same order', 'Додайте початкові знімки екрана в тому самому порядку')}<input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={event => {
         const files = Array.from(event.target.files || [])
         setReferenceError('')

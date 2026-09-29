@@ -13,6 +13,43 @@ Landing Hosting version `085a88ff58d3858e`
 are live. All 11 structured/media canaries, Pexels, unchanged database-authority
 comparison, dependency/resource and live Hosting/auth/CORS audits passed.
 
+## Studio Agent copy recovery and full Brief context — locally verified, deployment pending
+
+The reported Ukrainian Landing request exceeded the server-built provider
+contract before inference: 21,354 B input / 33,979 B total against 20/32 KiB.
+Its instruction was valid; no result or image job existed. Compact component
+semantics and the shared Manual Agent skill retain all editable copy. Landing
+and Post edits now also receive their complete approved source Product Brief,
+loaded server-side from `source_brief_id` and pinned by ID/document digest.
+The Brief is read-only hypothesis context; explicit owner instructions and
+current draft choices take precedence. A compact nested value tree preserves
+all scalar leaves and array indices with the original output path allowlist.
+The frozen Landing input with its full Brief fits at 18,337 B input / 29,536 B total.
+Both Landing and Post transports reserve 1 KiB for a byte-bounded correction
+in server-owned input, preserving the system prompt and binding the hint into
+request/context hashes. Skill maintenance now enforces a 5 KiB cap.
+
+Provider-output rejection and oversized server envelopes have sanitized service
+failures; editor input, immutable fields and stale-state guards remain enforced.
+The Landing dialog explains historical interpretation failures without blaming
+the owner's wording and mentions retained completed images only when they exist.
+
+Verified: 463 backend checks in the production Validation image with current
+source mounted, 143 Owner unit checks/build, nine focused mocked-API desktop/
+360px/iPhone browser cases, mobile dialog inspection, 54 Commander checks
+(seven local dependency skips), demo, canonical skills and whitespace. Real
+service tests cover Ukrainian Landing, Phone Metrics and authored Post copy
+with the full source Brief, unsaved copy, one completed-response correction and
+unchanged saved drafts; a newer Brief cannot replace a Post's own source context.
+The frozen Landing request and current accepted authored Post both passed real
+`gpt-6-astra` / `high` calls through the deployed structured bridge on attempt 1
+with candidate full-Brief envelopes. Landing fits at 29,536 B total; Post at
+14,347 B. Deployed domain validators accepted two copy edits per surface, zero
+image actions and unchanged saved state. The earlier desktop CLI replay hit its 420-second
+deadline; its failure did not trigger a blind retry or mutate a draft.
+Production code, operations, drafts, images, versions and publications are unchanged.
+Evidence: `.local/agent-copy-recovery/`.
+
 ## Domain-specific feedback preservation — deployed and published
 
 The owner clarified that feedback copy must follow the product domain while its

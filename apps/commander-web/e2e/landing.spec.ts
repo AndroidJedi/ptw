@@ -120,6 +120,36 @@ for (const showcase of [false, true]) test(`blocking image progress survives ref
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
 })
 
+test('copy-only Agent failure explains the service problem and keeps owner input', async ({ page }) => {
+  await setup(page, true)
+  const requestText = 'enhance this copies: Оберіть воду під свої потреби'
+  let writes = 0
+  await page.route('**/operations', async route => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { operation: null } })
+    const { kind, request } = route.request().postDataJSON()
+    expect(kind).toBe('agent'); expect(request.message).toBe(requestText)
+    writes++
+    await route.fulfill({ json: { operation_id: 'copy-failure', request_id: request.request_id,
+      kind: 'agent', status: 'failed', phase: 'failed', started_at: new Date().toISOString(), jobs: [],
+      error: { phase: 'interpreting', category: 'contract', code: 'StudioManualAgentProviderError', retryable: false } } })
+  })
+  await page.getByRole('button', { name: 'Agent mode', exact: true }).click()
+  await page.getByLabel('Task', { exact: true }).fill(requestText)
+  await page.getByRole('button', { name: 'Apply task', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'This request needs attention' })
+  await expect(dialog).toContainText('Your draft is unchanged')
+  await expect(dialog).not.toContainText('correct the request')
+  await expect(dialog).not.toContainText('Previously completed images')
+  await expect(dialog.getByRole('button', { name: 'Retry unfinished work' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await dialog.screenshot({ path: `.local/landing-copy-contract-${test.info().project.name}.png` })
+  await dialog.getByRole('button', { name: 'Return to editor' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Task', exact: true })).toHaveValue(requestText)
+  expect(writes).toBe(1)
+})
+
 test('changes template directly from an unsaved unapproved draft and returns through history', async ({ page }) => {
   await setup(page, false, 'Застосунок для обліку домашньої аптечки за фото упаковок ліків')
   const original = fixture()

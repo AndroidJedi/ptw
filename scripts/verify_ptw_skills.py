@@ -56,6 +56,9 @@ def main() -> None:
         if name == "landing-page-composer":
             require(len((skill / "SKILL.md").read_bytes()) <= 7 * 1024,
                     "landing-page-composer skill leaves no runtime correction headroom")
+        if name == "studio-manual-agent":
+            require(len((skill / "SKILL.md").read_bytes()) <= 5 * 1024,
+                    "studio-manual-agent skill exceeds its 5 KiB maintenance budget")
 
     validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(

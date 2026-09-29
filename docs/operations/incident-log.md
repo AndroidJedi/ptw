@@ -1,5 +1,62 @@
 # PTW incident log
 
+## 2026-09-29 — Landing copy-only Agent rejected its own context
+
+The owner's Ukrainian copy-improvement request failed during interpretation,
+before any image job or result existed. Read-only production inspection found
+two recent operations with `ValueError`, category `validation`, and retry disabled.
+Rebuilding the latest operation's provider envelope without submitting inference
+proved the cause: 21,354 B input exceeded the 20 KiB limit, and 33,979 B total
+exceeded 32 KiB. The 295-character instruction itself was valid. The generic
+dialog incorrectly asked the owner to correct it and described nonexistent
+completed images.
+
+The local fix compacts Landing component semantics and the canonical shared
+Manual Agent skill while preserving all editable copy and validation boundaries.
+The first compact revision built a 19,209 B input / 30,146 B total contract.
+At the owner's request, both editing surfaces now load the full approved source
+Product Brief from their immutable lineage, pin its ID/canonical document digest,
+and exclude raw-idea, audit and graph data. Explicit owner instructions and
+current draft choices take precedence; the source Brief remains read-only
+hypothesis context. Nested editable values preserve every leaf and array index
+without repeated parent paths, retaining the original output path allowlist.
+The frozen input with its full Brief now fits at 18,337 B input / 29,536 B total.
+Landing and Post reserve 1 KiB for one corrective
+response, keep the system skill unchanged, and bind the bounded server-owned
+hint into the context digest/fingerprint on both bridge and local transports.
+The skill verifier enforces a 5 KiB maintenance cap.
+
+Provider output rejection is now a sanitized service failure on both surfaces;
+oversized server envelopes have a separate non-retryable service-contract
+category. Invalid editor input still fails its existing guard. The dialog
+explains historical interpretation failures without blaming the owner and
+reports retained completed images only when they exist. The canonical Manual
+Agent skill records this diagnostic and copy-only behavior. Production source,
+operations, drafts, images, approved versions and publications were not changed.
+Local verification evidence is in `.local/agent-copy-recovery/`.
+
+Verified locally: 463 built-image backend checks, 143 Owner unit checks/build,
+nine focused API-mocked browser cases across desktop/360px/iPhone, native mobile
+dialog inspection, 54 Commander checks (seven local dependency skips), demo,
+canonical skills and whitespace. The real service envelope tests exercise
+Landing, Phone Metrics and authored Post copy with full Brief context, unsaved
+values and the corrective attempt without saved-state mutation. A later Project
+Brief does not replace a draft's source Brief.
+This source fix is not deployed.
+
+The separate desktop CLI replay timed out at its existing 420-second deadline
+and left the temporary draft unchanged. A subsequent real `gpt-6-astra` / `high`
+request through the deployed bridge used the candidate full-Brief envelope and
+passed on attempt 1. Production's own Landing validator accepted two hero copy
+edits and zero image actions; the saved page's complete detail remained identical.
+Only the bridge's normal inference job was created. No PTW operation, checkpoint,
+version, approval or publication was written, and no runtime source was changed.
+The current accepted authored Post also passed a real full-Brief `gpt-6-astra` /
+`high` call on attempt 1. Its candidate contract fits at 7,489 B input / 14,347 B
+total. Deployed validation accepted title/support copy edits and zero image
+actions, and the complete saved Post detail stayed identical. Both checks used
+temporary workspace hydration and the existing bridge credentials at runtime.
+
 ## 2026-09-29 — Domain feedback copy incorrectly removed its section
 
 The shared renderer correctly stopped displaying unrelated rental testimonials,

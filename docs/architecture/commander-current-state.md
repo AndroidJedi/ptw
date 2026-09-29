@@ -2,18 +2,19 @@
 
 Updated: 2026-09-29
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `studio-brief-context-20260929-f20b4ea`,
-accepted application revision `f20b4ea58bb8de7e7da41c16e43d4eae5beea53d`
-with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/ptw-updates-20260929`, containing every reviewed workspace
-change. Validation runs the Brief-context release; Owner Gateway retains the prior
-combined release, and Commander/GOD and all companion images are preserved.
-No migration or reset ran. Owner Hosting version `18f60d15da474826` and public
-Landing Hosting version `085a88ff58d3858e`
-are live. All 11 structured/media canaries, Pexels, unchanged database-authority
-comparison, dependency/resource and live Hosting/auth/CORS audits passed.
+Deployment: in-place preserving release `marketing-approaches-20260929-f33ffa1`,
+accepted application revision `f33ffa153af7104f3c112cea894739b7eb0cc92d`
+with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
+Source branch: `release/marketing-approaches-20260929`. Commander, Validation
+and Owner Gateway run the new release; unchanged companion images were retagged
+for the serial publisher. GOD retains its previous image. Migration 020 applied
+with a checksummed root-only backup and exact preservation of pre-existing
+Commander business rows; no reset ran. Owner Hosting version `f01925e19b399209`
+and public Landing Hosting version `ac7b6d8bf5058db1` are live. All structured/
+media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
+passed. The 24-hour resource follow-up timer is active.
 
-## Shared marketing approaches — implemented and verified locally
+## Shared marketing approaches — deployed
 
 Project Briefs and Natal Create now offer Benefit-led (default) and Identity-led
 with English/Ukrainian explanations. Both Brief views display bounded V2
@@ -50,9 +51,15 @@ gallery and receipts are under `.local/marketing-approaches-trial/`. A real
 newline-copy renderer failure moved into bounded provider response validation.
 No trial preference activated a learning rule or established conversion evidence.
 
-Production remains unchanged. A future release must apply migration 020 and
-compatible backend/readers before exposing the frontend selector, and run the
-updated V2 production canaries. No rollout or production canary ran here.
+The exact release passed 476 built-image backend checks, 143 Owner unit checks/
+build and all 147 desktop/360px/iPhone browser cases before cutover and again
+before Owner Hosting publication. The updated V2 production canaries, Pexels,
+approved Post access, business-row comparison, production skill/dependency and
+resource audits, and live public/Owner Hosting audits all passed. Production
+has five active Projects and eight accessible immutable approved Post PNGs;
+organic and manual Instagram source projections match PostgreSQL. Evidence:
+`.local/ptw-combined-release/.local/marketing-release-deploy.log` and
+`.local/ptw-combined-release/.local/releases/marketing-approaches-20260929-f33ffa1/`.
 
 ## Studio Agent copy recovery and full Brief context — deployed
 

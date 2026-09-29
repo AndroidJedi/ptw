@@ -24,8 +24,19 @@ contact or visual boundaries. A 7 KiB skill-maintenance cap and a canonical-prom
 invalid-first/valid-second bridge regression now protect correction headroom.
 The VPS skill also requires source/Hosting recovery after manual partial release;
 image health alone cannot prove complete rollback. Runtime byte limits, models,
-validators and first-attempt canary acceptance remain unchanged. The corrected
-candidate must complete the full preserving release before being reported live.
+validators and first-attempt canary acceptance remain unchanged.
+
+The corrected combined preserving release completed all 11 live canaries on
+their first attempt, Pexels, dependency/resource and complete database-authority
+preservation checks. The final local Owner gate had one intermittent desktop
+screenshot-attachment failure; a focused recheck and the full 138-case suite
+passed before the remaining Owner Hosting publication and live audit. Both web
+shells, Validation and Owner Gateway are now deployed; every other application
+image and the independent platform were preserved. Live desktop/360px/iPhone
+Landing checks passed without storing inquiry contacts. Actual Natal events were
+accepted, Meta SDK/configuration loaded and an iPhone beacon was observed; Meta's
+automation filter prevents proving receipt in some headless browsers. Existing
+published content, configuration, artwork and template identities are unchanged.
 
 ## 2026-09-29 — Full VPS caused widespread health failures and Owner 401s
 

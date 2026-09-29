@@ -362,6 +362,6 @@ App Showcase v2 extends the native Landing gallery preview with shared marketing
 sections, domain gradients, optional motifs and complete generated walkthrough
 mockups. V1 remains resolvable by its exact identity. Existing original Landing
 pages can enable these sections explicitly in Studio without replacing their
-base template. In the local candidate, reference reviews are never displayed publicly or supplied as Project evidence.
+base template. Reference reviews are never displayed publicly or supplied as Project evidence.
 Private editor placeholders require verified quotes for the exact product; absent
 proof is hidden. Empty store targets use the shared early-access inquiry form.

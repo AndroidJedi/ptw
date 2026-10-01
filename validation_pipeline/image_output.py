@@ -8,6 +8,11 @@ IMAGE_OUTPUT_VERSION = "ptw.image-output.v1"
 def output_specification(destination: Mapping[str, Any]) -> dict:
     mode = destination.get("mode")
     width, height = (864, 1872) if mode == "app_screen" else (1536, 1152) if mode == "app_mockup" else (1024, 1024)
+    if destination.get("template_id") == "daddy":
+        if mode == "app_screen" and destination.get("pose") == "landscape":
+            width, height = 1872, 864
+        elif destination.get("slot") == "scene":
+            width, height = 1024, 1280
     return {
         "schema": IMAGE_OUTPUT_VERSION, "width": width, "height": height,
         "background": "transparent" if mode == "app_mockup" else "opaque",

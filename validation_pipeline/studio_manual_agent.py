@@ -422,6 +422,14 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     """
 
     declarations = _SURFACE_COMPONENT_CONTRACTS.get(surface)
+    if catalog.get("schema") == "ptw.studio.daddy-catalog.v1":
+        return {"schema": "ptw.studio.agent-control-contract.v3", "surface": surface,
+            "instructions": ["Use the same bounded block controls as the manual editor. Changing preset applies its defaults, preserves copy/assets and then applies your other scalar edits.",
+                "Preserve unrelated settings, owner choices, exact Brief/Brand Identity and fixed Natal identity. Never invent claims or performance evidence.",
+                "Screen is generated UI; depicted text changes require an image action. Scene, subject, screen, feature and props are independent. No hands in phone imagery."],
+            "presets": [{k:v for k,v in item.items() if k != "configuration"} for item in catalog["presets"]],
+            "bounds": catalog["bounds"], "options": catalog["enums"]}
+
     if surface.startswith("post:") and catalog.get("schema") == "ptw.studio.authored-post-catalog.v1":
         declarations = {
             "authored.text": {

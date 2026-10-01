@@ -11,6 +11,13 @@ Brief, contact, evidence or publication records to populate a card.
 
 ## Registry and rendering
 
+Daddy proposals use a bounded native `daddy_configuration` document. Project
+copy and assets are stripped before proposal creation. The usual neutral render,
+comparison and owner acceptance flow registers an immutable design; its default
+settings and native Daddy editor survive initial Brief composition and restart.
+The native document accepts bounded block/preset paths instead of arbitrary
+component edits. Its preview cache includes the Daddy compiler and asset contract.
+
 `template_registry.py` remains the surface-neutral identity/lookup contract.
 Registries support multiple immutable versions and an exact-reference loader;
 `TemplateAuthoringService.registry(surface)` combines the existing surface's

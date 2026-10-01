@@ -10,6 +10,7 @@ vi.mock('../components/studio/PhoneMetricsStudio', () => ({
   ),
 }))
 vi.mock('../components/PostPublishing', () => ({ PostPublishing: () => null }))
+vi.mock('../components/studio/DaddyStudio', () => ({ DaddyStudio: () => <section aria-label="Daddy editor" /> }))
 vi.mock('../components/studio/StudioTuneWizard', () => ({
   StudioTuneWizard: ({ open }: { open: boolean }) => open ? <div>Local Tune wizard</div> : null,
 }))

@@ -123,6 +123,12 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
         guidance += " This is standalone artwork; do not assume an app-screen aperture or a white screen fade."
     if destination.get("slot") == "visual_break_visual":
         guidance += " Keep essential subjects within the central horizontal band for the shallow landscape crop."
+    if destination.get("template_id") == "daddy":
+        guidance += " Do not include hands or fingers. Keep production artwork independent of outer ad text, logos and device hardware."
+        if destination.get("pose") == "landscape" and destination.get("mode") == "app_screen":
+            guidance = guidance.replace("portrait 9:19.5", "landscape 19.5:9")
+        if settings.get("art_treatment") == "line_drawing" and destination.get("mode") != "app_screen":
+            guidance += " Use original expressive line drawing with a restrained palette, visible drawn contours and purposeful annotation space."
     style = PHONE_HERO_STYLE_DIRECTIVES.get(str(settings.get("style")), "")
     background = PHONE_HERO_BACKGROUND_DIRECTIVES.get(str(settings.get("background")), "")
     if destination.get("mode") in {"app_screen", "app_mockup"}:

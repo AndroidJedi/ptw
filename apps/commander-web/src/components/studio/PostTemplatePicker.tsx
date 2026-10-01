@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { LayoutTemplate, X } from 'lucide-react'
 import { ApiFailure, type ApiClient } from '../../api'
 import type { Language } from '../../i18n'
-import type { StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent, StudioPhoneMetricsDetail } from '../../types'
+import type { StudioPhoneMetricsDetail } from '../../types'
 import { TemplateImage } from '../TemplateImage'
 
 type Choice = { surface: 'post'; template_id: string; template_version: number; template_sha256: string; name: string; preview_status?: string; previews: Record<string, { sha256: string; definition_sha256: string }> }
-export function PostTemplatePicker({ api, language, basePath, detail, configuration, content, disabled, onApply }: {
-  api: ApiClient; language: Language; basePath: string; detail: StudioPhoneMetricsDetail
-  configuration: StudioPhoneMetricsConfiguration; content: StudioPhoneMetricsContent
-  disabled: boolean; onApply: (value: StudioPhoneMetricsDetail) => void
+export function PostTemplatePicker<Detail extends { state_sha256: string } = StudioPhoneMetricsDetail>({ api, language, basePath, detail, configuration, content, disabled, onApply }: {
+  api: ApiClient; language: Language; basePath: string; detail: Detail
+  configuration: object; content: object
+  disabled: boolean; onApply: (value: Detail) => void
 }) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Choice[] | null>(null)
@@ -44,7 +44,7 @@ export function PostTemplatePicker({ api, language, basePath, detail, configurat
       configuration, content }
     setPending(body); setBusy(true); setError('')
     try {
-      const value = await api.post<StudioPhoneMetricsDetail>(`${basePath}/templates/apply`, body, { deadlineMs: 90_000 })
+      const value = await api.post<Detail>(`${basePath}/templates/apply`, body, { deadlineMs: 90_000 })
       setPending(null); setOpen(false); onApply(value)
     } catch (cause) {
       setError((cause as Error).message)

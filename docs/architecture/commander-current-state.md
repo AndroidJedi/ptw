@@ -1,28 +1,61 @@
 # Commander current state
 
 Updated: 2026-10-01
-Branch: `release/local-studio-20261001`
-Deployment: in-place preserving release `marketing-approaches-20260929-f33ffa1`,
-accepted application revision `f33ffa153af7104f3c112cea894739b7eb0cc92d`
+Branch: `candidate/ptw-prod-access-20260922`
+Deployment: in-place preserving release `brand-studio-20261001-b7c505d`,
+accepted application revision `b7c505dd781ff1cbc3bc3c7107d5a133cc3df303`
 with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/marketing-approaches-20260929`. Commander, Validation
+Source branch: `release/local-studio-20261001`. Commander, Validation
 and Owner Gateway run the new release; unchanged companion images were retagged
-for the serial publisher. GOD retains its previous image. Migration 020 applied
+for the serial publisher. GOD retains its previous image. Migration 021 applied
 with a checksummed root-only backup and exact preservation of pre-existing
-Commander business rows; no reset ran. Owner Hosting version `f01925e19b399209`
-and public Landing Hosting version `ac7b6d8bf5058db1` are live. All structured/
+Commander business rows; no reset ran. Owner Hosting version `5def3e592480bf1e`
+is live. All structured/
 media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
 passed. The 24-hour resource follow-up timer is active.
 
-The pending release candidate contains the local App Showcase v3 controls,
-initial Post template selection, and Product Brief V3 brand identity below.
-Preflight passed 488 Validation tests in the built image, 149 Owner unit tests
-and build, all 153 Owner browser checks, the public build, 54 Commander checks
-and demo, canonical skill verification, and a disposable PostgreSQL migration
-check preserving historical V1/V2 rows. Production remains on the revision
-above until the migration-bearing in-place release is accepted.
+## Daddy modular Post builder — local, not deployed
 
-## App Showcase hero controls — local, not deployed
+Daddy is selectable in the existing Post gallery. Twelve composition presets
+compile shared Background, Message, Device, Subject, Collage, Offer, Brand and
+Action blocks through the native 1080×1350 renderer. Manual and Agent editing use
+the same bounded settings, exact fonts, semantic copy and independent asset slots.
+The requested handheld treatment is replaced by a standalone phone against a
+blurred scene; Daddy generation excludes hands. High-resolution registered store
+badges and a native landscape preview fixture keep device demos readable.
+
+Generation reads the approved Brief, marketing approach, Brand Identity, owner
+direction and accepted Creative Skills, then persists strategy, composition,
+assets and actual PNG review. At most two polish rounds and one targeted asset
+regeneration per round are allowed. Interrupted Daddy runs require explicit
+retry and reuse completed stages/assets. Manual changes keep Update preview.
+Neutral tuned-preset proposals pass through existing Templates acceptance.
+Per-slot provenance, original uploads, history, approval, export, cloning and
+visible-copy Landing projection are implemented; migration 022 preserves existing
+rows and PNGs. Existing uncommitted Brand Identity/template work was retained.
+
+Verified: 501 Validation tests in the dependency-complete built image; 153 web
+unit tests/build; 156 desktop/360px/iPhone WebKit cases across the full browser
+run and focused reruns of the updated picker counts; 54 Commander checks
+(five environment skips in the built image), host checks/demo; skill validation,
+deterministic Studio audit and whitespace checks. Disposable PostgreSQL verified
+old rows/files/PNG preservation, independent assets, duplicate requests, approval,
+clone, Landing source and three fresh caches. Independent enhancement used exact
+raw pixels while preserving unrelated artwork and history order.
+
+Rendered all twelve presets with EN/UK copy and inspected native/phone-size
+presentations, optional copy, overflow findings and missing assets. Six real
+Brief-to-Post trials plus an additional illustration trial produced seven drafts:
+five finished without review findings; the booking app retained small screen-label
+and feature-card clearance findings, and the notebook collage retained stray
+cutout fragments after its two rounds. These are editable drafts, not approved
+ads or performance evidence. Private results are under `.local/daddy-trials` and
+`.local/daddy-illustration-trial`; the edited standalone-phone reference is under
+`.local/daddy-review`. The refreshed local app is
+`http://127.0.0.1:5180/?e2e=1`; health, authenticated detail and a fresh authoritative
+Daddy gallery PNG were verified. Deployment remains a separate operation.
+
+## App Showcase hero controls — deployed in the Brand Studio release
 
 App Showcase v3 adds editable eyebrow copy above the hero title and a preserved
 text/three-bullet switch below it. All three bullets are separately editable in
@@ -40,7 +73,7 @@ that run. Local checks: built-image App Showcase/marketing/Agent and template
 registry/authoring tests, 149 Owner unit tests/build, native desktop/mobile PNG
 inspection, all 150 desktop/360px/iPhone WebKit browser checks, and skill verifier.
 
-## Initial Post template selection — local, not deployed
+## Initial Post template selection — deployed in the Brand Studio release
 
 Brief approval and the empty Post Studio now show the accepted Post gallery with
 preview cards. The owner selects an exact template version and image direction;
@@ -60,7 +93,7 @@ deterministic Post visual audit, canonical skills, Commander 54 checks/demo and
 whitespace. No production release or publication occurred.
 The current loopback review instance is at `http://127.0.0.1:5180/?e2e=1`.
 
-## Brand identity — local, not deployed
+## Brand identity — deployed in the Brand Studio release
 
 The owner found that an occasion and self-image did not define a brand. New
 ProductBriefV3 adds a dedicated Brand identity section in Project Briefs and

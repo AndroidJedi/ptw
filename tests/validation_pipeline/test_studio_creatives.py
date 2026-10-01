@@ -286,7 +286,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
 
     def test_common_templates_and_project_isolation(self) -> None:
         catalog = self.service.templates()
-        self.assertEqual({"phone_metrics"}, {
+        self.assertEqual({"phone_metrics", "daddy"}, {
             item["template_id"] for item in catalog["items"]
         })
         self.assertTrue(all(item["template_sha256"] for item in catalog["items"]))

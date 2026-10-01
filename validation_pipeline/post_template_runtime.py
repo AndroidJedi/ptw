@@ -83,6 +83,9 @@ def post_definition(record):
     if record["surface"] != "post" or record.get("builtin"):
         raise ValueError("Select an accepted Post template")
     doc = normalize_document(record["document"])
+    if "daddy_configuration" in doc:
+        from .studio_daddy import saved_definition
+        return saved_definition(record)
     fields = text_fields(doc)
     identity = TemplateIdentity("post", record["template_id"], record["template_version"], record["template_sha256"])
 

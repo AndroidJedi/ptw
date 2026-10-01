@@ -99,6 +99,9 @@ PHONE_METRICS_DEFINITION = PostTemplateDefinition(
     asset_slots=_asset_slots,
 )
 
+from .studio_daddy import definition as daddy_definition
+
+DADDY_DEFINITION = daddy_definition()
 POST_TEMPLATE_REGISTRY = TemplateRegistry(
-    "post", (PHONE_METRICS_DEFINITION,),
+    "post", (PHONE_METRICS_DEFINITION, DADDY_DEFINITION),
 )

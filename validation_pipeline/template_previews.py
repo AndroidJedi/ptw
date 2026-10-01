@@ -82,6 +82,8 @@ def builtin_preview_contract(record: dict) -> str:
         paths.extend(ROOT / "validation_pipeline" / name for name in
                      ("studio_phone_metrics.py", "studio.py", "studio_primitives.py", "studio_workspace.py", "natal_brand.py"))
         definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
+        if definition.editor_key == "post.daddy.react":
+            paths.extend(ROOT / "validation_pipeline" / name for name in ("studio_daddy.py", "daddy_assets.py"))
         fixture = sha({"configuration": definition.default_configuration(), "content": definition.default_content()})
     return sha({"reference": {key: record[key] for key in ("surface", "template_id", "template_version", "template_sha256")},
                 "fixture_sha256": fixture,
@@ -93,9 +95,10 @@ def render_builtin(record: dict, *, mobile=False) -> dict:
     if record["surface"] == "post":
         definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
         configuration, content = definition.default_configuration(), definition.default_content()
-        content.update(hero_title="Your next idea starts here", supporting_text="Describe the task your app helps people complete.",
-                       offer="TEMPLATE PREVIEW", cta="Explore the details", phone_hero_title="Your workspace",
-                       phone_buttons=["Explore options", "View requests", "Profile"])
+        content.update(hero_title="Your next idea starts here", supporting_text="Describe the task your product helps people complete.",
+                       offer="" if definition.editor_key == "post.daddy.react" else "TEMPLATE PREVIEW", cta="Explore the details")
+        if "phone_hero_title" in content:
+            content.update(phone_hero_title="Your workspace", phone_buttons=["Explore options", "View requests", "Profile"])
         for item in content.get("stats", []):
             item.update(value="01", label="Label")
         import tempfile

@@ -120,7 +120,7 @@ test('failed draft preview survives restart and resumes without being hidden', a
   await expect(page.getByText('Check the preview. Accepting creates an immutable version and makes it available in Projects.')).toBeVisible()
   await page.getByRole('button', { name: 'Accept template version' }).click()
   await expect(page.getByRole('heading', { name: 'Drafts' })).toHaveCount(0)
-  await expect(page.locator('.template-gallery .template-card')).toHaveCount(4)
+  await expect(page.locator('.template-gallery .template-card')).toHaveCount(5)
 })
 
 test('authoritative gallery, all three scopes, immutable review and restart', async ({ page, backend }, info) => {
@@ -128,7 +128,7 @@ test('authoritative gallery, all three scopes, immutable review and restart', as
   await page.goto('/?page=templates')
   await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Phone & metrics' })).toBeVisible({ timeout: 30000 })
-  await expect(page.locator('.template-gallery img')).toHaveCount(3, { timeout: 30000 })
+  await expect(page.locator('.template-gallery img')).toHaveCount(4, { timeout: 30000 })
   await expect(page.locator('.project-switcher')).toHaveCount(0)
   await expect(page.locator('.template-gallery img').first()).toHaveJSProperty('complete', true)
   await page.screenshot({ path: info.outputPath('templates-gallery.png'), fullPage: true })

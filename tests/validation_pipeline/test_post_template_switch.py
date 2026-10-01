@@ -162,7 +162,7 @@ class PostTemplateSwitchTests(unittest.TestCase):
 
     def test_catalog_uses_injected_registry_and_each_choice_is_applicable(self):
         catalog = self.service.templates()
-        self.assertEqual({'phone_metrics', self.reference['template_id']}, {
+        self.assertEqual({'phone_metrics', 'daddy', self.reference['template_id']}, {
             item['template_id'] for item in catalog['items']
         })
         authored = next(

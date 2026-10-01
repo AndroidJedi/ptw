@@ -29,7 +29,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         allow_credentials=False,
         allow_methods=["GET", "HEAD", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
-        expose_headers=["ETag", "Content-Length", "X-PTW-Content-SHA256"],
+        expose_headers=["ETag", "Content-Length", "X-PTW-Content-SHA256", "X-PTW-Layout-Issues"],
     )
 
     async def validation_bridge(
@@ -498,6 +498,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def studio_retry(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/retry", request, identity, timeout=60)
 
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/recompose", status_code=202)
+    async def studio_daddy_recompose(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id,creative_id,"/recompose",request,identity,timeout=60)
+
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/retry", status_code=202)
     async def studio_phone_retry(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/phone-screen/retry", request, identity, timeout=60)
@@ -553,6 +557,31 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/assets/{slot}")
+    async def studio_daddy_asset(project_id: str, creative_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, f"/assets/{slot}", request, identity, timeout=480)
+
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/assets/{slot}/history")
+    async def studio_daddy_history(project_id: str, creative_id: str, slot: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", creative_path(project_id, creative_id, f"/assets/{slot}/history"), timeout=60)).json()
+
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/asset-sources")
+    async def studio_daddy_sources(project_id: str, creative_id: str, query: str = "", _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        from urllib.parse import urlencode
+        return (await validation_bridge("GET", creative_path(project_id, creative_id, "/asset-sources?")+urlencode({"query":query}), timeout=60)).json()
+
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/assets/{slot}/history/{sha256}")
+    async def studio_daddy_image(project_id: str, creative_id: str, slot: str, sha256: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", creative_path(project_id, creative_id, f"/assets/{slot}/history/{sha256}"), timeout=60)
+        return Response(content=response.content, media_type=response.headers.get("content-type", "image/png"), headers={
+            "Cache-Control":"private, no-store", "X-Content-Type-Options":"nosniff", "X-PTW-Content-SHA256":response.headers.get("x-ptw-content-sha256", "")})
+
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/presets/{preset}/preview")
+    async def studio_daddy_preset(project_id: str, creative_id: str, preset: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", creative_path(project_id, creative_id, f"/presets/{preset}/preview"), timeout=60)
+        return Response(content=response.content, media_type="image/png", headers={
+            "Cache-Control":"private, no-store", "X-Content-Type-Options":"nosniff", "X-PTW-Content-SHA256":response.headers.get("x-ptw-content-sha256", "")})
+
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/preview")
     async def studio_preview(
         project_id: str, creative_id: str, request: Mapping[str, Any],
@@ -566,6 +595,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         headers = {
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
+            "X-PTW-Layout-Issues": response.headers.get("x-ptw-layout-issues", "[]"),
         }
         if response.headers.get("etag"):
             headers["ETag"] = response.headers["etag"]

@@ -475,6 +475,7 @@ export interface StudioCreativeSummary {
   state_sha256: string | null
   approved_version_count: number
   generation: {
+    daddy?: { phase: string; composed?: boolean; corrections: number; issues?: string[]; strategy?: { reason: string } }
     metric_provenance?: MetricProvenance[]
     stage?: StudioCreativeStatus
     error_type?: string
@@ -566,7 +567,7 @@ export interface StudioPhoneMetricsDetail {
 export type StudioCreativeDetail = StudioPhoneMetricsDetail & StudioCreativeSummary
 
 export interface StudioManualAgentImageAction {
-  slot: 'phone_screen' | 'hero_visual' | 'visual_break_visual'
+  slot: 'phone_screen' | 'hero_visual' | 'visual_break_visual' | 'scene' | 'subject' | 'screen' | 'feature' | 'prop_one' | 'prop_two'
   visual_direction: string
   enhance_current: boolean
   reference_index: number

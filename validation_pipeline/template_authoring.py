@@ -407,7 +407,7 @@ class TemplateAuthoringService:
         return None
 
     def start(self, request: Mapping) -> dict:
-        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "reference_ids", "source", "post_reference", "source_run", "editable_surfaces"}:
+        if not {"request_id", "scope", "instruction"} <= set(request) or set(request) - {"request_id", "scope", "instruction", "reference_id", "reference_ids", "source", "post_reference", "source_run", "editable_surfaces", "daddy_configuration"}:
             raise ValueError("Template creation fields are invalid")
         request_id = uuid(request["request_id"])
         digest = sha(dict(request))
@@ -434,6 +434,11 @@ class TemplateAuthoringService:
                 raise ValueError("An external Post template reference applies only to Landing creation")
             self.resolve_post_reference(post_reference)
         documents = {s: deepcopy(source["document"]) if source and not source["builtin"] else seed(s) for s in surfaces}
+        if "daddy_configuration" in request:
+            if scope != "post" or source or identifiers or request.get("source_run"):
+                raise ValueError("A Daddy proposal accepts only reusable Post settings")
+            from .studio_daddy import neutral_document
+            documents = {"post": normalize_document(neutral_document(request["daddy_configuration"]))}
         origin = None
         if request.get("source_run"):
             ref = request["source_run"]
@@ -459,6 +464,11 @@ class TemplateAuthoringService:
             "latest_correction": None, "correction_history": [],
             "accepted_versions": []}
         run["editable_surfaces"] = editable
+        if "daddy_configuration" in request:
+            run.update(phase="render", analysis={
+                **{key:"Preserve the owner-tuned native Daddy composition; assess the neutral render." for key in agent.ANALYSIS_FIELDS},
+                "regions":[], "component_types":["text","image","brand","button"],
+            })
         if origin:
             run.update(phase="compose", analysis=deepcopy(origin["analysis"]), origin_run=dict(request["source_run"]))
         agent.preflight(run["phase"], run)  # Reject oversized JSON before reserving a provider job.

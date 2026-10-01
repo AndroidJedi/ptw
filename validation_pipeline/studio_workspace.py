@@ -26,6 +26,7 @@ from .studio_phone_metrics import (
 from .studio import MAX_IMAGE_BYTES, StudioRenderer, inspect_media
 from .studio_textures import texture_asset
 from .post_templates import POST_TEMPLATE_REGISTRY
+from .studio_daddy import EDITOR as DADDY_EDITOR
 
 
 _BUNDLED_ASSETS = {
@@ -290,6 +291,9 @@ class PostStudioWorkspace:
         normalized_content = self._content() if content is None else self._normalize_content(content)
         screen = self._asset_record("phone_screen")
         definition = self._definition()
+        if definition.editor_key == DADDY_EDITOR:
+            from .studio_daddy import render_assets
+            return render_assets(config, {slot: self._asset_record(slot) for slot in self._asset_slots()})
         if definition.editor_key == "post.declarative.react":
             from .template_components import fixed_component_assets
             from .template_assets import is_fixed_image
@@ -363,7 +367,7 @@ class PostStudioWorkspace:
                 "slot": slot, "role": declaration["role"],
                 "description": declaration["description"],
                 "allowed_mime_types": list(declaration["allowed_mime_types"]),
-                "editable": False, "available": record is not None,
+                "editable": self._definition().editor_key == DADDY_EDITOR, "available": record is not None,
                 "mime_type": None if record is None else record["mime_type"],
                 "sha256": None if record is None else record["sha256"],
                 "byte_count": None if record is None else record["byte_count"],
@@ -387,7 +391,7 @@ class PostStudioWorkspace:
 
     def _snapshot(self) -> dict[str, Any]:
         return {
-            **({"template_reference": self._definition().identity.to_reference()} if self._definition().editor_key == "post.declarative.react" else {}),
+            **({"template_reference": self._definition().identity.to_reference()} if self._definition().editor_key in {"post.declarative.react", DADDY_EDITOR} else {}),
             "template_id": self._selected_template_id(),
             "configuration": self._configuration(),
             "content": self._content(),
@@ -497,6 +501,10 @@ class PostStudioWorkspace:
             } for item in versions],
         }
         value["phone_screen_history"] = self._phone_screen_history_summaries()
+        if self._definition().editor_key == DADDY_EDITOR:
+            from .studio_daddy import required_slots
+            value["required_asset_slots"] = required_slots(config)
+            value["asset_generation_available"] = self.image_provider is not None
         if self._definition().editor_key == "post.declarative.react":
             from .post_template_runtime import palette_defaults, text_fields
             value["template_fields"] = text_fields(self._definition().document)
@@ -527,7 +535,10 @@ class PostStudioWorkspace:
         current_key = _canonical(current.identity.to_reference())[1]
         target_key = _canonical(target.identity.to_reference())[1]
         drafts[current_key] = {"configuration": deepcopy(config), "content": source}
-        if current_key == target_key:
+        if current_key != target_key and DADDY_EDITOR in {current.editor_key, target.editor_key}:
+            from .daddy_workspace import switch_values
+            config, next_content = switch_values(current, target, config, source, drafts.get(target_key))
+        elif current_key == target_key:
             next_content = source
         elif target.editor_key == "post.declarative.react":
             next_content = bind_content(target.document, source,
@@ -560,14 +571,34 @@ class PostStudioWorkspace:
             "configuration.json": config, "content.json": next_content,
             "template-drafts.json": drafts, "template-switches.json": {**receipts, request_id: request_digest}}
         old = {name: (self.root / name).read_bytes() if (self.root / name).exists() else None for name in updates}
+        old_assets = {path.name:path.read_bytes() for path in self.assets.iterdir() if path.is_file()}
+        carried_asset = None
+        if current.editor_key != DADDY_EDITOR and target.editor_key == DADDY_EDITOR:
+            carried_asset = self._asset_record("phone_screen")
+        elif current.editor_key == DADDY_EDITOR and target.editor_key != DADDY_EDITOR:
+            carried_asset = self._asset_record("screen") or self._asset_record("subject") or self._asset_record("scene")
         try:
             for name, value in updates.items():
                 self._atomic_json(self.root / name, value)
+            if carried_asset:
+                # Keep exact originals; this only binds compatible imagery on first entry.
+                slot = "screen" if target.editor_key == DADDY_EDITOR else "phone_screen"
+                if self._asset_record(slot) is None:
+                    if target.editor_key == DADDY_EDITOR:
+                        from .daddy_assets import store
+                        store(self,slot,carried_asset["bytes"],carried_asset["mime_type"],carried_asset["source"])
+                    else:
+                        self._store_asset(slot,data=carried_asset["bytes"],mime_type=carried_asset["mime_type"],source=carried_asset["source"])
             result = self.detail()
             # Validate rendering before committing the replacement to the caller.
             self.render_preview(state_sha256=result["state_sha256"])
             return result
         except Exception:
+            for path in self.assets.iterdir():
+                if path.is_file() and path.name not in old_assets:
+                    path.unlink()
+            for name,data in old_assets.items():
+                self._atomic_bytes(self.assets/name,data)
             for name, data in old.items():
                 if data is None:
                     (self.root / name).unlink(missing_ok=True)
@@ -623,9 +654,28 @@ class PostStudioWorkspace:
             "component_settings": self._component_settings(config, content),
             "assets": self._snapshot()["assets"],
             "primitive_template": template.document,
+            **self._derived_asset_manifest(config, content),
         }
         _, digest = _canonical(value)
         return {**value, "sha256": digest}
+
+    def _derived_asset_manifest(self, configuration, content):
+        if self._definition().editor_key != DADDY_EDITOR:
+            return {}
+        result = []
+        for slot, value in self._asset_records(configuration,content).items():
+            raw = self._asset_record("screen" if slot == "device" else slot) or {}
+            fixed = {}
+            if slot in {"apple_badge", "google_badge"}:
+                from .template_assets import asset_metadata
+                fixed = {"registered_asset": asset_metadata("owner_app_store_badge_v1" if slot == "apple_badge" else "owner_google_play_badge_v1")}
+            elif slot == "device":
+                fixed = {"hardware": iphone_frame_record()["source"]}
+            result.append({"slot": slot, "derived_sha256": hashlib.sha256(value["bytes"]).hexdigest(),
+                "raw_sha256": raw.get("sha256"),
+                "original_sha256": raw.get("source",{}).get("original_sha256",raw.get("sha256")),
+                "transformations": deepcopy(configuration), **fixed})
+        return {"derived_assets": result}
 
     def save_configuration(
         self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
@@ -646,11 +696,11 @@ class PostStudioWorkspace:
         self._assert_state(base_sha256)
         normalized_config = self._normalize_configuration(configuration)
         normalized_content = self._normalize_content(content)
-        allowed = {"phone_screen"}
+        allowed = set(self._asset_slots())
         seen: set[str] = set()
         copied_phone: dict[str, Any] | None = None
         for item in assets:
-            if not isinstance(item, Mapping) or set(item) != {"slot", "mime_type", "bytes_base64", "source"}:
+            if not isinstance(item, Mapping) or set(item) not in ({"slot", "mime_type", "bytes_base64", "source"}, {"slot", "mime_type", "bytes_base64", "source", "original_base64"}):
                 raise ValueError("Studio clone asset fields are invalid")
             slot = str(item["slot"])
             if slot not in allowed or slot in seen or not isinstance(item["source"], Mapping):
@@ -659,11 +709,20 @@ class PostStudioWorkspace:
                 data = base64.b64decode(str(item["bytes_base64"]), validate=True)
             except (TypeError, ValueError) as error:
                 raise ValueError("Studio clone asset bytes are not valid base64") from error
+            if "original_base64" in item:
+                original = base64.b64decode(item["original_base64"], validate=True)
+                original_name = item["source"].get("original_filename", "")
+                if not original_name or Path(original_name).name != original_name or hashlib.sha256(original).hexdigest() != item["source"].get("original_sha256"):
+                    raise ValueError("Studio clone original asset is invalid")
+                self._atomic_bytes(self.assets / original_name, original)
             self._store_asset(
                 slot, mime_type=str(item["mime_type"]), data=data,
                 source=dict(item["source"]),
             )
             seen.add(slot)
+            if self._definition().editor_key == DADDY_EDITOR:
+                from .daddy_assets import store
+                store(self, slot, data, str(item["mime_type"]), dict(item["source"]))
             if slot == "phone_screen":
                 copied_phone = self._asset_record(slot)
         if copied_phone is not None:
@@ -750,6 +809,18 @@ class PostStudioWorkspace:
             "byte_count": len(data),
             "source": json.loads(json.dumps(dict(source))),
         })
+
+    def daddy_asset_operation(self, **options):
+        from .daddy_assets import operate
+        return operate(self, **options)
+
+    def daddy_asset_history(self, slot):
+        from .daddy_assets import summaries
+        return summaries(self, slot)
+
+    def daddy_asset_image(self, slot, digest):
+        from .daddy_assets import read_history
+        return read_history(self, slot, digest)
 
     def upload_asset(
         self, slot: str, *, base_sha256: str, mime_type: str,
@@ -916,12 +987,20 @@ class PostStudioWorkspace:
             assets=assets,
         )
         rendered["resolved"]["component_settings"] = self._component_settings(config, normalized_content)
-        if self._definition().editor_key == "post.declarative.react":
+        if self._definition().editor_key in {"post.declarative.react", DADDY_EDITOR}:
             from .template_previews import geometry
             # Layout findings are advisory in a Project Post. The owner reviews
             # the actual PNG and decides whether to edit, save or approve it.
             # Global template authoring retains its separate quality checks.
             _observations, rendered["layout_issues"] = geometry(rendered)
+        if self._definition().editor_key == DADDY_EDITOR:
+            for node in rendered["resolved"]["nodes"].values():
+                if node["type"] != "image":
+                    continue
+                slot = node.get("props",{}).get("asset")
+                raw = self._asset_record("screen" if slot == "device" else slot) if slot else None
+                if raw and (raw["width"] < node["box"]["width"]*1080/1.5 or raw["height"] < node["box"]["height"]*1350/1.5):
+                    rendered["layout_issues"].append({"role": slot, "issue": "Source image resolution is low for its displayed size", "solvable": True})
         return rendered
 
     @staticmethod
@@ -933,6 +1012,11 @@ class PostStudioWorkspace:
 
     def approve_version(self, *, state_sha256: str, change_note: str, metric_provenance: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         self._assert_state(state_sha256)
+        if self._definition().editor_key == DADDY_EDITOR:
+            from .studio_daddy import required_slots
+            missing = [slot for slot in required_slots(self._configuration()) if self._asset_record(slot) is None]
+            if missing:
+                raise ValueError("Prepare the required Daddy images before approval: " + ", ".join(missing))
         preview = self.render_preview(state_sha256=state_sha256)
         config, content = self._configuration(), self._content()
         template = self._build_template(config, content)
@@ -940,7 +1024,7 @@ class PostStudioWorkspace:
         version = len(versions) + 1
         template_id = self._selected_template_id()
         stem = f"{template_id}_v{version}"
-        raw_slots = ("phone_screen",)
+        raw_slots = tuple(self._asset_slots())
         clone_assets: list[dict[str, Any]] = []
         clone_asset_bytes: list[tuple[str, bytes]] = []
         for slot in raw_slots:
@@ -957,7 +1041,19 @@ class PostStudioWorkspace:
                 "source": json.loads(json.dumps(selected["source"])),
             })
             clone_asset_bytes.append((filename, bytes(selected["bytes"])))
+            original_name = selected["source"].get("original_filename")
+            if original_name:
+                if Path(original_name).name != original_name:
+                    raise ValueError("Original asset filename is invalid")
+                original = (self.assets / original_name).read_bytes()
+                original_digest = hashlib.sha256(original).hexdigest()
+                if original_digest != selected["source"].get("original_sha256"):
+                    raise ValueError("Original asset digest mismatch")
+                frozen_name = f"{stem}.asset.{slot}.original.bin"
+                clone_assets[-1]["original"] = {"filename": frozen_name, "sha256": original_digest}
+                clone_asset_bytes.append((frozen_name, original))
         record = {
+            **self._derived_asset_manifest(config, content),
             **({"metric_provenance": metric_provenance} if metric_provenance is not None else {}),
             "schema": _TEMPLATE_VERSION_SCHEMA,
             "template_id": template_id,
@@ -1048,9 +1144,8 @@ class PostStudioWorkspace:
         results: list[dict[str, Any]] = []
         if isinstance(frozen, list):
             for item in frozen:
-                if not isinstance(item, Mapping) or set(item) != {
-                    "slot", "filename", "mime_type", "sha256", "source",
-                }:
+                fields = {"slot", "filename", "mime_type", "sha256", "source"}
+                if not isinstance(item, Mapping) or set(item) not in (fields, fields | {"original"}):
                     raise ValueError("Studio version clone asset metadata is invalid")
                 filename = str(item["filename"])
                 if Path(filename).name != filename:
@@ -1062,6 +1157,14 @@ class PostStudioWorkspace:
                 if hashlib.sha256(data).hexdigest() != item["sha256"]:
                     raise ValueError("Studio version clone asset digest mismatch")
                 results.append({**json.loads(json.dumps(item)), "bytes": data})
+                if "original" in item:
+                    metadata = item["original"]
+                    if set(metadata) != {"filename", "sha256"} or Path(metadata["filename"]).name != metadata["filename"]:
+                        raise ValueError("Studio version original asset metadata is invalid")
+                    original = (self.versions / metadata["filename"]).read_bytes()
+                    if hashlib.sha256(original).hexdigest() != metadata["sha256"]:
+                        raise ValueError("Studio version original asset digest mismatch")
+                    results[-1]["original_bytes"] = original
             return results
 
         # Legacy approved versions did not persist raw asset files. They can be

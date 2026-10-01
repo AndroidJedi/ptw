@@ -902,3 +902,28 @@ html.commander-keyboard-open .bottom-nav { display: none; }
 .marketing-approach-select select { min-height: 44px; width: 100%; max-width: 100%; }
 .marketing-approach-select p, .marketing-approach-badge { font-size: 0.875rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .marketing-approach-badge { margin: 8px 0; }
+.daddy-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.daddy-toolbar h2, .daddy-toolbar p { margin: 4px 0; }
+.daddy-workspace { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(340px, 1fr); align-items: start; gap: 24px; }
+.daddy-preview { position: sticky; top: 24px; text-align: center; min-width: 0; }
+.daddy-preview > img { display: block; width: 100%; max-height: 76vh; object-fit: contain; }
+.daddy-inspector { min-width: 0; display: grid; gap: 14px; }
+.daddy-inspector label { display: grid; gap: 6px; margin-block: 10px; min-width: 0; }
+.daddy-inspector textarea { min-height: 78px; width: 100%; resize: vertical; }
+.daddy-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.daddy-presets button { display: grid; align-content: start; gap: 8px; padding: 6px; white-space: normal; font-size: 12px; min-width: 0; }
+.daddy-presets img { width: 100%; aspect-ratio: 4 / 5; object-fit: contain; border-radius: 4px; }
+.daddy-presets .is-selected { outline: 2px solid currentColor; outline-offset: 1px; }
+.daddy-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.daddy-fields .daddy-check { display: flex; align-items: center; gap: 8px; }
+.daddy-check input { width: auto; }
+.daddy-asset-controls { display: grid; gap: 10px; }
+.daddy-history { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.daddy-history button { display: grid; gap: 6px; padding: 6px; white-space: normal; min-width: 0; }
+.daddy-history img { width: 100%; max-height: 180px; object-fit: contain; }
+@media (max-width: 800px) {
+  .daddy-workspace { grid-template-columns: minmax(0, 1fr); }
+  .daddy-preview { position: static; }
+  .daddy-preview > img { max-height: 65vh; }
+  .daddy-toolbar .studio-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+}

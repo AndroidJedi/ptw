@@ -324,6 +324,7 @@ export class ApiClient {
   async postMedia(
     path: string, body: unknown, expectedMimeType: string,
     options: ApiRequestOptions = {},
+    onVerifiedHeaders?: (headers: Headers) => void,
   ): Promise<Blob> {
     const response = await this.response(path, { method: 'POST', body: JSON.stringify(body) }, options)
     if (!response.ok) {
@@ -344,6 +345,7 @@ export class ApiClient {
     if (digest !== expectedSha256.toLowerCase()) {
       throw new ApiFailure({ kind: 'integrity', method: 'POST', path, detail: 'SHA-256 mismatch' }, this.language)
     }
+    onVerifiedHeaders?.(response.headers)
     return new Blob([bytes], { type: contentType })
   }
 

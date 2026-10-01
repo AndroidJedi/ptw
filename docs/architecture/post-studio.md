@@ -8,6 +8,67 @@ immutable approved versions. Landing Studio is a separate surface and may use
 an approved Post version as Project content lineage; template definitions do
 not depend on Project data.
 
+## Daddy modular Posts — local
+
+`post.daddy.react` adds the registered `daddy` identity to the existing picker.
+Its versioned definition in `studio_daddy.py` compiles 1080×1350 static Posts
+through the shared primitive renderer. Elements form reusable Background,
+Message, Device, Subject, Collage, Offer, Brand and Action blocks. Twelve preset
+compositions reuse these controls; photography, illustration, drawing, paper
+collage and 3D are independent artwork treatments. The reference handheld
+composition is replaced by a standalone phone on a blurred scene: Daddy artwork
+excludes hands. Registered portrait/landscape/angled hardware, screen apertures,
+perspective mapping, alpha masks and shadows remain deterministic.
+
+`scene`, `screen`, `subject`, `feature`, `prop_one` and `prop_two` are independent
+slots. Current owner assets are reused first. Each slot supports generation,
+enhancement, uploads, registered images, Pexels selection and three distinct
+retained history entries. Sources retain digests, generation context and available
+license/attribution; uploads also retain original bytes. Approvals freeze raw and
+original files plus derived digests and transformation settings. Clones verify
+those frozen files. Missing required art prevents approval while keeping preview
+and Save usable. Low source resolution and layout findings remain visible.
+
+The owner and Agent share bounded controls, preset defaults and semantic copy.
+Preset switching preserves copy and compatible images; reset changes only the
+selected block's appearance. Exact fonts and measured message flow replace silent
+type shrinking. Independent feature-card placement, collage offsets, background
+focal points, annotations and optional supplied previous prices remain editable.
+Manual edits wait for Update preview. Save and Approve use existing checkpoints;
+neither initial generation nor polish performs these owner actions.
+
+`daddy_generation.py` persists strategy → composition → required assets → actual
+PNG review. Strategy reads the pinned approved Brief, marketing approach, Brand
+Identity, owner direction and accepted Creative Skills. Only the selected preset
+contract is sent for composition. There are at most two correction rounds, each
+with at most one targeted image regeneration. Final findings stay on the editable
+draft. Explicit retry resumes completed stages/assets; ordinary edits do not
+trigger automatic polish. Explicit recomposition preserves current copy/settings
+as its starting point. Authenticated slot and recomposition APIs retain request
+UUIDs and stale-state checks; browser image queues reconcile uncertain responses
+and retain pending UUIDs across tab reloads.
+
+Tuned settings become neutral `daddy_configuration` proposals through Templates.
+Private images and Project copy are excluded; normal comparison and owner
+acceptance create an exact reusable definition that reopens in Daddy. Caption
+and Landing projections include visible semantic copy. Migration 022 admits the
+Daddy identity without rewriting existing rows, drafts or approved PNGs.
+
+The component hierarchy follows [atomic design](https://atomicdesign.bradfrost.com/chapter-2/).
+Simple saturated text posters are creative hypotheses alongside richer layouts.
+[PointCard's case study](https://www.superside.com/blog/point-card-scales-ad-concepts)
+reports improvements from testing combinations of color, messaging and layout;
+it does not establish a universal winning preset. [Mailchimp's illustration
+system](https://www.brigithickey.com/work/mailchimp-relaunch) informs expressive
+brand illustration, without supplying conversion evidence. PTW's reviewed
+performance-learning workflow remains the authority for effectiveness.
+
+Verification entrypoints: `tests/validation_pipeline/test_daddy.py`,
+`scripts/verify_daddy_migration.py`, `scripts/verify_daddy_trials.py`, Daddy editor
+unit/browser tests and the deterministic Studio visual audit. Real trial artifacts
+remain private under `.local`; do not confuse fixture approvals or scripted browser
+transport with production use or measured ad performance.
+
 ## Template boundary
 
 Post and Landing templates use independent immutable registries:

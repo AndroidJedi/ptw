@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any, Mapping, Sequence
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -104,6 +106,17 @@ def studio_creative_router(
         try:
             value = service.retry_generation(project_id, creative_id)
             background.add_task(service.generate, creative_id)
+            return value
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/creatives/{creative_id}/recompose", status_code=202)
+    def recompose(project_id: str, creative_id: str, request: Mapping[str, Any], background: BackgroundTasks):
+        fields(request, {"request_id","base_sha256","configuration","content"}, "Composition fields are invalid")
+        try:
+            value, created = service.recompose_daddy(project_id,creative_id,**request)
+            if created:
+                background.add_task(service.generate,creative_id)
             return value
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
@@ -236,6 +249,49 @@ def studio_creative_router(
             },
         )
 
+    @router.post("/projects/{project_id}/creatives/{creative_id}/assets/{slot}")
+    def daddy_asset(project_id: str, creative_id: str, slot: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        fields(request, {"request_id", "base_sha256", "action", "options"}, "Asset operation fields are invalid")
+        try:
+            return service.mutate(project_id, creative_id, "daddy_asset_operation", slot=slot, **request)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/creatives/{creative_id}/assets/{slot}/history")
+    def daddy_asset_history(project_id: str, creative_id: str, slot: str) -> dict[str, Any]:
+        try:
+            return {"items": service.authorized_workspace(project_id, creative_id).daddy_asset_history(slot)}
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/creatives/{creative_id}/assets/{slot}/history/{sha256}")
+    def daddy_asset_image(project_id: str, creative_id: str, slot: str, sha256: str) -> Response:
+        try:
+            value = service.authorized_workspace(project_id, creative_id).daddy_asset_image(slot, sha256)
+            return Response(content=value["bytes"], media_type=value["mime_type"], headers={
+                "Cache-Control": "private, no-store", "X-PTW-Content-SHA256": value["sha256"], "X-Content-Type-Options": "nosniff"})
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/creatives/{creative_id}/asset-sources")
+    def daddy_sources(project_id: str, creative_id: str, query: str = "") -> dict[str, Any]:
+        try:
+            creative(project_id, creative_id)
+            from .daddy_assets import sources
+            return sources(query)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/creatives/{creative_id}/presets/{preset}/preview")
+    def daddy_preset_preview(project_id: str, creative_id: str, preset: str) -> Response:
+        try:
+            creative(project_id, creative_id)
+            from .daddy_assets import preset_preview
+            value = preset_preview(preset)
+            return Response(content=value, media_type="image/png", headers={"Cache-Control": "private, no-store", "X-PTW-Content-SHA256": hashlib.sha256(value).hexdigest()})
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
+
     @router.post("/projects/{project_id}/creatives/{creative_id}/preview")
     def preview(project_id: str, creative_id: str, request: Mapping[str, Any]) -> Response:
         if set(request) not in ({"state_sha256"}, {"state_sha256", "configuration", "content"}):
@@ -253,6 +309,7 @@ def studio_creative_router(
             headers={
                 "Cache-Control": "private, no-store", "ETag": f'"{rendered["bytes_sha256"]}"',
                 "X-PTW-Content-SHA256": rendered["bytes_sha256"], "X-Content-Type-Options": "nosniff",
+                "X-PTW-Layout-Issues": json.dumps(rendered.get("layout_issues", [])[:12], ensure_ascii=True),
             },
         )
 

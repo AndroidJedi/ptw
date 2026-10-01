@@ -3,6 +3,7 @@ import { ImagePlus, Plus, RefreshCcw, Sparkles, WandSparkles, X } from 'lucide-r
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
+import { DaddyStudio, type DaddyDetail } from '../components/studio/DaddyStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
 import { PostPublishing } from '../components/PostPublishing'
@@ -14,6 +15,19 @@ import type {
   ProductBrief, StudioCreativeSummary, StudioPhoneHeroCreativeDirection, AcceptedPostTemplate,
   StudioPhoneMetricsDetail,
 } from '../types'
+
+function GenerationPreview({ api, basePath, stateSha256, language }: { api: ApiClient; basePath: string; stateSha256: string; language: Language }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    void api.postMedia(`${basePath}/preview`, { state_sha256: stateSha256 }, 'image/png', { deadlineMs: 90_000 }).then(blob => {
+      if (!cancelled) setUrl(URL.createObjectURL(blob))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [api, basePath, stateSha256])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  return url ? <div className="panel daddy-preview"><img src={url} alt={language === 'uk' ? 'Поточне прев’ю допису' : 'Current Post preview'} /></div> : null
+}
 
 export function StudioView({
   api, language, projectId = null, creativeId = null, onCreative = () => {}, tuneMode = false,
@@ -211,13 +225,15 @@ export function StudioView({
     : <Loading language={language} />
 
   if (['queued', 'composing', 'generating_image'].includes(detail.status)) {
-    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{tr('Building the creative', 'Створюємо креатив')}</h2></section></div>
+    const phase = detail.generation?.daddy?.phase || ''
+    const progress = phase === 'strategy' ? tr('Choosing a creative direction', 'Обираємо творчий напрям') : phase === 'composition' ? tr('Composing the message and layout', 'Створюємо текст і композицію') : phase.startsWith('asset') ? tr('Preparing the images', 'Готуємо зображення') : ['polish', 'review'].includes(phase) ? tr('Reviewing and polishing the Post', 'Перевіряємо й покращуємо допис') : tr('Building the creative', 'Створюємо креатив')
+    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{progress}</h2></section>{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
   if (detail.status === 'failed' && detail.generation?.creative_direction) {
     return <div className="studio-page">{creativePicker}<ErrorState
       message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)}
       retry={() => void retry(`${basePath}/retry`)} language={language}
-    /></div>
+    />{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
 
   const phoneFailure = detail.generation?.phone_image?.status === 'failed'
@@ -227,7 +243,11 @@ export function StudioView({
       <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
       <button className="secondary" disabled={busy || !detail.generation?.creative_direction} onClick={() => void retry(`${basePath}/phone-screen/retry`)}><RefreshCcw />{detail.template_id === 'phone_metrics' ? tr('Retry iPhone image', 'Повторити зображення iPhone') : tr('Retry artwork', 'Повторити зображення')}</button>
     </section>}
-    <PhoneMetricsStudio
+    {detail.editor_key === 'post.daddy.react' ? <DaddyStudio key={basePath} api={api} language={language} basePath={basePath} detail={detail as unknown as DaddyDetail} onDetail={value => {
+      const next = value as StudioPhoneMetricsDetail
+      setDetail(next)
+      setCreatives(current => current?.map(item => item.creative_id === next.creative_id ? { ...item, template_id: next.template_id } : item) || null)
+    }} /> : <PhoneMetricsStudio
       api={api} language={language} basePath={basePath} detail={detail}
       onDetail={(value) => {
         const next = value as StudioPhoneMetricsDetail
@@ -235,7 +255,7 @@ export function StudioView({
         setCreatives(current => current?.map(item => item.creative_id === next.creative_id ? { ...item, template_id: next.template_id } : item) || null)
       }}
       onCheckpoint={(result) => setDetail(result.creative)}
-    />
+    />}
     <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id} versions={detail.versions} />
     {variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose the creative template', 'Оберіть шаблон креативу')}>
       <header><div><small>{tr('NEW CREATIVE', 'НОВИЙ КРЕАТИВ')}</small><h2>{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>

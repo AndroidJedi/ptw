@@ -25,7 +25,7 @@ from .studio_creatives import (
 _MUTATING_METHODS = frozenset({
     "save_configuration", "apply_template", "switch_template", "select_phone_screen",
     "generate_phone_screen", "approve_version", "approve_configuration",
-    "restore_approved_clone",
+    "restore_approved_clone", "daddy_asset_operation",
 })
 
 
@@ -101,7 +101,7 @@ class StudioRepository:
                 value = json.loads(metadata_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            entries = value.get("items") if metadata_path.name == "phone_screen_history.json" else [value]
+            entries = value.get("items") if metadata_path.name.endswith("_history.json") else [value]
             if not isinstance(entries, list):
                 continue
             for entry in entries:
@@ -118,7 +118,7 @@ class StudioRepository:
                 documents[digest] = {
                     "slot": (
                         "phone_screen" if str(filename).startswith("phone_screen")
-                        else metadata_path.stem
+                        else value.get("slot", metadata_path.stem)
                     ),
                     "sha256": digest,
                     "mime_type": entry.get("mime_type"),
@@ -520,7 +520,7 @@ class DatabaseStudioAuthority:
         from psycopg.types.json import Jsonb
 
         project = self.project(project_id)
-        if template_id != "phone_metrics" and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
+        if template_id not in {"phone_metrics", "daddy"} and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
             raise ValueError("Studio template is invalid")
         if creative_direction is None:
             raise ValueError("Studio image direction is required")
@@ -678,7 +678,7 @@ class DatabaseStudioAuthority:
 
         from psycopg.types.json import Jsonb
 
-        if template_id != "phone_metrics" and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
+        if template_id not in {"phone_metrics", "daddy"} and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
             raise ValueError("Studio template is invalid")
 
         if creative_direction is None:

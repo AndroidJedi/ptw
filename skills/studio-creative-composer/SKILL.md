@@ -19,15 +19,20 @@ identity_signal for subject/action/cues. Keep proof_anchor factual and
 competence_cue useful. Plain precise language is valid; elevated wording is
 optional only when natural for the product and audience.
 Make the product recognizable and central to the activity at the final crop.
-For a weekend car-sharing Brief: a readable car with friends loading weekend
-bags expresses the friend who makes plans happen. Avoid a generic car showroom,
-anonymous road, luxury-status substitution or scenery hiding the car. Illustrative
-props are not supplied features; don't imply a specific fleet/model or equipment.
-Use the equivalent concrete interaction in other categories, never a universal
-car/weekend scene. Preserve owner requests and template constraints.
+For car sharing, friends loading bags into a visible car can express the organiser;
+avoid generic roads or luxury status. Props imply no supplied fleet/equipment.
+Choose equivalent product interactions in other domains; preserve owner direction.
 
 Turn one approved Product Brief into one editable Studio creative using the
 selected live template catalog.
+
+Daddy chooses one message, a preset and an independent artwork style, then fills
+only that composition's contract. Reuse suitable current assets; prepare declared
+slots separately. Screens contain UI interiors, never hardware or ad copy. Use
+standalone phones without hands. Keep absent offers/previous prices empty; the
+Phone Metrics numeric-hypothesis exception does not apply. Presets are testing
+hypotheses. Inspect the actual PNG; at most two correction rounds and one targeted
+asset replacement per round. Return remaining findings with the editable draft.
 
 - Treat the Product Brief as the complete source of marketing claims. Preserve
   its language, promise, offer, CTA intent, and evidentiary limits.

@@ -301,7 +301,7 @@ def _state_snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
     } for item in detail.get("phone_screen_history", [])]
     return {
         "template_id": detail.get("template_id") or detail.get("catalog", {}).get("template_id"),
-        **({"template_reference": deepcopy(detail["template_reference"])} if detail.get("editor_key") == "post.declarative.react" else {}),
+        **({"template_reference": deepcopy(detail["template_reference"])} if detail.get("editor_key") in {"post.declarative.react", "post.daddy.react"} else {}),
         "template_sha256": detail.get("template_sha256"),
         "configuration": deepcopy(detail.get("configuration")),
         "content": deepcopy(detail.get("content")),
@@ -454,7 +454,7 @@ class LocalStudioAuthority:
     ) -> tuple[dict[str, Any], bool]:
         project_id = _uuid(project_id, "project_id")
         project = self.project(project_id)
-        if template_id != PHONE_METRICS_TEMPLATE_ID and not re.fullmatch(r'design_[a-f0-9]{20}', template_id):
+        if template_id not in {PHONE_METRICS_TEMPLATE_ID, "daddy"} and not re.fullmatch(r'design_[a-f0-9]{20}', template_id):
             raise ValueError("Studio template is invalid")
         if creative_direction is None:
             raise ValueError("Studio image direction is required")
@@ -836,6 +836,11 @@ class StudioCreativeService:
         self.template_registry = lambda: POST_TEMPLATE_REGISTRY
         self._workspaces: dict[str, Any] = {}
         self._lock = threading.RLock()
+        self._creative_locks: dict[str, Any] = {}
+
+    def _creative_lock(self, creative_id):
+        with self._lock:
+            return self._creative_locks.setdefault(creative_id, threading.RLock())
 
     def templates(self) -> dict[str, Any]:
         templates = [{
@@ -984,6 +989,7 @@ class StudioCreativeService:
         clone_assets = [{
             "slot": selected["slot"], "mime_type": selected["mime_type"],
             "bytes_base64": base64.b64encode(bytes(selected["bytes"])).decode(),
+            **({"original_base64": base64.b64encode(selected["original_bytes"]).decode()} if "original_bytes" in selected else {}),
             "source": {
                 **deepcopy(selected["source"]),
                 "cloned_from_version_id": source_version_id,
@@ -1106,6 +1112,12 @@ class StudioCreativeService:
         # must not replace them with the pre-normalization snapshot hashes.
         return {**self.summary(creative_id), **detail}
 
+    def authorized_workspace(self, project_id: str, creative_id: str):
+        creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))
+        if creative["project_id"] != _uuid(project_id, "project_id"):
+            raise KeyError("Studio creative was not found in this Project")
+        return self._workspace(creative_id)
+
     def manual_agent_edit(
         self, project_id: str, creative_id: str, *, request_id: str,
         base_sha256: str, message: str, history: list[dict[str, str]],
@@ -1137,9 +1149,11 @@ class StudioCreativeService:
             }
             if detail.get("template_palette_defaults"):
                 agent_configuration.setdefault("template_palette", deepcopy(detail["template_palette_defaults"]))
+        elif definition.editor_key == "post.daddy.react":
+            pass
         else:
             raise ValueError("Post template is not registered")
-        image_slots = ["phone_screen"] if detail.get("phone_screen_generation_available") else []
+        image_slots = list(definition.capabilities.image_slots) if detail.get("phone_screen_generation_available") else []
         workspace.component_settings(
             state_sha256=detail["state_sha256"],
             configuration=editor_configuration, content=editor_content,
@@ -1185,6 +1199,16 @@ class StudioCreativeService:
                 ):
                     next_configuration.pop("visual_mode")
                 next_content = normalize_phone_metrics_content(edited["content"])
+            elif definition.editor_key == "post.daddy.react":
+                from .studio_daddy import default_configuration
+                if edited["configuration"]["preset"] != editor_configuration["preset"]:
+                    selected = default_configuration(edited["configuration"]["preset"])
+                    selected["logo"] = deepcopy(edited["configuration"]["logo"])
+                    # Apply explicit scalar changes on top of the new preset defaults.
+                    selected_values = manual_agent_editable_values(catalog=detail["catalog"], configuration=selected, content=edited["content"], creative_direction=current_direction)
+                    edited = apply_manual_agent_edits(value["edits"], current_values=selected_values, configuration=selected, content=editor_content, creative_direction=current_direction)
+                next_configuration = definition.normalize_configuration(edited["configuration"])
+                next_content = definition.normalize_content(edited["content"])
             else:
                 # Match the editor's shared typography controls before the
                 # template normalizer checks complete group consistency.
@@ -1268,13 +1292,14 @@ class StudioCreativeService:
                    if "creative_direction" in response else {}),
             },
         )
-        baseline_metrics = detail.get("generation", {}).get("metric_provenance") or [
-            {**stat, "origin": "legacy_unknown", "validation_status": "unvalidated", "evidence": ""}
-            for stat in editor_content["stats"]
-        ]
-        response["metric_provenance"] = reconcile_metrics(
-            response["content"]["stats"], baseline_metrics, owner_instruction=message,
-        )
+        if "stats" in editor_content:
+            baseline_metrics = detail.get("generation", {}).get("metric_provenance") or [
+                {**stat, "origin": "legacy_unknown", "validation_status": "unvalidated", "evidence": ""}
+                for stat in editor_content["stats"]
+            ]
+            response["metric_provenance"] = reconcile_metrics(
+                response["content"]["stats"], baseline_metrics, owner_instruction=message,
+            )
         response["owner_instruction"] = message
         response["request_id"] = request_id
         response["base_sha256"] = base_sha256
@@ -1414,9 +1439,21 @@ class StudioCreativeService:
             return dict(detail), {**generation, "phone_image": phone}
 
     def generate(self, creative_id: str) -> dict[str, Any]:
+        lock = self._creative_lock(creative_id)
+        if not lock.acquire(blocking=False):
+            return self.summary(creative_id)
+        try:
+            return self._generate(creative_id)
+        finally:
+            lock.release()
+
+    def _generate(self, creative_id: str) -> dict[str, Any]:
         creative = self.authority.get_creative(creative_id)
         if creative["status"] == "draft":
             return self.summary(creative_id)
+        if self._workspace(creative_id)._definition().editor_key == "post.daddy.react":
+            from .daddy_generation import generate
+            return generate(self, creative_id)
         if creative["status"] == "generating_image":
             detail = self._workspace(creative_id).detail()
             current_screen = next(
@@ -1573,6 +1610,42 @@ class StudioCreativeService:
         )
         return self.summary(creative_id)
 
+    def recompose_daddy(self, project_id, creative_id, *, request_id, base_sha256, configuration, content):
+        lock = self._creative_lock(creative_id)
+        if not lock.acquire(blocking=False):
+            raise RuntimeError("Wait for the current generation before recomposing")
+        try:
+            return self._recompose_daddy(project_id, creative_id, request_id=request_id,
+                base_sha256=base_sha256, configuration=configuration, content=content)
+        finally:
+            lock.release()
+
+    def _recompose_daddy(self, project_id, creative_id, *, request_id, base_sha256, configuration, content):
+        """Explicitly prepare missing slots and polish the owner's current composition."""
+        from .studio_daddy import required_slots, SLOTS
+        detail = self.detail(project_id, creative_id)
+        if detail.get("editor_key") != "post.daddy.react":
+            raise ValueError("Select Daddy before requesting composition polish")
+        request_id = _uuid(request_id,"request_id")
+        fingerprint = sha256_json([base_sha256,configuration,content])
+        generation = deepcopy(detail.get("generation") or {})
+        receipts = generation.setdefault("daddy_recompose_requests",{})
+        if request_id in receipts:
+            if receipts[request_id] != fingerprint:
+                raise RuntimeError("Composition request ID was reused with different input")
+            return self.summary(creative_id), False
+        if detail["status"] != "draft":
+            raise RuntimeError("Wait for the current generation before recomposing")
+        workspace = self._workspace(creative_id)
+        saved = workspace.save_configuration(base_sha256=base_sha256,configuration=configuration,content=content)
+        slots = required_slots(saved["configuration"])
+        generation["daddy"] = {"operation_id":request_id,"phase":"assets","composed":True,"corrections":0,"assets":{},
+            "strategy":{"preset":configuration["preset"],"style":configuration["style"],"reason":"Owner requested polish of the current composition.",
+                "assets":[{"slot":slot,"direction":SLOTS[slot]["description"]+" Express the approved Brief and selected style; no hands."} for slot in slots]}}
+        receipts[request_id] = fingerprint
+        self.authority.update_creative(creative_id,status="queued",generation=generation,state_sha256=saved["state_sha256"])
+        return self.summary(creative_id), True
+
     def retry_phone_image(self, project_id: str, creative_id: str) -> dict[str, Any]:
         detail = self.detail(project_id, creative_id)
         if "phone_screen" not in self._workspace(creative_id)._asset_slots():
@@ -1612,6 +1685,15 @@ class StudioCreativeService:
     def mutate(
         self, project_id: str, creative_id: str, method: str, *args: Any, **kwargs: Any,
     ) -> Any:
+        lock = self._creative_lock(creative_id)
+        if not lock.acquire(blocking=False):
+            raise RuntimeError("This Post has an operation in progress; wait for it to finish")
+        try:
+            return self._mutate(project_id,creative_id,method,*args,**kwargs)
+        finally:
+            lock.release()
+
+    def _mutate(self, project_id: str, creative_id: str, method: str, *args: Any, **kwargs: Any) -> Any:
         detail = self.detail(project_id, creative_id)
         if method == "switch_template" and detail["status"] in {"queued", "composing", "generating_image"}:
             raise RuntimeError("Wait for Post generation before changing its template")
@@ -1620,6 +1702,14 @@ class StudioCreativeService:
         if method == "apply_template":
             POST_TEMPLATE_REGISTRY.get(str(kwargs.get("template_id") or ""))
             kwargs["logo_colors"] = self._project_logo_colors(project_id)
+        if method == "daddy_asset_operation":
+            if detail["status"] != "draft":
+                raise RuntimeError("Wait for generation before changing an asset")
+            if kwargs.get("action") == "generate":
+                from .daddy_generation import asset_context
+                options = kwargs["options"]
+                kwargs["image_context"] = asset_context(self, self.authority.get_creative(creative_id), detail,
+                    kwargs["slot"], options.get("visual_direction", ""), owner=True, enhance=options.get("enhance_current", False))
         if method == "generate_phone_screen":
             creative = self.authority.get_creative(creative_id)
             direction = self._creative_direction(creative)
@@ -1665,6 +1755,18 @@ class StudioCreativeService:
         base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
         change_note: str = "", metric_provenance: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        lock = self._creative_lock(creative_id)
+        if not lock.acquire(blocking=False):
+            raise RuntimeError("Wait for this Post's current operation before saving or approving")
+        try:
+            return self._checkpoint(project_id,creative_id,kind=kind,base_sha256=base_sha256,configuration=configuration,content=content,
+                change_note=change_note,metric_provenance=metric_provenance)
+        finally:
+            lock.release()
+
+    def _checkpoint(self, project_id: str, creative_id: str, *, kind: str, base_sha256: str,
+                    configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str = "",
+                    metric_provenance: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         if kind not in {"save", "approve"}:
             raise ValueError("Studio checkpoint kind is invalid")
         creative = self.authority.get_creative(creative_id)
@@ -1771,13 +1873,23 @@ class StudioCreativeService:
 
     def recover_interrupted(self) -> list[str]:
         if hasattr(self.authority, "recover_interrupted"):
-            return list(self.authority.recover_interrupted())
+            candidates = list(self.authority.recover_interrupted())
+        else:
+            candidates = []
+            projects = self.authority.store.list("projects") if hasattr(self.authority, "store") else []
+            for project in projects:
+                for creative in self.authority.list_creatives(project["project_id"]):
+                    if creative["status"] in {"queued", "composing", "generating_image"}:
+                        if creative["status"] == "composing":
+                            self.authority.update_creative(creative["creative_id"], status="queued")
+                        candidates.append(creative["creative_id"])
         recovered = []
-        projects = self.authority.store.list("projects") if hasattr(self.authority, "store") else []
-        for project in projects:
-            for creative in self.authority.list_creatives(project["project_id"]):
-                if creative["status"] in {"queued", "composing", "generating_image"}:
-                    if creative["status"] == "composing":
-                        self.authority.update_creative(creative["creative_id"], status="queued")
-                    recovered.append(creative["creative_id"])
+        for identifier in candidates:
+            creative = self.authority.get_creative(identifier)
+            if creative["template_id"] == "daddy" or self._workspace(identifier)._definition().editor_key == "post.daddy.react":
+                generation = deepcopy(creative.get("generation") or {})
+                generation.setdefault("daddy", {"phase":"strategy","assets":{},"corrections":0})["error"] = "Generation was interrupted. Retry explicitly to resume saved progress."
+                self.authority.update_creative(identifier,status="failed",generation=generation)
+            else:
+                recovered.append(identifier)
         return recovered

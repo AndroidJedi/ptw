@@ -207,12 +207,13 @@ def landing_composition_payload(
         for key in ("template_id", "template_version", "template_sha256")
         if key in source_post_snapshot
     }
+    from .approved_posts import visible_post_content
     return {
         "landing_id": landing_id,
         "approved_product_brief": deepcopy(dict(approved_product_brief)),
         "source_post_copy": {
             "template_id": source_post_snapshot.get("template_id"),
-            "content": deepcopy(source_post_snapshot.get("content") or {}),
+            "content": visible_post_content(source_post_snapshot),
             "metric_provenance": deepcopy(source_post_snapshot.get("metric_provenance") or []),
             "version_sha256": source_post_snapshot.get("version_sha256"),
         },

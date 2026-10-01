@@ -8,7 +8,7 @@ immutable approved versions. Landing Studio is a separate surface and may use
 an approved Post version as Project content lineage; template definitions do
 not depend on Project data.
 
-## Daddy modular Posts — local
+## Daddy modular Posts — deployed
 
 `post.daddy.react` adds the registered `daddy` identity to the existing picker.
 Its versioned definition in `studio_daddy.py` compiles 1080×1350 static Posts

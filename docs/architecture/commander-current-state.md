@@ -1,7 +1,7 @@
 # Commander current state
 
 Updated: 2026-10-01
-Branch: `candidate/ptw-prod-access-20260922`
+Branch: `fix/daddy-generation-stages-20261001`
 Deployment: in-place preserving release `daddy-studio-20261001-ea6f307`,
 accepted application revision `ea6f30755ea87fb2a179a49fa6627686f3742a95`
 with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
@@ -13,6 +13,28 @@ Commander business rows; no reset ran. Owner Hosting version `d31d3f61a8207f95`
 and public Landing Hosting version `73bfaeaf062adeb0` are live. All structured/
 media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
 passed. The 24-hour resource follow-up timer is active.
+
+## Daddy generation stage incident — local repair awaiting release
+
+Production Daddy Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` is failed
+at `strategy` with no generation runs, assets or approved versions. Its bridge
+job 1307 completed, but the deployed `studio_generation_runs_stage_check`
+still admits only `composition` and `phone_image`; Daddy writes
+`daddy_strategy` and other new stages. The failure receipt hits the same guard.
+Migration 023 adds the bounded Daddy stage set without changing existing rows.
+The disposable database check now exercises every emitted stage and rejects an
+unknown stage. Production has not received this repair or a retry. Preserve the
+Creative and release through the confirmation-gated in-place publisher; after
+cutover, retry its exact ID once and verify append-only runs, assets, draft state
+and restart persistence. No reset or approval is part of recovery.
+
+Local verification: the disposable PostgreSQL test reproduced the migration 022
+failure, applied 023, accepted every emitted Daddy stage, rejected an unknown
+stage and preserved existing rows/files/approved PNGs. The migration runner and
+full schema check passed. The accepted release images passed 501 Validation,
+54 Commander and 21 Gateway tests; 153 Owner and 15 public-shell unit tests,
+both builds, all 156 Owner and 60 public browser cases, the Studio visual
+audit, canonical skill check and whitespace check passed.
 
 ## Daddy modular Post builder — deployed
 

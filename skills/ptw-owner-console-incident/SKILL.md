@@ -141,6 +141,15 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
 
 ## Brief, Studio, and provider checks
 
+- When a new Post generator fails after a completed bridge job, compare its
+  append-only generation stage with PostgreSQL's live
+  `studio_generation_runs_stage_check` before retrying. An unsupported stage can
+  reject both the completed-phase receipt and the failure receipt, leaving an
+  empty run list and a generic failed Creative even though inference succeeded.
+  Extend the stage guard in a new additive migration; never edit the applied
+  migration or erase the Creative. Test every emitted completed/failure phase
+  through `DatabaseStudioAuthority.record_generation` against disposable
+  PostgreSQL, and verify existing rows/files/approved PNGs are preserved.
 - Project Post geometry findings must not block preview, Save or the owner's
   explicit Approve. Preserve the actual PNG and bounded layout diagnostics;
   schema, field bounds, integrity and stale-state checks still apply. Keep the

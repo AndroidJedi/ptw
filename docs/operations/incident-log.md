@@ -1,5 +1,26 @@
 # PTW incident log
 
+## 2026-10-01 — Daddy Post strategy recorded as failed after completed inference
+
+Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` belongs to the reported
+Project and remains `failed` at `strategy`, with zero generation-run rows,
+assets and approved versions. The independent bridge completed structured job
+1307 at 11:02:24 UTC. Read-only inspection found the live
+`studio_generation_runs_stage_check` still allows only `composition` and
+`phone_image`, while the new Daddy generator writes `daddy_strategy` after
+inference and again while recording the caught failure. Migration 022 added the
+template but omitted those run stages.
+
+The local additive migration 023 admits the finite Daddy stage set. The
+disposable database regression exercises each stage, an unknown-stage rejection
+and existing-row/file/PNG preservation. Production state and code have not been
+mutated. The existing Creative needs an explicit retry after the confirmed
+in-place release; no reset, deletion, approval or new Creative is warranted.
+The complete local release gates passed: 501 Validation, 54 Commander and 21
+Gateway tests in the accepted images, 153 Owner and 15 public-shell unit tests,
+156 Owner and 60 public browser cases, both builds, the disposable migration
+and schema checks, Studio visual audit, skill verifier and whitespace check.
+
 ## 2026-09-30 — App Showcase template request stopped during composition
 
 Read-only PostgreSQL inspection of Template run

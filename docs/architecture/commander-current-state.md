@@ -14,7 +14,7 @@ and public Landing Hosting version `73bfaeaf062adeb0` are live. All structured/
 media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
 passed. The 24-hour resource follow-up timer is active.
 
-## Daddy generation stage incident — local repair awaiting release
+## Daddy generation stage incident — migration applied, release pending
 
 Production Daddy Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` is failed
 at `strategy` with no generation runs, assets or approved versions. Its bridge
@@ -23,10 +23,17 @@ still admits only `composition` and `phone_image`; Daddy writes
 `daddy_strategy` and other new stages. The failure receipt hits the same guard.
 Migration 023 adds the bounded Daddy stage set without changing existing rows.
 The disposable database check now exercises every emitted stage and rejects an
-unknown stage. Production has not received this repair or a retry. Preserve the
-Creative and release through the confirmation-gated in-place publisher; after
-cutover, retry its exact ID once and verify append-only runs, assets, draft state
-and restart persistence. No reset or approval is part of recovery.
+unknown stage. The first preserving release applied 023 with a checksummed
+root-only backup and unchanged business rows, then rolled back application
+images/source/Hosting after a dependency health check. Two further full attempts
+rolled back before application cutover because the Phone Metrics canary generated
+a blank second button label on attempt 1. The live stage constraint now admits
+Daddy, but the accepted application revision is still `ea6f307` and the target
+Creative has not been retried. A reviewed composer instruction now requires all
+three nonblank button labels. Release through the confirmation-gated in-place
+publisher; after cutover, retry the Creative's exact ID once and verify append-only
+runs, assets, draft state and restart persistence. No reset or approval is part
+of recovery.
 
 Local verification: the disposable PostgreSQL test reproduced the migration 022
 failure, applied 023, accepted every emitted Daddy stage, rejected an unknown

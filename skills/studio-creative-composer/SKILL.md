@@ -61,6 +61,11 @@ asset replacement per round. Return remaining findings with the editable draft.
   established in the Brief; otherwise propose plausible, distinct numeric benefit
   hypotheses for later validation. Do not substitute slogans or numbered workflow
   steps. These are unvalidated copy hypotheses, never measured results.
+- For `phone_metrics`, supply exactly three nonblank `content.phone_buttons` labels,
+  each 1–48 characters after trimming. A disabled button still needs its label:
+  preserve that slot's supplied default when the Brief does not support another
+  action, and disable the corresponding `configuration.phone_buttons` item.
+  Never use empty or whitespace-only labels as placeholders.
 - Return `metric_basis` in card order: `{origin, evidence}` with origin
   `brief_supported` or `ai_hypothesis`. A supported quantity needs an exact Brief
   substring containing the same Arabic numeral(s) used in the card value;

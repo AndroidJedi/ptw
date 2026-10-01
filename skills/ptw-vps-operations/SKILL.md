@@ -408,6 +408,11 @@ marker and Hosting rollback, and only then allow the single fresh full attempt.
 Do not resubmit while the original provider outcome is uncertain, change model or
 reasoning settings to pass a canary, or skip any acceptance gate. Record the failed
 attempt and successful acceptance separately in the incident log.
+When two fresh structured canaries need the same corrective domain validation,
+inspect the bounded correction reason in the second bridge job, then repair the
+owning prompt or contract in a new reviewed revision. Keep the first-attempt gate
+and rerun the full acceptance path; repeated retries of the same artifact are not
+a repair.
 Run the expensive live bridge/Pexels canaries and schema-bound Codex dependency
 probe only when their owning Validation/platform components change; unchanged
 provider releases use `audit_vps_owner_dependencies.sh --quick`. Stream only

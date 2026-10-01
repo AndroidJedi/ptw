@@ -11,11 +11,21 @@ assets and approved versions. The independent bridge completed structured job
 inference and again while recording the caught failure. Migration 022 added the
 template but omitted those run stages.
 
-The local additive migration 023 admits the finite Daddy stage set. The
+The additive migration 023 admits the finite Daddy stage set. The
 disposable database regression exercises each stage, an unknown-stage rejection
-and existing-row/file/PNG preservation. Production state and code have not been
-mutated. The existing Creative needs an explicit retry after the confirmed
-in-place release; no reset, deletion, approval or new Creative is warranted.
+and existing-row/file/PNG preservation. The first owner-authorized serial
+release applied migration 023 with a checksummed root-only backup and exact
+pre-existing-row preservation, then rolled back source, images and Hosting after
+a transient Codex Auth health check failed. The migration remains applied by
+the additive rollback contract. The next two full release attempts rolled back
+before application cutover because the Phone Metrics structured canary needed
+a corrective response; both first responses left the second phone-button label
+blank. All platform jobs completed, but the release correctly requires domain
+validation on attempt 1. The third attempt exhausted the bounded retry for that
+canary; its prompt now explicitly requires three nonblank labels, including for
+disabled buttons. The existing Creative still needs an explicit retry after the
+confirmed in-place release; no reset, deletion, approval or new Creative is
+warranted.
 The complete local release gates passed: 501 Validation, 54 Commander and 21
 Gateway tests in the accepted images, 153 Owner and 15 public-shell unit tests,
 156 Owner and 60 public browser cases, both builds, the disposable migration

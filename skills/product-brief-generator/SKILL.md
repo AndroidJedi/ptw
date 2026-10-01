@@ -5,12 +5,12 @@ description: Turn one raw idea into one strict PTW Product Brief validation hypo
 
 # Product Brief Generator
 
-Create the smallest useful positioning hypothesis from one owner idea.
+Create one useful positioning and brand hypothesis from one owner idea.
 
 ## Required references
 
 Read `references/output-contract.md` and `references/owner-lessons.md` before
-generating or correcting a Brief. For V2 use the server-selected immutable policy
+generating or correcting a Brief. For V2/V3 use the server-selected immutable policy
 from `references/marketing-approaches.md`; only that approach applies.
 
 ## Method
@@ -27,10 +27,12 @@ from `references/marketing-approaches.md`; only that approach applies.
    onboarding, or stronger offer.
 4. Return one hypothesis, never options, rankings, personas, research notes,
    evidence wrappers, messaging matrices, landing copy, ad concepts, or FAQs.
-5. Always create one strong, low-friction validation offer. Prefer a rich but
-   honor-able promise such as a free first consultation, free assessment,
-   useful promo code, concrete discount, or early access. The offer is a
-   marketing promotion and must not change the proposed product.
+5. Choose one compelling, low-friction next step appropriate to this product
+   and audience. The agent decides the offer format: exploring a relevant use,
+   asking about availability, trying a supplied capability, booking a supplied
+   service, or another natural first action. An offer need not be a promotion.
+   Do not default to consultation or invent free access, discounts, durations,
+   availability, guarantees or services. Preserve any explicit owner offer.
 6. Keep the CTA singular and consistent with the offer.
 7. Use trust mechanisms the owner can honestly provide: a real person or
    consultant photo, transparent price, no spam, no card, or real social proof
@@ -38,6 +40,38 @@ from `references/marketing-approaches.md`; only that approach applies.
    credentials, urgency, deadlines, or scarcity.
 8. Return strict structured output only. Server validation assigns `brief_id`,
    checks the shape and required language, and owns persistence.
+
+## Identity-led quality check
+
+Make `promise` a punchy headline: aim for 3–5 words, one beat, usually at most
+45 characters. Put service explanations and ownership/cost tradeoffs in product,
+benefits or functional_value, not a trailing "without..." headline clause.
+Do not confuse brevity with an empty slogan: retain a recognizable occasion.
+V3 `brand_identity` makes the brand's belief, values, identity signal, category
+reframing, emotional reward, competence cue, practical anchor, voice and visual
+world explicit. Use the selected policy's definitions; a use occasion alone is
+insufficient. For Identity-led, connect a meaningful category reframe, one
+grounded convention or tradeoff, the buyer's valued self-image and the supplied
+function that earns the emotional reward. The tension may be a hypothesis for a
+sparse idea, never an invented market fact, danger or competitor. Ritual is optional.
+Voice should fit the audience; plain precise wording is valid. Elevated wording
+is an optional technique, never a requirement for premium positioning.
+`desired_identity` names a valued self-image and the values behind it;
+`category_frame` names the occasion and the product's role there. Together they
+brief copy and artwork agents on what the buyer wants to feel/become. Express
+resourcefulness through a smart relevant choice, not flattery, IQ claims or
+superiority over other people. Keep functional_value as the factual anchor.
+
+For identity-led Briefs, make one specific occasion, aspiration or category
+reframing visible in the product, audience, promise and offer as well as
+positioning. Quietly compare a few distinct directions, choose the strongest
+functionally grounded one, and return only that hypothesis. A sparse idea permits
+a bold audience/use-occasion hypothesis; it does not permit new product features.
+Reject a generic category description with an identity label attached, such as
+"I choose transport for my needs." The headline should make the selected angle
+recognizable without reading positioning. Avoid defaulting to competence or ease
+when a concrete human occasion is available. Existing policy snapshots and owner
+constraints remain authoritative; this check sharpens expression within them.
 
 ## Corrections and approval
 
@@ -60,8 +94,8 @@ from `references/marketing-approaches.md`; only that approach applies.
   competitor, keyword, trend, or analytics providers.
 - Do not cite model knowledge as evidence or manufacture proof.
 - Do not generate Result candidates or channel content.
-- Follow the supplied versioned contract: V2 adds bounded positioning; historical
-  V1 reservations have no positioning. Never upgrade a reservation on retry.
+- Follow the supplied contract: V3 adds brand_identity, V2 only positioning;
+  V1 has neither. Never upgrade a reservation on retry.
 - An approach switch applies to this Brief only. Preserve feedback and weight
   lineage without promoting that selection to a global lesson.
 

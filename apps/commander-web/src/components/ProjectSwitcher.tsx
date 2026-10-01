@@ -67,7 +67,7 @@ export function ProjectSwitcher({ projects, projectId, onSelect, onNew, onRename
   }
 
   return <section className="project-switcher" aria-label={tr('Project workspace', 'Робочий простір проєкту')}>
-    <div className="project-switcher-heading"><FolderKanban aria-hidden="true" /><div><small>{tr('PROJECT WORKSPACE', 'РОБОЧИЙ ПРОСТІР ПРОЄКТУ')}</small><strong>{selected?.name || (projects === null ? tr('Loading projects…', 'Завантаження проєктів…') : projects.length ? tr('New Project', 'Новий проєкт') : tr('No project yet', 'Проєкту ще немає'))}</strong></div></div>
+    <div className="project-switcher-heading"><FolderKanban aria-hidden="true" /><div><small>{tr('PROJECT WORKSPACE', 'РОБОЧИЙ ПРОСТІР ПРОЄКТУ')}</small><strong>{selected?.name || (projects === null ? tr('Loading projects…', 'Завантаження проєктів…') : projects.length ? tr('Choose a Project', 'Оберіть проєкт') : tr('No project yet', 'Проєкту ще немає'))}</strong></div></div>
     {!!projects?.length && <label>{tr('Existing Project', 'Існуючий проєкт')}<select aria-label={tr('Existing Project', 'Існуючий проєкт')} value={selected?.project_id || ''} onChange={(event) => onSelect(event.target.value)}><option value="" disabled>{tr('Choose an existing project', 'Виберіть існуючий проєкт')}</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.name} · {project.latest_brief_status || tr('new', 'новий')}</option>)}</select></label>}
     <div className="project-switcher-actions">
       {selected && !editing && <button className="secondary" onClick={() => setEditing(true)}><Pencil />{tr('Rename', 'Перейменувати')}</button>}

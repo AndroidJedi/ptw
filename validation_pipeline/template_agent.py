@@ -133,6 +133,13 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
         return payload, ANALYSIS_SCHEMA
     payload.update({"analysis": run["analysis"], "definitions": run["documents"],
                     "capabilities": {s: catalog(s, run["analysis"]["component_types"]) for s in run["documents"]}})
+    if any("daddy_configuration" in doc for doc in run["documents"].values()):
+        from .studio_daddy import agent_catalog
+        for surface,doc in run["documents"].items():
+            if "daddy_configuration" in doc:
+                bounded = agent_catalog()
+                payload["capabilities"][surface] = {"bounds":bounded["bounds"], "enums":bounded["enums"],
+                    "rule":"Native Daddy layout. Edit scalar daddy_configuration.<block>.<field> or daddy_configuration.style/preset. Preserve unrelated owner settings. components is a compatibility descriptor, not editable layout. Copy and art are neutral fixtures, never Project content."}
     payload["editable_surfaces"] = run.get("editable_surfaces", list(run["documents"]))
     payload["fixed_assets"] = {
         "natal_symbol": "Canonical Natal symbol. Never redraw or replace.",

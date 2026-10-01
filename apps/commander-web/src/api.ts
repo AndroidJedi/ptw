@@ -324,6 +324,7 @@ export class ApiClient {
   async postMedia(
     path: string, body: unknown, expectedMimeType: string,
     options: ApiRequestOptions = {},
+    onVerifiedHeaders?: (headers: Headers) => void,
   ): Promise<Blob> {
     const response = await this.response(path, { method: 'POST', body: JSON.stringify(body) }, options)
     if (!response.ok) {
@@ -344,16 +345,17 @@ export class ApiClient {
     if (digest !== expectedSha256.toLowerCase()) {
       throw new ApiFailure({ kind: 'integrity', method: 'POST', path, detail: 'SHA-256 mismatch' }, this.language)
     }
+    onVerifiedHeaders?.(response.headers)
     return new Blob([bytes], { type: contentType })
   }
 
-  async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
-    const response = await this.response(path, {}, {})
+  async image(path: string, expectedMimeType: string, expectedSha256: string, options: ApiRequestOptions = {}): Promise<Blob> {
+    const response = await this.response(path, {}, options)
     return validateImageResponse(response, expectedMimeType, expectedSha256, this.language, path)
   }
 
-  async media(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
-    return this.image(path, expectedMimeType, expectedSha256)
+  async media(path: string, expectedMimeType: string, expectedSha256: string, options: ApiRequestOptions = {}): Promise<Blob> {
+    return this.image(path, expectedMimeType, expectedSha256, options)
   }
 
   async download(path: string, expectedMimeType: string, options: ApiRequestOptions = {}): Promise<Blob> {

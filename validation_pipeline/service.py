@@ -30,7 +30,7 @@ def load_product_brief_skill(path: Path) -> str:
 def product_brief_system_prompt(skill_snapshot: str, required_language: str, settings: Mapping[str, Any] | None = None) -> str:
     return (
         "Use the canonical Product Brief Generator skill below. Return one strict "
-        f"ProductBriefV{2 if settings else 1} object matching the supplied schema. "
+        f"ProductBriefV{settings['output_schema_version'] if settings else 1} object matching the supplied schema. "
         "The raw idea is the only business-fact input. The selected marketing policy "
         "is an owner preference, not evidence. Choose one "
         "hypothesis, include one honest low-friction offer, and never invent research, "
@@ -39,7 +39,12 @@ def product_brief_system_prompt(skill_snapshot: str, required_language: str, set
         "field and every "
         "human-facing copy string must use exactly that language. A correction returns a complete "
         "immutable replacement.\n\nCANONICAL_SKILL:\n" + skill_snapshot
-        + ("\n\nSELECTED_MARKETING_POLICY:\n" + settings["policy_text"] if settings else "\nThis historical reservation requires V1 without positioning.")
+        + ("\n\nSELECTED_MARKETING_POLICY:\n" + settings["policy_text"]
+           + ("\nThis historical V2 reservation has positioning only; omit brand_identity."
+              if settings["output_schema_version"] == 2 else "") if settings else
+           "\nThis historical reservation requires V1 without positioning. Its legacy offer contract "
+           "requires an explicit validation promotion (for example an invitation). Keep it truthful; "
+           "do not invent a free consultation or discount.")
     )
 
 
@@ -117,7 +122,7 @@ class ValidationRunner:
                     system_prompt=product_brief_system_prompt(self._skill(), required_language, settings),
                     input_payload=payload,
                     output_schema=product_brief_schema(required_language, generation_settings=settings),
-                    prompt_version=f"product_brief_v2:{mode}",
+                    prompt_version=f"product_brief_v{settings['output_schema_version'] if settings else 1}:{mode}",
                     idempotency_key=provider_attempt_key,
                     response_validator=validate_response,
                 )

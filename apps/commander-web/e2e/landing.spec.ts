@@ -27,11 +27,15 @@ function fixture(): LandingDetail {
     image_generation_available: true, versions: [],
   }
 }
-async function setup(page: Page, showcase = false, projectName = 'Landing visual test') {
+async function setup(page: Page, showcase = false, projectName = 'Landing visual test', heroOptions = false) {
   let current = fixture()
   if (showcase) {
     current.template_id = 'app_showcase'
     current.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+    if (heroOptions) {
+      current.configuration.showcase.hero_body_mode = 'bullets'
+      current.content.hero = { ...current.content.hero, eyebrow: 'Легше щодня', bullets: ['Знайдіть потрібне', 'Додайте деталі', 'Тримайте все разом'] }
+    }
     current.content.app_screens = [1, 2, 3].map(i => ({ title: `Екран застосунку ${i}`, description: 'Додавайте та впорядковуйте речі у власному просторі.', visual_direction: `A clean app screen ${i}` }))
     current.assets = (['app_screen_1', 'app_screen_2', 'app_screen_3', 'visual_break_visual'] as const).map(slot => ({ ...current.assets[0], slot }))
   }
@@ -66,13 +70,37 @@ async function setup(page: Page, showcase = false, projectName = 'Landing visual
   await page.goto(`/?e2e=1&page=landing&project=${project}&landing=${landing}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
-  await expect(page.getByLabel('Hero title')).toBeVisible()
+  await expect(page.getByLabel('Hero title', { exact: true })).toBeVisible()
 }
 const editorSection = (page: Page, name: string) => ({ click: () => page.getByRole('combobox', { name: 'Page section', exact: true }).selectOption({ label: name }) })
 const openPublication = async (page: Page) => {
   await page.getByLabel('More actions', { exact: true }).click()
   await page.getByRole('button', { name: 'Approve & publish', exact: true }).click()
 }
+
+test('App Showcase v3 hero switches between three editable bullets and text after save and refresh', async ({ page }) => {
+  await setup(page, true, 'Landing visual test', true)
+  await expect(page.locator('.as-kicker')).toHaveText('Легше щодня')
+  await expect(page.locator('.as-hero-bullets li')).toHaveCount(3)
+  await page.getByRole('textbox', { name: 'Text above hero title' }).fill('Ваш простір')
+  await page.getByRole('textbox', { name: 'Hero bullet 2' }).fill('Додайте власні деталі')
+  await page.getByRole('button', { name: 'Save Landing' }).click()
+  await page.reload()
+  await expect(page.locator('.as-kicker')).toHaveText('Ваш простір')
+  await expect(page.locator('.as-hero-bullets li').nth(1)).toHaveText('Додайте власні деталі')
+  await page.getByRole('combobox', { name: 'Under-title format' }).selectOption('text')
+  await expect(page.locator('.as-hero-bullets')).toHaveCount(0)
+  await expect(page.locator('.as-hero-copy > p')).toContainText('Зберігайте ліки')
+  await page.getByRole('button', { name: 'Save Landing' }).click()
+  await page.reload()
+  await expect(page.locator('.as-hero-bullets')).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: 'Under-title format' })).toHaveValue('text')
+  if (await page.locator('.as-hero').isHidden()) await page.getByRole('button', { name: 'Preview', exact: true }).click()
+  await expect(page.locator('.as-hero-copy > p')).toBeVisible()
+  const hero = await page.locator('.as-hero').boundingBox()
+  const bulletsOrText = await page.locator('.as-hero-copy > p').boundingBox()
+  expect(hero && bulletsOrText && bulletsOrText.x >= hero.x && bulletsOrText.x + bulletsOrText.width <= hero.x + hero.width + 1).toBeTruthy()
+})
 
 for (const showcase of [false, true]) test(`blocking image progress survives refresh and retries unfinished work (${showcase ? 'showcase' : 'original'})`, async ({ page }) => {
   await setup(page, showcase)

@@ -773,7 +773,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
             app = FastAPI()
             app.include_router(template_router(service, prefix='/templates', dependencies=[Depends(owner)]))
             client = TestClient(app)
-            path = '/templates/landing/app_showcase/versions/2'
+            path = f"/templates/landing/app_showcase/versions/{reference['template_version']}"
             try:
                 with patch('validation_pipeline.template_authoring.builtin_preview_contract', return_value='a' * 64), patch('validation_pipeline.template_authoring.render_builtin', side_effect=render_slowly) as renderer:
                     started = time.monotonic()
@@ -786,7 +786,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
                     gallery = client.get('/templates?surface=landing').json()['items']
                     self.assertEqual({'project_landing', 'app_showcase'}, {item['template_id'] for item in gallery})
                     history = client.get('/templates/landing/app_showcase/versions').json()['items']
-                    self.assertEqual({1, 2}, {item['template_version'] for item in history})
+                    self.assertEqual({1, 2, 3}, {item['template_version'] for item in history})
                     self.assertEqual(409, client.get(path, params={'sha256': '0' * 64}).status_code)
                     self.assertEqual(404, client.get(path.replace('app_showcase', 'unknown_landing'), params={'sha256': reference['template_sha256']}).status_code)
                     self.assertLess(time.monotonic() - started, 2)
@@ -817,13 +817,13 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
             try:
                 with patch('validation_pipeline.template_authoring.builtin_preview_contract', return_value='b' * 64), patch('validation_pipeline.template_authoring.render_builtin', side_effect=RuntimeError('browser unavailable')) as renderer:
                     self.assertEqual('pending', service.read(reference)['preview_status'])
-                    service._preview_jobs['landing:app_showcase:2'].result(timeout=2)
+                    service._preview_jobs[f"landing:app_showcase:{reference['template_version']}"].result(timeout=2)
                     for _ in range(5):
                         self.assertEqual('failed', service.read(reference)['preview_status'])
                     self.assertEqual(1, renderer.call_count)
-                    service._preview_retry_at['landing:app_showcase:2'] = 0
+                    service._preview_retry_at[f"landing:app_showcase:{reference['template_version']}"] = 0
                     self.assertEqual('pending', service.read(reference)['preview_status'])
-                    service._preview_jobs['landing:app_showcase:2'].result(timeout=2)
+                    service._preview_jobs[f"landing:app_showcase:{reference['template_version']}"].result(timeout=2)
                     self.assertEqual(2, renderer.call_count)
             finally:
                 service._preview_executor.shutdown(wait=True)
@@ -865,7 +865,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
             service=TemplateAuthoringService(TemplateStore(Path(directory)/'templates.sqlite3'),ScriptedTemplateProvider(),asynchronous=False)
             try:
                 gallery=service.gallery()
-                self.assertEqual({'phone_metrics','project_landing','app_showcase'},{v['template_id'] for v in gallery['items']})
+                self.assertEqual({'phone_metrics','daddy','project_landing','app_showcase'},{v['template_id'] for v in gallery['items']})
                 statuses={v['surface']:v['preview_status'] for v in gallery['items']}
                 self.assertEqual('ready',statuses['post'])
                 # The source-only CI test runs before npm installs Playwright and
@@ -875,7 +875,7 @@ class BuiltinTemplateGalleryTests(unittest.TestCase):
                 bundle=Path(os.environ.get('PTW_TEMPLATE_PREVIEW_BUNDLE',str(root/'.local/template-preview')))
                 has_landing_renderer=bool(shutil.which('node')) and (root/'apps/commander-web/node_modules/playwright').is_dir() and bundle.is_dir()
                 self.assertEqual('ready' if has_landing_renderer else 'failed',statuses['landing'])
-                self.assertEqual(['post'],[v['surface'] for v in service.gallery('post')['items']])
+                self.assertEqual(['post', 'post'],[v['surface'] for v in service.gallery('post')['items']])
                 for item in gallery['items']:
                     self.assertEqual(next(b['template_sha256'] for b in builtins() if b['surface']==item['surface'] and b['template_id']==item['template_id']),item['template_sha256'])
                 before=deepcopy(gallery)

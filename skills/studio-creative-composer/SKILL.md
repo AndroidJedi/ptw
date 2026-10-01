@@ -5,16 +5,44 @@ description: Populate one selected PTW Studio template from an approved Product 
 
 # Studio Creative Composer
 
-For V2 Briefs, express the supplied positioning through one concise hook, a supported benefit and a recognizable subject/action. Inherit its marketing_approach; do not independently reframe the product.
+Inherit the Brief's marketing_approach, positioning and V3 brand_identity. For identity-led copy,
+aim for a 3–5-word headline with one beat; keep explanations in supporting copy.
+Make the headline evoke the Brief's valued self-image in its reframed context.
+Use supporting copy to show the recognizable product action and one factual
+reason the emotional promise is credible. Bring in the Brief's challenged
+convention only when it clarifies that short message; do not crowd every
+principle into the headline. Show identity through a purposeful choice, not
+generic "smart/confident" praise.
+
+Use brand_identity belief and voice for copy; visual_world, values and
+identity_signal for subject/action/cues. Keep proof_anchor factual and
+competence_cue useful. Plain precise language is valid; elevated wording is
+optional only when natural for the product and audience.
+Make the product recognizable and central to the activity at the final crop.
+For car sharing, friends loading bags into a visible car can express the organiser;
+avoid generic roads or luxury status. Props imply no supplied fleet/equipment.
+Choose equivalent product interactions in other domains; preserve owner direction.
 
 Turn one approved Product Brief into one editable Studio creative using the
 selected live template catalog.
+
+Daddy chooses one message, a preset and an independent artwork style, then fills
+only that composition's contract. Reuse suitable current assets; prepare declared
+slots separately. Screens contain UI interiors, never hardware or ad copy. Use
+standalone phones without hands. Keep absent offers/previous prices empty; the
+Phone Metrics numeric-hypothesis exception does not apply. Presets are testing
+hypotheses. Inspect the actual PNG; at most two correction rounds and one targeted
+asset replacement per round. Return remaining findings with the editable draft.
 
 - Treat the Product Brief as the complete source of marketing claims. Preserve
   its language, promise, offer, CTA intent, and evidentiary limits.
 - Treat the supplied template catalog as the field and value authority. Return
   only the exact configuration and content fields in the output schema; never
   add primitives, asset slots, controls, or arbitrary template properties.
+- For an accepted authored Post, fill every `content.template_text` field from
+  the selected catalog's field ID and role. Make its first headline and support
+  express the approved Brief; do not retain neutral preview placeholder copy.
+  Supply a Brief-grounded visual direction for its registered artwork slot.
 - Preserve the supplied locked Natal symbol/name colors exactly. They are the
   Project brand default, not Brief-derived copy or a Creative Skill preference;
   never infer, revise, or learn them.
@@ -23,7 +51,10 @@ selected live template catalog.
   direction, active Project rules, active global spirit, then template defaults.
   Ignore tombstoned or inactive rules; never reinterpret a target outside the
   live catalog.
-- Write concise, renderable copy. Do not invent testimonials, evidence, prices,
+- Write complete, concise copy within each field's limit. Shorten the thought
+  instead of ending mid-phrase or padding with invisible formatting characters.
+  Keep the offer a complete short phrase and finish visual directions well
+  before their character cap. Do not invent testimonials, evidence, prices,
   guarantees, urgency or scarcity.
 - For `phone_metrics`, populate exactly three bottom `stats` cards with prominent
   numeral-bearing values and short domain-specific labels. Prefer quantities

@@ -4,6 +4,7 @@ import type { ApiClient } from '../api'
 import type { LandingDetail, LandingPublication } from '../types'
 import { LandingView } from './LandingView'
 import { LandingPage } from '../landing/LandingPage'
+import { LandingInspector } from '../landing/LandingInspector'
 
 vi.mock('../firebase', () => ({ appCheck: {} }))
 
@@ -28,6 +29,34 @@ it('renders the hero image without phone controls in both editor and public imag
     expect(view.container.querySelector('.lp-phone')).not.toBeNull()
     view.unmount()
   }
+})
+
+it('renders and edits the App Showcase eyebrow and switchable three-bullet hero', () => {
+  const detail = landingDetail()
+  detail.template_id = 'app_showcase'
+  detail.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32, hero_body_mode: 'bullets' }
+  detail.content.hero = { ...detail.content.hero, eyebrow: 'Make each task easier', bullets: ['Find an item', 'Add details', 'Stay organized'] }
+  detail.content.app_screens = []
+  const page = render(<LandingPage configuration={detail.configuration} content={detail.content} imageUrls={{}} />)
+  expect(screen.getByText('Make each task easier')).toBeVisible()
+  expect(page.container.querySelectorAll('.as-hero-bullets li')).toHaveLength(3)
+  expect(screen.queryByText('Helpful details')).toBeNull()
+  page.rerender(<LandingPage configuration={{ ...detail.configuration, showcase: { ...detail.configuration.showcase, hero_body_mode: 'text' } }} content={detail.content} imageUrls={{}} />)
+  expect(screen.getByText('Helpful details')).toBeVisible()
+  expect(page.container.querySelector('.as-hero-bullets')).toBeNull()
+  page.unmount()
+
+  const onConfiguration = vi.fn()
+  const onContent = vi.fn()
+  render(<LandingInspector section="hero" configuration={detail.configuration} content={detail.content} detail={detail}
+    onConfiguration={onConfiguration} onContent={onContent} language="en" busy={false} issues={[]} imageUrls={{}}
+    referenceImage={null} onReferenceImage={vi.fn()} onGenerate={vi.fn()} onReuseImage={vi.fn()} onSelectImage={vi.fn()} />)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Text above hero title' }), { target: { value: 'New eyebrow' } })
+  expect(onContent).toHaveBeenCalledWith(expect.objectContaining({ hero: expect.objectContaining({ eyebrow: 'New eyebrow' }) }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Hero bullet 2' }), { target: { value: 'A new second bullet' } })
+  expect(onContent).toHaveBeenCalledWith(expect.objectContaining({ hero: expect.objectContaining({ bullets: ['Find an item', 'A new second bullet', 'Stay organized'] }) }))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Under-title format' }), { target: { value: 'text' } })
+  expect(onConfiguration).toHaveBeenCalledWith(expect.objectContaining({ showcase: expect.objectContaining({ hero_body_mode: 'text' }) }))
 })
 
 it('saves the selected Landing visual mode together with the existing screen settings', async () => {

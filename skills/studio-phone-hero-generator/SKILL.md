@@ -5,7 +5,12 @@ description: Compose domain-aware Post artwork using the shared image policy, cu
 
 # Studio Phone Hero Generator
 
-When Brief positioning is supplied, illustrate its customer situation and supported task. Identity-led imagery uses a believable desired outcome; it never invents status, capabilities or health results.
+Use supplied V3 brand_identity.visual_world, values and identity_signal as the visual brief; positioning supplies the task. Identity-led imagery uses a believable desired outcome; it never invents status, capabilities or health results.
+
+Translate desired_identity and category_frame into a purposeful action and a few
+occasion cues. For car sharing, friends loading bags into a visible car can express
+the organiser; avoid generic roads/luxury. Props imply no supplied fleet/equipment.
+Choose equivalent product interactions in other domains, keeping products visible.
 
 Use the versioned image-generation context. Direct owner instructions control
 image content and appearance, followed by current image settings, approved Brief
@@ -17,6 +22,13 @@ People, hands, phones and domain equipment are allowed. Style changes treatment,
 not subject identity. Isolation removes scenery, not objects needed for an
 interaction; an explicit requested setting wins. Omit text, logos, charts and UI
 by default; include them within artwork when explicitly requested.
+
+Daddy excludes hands and uses standalone portrait, landscape or angled devices.
+Generate only the named slot: scene, screen interior, subject, feature or prop.
+Keep screen language/functionality Brief-grounded; no hardware in interiors.
+Coordinate palette, framing and destination across separate assets. Illustrations
+express product meaning. Ad copy, curves and annotations remain deterministic.
+Owner asset uploads are preserved originals; temporary prompt references stay ephemeral.
 
 Keep each complete interaction readable at the final template size. Include
 task-relevant equipment such as a laptop together with its user; white objects,

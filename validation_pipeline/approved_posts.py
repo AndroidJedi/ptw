@@ -32,12 +32,42 @@ def _enabled(configuration: Mapping[str, Any], key: str, default: bool = True) -
     return bool(value.get("enabled", default)) if isinstance(value, Mapping) else default
 
 
+def visible_post_content(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Project only visible semantic fields while preserving legacy source contracts."""
+    content = deepcopy(record.get("content") or {})
+    config = record.get("configuration") or {}
+    if config.get("schema") != "ptw.studio.daddy.v1":
+        return content
+    visible = {
+        "hero_title": _enabled(config, "message"), "supporting_text": _enabled(config, "message"),
+        "offer": _enabled(config, "offer"),
+        "cta": _enabled(config, "action") and not config.get("action", {}).get("badges"),
+        "feature_title": config.get("preset") == "phone_feature" and _enabled(config, "device") and config.get("device",{}).get("feature_enabled",True),
+        "feature_text": config.get("preset") == "phone_feature" and _enabled(config, "device") and config.get("device",{}).get("feature_enabled",True),
+        "left_label": config.get("preset") == "two_panel", "right_label": config.get("preset") == "two_panel",
+        "previous_price": _enabled(config,"offer") and bool(content.get("offer")),
+    }
+    return {key: plain_studio_text(value) for key,value in content.items() if visible.get(key) and value}
+
+
 def approved_post_copy(record: Mapping[str, Any], language: str = "uk") -> dict[str, str]:
     content = dict(record.get("content") or {})
     configuration = dict(record.get("configuration") or {})
     headline = plain_studio_text(content.get("hero_title")) if _enabled(configuration, "hero_title") else ""
     supporting = plain_studio_text(content.get("supporting_text")) if _enabled(configuration, "supporting_text") else ""
     offer = plain_studio_text(content.get("offer")) if _enabled(configuration, "offer") else ""
+    if configuration.get("schema") == "ptw.studio.daddy.v1":
+        headline = headline if _enabled(configuration, "message") else ""
+        parts = [supporting] if _enabled(configuration, "message") else []
+        if configuration.get("preset") == "phone_feature" and _enabled(configuration, "device") and configuration.get("device",{}).get("feature_enabled",True):
+            parts.extend(plain_studio_text(content.get(key)) for key in ("feature_title", "feature_text"))
+        if configuration.get("preset") == "two_panel":
+            parts.extend(plain_studio_text(content.get(key)) for key in ("left_label", "right_label"))
+        if _enabled(configuration, "action") and not configuration.get("action", {}).get("badges"):
+            parts.append(plain_studio_text(content.get("cta")))
+        supporting = "\n\n".join(part for part in parts if part)
+        if offer and content.get("previous_price"):
+            offer += "\n" + ("Previously: " if language == "en" else "Раніше: ") + plain_studio_text(content["previous_price"])
     if "template_text" in content:
         template = record.get("primitive_template") or {}
         nodes = {node["id"]: node for node in template.get("root", {}).get("children", [])}

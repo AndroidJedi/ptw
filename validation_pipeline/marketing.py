@@ -35,7 +35,7 @@ def generation_settings(selected: str = "benefit_led", *, reference: Path | None
     policy = common.strip() + "\n\n" + (benefit if selected == "benefit_led" else identity).strip()
     return {"marketing_approach": selected, "policy_version": 1,
             "policy_sha256": hashlib.sha256(policy.encode()).hexdigest(),
-            "policy_text": policy, "output_schema_version": 2}
+            "policy_text": policy, "output_schema_version": 3}
 
 
 def verified_settings(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -44,7 +44,7 @@ def verified_settings(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(value, Mapping) or set(value) != {"marketing_approach", "policy_version", "policy_sha256", "policy_text", "output_schema_version"}:
         raise ValueError("Invalid Brief generation settings")
     approach(value["marketing_approach"])
-    if value["policy_version"] != 1 or value["output_schema_version"] != 2:
+    if value["policy_version"] != 1 or value["output_schema_version"] not in {2, 3}:
         raise ValueError("Unsupported Brief generation settings version")
     policy = value["policy_text"]
     if not isinstance(policy, str) or not 1 <= len(policy.encode()) <= 12_000 or hashlib.sha256(policy.encode()).hexdigest() != value["policy_sha256"]:
@@ -55,4 +55,5 @@ def verified_settings(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
 def correction_settings(base: Mapping[str, Any], selected: str | None) -> dict[str, Any]:
     chosen = brief_approach(base) if selected is None else approach(selected)
     saved = verified_settings(base.get("generation_settings"))
-    return saved if saved and chosen == saved["marketing_approach"] else generation_settings(chosen)
+    # A new correction may upgrade the contract; a retry never calls this function.
+    return saved if saved and saved["output_schema_version"] == 3 and chosen == saved["marketing_approach"] else generation_settings(chosen)

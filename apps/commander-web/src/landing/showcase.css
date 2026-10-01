@@ -13,6 +13,9 @@
 .as-hero { max-width:1160px; margin:auto; padding:50px 40px 130px; display:grid; grid-template-columns:1.1fr 1fr; gap:64px; align-items:center; }
 .as-kicker { font-size:13px; letter-spacing:.09em; text-transform:uppercase; }
 .as-hero-copy > p { font-size:18px; max-width:550px; }
+.as-hero-bullets { max-width:550px; margin:0 0 24px; padding:0; list-style:none; display:grid; gap:12px; }
+.as-hero-bullets li { display:grid; grid-template-columns:20px minmax(0,1fr); align-items:start; gap:10px; font-size:18px; line-height:1.5; }
+.as-hero-bullets li::before { content:'✓'; font-weight:700; line-height:1.5; }
 .as-hero-phones { display:flex; align-items:flex-start; gap:16px; padding-bottom:var(--as-offset); }
 .as-phone { position:relative; width:calc(210px * var(--as-screen-scale)); max-width:100%; aspect-ratio:1293/2656; flex-shrink:1; filter:drop-shadow(0 16px 20px #16395330); }
 .as-screen { position:absolute; inset:1.883% 4.408% 1.883% 4.486%; border-radius:12% / 6%; background:#f5f8fc; overflow:hidden; }

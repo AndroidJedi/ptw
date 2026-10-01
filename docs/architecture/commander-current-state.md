@@ -1,18 +1,149 @@
 # Commander current state
 
-Updated: 2026-09-29
+Updated: 2026-10-01
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: in-place preserving release `marketing-approaches-20260929-f33ffa1`,
-accepted application revision `f33ffa153af7104f3c112cea894739b7eb0cc92d`
+Deployment: in-place preserving release `brand-studio-20261001-b7c505d`,
+accepted application revision `b7c505dd781ff1cbc3bc3c7107d5a133cc3df303`
 with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/marketing-approaches-20260929`. Commander, Validation
+Source branch: `release/local-studio-20261001`. Commander, Validation
 and Owner Gateway run the new release; unchanged companion images were retagged
-for the serial publisher. GOD retains its previous image. Migration 020 applied
+for the serial publisher. GOD retains its previous image. Migration 021 applied
 with a checksummed root-only backup and exact preservation of pre-existing
-Commander business rows; no reset ran. Owner Hosting version `f01925e19b399209`
-and public Landing Hosting version `ac7b6d8bf5058db1` are live. All structured/
+Commander business rows; no reset ran. Owner Hosting version `5def3e592480bf1e`
+is live. All structured/
 media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
 passed. The 24-hour resource follow-up timer is active.
+
+## Daddy modular Post builder — local, not deployed
+
+Daddy is selectable in the existing Post gallery. Twelve composition presets
+compile shared Background, Message, Device, Subject, Collage, Offer, Brand and
+Action blocks through the native 1080×1350 renderer. Manual and Agent editing use
+the same bounded settings, exact fonts, semantic copy and independent asset slots.
+The requested handheld treatment is replaced by a standalone phone against a
+blurred scene; Daddy generation excludes hands. High-resolution registered store
+badges and a native landscape preview fixture keep device demos readable.
+
+Generation reads the approved Brief, marketing approach, Brand Identity, owner
+direction and accepted Creative Skills, then persists strategy, composition,
+assets and actual PNG review. At most two polish rounds and one targeted asset
+regeneration per round are allowed. Interrupted Daddy runs require explicit
+retry and reuse completed stages/assets. Manual changes keep Update preview.
+Neutral tuned-preset proposals pass through existing Templates acceptance.
+Per-slot provenance, original uploads, history, approval, export, cloning and
+visible-copy Landing projection are implemented; migration 022 preserves existing
+rows and PNGs. Existing uncommitted Brand Identity/template work was retained.
+
+Verified: 501 Validation tests in the dependency-complete built image; 153 web
+unit tests/build; 156 desktop/360px/iPhone WebKit cases across the full browser
+run and focused reruns of the updated picker counts; 54 Commander checks
+(five environment skips in the built image), host checks/demo; skill validation,
+deterministic Studio audit and whitespace checks. Disposable PostgreSQL verified
+old rows/files/PNG preservation, independent assets, duplicate requests, approval,
+clone, Landing source and three fresh caches. Independent enhancement used exact
+raw pixels while preserving unrelated artwork and history order.
+
+Rendered all twelve presets with EN/UK copy and inspected native/phone-size
+presentations, optional copy, overflow findings and missing assets. Six real
+Brief-to-Post trials plus an additional illustration trial produced seven drafts:
+five finished without review findings; the booking app retained small screen-label
+and feature-card clearance findings, and the notebook collage retained stray
+cutout fragments after its two rounds. These are editable drafts, not approved
+ads or performance evidence. Private results are under `.local/daddy-trials` and
+`.local/daddy-illustration-trial`; the edited standalone-phone reference is under
+`.local/daddy-review`. The refreshed local app is
+`http://127.0.0.1:5180/?e2e=1`; health, authenticated detail and a fresh authoritative
+Daddy gallery PNG were verified. Deployment remains a separate operation.
+
+## App Showcase hero controls — deployed in the Brand Studio release
+
+App Showcase v3 adds editable eyebrow copy above the hero title and a preserved
+text/three-bullet switch below it. All three bullets are separately editable in
+Landing Studio and available to its Agent. New Project composition writes both
+formats from the approved Brief; v1/v2 identities, defaults and published copy
+remain exact. The v3 gallery preview renders the native desktop and 360px Hero.
+
+Production Template run `3fef5cae-57c1-42fc-85eb-9b6a7ac9f2ae` remains failed
+and unchanged. Its durable record shows analysis completed, then two `compose`
+provider failures with one attempt each, zero comparisons and no proposal.
+Read-only platform job metadata identifies `TimeoutExpired` after about six
+minutes for both compose calls; the run record has no validation error. The new
+native version does not depend on resuming
+that run. Local checks: built-image App Showcase/marketing/Agent and template
+registry/authoring tests, 149 Owner unit tests/build, native desktop/mobile PNG
+inspection, all 150 desktop/360px/iPhone WebKit browser checks, and skill verifier.
+
+## Initial Post template selection — deployed in the Brand Studio release
+
+Brief approval and the empty Post Studio now show the accepted Post gallery with
+preview cards. The owner selects an exact template version and image direction;
+the first creative is initialized on that layout and composed from its source
+Brief. Generating another creative from an approved Brief uses the same chooser.
+Accepted authored layouts generate copy and artwork directly. The exact
+version/digest is retained through duplicate requests, retries, Save/Approve and
+restart. Phone Metrics remains one selectable option. The local gallery currently
+contains Phone Metrics and two accepted authored Post designs. A scrollable
+desktop dialog fix keeps image-direction controls operable after selection.
+
+Verified locally: accepted authored generation, image-failure recovery, exact
+reference rejection, preview, edit, Save, Approve and restart; 486 Validation
+tests, 148 Owner web tests/build, disposable PostgreSQL first-creative canary,
+focused desktop/360px/iPhone WebKit chooser,
+deterministic Post visual audit, canonical skills, Commander 54 checks/demo and
+whitespace. No production release or publication occurred.
+The current loopback review instance is at `http://127.0.0.1:5180/?e2e=1`.
+
+## Brand identity — deployed in the Brand Studio release
+
+The owner found that an occasion and self-image did not define a brand. New
+ProductBriefV3 adds a dedicated Brand identity section in Project Briefs and
+Natal Create: belief, identity signal, values, cultural tension, category reframe,
+emotional reward, competence cue, functional proof anchor, voice, visual world
+and optional ritual. Canonical marketing policy revision 6 connects category
+reframing, a grounded convention or tradeoff, the buyer's desired identity and a
+functional reason for the emotional reward. Elevated language is optional; plain
+precise language remains valid. A weekend occasion alone does not define a brand.
+
+The object is bounded to 3 KiB alongside 1 KiB positioning. Exact source context
+reaches Post, Landing, Manual Agent, images and exports. Natal branding/templates
+remain authoritative. New corrections of V1/V2 select the current policy for the
+inherited approach and create unapproved V3 replacements. Historical documents,
+queued/failed reservations and retries retain their original contract/snapshot.
+Migration 021 only widens accepted contract versions; immutability remains intact.
+
+A real Ukrainian weekend example returned “Вихідні з друзями починаєш ти.” Its
+brand direction pairs initiative and time together with a practical choice cue:
+people, bags and route before the car. Real Natal binding carried that cue into
+Landing support and the same identity into copy and artwork. A separate sparse
+“car sharing” run chose Sunday family visits. These are private hypotheses, not
+conversion evidence. Receipts and review: [car-sharing review](car-sharing-identity-review.md).
+
+Earlier local fixes remain: natural product-specific offers, no forced free
+consultation, explicit Project selection, on-demand history images and manual
+retry. The loopback app is available through `scripts/run_local_studio.sh` at
+port 5173. Generate a new Brief or explicitly correct an old one to obtain V3.
+No production deployment, approval, automatic lesson promotion or publishing.
+
+Verified: 483 full built-image backend checks; 49 final image/brand/budget/source
+checks; 147 frontend tests/build; 39 affected browser cases plus three Ukrainian
+brand/history checks across desktop, 360px and iPhone WebKit. Project browser
+responses are scripted; Natal uses real local HTTP/storage with scripted inference.
+Disposable PostgreSQL verified migration preservation, V1/V2 execution, V3
+correction, duplicates, immutable settings and fresh-instance reads. Commander
+54 checks (five isolated-receiver skips in the built image), demo, canonical skills
+and whitespace passed. The test container needed Git and a safe-directory entry;
+no application image changed. Manual Agent’s measured full Ukrainian V3 request
+needed 22 KiB input / 34 KiB total; the correction reserve is retained.
+
+The local Identity-led prompt review now applies four connected strategy moves
+across Brief, Post, Landing, Natal Create and editor Agent. Plain precise copy is
+valid; elevated wording is optional. Fresh Ukrainian water-label and English
+maintenance-tool Briefs, Natal bindings and direct Post/Landing compositions kept
+one identity with supported practical benefits. A malformed generated Post offer
+found during review led to a narrow invisible-format-character guard and a
+complete-copy prompt. Private receipts and limits are in
+[the marketing trial review](marketing-approaches-trial.md). No deployment or
+approval occurred.
 
 ## Shared marketing approaches — deployed
 

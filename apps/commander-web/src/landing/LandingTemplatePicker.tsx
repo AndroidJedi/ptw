@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { ApiFailure, type ApiClient } from '../api'
 import type { LandingTemplateReference } from '../types'
-import { TemplateImage } from '../views/TemplatesView'
+import { TemplateImage } from '../components/TemplateImage'
 import { LandingDialog } from './LandingCanvas'
 
 export type LandingTemplateChoice = LandingTemplateReference & { name: string; description?: string }

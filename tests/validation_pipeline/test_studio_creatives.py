@@ -33,6 +33,7 @@ class FakeStructuredProvider:
     def __init__(self) -> None:
         self.calls: list[dict] = []
         self.invalid_generation = False
+        self.invisible_generation = False
         self.manual_image_actions: list[dict] = []
         self.manual_logo_colors: dict[str, str] | None = None
         self.manual_phone_update: dict[str, object] = {}
@@ -51,6 +52,8 @@ class FakeStructuredProvider:
             }
             if self.invalid_generation:
                 response["configuration"]["invented_control"] = True
+            if self.invisible_generation:
+                response["content"]["offer"] = "Free early access\ufeff"
             response["content"]["hero_title"] = "A clear promise for this audience"
             if request["input_payload"]["selected_template_id"] == "phone_metrics":
                 response["content"]["stats"] = [{"value": "+35%", "label": "More service requests"}, {"value": "−25%", "label": "Fewer calls"}, {"value": "2×", "label": "Faster handling"}]
@@ -58,6 +61,12 @@ class FakeStructuredProvider:
                 response["visual_direction"] = (
                     "A translucent staircase rising through calm blue studio light"
                 )
+            else:
+                response["content"]["template_text"] = {
+                    field["id"]: f"A clear {field['role']} for this product"
+                    for field in request["input_payload"]["live_template_catalog"]["text_fields"]
+                }
+                response["visual_direction"] = "A clear product interaction in a calm, well lit setting"
             return {
                 "response": response,
                 "invocation": {"provider": "fake", "model": "test-composer"},
@@ -150,6 +159,28 @@ class StudioCreativeServiceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_history_route_checks_project_without_building_editor_detail(self):
+        from unittest.mock import patch
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from validation_pipeline.studio_routes import studio_creative_router
+        project_id, _, detail = self.generate_creative()
+        creative_id = detail['creative_id']
+        digest = detail['phone_screen_history'][0]['sha256']
+        workspace = self.service._workspace(creative_id)
+        expected = workspace.phone_screen_history_image(digest)['bytes']
+        app = FastAPI()
+        app.include_router(studio_creative_router(self.service, prefix='/api/v1/studio'))
+        with patch.object(workspace, 'detail', side_effect=AssertionError('media must not build editor')), TestClient(app) as client:
+            path = f'/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/history/'
+            response = client.get(path + digest)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(expected, response.content)
+            self.assertEqual(digest, response.headers['x-ptw-content-sha256'])
+            self.assertEqual(404, client.get(path + '0' * 64).status_code)
+            self.assertEqual(404, client.get(path.replace(project_id, new_uuid7()) + digest).status_code)
+        self.assertEqual(detail['state_sha256'], self.service.detail(project_id, creative_id)['state_sha256'])
 
     def test_numeric_hypothesis_provenance_survives_approval_edit_and_clone(self):
         project_id, _, detail = self.generate_creative()
@@ -255,7 +286,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
 
     def test_common_templates_and_project_isolation(self) -> None:
         catalog = self.service.templates()
-        self.assertEqual({"phone_metrics"}, {
+        self.assertEqual({"phone_metrics", "daddy"}, {
             item["template_id"] for item in catalog["items"]
         })
         self.assertTrue(all(item["template_sha256"] for item in catalog["items"]))
@@ -266,6 +297,94 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertNotEqual(first_project, second_project)
         with self.assertRaises(KeyError):
             self.service.detail(second_project, first["creative_id"])
+
+    def test_accepted_template_is_original_creative_layout(self) -> None:
+        from uuid import uuid4
+        from tests.validation_pipeline.test_template_authoring import ScriptedTemplateProvider
+        from validation_pipeline.template_authoring import TemplateAuthoringService
+        from validation_pipeline.template_store import TemplateStore
+
+        authoring = TemplateAuthoringService(
+            TemplateStore(self.root / "accepted-templates.sqlite3"),
+            ScriptedTemplateProvider(), asynchronous=False,
+        )
+        self.addCleanup(authoring.close)
+        run = authoring.start({"request_id": str(uuid4()), "scope": "post", "instruction": "Reusable post layout"})
+        accepted = authoring.decide(run["run_id"], {
+            "request_id": str(uuid4()), "base_sha256": run["state_sha256"], "decision": "accept",
+        })["accepted_versions"][0]
+        self.service.template_registry = authoring.post_registry
+        project_id, brief_id = self.approved_brief()
+        creative, created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id=accepted["template_id"],
+            template_reference=accepted, creative_direction=PHONE_DIRECTION,
+            requested_by="test",
+        )
+        self.assertTrue(created)
+        before = self.service.detail(project_id, creative["creative_id"])
+        self.assertEqual(accepted, before["template_reference"])
+        self.assertEqual("queued", before["status"])
+        self.assertEqual("post.declarative.react", before["editor_key"])
+        duplicate, created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id=accepted["template_id"],
+            template_reference=accepted, creative_direction=PHONE_DIRECTION,
+            requested_by="test",
+        )
+        self.assertFalse(created)
+        self.assertEqual(creative["creative_id"], duplicate["creative_id"])
+        with self.assertRaisesRegex(ValueError, "stale"):
+            self.service.reserve_from_brief(
+                brief_id=brief_id, template_id=accepted["template_id"],
+                template_reference={**accepted, "template_sha256": "0" * 64},
+                creative_direction=PHONE_DIRECTION, requested_by="test",
+            )
+        self.images.failures = 1
+        self.service.generate(creative["creative_id"])
+        failed_art = self.service.detail(project_id, creative["creative_id"])
+        self.assertEqual("draft", failed_art["status"])
+        self.assertEqual("failed", failed_art["generation"]["phone_image"]["status"])
+        queued = self.service.queue_phone_image_retry(project_id, creative["creative_id"])
+        self.assertEqual("generating_image", queued["status"])
+        self.service.retry_phone_image(project_id, creative["creative_id"])
+        detail = self.service.detail(project_id, creative["creative_id"])
+        self.assertEqual("draft", detail["status"], detail["generation"])
+        self.assertEqual(accepted, detail["template_reference"])
+        self.assertTrue(detail["content"]["template_text"])
+        self.assertEqual("completed", detail["generation"]["phone_image"]["status"])
+        self.assertEqual(1, len(self.provider.calls))
+        preview = self.service._workspace(creative["creative_id"]).render_preview(
+            state_sha256=detail["state_sha256"],
+        )
+        self.assertEqual("image/png", preview["mime_type"])
+        edited = deepcopy(detail["content"])
+        field_id = next(iter(edited["template_text"]))
+        edited["template_text"][field_id] = "Owner edited headline"
+        saved = self.service.checkpoint(
+            project_id, creative["creative_id"], kind="save",
+            base_sha256=detail["state_sha256"],
+            configuration=detail["configuration"], content=edited,
+            change_note="Edit the first headline",
+        )
+        approved = self.service.checkpoint(
+            project_id, creative["creative_id"], kind="approve",
+            base_sha256=saved["creative"]["state_sha256"],
+            configuration=saved["creative"]["configuration"], content=saved["creative"]["content"],
+            change_note="Approve selected layout",
+        )
+        self.assertEqual(1, len(approved["creative"]["versions"]))
+        restarted = StudioCreativeService(
+            root=self.root / "studio", authority=self.authority,
+            workspace_factory=lambda path: PostStudioWorkspace(path, image_provider=self.images),
+            structured_provider=self.provider,
+            composer_skill_path=Path(__file__).resolve().parents[2] / "skills/studio-creative-composer/SKILL.md",
+            phone_skill_path=Path(__file__).resolve().parents[2] / "skills/studio-phone-hero-generator/SKILL.md",
+            manual_agent_skill_path=Path(__file__).resolve().parents[2] / "skills/studio-manual-agent/SKILL.md",
+        )
+        restarted.template_registry = authoring.post_registry
+        restored = restarted.detail(project_id, creative["creative_id"])
+        self.assertEqual(accepted, restored["template_reference"])
+        self.assertEqual("Owner edited headline", restored["content"]["template_text"][field_id])
+        self.assertEqual(approved["creative"]["versions"], restored["versions"])
 
     def test_duplicate_first_creative_reservation_is_idempotent(self) -> None:
         project_id, brief_id = self.approved_brief()
@@ -480,6 +599,23 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertNotIn("error_type", recovered["generation"])
         self.assertNotIn("error_message", recovered["generation"])
 
+    def test_invisible_composer_copy_fails_before_artwork_and_can_retry(self) -> None:
+        project_id, brief_id = self.approved_brief()
+        creative, _ = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+            creative_direction=PHONE_DIRECTION,
+        )
+        self.provider.invisible_generation = True
+        failed = self.service.generate(creative["creative_id"])
+        self.assertEqual("failed", failed["status"])
+        self.assertIn("invisible formatting", failed["generation"]["error_message"])
+        self.assertEqual([], self.images.prompts)
+
+        self.provider.invisible_generation = False
+        self.service.retry_generation(project_id, creative["creative_id"])
+        recovered = self.service.generate(creative["creative_id"])
+        self.assertEqual("draft", recovered["status"])
+
     def test_phone_preview_http_accepts_empty_cta_and_recovers_after_invalid_draft(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -522,10 +658,10 @@ class StudioCreativeServiceTests(unittest.TestCase):
             if call["mode"] == "studio_creative_generation"
         )
         self.assertTrue(generation_call["idempotency_key"].endswith(
-            ":studio-creative-composer-v5"
+            ":studio-creative-composer-v8"
         ))
         self.assertEqual(
-            "studio-creative-composer-v5", generation_call["prompt_version"],
+            "studio-creative-composer-v8", generation_call["prompt_version"],
         )
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])

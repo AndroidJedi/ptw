@@ -1032,8 +1032,7 @@ describe('Phone & metrics Studio', () => {
     expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
   })
 
-  it('bounds current-image preview retries and offers a manual recovery', async () => {
-    vi.useFakeTimers()
+  it('loads history only when opened and retries only on owner request', async () => {
     const current = structuredClone(detail)
     current.assets = [{
       slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
@@ -1049,20 +1048,19 @@ describe('Phone & metrics Studio', () => {
     const { api } = studioApi(current)
     vi.mocked(api.media)
       .mockRejectedValueOnce(new Error('not ready'))
-      .mockRejectedValueOnce(new Error('not ready'))
-      .mockRejectedValueOnce(new Error('not ready'))
       .mockResolvedValueOnce(new Blob(['history'], { type: 'image/png' }))
     const view = render(<PhoneMetricsStudio
       api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
     />)
 
-    await vi.runAllTimersAsync()
-    expect(api.media).toHaveBeenCalledTimes(3)
-    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Retry current iPhone image preview' })).toBeEnabled())
+    expect(api.media).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Generate or enhance hero artwork').closest('summary')!)
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Retry current iPhone image preview' })).toBeEnabled())
+    expect(api.media).toHaveBeenCalledTimes(1)
+    expect(api.media).toHaveBeenLastCalledWith(`${basePath}/phone-screen/history/${'9'.repeat(64)}`, 'image/png', '9'.repeat(64), { deadlineMs: 60_000 })
     fireEvent.click(screen.getByRole('radio', { name: 'Retry current iPhone image preview' }))
     await vi.waitFor(() => expect(view.container.querySelector('.phone-screen-history-option img')).toBeInTheDocument())
-    expect(api.media).toHaveBeenCalledTimes(4)
-    vi.useRealTimers()
+    expect(api.media).toHaveBeenCalledTimes(2)
   })
 
   it('shows the last three raw heroes and applies the selected image', async () => {
@@ -1083,7 +1081,9 @@ describe('Phone & metrics Studio', () => {
       api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
     />)
 
-    expect(screen.getByRole('radiogroup', { name: 'Recent iPhone images' })).toBeInTheDocument()
+    expect(api.media).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Generate or enhance hero artwork').closest('summary')!)
+    await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'Recent iPhone images' })).toBeInTheDocument())
     expect(screen.getAllByRole('radio')).toHaveLength(3)
     expect(screen.getByRole('radio', { name: 'iPhone image 1, current' })).toHaveAttribute('aria-checked', 'true')
     await waitFor(() => expect(api.media).toHaveBeenCalledTimes(3))
@@ -1177,6 +1177,8 @@ describe('Phone & metrics Studio', () => {
       api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
     />)
 
+    fireEvent.click(screen.getByText('Generate or enhance hero artwork').closest('summary')!)
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'iPhone image 1, current' })).toBeInTheDocument())
     const reset = screen.getByRole('button', { name: 'Reset image direction' })
     reset.focus()
     expect(reset).toHaveFocus()

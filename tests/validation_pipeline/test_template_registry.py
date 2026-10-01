@@ -14,7 +14,7 @@ from validation_pipeline.post_templates import POST_TEMPLATE_REGISTRY
 class TemplateRegistryTests(unittest.TestCase):
     def test_post_and_landing_definitions_are_independent(self) -> None:
         self.assertEqual("post", POST_TEMPLATE_REGISTRY.surface)
-        self.assertEqual(("phone_metrics",), POST_TEMPLATE_REGISTRY.ids)
+        self.assertEqual(("phone_metrics", "daddy"), POST_TEMPLATE_REGISTRY.ids)
         self.assertEqual("landing", LANDING_TEMPLATE_REGISTRY.surface)
         self.assertEqual(("project_landing", "app_showcase"), LANDING_TEMPLATE_REGISTRY.ids)
         with self.assertRaisesRegex(ValueError, "Post template is not registered"):

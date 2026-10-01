@@ -80,6 +80,18 @@ describe('API deadline', () => {
 })
 
 describe('authenticated image integrity', () => {
+  it('accepts a bounded media deadline while still checking the digest', async () => {
+    const timeout = vi.spyOn(window, 'setTimeout')
+    const digest = 'fe7984712ccab67b150e3e8337f9cb104bbf44d7b404fb8286e1ca8eb335eddb'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('jpeg-fixture', {
+      headers: { 'Content-Type': 'image/jpeg', ETag: `"${digest}"` },
+    })))
+    const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any)
+    expect((await client.media('/api/v1/history', 'image/jpeg', digest, { deadlineMs: 60_000 })).size).toBe(12)
+    expect(timeout).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    await expect(client.media('/api/v1/history', 'image/jpeg', 'a'.repeat(64), { deadlineMs: 60_000 })).rejects.toThrow(/SHA-256/)
+  })
+
   it('accepts the declared media type, digest, and ETag', async () => {
     const sha256 = 'fe7984712ccab67b150e3e8337f9cb104bbf44d7b404fb8286e1ca8eb335eddb'
     const response = new Response('jpeg-fixture', {

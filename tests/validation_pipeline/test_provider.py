@@ -377,7 +377,7 @@ class StructuredBridgeTests(unittest.TestCase):
         bridge = FakeBridge()
         with self.assertRaisesRegex(ValueError, "corrective attempt budget"):
             bridge.call(mode="studio_manual_edit", system_prompt="Short skill",
-                input_payload={"state": "x" * (20 * 1024 - 512)},
+                input_payload={"state": "x" * (STRUCTURED_MODE_BUDGETS["studio_manual_edit"]["input_payload"] - 512)},
                 output_schema={"type": "object"}, idempotency_key="manual:oversized",
                 prompt_version="manual-test", response_validator=lambda value: value)
         self.assertIsNone(bridge.posted)

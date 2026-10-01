@@ -58,6 +58,10 @@ test('one input creates a real draft package, restores it and edits only through
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Download package' }).click()
   expect((await download).suggestedFilename()).toBe('natal-studio.zip')
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'uk'))
+  await page.reload()
+  await expect(page.getByRole('region', { name: 'Ідентичність бренду', exact: true })).toContainText('A good day has room for what matters.')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
 
 test('reference input, collapsed sections and saved templates stay on the same page', async ({ page }, info) => {
@@ -117,6 +121,7 @@ test('marketing approach is inherited, survives restart and switches through a r
   await page.getByRole('button', { name: 'Create with agent', exact: true }).click()
   await expect(page.getByText('Draft ready', { exact: true })).toBeVisible({ timeout: 45000 })
   await expect(page.getByRole('region', { name: 'Positioning', exact: true })).toContainText('Prepared for my day')
+  await expect(page.getByRole('region', { name: 'Brand identity', exact: true })).toContainText('A good day has room for what matters.')
   await expect(page.locator('.marketing-approach-badge')).toContainText('Identity-led')
   await backend.restart(); await page.reload()
   await expect(page.locator('.marketing-approach-badge')).toContainText('Identity-led')
@@ -131,4 +136,8 @@ test('marketing approach is inherited, survives restart and switches through a r
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Download package' }).click()
   expect((await download).suggestedFilename()).toBe('natal-studio.zip')
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'uk'))
+  await page.reload()
+  await expect(page.getByRole('region', { name: 'Ідентичність бренду', exact: true })).toContainText('A good day has room for what matters.')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })

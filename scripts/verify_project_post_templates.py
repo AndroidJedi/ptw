@@ -73,7 +73,72 @@ def verify(url, root):
         (ROOT/'.local/post-template-canary.png').write_bytes(render['bytes'])
         with psycopg.connect(url) as db:
             assert db.execute('SELECT template_id FROM universal_studio_workspaces WHERE entity_id=%s', (cid,)).fetchone()[0] == reference['template_id']
+        from psycopg.types.json import Jsonb
+        from tests.validation_pipeline.test_studio_creatives import FakeStructuredProvider, FakeImageProvider, PHONE_DIRECTION
+        from validation_pipeline.local_brief_store import sha256_json
+        source_id, fresh_project, brief_id = (str(uuid4()) for _ in range(3))
+        document = {
+            'schema_version': 1, 'language': 'en', 'product': 'Useful product',
+            'target_audience': 'Independent operators', 'main_pain': 'Lost time',
+            'promise': 'Reach the next decision faster',
+            'key_benefits': ['Clear next step', 'Less busywork', 'Honest guidance'],
+            'cta': 'Start now', 'trust_strategy': 'Show the workflow',
+            'offer': 'A guided first setup',
+        }
+        with psycopg.connect(url) as db:
+            for identifier, kind in ((source_id, 'source'), (fresh_project, 'validation_project'), (brief_id, 'product_brief')):
+                db.execute('INSERT INTO commander_entities(id,kind) VALUES(%s,%s)', (identifier, kind))
+            db.execute("INSERT INTO commander_sources(entity_id,source_type,title,provider,external_id,content,content_sha256) VALUES(%s,'owner_idea','Initial template','owner','initial-template','A useful product',%s)", (source_id, 'a' * 64))
+            db.execute("INSERT INTO validation_projects(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by) VALUES(%s,%s,%s,'Initial template','owner','test')", (fresh_project, uuid4(), source_id))
+            db.execute("INSERT INTO product_briefs(entity_id,project_id,request_id,owner_idea_source_id,status,document,document_sha256,requested_by) VALUES(%s,%s,%s,%s,'completed',%s,%s,'test')", (brief_id, fresh_project, uuid4(), source_id, Jsonb(document), sha256_json(document)))
+        def initial_service(directory):
+            authority = DatabaseStudioAuthority(url)
+            result = StudioCreativeService(
+                root=directory, authority=authority,
+                workspace_factory=lambda path: DatabaseCreativeWorkspace(
+                    PostStudioWorkspace(path, image_provider=FakeImageProvider()),
+                    authority.repository, path.name,
+                ),
+                structured_provider=FakeStructuredProvider(),
+                composer_skill_path=ROOT/'skills/studio-creative-composer/SKILL.md',
+                phone_skill_path=ROOT/'skills/studio-phone-hero-generator/SKILL.md',
+            )
+            result.template_registry = authoring.post_registry
+            return result
+        initial = initial_service(root / 'initial-selected')
+        _brief, approved_now, first, created_now = initial.approve_brief_and_reserve(
+            brief_id=brief_id, template_id=reference['template_id'],
+            template_reference=reference, creative_direction=PHONE_DIRECTION,
+            requested_by='test', brief_approver=lambda *_: None,
+        )
+        assert approved_now and created_now
+        first_detail = initial.detail(fresh_project, first['creative_id'])
+        assert first_detail['template_reference'] == reference and first_detail['status'] == 'queued'
+        initial.generate(first['creative_id'])
+        first_detail = initial.detail(fresh_project, first['creative_id'])
+        assert first_detail['status'] == 'draft', first_detail['generation']
+        assert first_detail['template_reference'] == reference and first_detail['content']['template_text']
+        assert first_detail['generation']['phone_image']['status'] == 'completed'
+        first_png = initial._workspace(first['creative_id']).render_preview(state_sha256=first_detail['state_sha256'])['bytes']
+        assert first_png.startswith(b'\x89PNG\r\n\x1a\n')
+        saved = initial.checkpoint(fresh_project, first['creative_id'], kind='save',
+            base_sha256=first_detail['state_sha256'], configuration=first_detail['configuration'],
+            content={**first_detail['content'], 'template_text': {
+                **first_detail['content']['template_text'],
+                next(iter(first_detail['content']['template_text'])): 'Owner edited selected template',
+            }})
+        approved = initial.checkpoint(fresh_project, first['creative_id'], kind='approve',
+            base_sha256=saved['creative']['state_sha256'], configuration=saved['creative']['configuration'],
+            content=saved['creative']['content'], change_note='Approve selected template')
+        assert approved['version_created']
+        restored_first = initial_service(root / 'initial-selected-restart').detail(fresh_project, first['creative_id'])
+        assert restored_first['template_reference'] == reference
+        assert restored_first['versions'] == approved['creative']['versions']
+        with psycopg.connect(url) as db:
+            stored = db.execute('SELECT template_id,template_version,template_sha256 FROM universal_studio_workspaces WHERE entity_id=%s', (first['creative_id'],)).fetchone()
+            assert stored == (reference['template_id'], reference['template_version'], restored_first['template_sha256'])
         print('PASS: owner-authenticated PostgreSQL template apply, pending copy, exact pinned identity, response-loss reconciliation, stale rejection, approved history, raw image retention and fresh-cache restart.')
+        print('PASS: first Brief creative starts on the accepted version, composes and renders artwork, saves, approves and restores without a Phone Metrics creative.')
     finally: authoring.close()
 
 

@@ -10,6 +10,7 @@ vi.mock('../components/studio/PhoneMetricsStudio', () => ({
   ),
 }))
 vi.mock('../components/PostPublishing', () => ({ PostPublishing: () => null }))
+vi.mock('../components/studio/DaddyStudio', () => ({ DaddyStudio: () => <section aria-label="Daddy editor" /> }))
 vi.mock('../components/studio/StudioTuneWizard', () => ({
   StudioTuneWizard: ({ open }: { open: boolean }) => open ? <div>Local Tune wizard</div> : null,
 }))
@@ -79,7 +80,15 @@ function apiFor(options: { items?: unknown[]; selected?: StudioPhoneMetricsDetai
       brief_id: briefId, project_id: projectId, approved: true, status: 'completed',
       document: { product: 'Natal' }, product: 'Natal',
     }] }
-    if (path === '/api/v1/studio/templates') return { items: detail.templates }
+    if (path === '/api/v1/templates?surface=post') return { items: [{
+      surface: 'post', template_id: 'phone_metrics', name: 'Phone & metrics',
+      description: 'Phone composition', template_version: 27,
+      template_sha256: 'b'.repeat(64), previews: {},
+    }, {
+      surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', name: 'Editorial Post',
+      description: 'Accepted layout', template_version: 3,
+      template_sha256: 'd'.repeat(64), previews: {},
+    }] }
     throw new Error(`Unexpected GET ${path}`)
   })
   return {
@@ -114,12 +123,36 @@ describe('Post Studio shell', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Phone & metrics/i }))
     fireEvent.click(screen.getByRole('radio', { name: /Cinematic/i }))
     fireEvent.click(screen.getByRole('radio', { name: /Keep a scene background/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create Phone Metrics creative' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
       `/api/v1/briefs/${briefId}/approve`,
-      expect.objectContaining({ template_id: 'phone_metrics' }),
+      expect.objectContaining({ template_id: 'phone_metrics', template_reference: {
+        surface: 'post', template_id: 'phone_metrics', template_version: 27, template_sha256: 'b'.repeat(64),
+      } }),
     ))
     expect(onCreative).toHaveBeenCalledWith('55555555-5555-4555-8555-555555555555')
+  })
+
+  it('chooses the accepted layout before generating another Post from a Brief', async () => {
+    const selected = { ...detail, approved_version_count: 1, versions: [{ version: 1 }] } as StudioPhoneMetricsDetail
+    const { api, post } = apiFor({ selected })
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    await screen.findByRole('region', { name: 'Phone Metrics editor' })
+    fireEvent.click(screen.getByText('More actions'))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate another from Brief' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the creative template' })
+    fireEvent.click(await screen.findByRole('button', { name: /Editorial Post/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Cinematic/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /Keep a scene background/i }))
+    fireEvent.click(dialog.querySelector('button.primary')!)
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `/api/v1/studio/projects/${projectId}/creatives`,
+      expect.objectContaining({
+        source_brief_id: briefId,
+        template_id: 'design_aaaaaaaaaaaaaaaaaaaa',
+        template_reference: { surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', template_version: 3, template_sha256: 'd'.repeat(64) },
+      }),
+    ))
   })
 
   it('keeps Tune available against the active Post editor', async () => {

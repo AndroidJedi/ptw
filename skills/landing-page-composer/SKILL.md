@@ -5,68 +5,70 @@ description: Populate one selected bounded private PTW Landing template from an 
 
 # Landing page composer
 
-- The approved Brief owns claims and V2 positioning; develop its hook with practical benefits. Apply snapshots in this order: fixed catalog, brand and Brief constraints;
-  explicit owner direction; active Project rules; active global spirit; defaults.
+- The Brief owns claims, positioning and V3 brand_identity. For Identity-led,
+  continue the Post's self-image promise in a 3–5-word Hero. Explain the
+  recognizable product action and practical proof below it. Features, FAQs and
+  enabled comparison address the grounded convention, teach competence_cue and
+  tie emotional reward to proof_anchor.
+  Keep the product identifiable. Use belief/voice for copy and visual_world for
+  images. Plain precise language is valid. Apply: catalog, brand and Brief;
+  owner direction; Project rules; global spirit; defaults.
   Ignore inactive/tombstoned rules. Use only supplied catalog settings.
-- The approved Post is frozen provenance. The server preserves mapped design;
-  bounded frozen copy provides tone and continuity. Never claim synchronization.
+- The approved Post is frozen provenance. Preserve its copy direction and mapped
+  design; never claim synchronization.
 - Return only the exact `content` shape in the supplied JSON schema. Layout,
   theme, presentation, components, image styles and phone layout are server-owned.
-  Do not add configuration, sections, HTML, CSS, scripts, controls, testimonials,
-  metrics, prices, guarantees, urgency or lead forms.
-- Populate one concise Hero, exactly three honest feature title/description
-  pairs and three Brief-grounded FAQs. Match the CTA to the Brief offer. Use a
-  short action label, usually 2–5 words; put established duration, price and offer
-  details in supporting copy. Lead features with benefits and keep copy scannable.
+  Do not add configuration, sections, code, controls, testimonials, metrics,
+  prices, guarantees, urgency or lead forms.
+- Populate one concise Hero, three honest feature pairs and three Brief-grounded
+  FAQs. Match CTA to the Brief offer; use a 2–5-word action label. Put established
+  duration, price and offer details in support. Keep features scannable.
 - Use the Brief's Ukrainian or English language, independently of Console
   language. The server owns CTA routing; never invent its endpoint.
-- Natal is the fixed umbrella identity for every app. The renderer supplies its
-  canonical logo/name. Never derive a brand from product copy or draw branding
-  into artwork. Page themes do not replace Natal.
+- Natal is the fixed identity. Use its renderer-owned logo/name; never derive
+  branding from product copy, artwork or page themes.
 - Every offering, including physical services, is experienced through a Natal
   app. For `project_landing`, `app_feature` describes one Brief-grounded task,
   such as solar consumption, safari booking or medicine inventory. Supply a
-  short screen title, description, action label and three UI row labels; optional
-  details describe inputs/categories. Leave unestablished values empty. Never
+  screen title, description, action label and three row labels; optional details
+  describe inputs/categories. Leave unestablished values empty. Never
   invent availability, readings, results, prices or capabilities.
-- The browser renders editable UI inside Post Studio's canonical phone frame.
-  Hero artwork follows the current visual mode. People/devices may be subjects;
-  outer phone hardware and controls remain renderer-owned.
+- Editable UI uses Post Studio's canonical phone frame. Hero art follows the
+  current mode; outer hardware and controls remain renderer-owned.
 - Preserve supplied theme, palette, typography, components, image styles and
   mockup layout. Subject directions describe subject, action and setting. They
   are suggestions; direct owner image requests override presets. Match Hero
   colors/lighting to the supplied gradient without changing owner-selected colors.
 - Social proof requires verified owner evidence for this exact product/domain.
   Reference/template testimonials never become Project copy. Return a heading
-  and empty `items`; the server preserves verified proof.
-  Never rewrite unrelated quotes or invent customers, ratings, logos, results,
-  credentials, measurements or placeholder claims.
+  and empty `items`; the server preserves verified proof. Invent no customers,
+  ratings, logos, results, credentials or measurements.
 - Contacts are owner evidence. Return heading/supporting copy and empty email,
   phone, Telegram bot-link (`url`) and, when present, Instagram fields. Never
   invent profiles, copy reference contacts or use Commander's emergency bot.
 - Supply distinct 8–600-character Hero and visual-break subject directions.
-  Owner requests may change style. Keep Hero subjects safe in square/4:3 crops
+  Keep Hero subjects safe in square/4:3 crops
   and visual-break subjects in the central band of a shallow landscape crop.
-  Avoid repeating a scene.
-- Save/Approve checkpoints establish provenance, not performance. Only reviewed
-  Analytics learning or an explicit owner Skill revision activates a snapshot.
-  Post `metric_provenance` may contain unvalidated numeric hypotheses; never turn
-  them into Landing facts, testimonials or proof. Product facts come from the Brief.
+  Show purposeful action and 1–2 occasion cues; avoid flattery or invented luxury.
+- Save/Approve establishes provenance, not performance. Only reviewed Analytics
+  or owner Skill revision activates a snapshot. Post `metric_provenance` may hold
+  unvalidated numeric hypotheses; never turn them into Landing facts or proof.
 
 ## App Showcase
 
 For `app_showcase`, the exact schema replaces `app_feature` with three
 `app_screens`, each with a short title, caption and 8–600-character direction.
-Describe related Brief-grounded tasks with consistent UI palette and language.
-These are static screen interiors, not live functionality. Use realistic lists,
-compact controls/forms and consistent typography, spacing and navigation. Keep
-labels short. The server supplies `screen_design` and portrait geometry; leave
-its camera-safe top clear. No hardware, status bars, camera or new logo: the
-renderer supplies the frame and Natal identity. Screen values are illustrative
-inputs, never fabricated results/proof. Use `visual_break` for the supporting
-photograph. Keep hero.visual_direction as a bounded thematic description; no
-Hero backdrop is generated. Retain the three features/FAQs and empty proof/contact
-boundaries above.
+When Hero has `eyebrow` and `bullets`, write a line above the title, three
+distinct Brief-grounded benefits, and text for the text/bullets switch. Avoid
+unverified outcomes, numbers and proof.
+Describe related Brief-grounded tasks with consistent palette and language.
+These are static screen interiors. Use realistic lists and compact controls
+with consistent typography, spacing and navigation. Keep labels short. The
+server supplies `screen_design` and portrait geometry; leave the camera-safe
+top clear. No hardware, status bars, camera or new logo: the renderer supplies
+the frame and Natal identity. Screen values are illustrative inputs, never
+fabricated results. `visual_break` holds the supporting photo; Hero has no
+generated backdrop. Retain the features/FAQs and proof/contact boundaries.
 
 ## Optional marketing sections
 

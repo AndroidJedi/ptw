@@ -3,16 +3,31 @@ import { ImagePlus, Plus, RefreshCcw, Sparkles, WandSparkles, X } from 'lucide-r
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
+import { DaddyStudio, type DaddyDetail } from '../components/studio/DaddyStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
 import { PostPublishing } from '../components/PostPublishing'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
+import { TemplateImage } from '../components/TemplateImage'
 import type {
-  ProductBrief, StudioCreativeSummary, StudioPhoneHeroCreativeDirection,
-  StudioPhoneMetricsDetail, StudioTemplateSummary,
+  ProductBrief, StudioCreativeSummary, StudioPhoneHeroCreativeDirection, AcceptedPostTemplate,
+  StudioPhoneMetricsDetail,
 } from '../types'
+
+function GenerationPreview({ api, basePath, stateSha256, language }: { api: ApiClient; basePath: string; stateSha256: string; language: Language }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    void api.postMedia(`${basePath}/preview`, { state_sha256: stateSha256 }, 'image/png', { deadlineMs: 90_000 }).then(blob => {
+      if (!cancelled) setUrl(URL.createObjectURL(blob))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [api, basePath, stateSha256])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  return url ? <div className="panel daddy-preview"><img src={url} alt={language === 'uk' ? 'Поточне прев’ю допису' : 'Current Post preview'} /></div> : null
+}
 
 export function StudioView({
   api, language, projectId = null, creativeId = null, onCreative = () => {}, tuneMode = false,
@@ -27,11 +42,14 @@ export function StudioView({
   const [detail, setDetail] = useState<StudioPhoneMetricsDetail | null>(null)
   const [creatives, setCreatives] = useState<StudioCreativeSummary[] | null>(null)
   const [approvedBriefs, setApprovedBriefs] = useState<ProductBrief[] | null>(null)
-  const [templates, setTemplates] = useState<StudioTemplateSummary[] | null>(null)
+  const [templates, setTemplates] = useState<AcceptedPostTemplate[] | null>(null)
   const [firstSelection, setFirstSelection] = useState<{
-    brief: ProductBrief; direction: PhoneHeroDirectionDraft
+    brief: ProductBrief; template: AcceptedPostTemplate; direction: PhoneHeroDirectionDraft
   } | null>(null)
   const [variantDirection, setVariantDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
+  const [variantTemplates, setVariantTemplates] = useState<AcceptedPostTemplate[] | null>(null)
+  const [variantTemplate, setVariantTemplate] = useState<AcceptedPostTemplate | null>(null)
+  const [variantError, setVariantError] = useState('')
   const [variantDirectionOpen, setVariantDirectionOpen] = useState(false)
   const [tuneOpen, setTuneOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -60,7 +78,7 @@ export function StudioView({
       if (!selectedId) {
         const [briefResult, templateResult] = await Promise.all([
           api.get<{ items: ProductBrief[] }>(`/api/v1/briefs?project_id=${projectId}&limit=100`),
-          api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates'),
+          api.get<{ items: AcceptedPostTemplate[] }>('/api/v1/templates?surface=post', { deadlineMs: 120_000 }),
         ])
         if (generation !== loadGeneration.current) return
         setApprovedBriefs(briefResult.items.filter((brief) => (
@@ -98,7 +116,7 @@ export function StudioView({
   }, [detail?.status, projectId, creativeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const createCreative = async (
-    brief: ProductBrief, direction: StudioPhoneHeroCreativeDirection | null,
+    brief: ProductBrief, template: AcceptedPostTemplate, direction: StudioPhoneHeroCreativeDirection | null,
   ) => {
     if (!direction) return
     setBusy(true); setError('')
@@ -106,7 +124,9 @@ export function StudioView({
       const result = await api.post<{ creative: StudioCreativeSummary }>(
         `/api/v1/briefs/${brief.brief_id}/approve`, {
           honor_confirmed: true,
-          template_id: 'phone_metrics',
+          template_id: template.template_id,
+          template_reference: { surface: 'post', template_id: template.template_id,
+            template_version: template.template_version, template_sha256: template.template_sha256 },
           creative_direction: direction,
         },
       )
@@ -118,22 +138,29 @@ export function StudioView({
   const createVariant = async () => {
     if (!projectId || !detail?.source_brief_id) return
     if (!variantDirectionOpen) {
-      setVariantDirection({ style: '', background: '' }); setVariantDirectionOpen(true); return
+      setVariantDirection({ style: '', background: '' }); setVariantTemplate(null); setVariantTemplates(null); setVariantError(''); setVariantDirectionOpen(true)
+      try {
+        const value = await api.get<{ items: AcceptedPostTemplate[] }>('/api/v1/templates?surface=post', { deadlineMs: 120_000 })
+        setVariantTemplates(value.items)
+      } catch (cause) { setVariantError((cause as Error).message) }
+      return
     }
     const direction = creativeDirectionFromDraft(variantDirection)
-    if (!direction) return
+    if (!direction || !variantTemplate) return
     setBusy(true); setError('')
     try {
       const result = await api.post<{ creative: StudioCreativeSummary }>(
         `/api/v1/studio/projects/${projectId}/creatives`, {
           source_brief_id: detail.source_brief_id,
-          template_id: 'phone_metrics',
+          template_id: variantTemplate.template_id,
+          template_reference: { surface: 'post', template_id: variantTemplate.template_id,
+            template_version: variantTemplate.template_version, template_sha256: variantTemplate.template_sha256 },
           creative_direction: direction,
         },
       )
       setVariantDirectionOpen(false)
       onCreative(result.creative.creative_id)
-    } catch (cause) { setError((cause as Error).message) }
+    } catch (cause) { setVariantError((cause as Error).message) }
     finally { setBusy(false) }
   }
 
@@ -175,19 +202,20 @@ export function StudioView({
     if (error) return <ErrorState message={error} retry={() => void load()} language={language} />
     if (approvedBriefs === null || templates === null) return <Loading language={language} />
     if (!approvedBriefs.length) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('No approved Brief to create from', 'Немає схваленого брифу для створення')}</h2><p>{tr('Complete and approve a Product Brief to unlock Post Studio.', 'Завершіть і схваліть продуктовий бриф, щоб відкрити Post Studio.')}</p></Empty>
-    const template = templates.find((item) => item.template_id === 'phone_metrics')
-    if (!template) return <ErrorState message={tr('The registered Post template is unavailable.', 'Зареєстрований шаблон допису недоступний.')} retry={() => void load()} language={language} />
+    if (!templates.length) return <ErrorState message={tr('No accepted Post templates are available.', 'Немає доступних прийнятих шаблонів дописів.')} retry={() => void load()} language={language} />
     return <div className="studio-page"><section className="panel studio-template-selector">
       <small>{tr('APPROVED BRIEF · FIRST CREATIVE', 'СХВАЛЕНИЙ БРИФ · ПЕРШИЙ КРЕАТИВ')}</small>
       <h2>{tr('Create your first Post', 'Створіть перший допис')}</h2>
       {approvedBriefs.map((brief) => <section key={brief.brief_id} className="studio-initial-creative-brief">
         <h3>{brief.product || brief.document?.product || tr('Approved Product Brief', 'Схвалений продуктовий бриф')}</h3>
-        <button type="button" className="studio-template-card" disabled={busy} onClick={() => setFirstSelection({ brief, direction: { style: '', background: '' } })}>
-          <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
-        </button>
+        <div className="post-template-choices">{templates.map((template) => <article key={`${template.template_id}:${template.template_version}`} className={firstSelection?.brief.brief_id === brief.brief_id && firstSelection.template.template_sha256 === template.template_sha256 ? 'is-selected' : ''}>
+          <TemplateImage api={api} preview={template.previews?.desktop} label={template.name} language={language} />
+          <button type="button" className="secondary" aria-pressed={firstSelection?.brief.brief_id === brief.brief_id && firstSelection.template.template_sha256 === template.template_sha256} disabled={busy} onClick={() => setFirstSelection({ brief, template, direction: { style: '', background: '' } })}>{template.name} · v{template.template_version}</button>
+          <small>{template.description}</small>
+        </article>)}</div>
         {firstSelection?.brief.brief_id === brief.brief_id && <div className="studio-inline-direction">
-          <PhoneHeroDirectionPicker language={language} value={firstSelection.direction} onChange={(direction) => setFirstSelection({ brief, direction })} disabled={busy} idPrefix={`first-${brief.brief_id}`} />
-          <button className="primary" disabled={busy || !creativeDirectionFromDraft(firstSelection.direction)} onClick={() => void createCreative(brief, creativeDirectionFromDraft(firstSelection.direction))}><Sparkles />{tr('Create Phone Metrics creative', 'Створити креатив Phone Metrics')}</button>
+          <PhoneHeroDirectionPicker language={language} value={firstSelection.direction} onChange={(direction) => setFirstSelection({ ...firstSelection, direction })} disabled={busy} idPrefix={`first-${brief.brief_id}`} />
+          <button className="primary" disabled={busy || !creativeDirectionFromDraft(firstSelection.direction)} onClick={() => void createCreative(brief, firstSelection.template, creativeDirectionFromDraft(firstSelection.direction))}><Sparkles />{tr('Create creative', 'Створити креатив')}</button>
         </div>}
       </section>)}
     </section></div>
@@ -197,13 +225,15 @@ export function StudioView({
     : <Loading language={language} />
 
   if (['queued', 'composing', 'generating_image'].includes(detail.status)) {
-    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{tr('Building the creative', 'Створюємо креатив')}</h2></section></div>
+    const phase = detail.generation?.daddy?.phase || ''
+    const progress = phase === 'strategy' ? tr('Choosing a creative direction', 'Обираємо творчий напрям') : phase === 'composition' ? tr('Composing the message and layout', 'Створюємо текст і композицію') : phase.startsWith('asset') ? tr('Preparing the images', 'Готуємо зображення') : ['polish', 'review'].includes(phase) ? tr('Reviewing and polishing the Post', 'Перевіряємо й покращуємо допис') : tr('Building the creative', 'Створюємо креатив')
+    return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{progress}</h2></section>{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
   if (detail.status === 'failed' && detail.generation?.creative_direction) {
     return <div className="studio-page">{creativePicker}<ErrorState
       message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)}
       retry={() => void retry(`${basePath}/retry`)} language={language}
-    /></div>
+    />{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
 
   const phoneFailure = detail.generation?.phone_image?.status === 'failed'
@@ -211,9 +241,13 @@ export function StudioView({
     {creativePicker}
     {phoneFailure && <section className="panel studio-phone-retry" role="alert">
       <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
-      <button className="secondary" disabled={busy || !detail.generation?.creative_direction} onClick={() => void retry(`${basePath}/phone-screen/retry`)}><RefreshCcw />{tr('Retry iPhone image', 'Повторити зображення iPhone')}</button>
+      <button className="secondary" disabled={busy || !detail.generation?.creative_direction} onClick={() => void retry(`${basePath}/phone-screen/retry`)}><RefreshCcw />{detail.template_id === 'phone_metrics' ? tr('Retry iPhone image', 'Повторити зображення iPhone') : tr('Retry artwork', 'Повторити зображення')}</button>
     </section>}
-    <PhoneMetricsStudio
+    {detail.editor_key === 'post.daddy.react' ? <DaddyStudio key={basePath} api={api} language={language} basePath={basePath} detail={detail as unknown as DaddyDetail} onDetail={value => {
+      const next = value as StudioPhoneMetricsDetail
+      setDetail(next)
+      setCreatives(current => current?.map(item => item.creative_id === next.creative_id ? { ...item, template_id: next.template_id } : item) || null)
+    }} /> : <PhoneMetricsStudio
       api={api} language={language} basePath={basePath} detail={detail}
       onDetail={(value) => {
         const next = value as StudioPhoneMetricsDetail
@@ -221,12 +255,20 @@ export function StudioView({
         setCreatives(current => current?.map(item => item.creative_id === next.creative_id ? { ...item, template_id: next.template_id } : item) || null)
       }}
       onCheckpoint={(result) => setDetail(result.creative)}
-    />
+    />}
     <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id} versions={detail.versions} />
-    {variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}>
-      <header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>
-      <PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" />
-      <button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button>
+    {variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose the creative template', 'Оберіть шаблон креативу')}>
+      <header><div><small>{tr('NEW CREATIVE', 'НОВИЙ КРЕАТИВ')}</small><h2>{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>
+      {variantError && <p role="alert">{variantError}</p>}
+      {!variantTemplates && !variantError && <p role="status">{tr('Loading templates…', 'Завантаження шаблонів…')}</p>}
+      <div className="post-template-choices">{variantTemplates?.map((choice) => <article key={`${choice.template_id}:${choice.template_version}`} className={variantTemplate?.template_sha256 === choice.template_sha256 ? 'is-selected' : ''}>
+        <TemplateImage api={api} preview={choice.previews?.desktop} label={choice.name} language={language} />
+        <button type="button" className="secondary" aria-pressed={variantTemplate?.template_sha256 === choice.template_sha256} disabled={busy} onClick={() => setVariantTemplate(choice)}>{choice.name} · v{choice.template_version}</button>
+        <small>{choice.description}</small>
+      </article>)}</div>
+      {variantTemplates?.length === 0 && <p>{tr('No accepted Post templates are available.', 'Немає доступних прийнятих шаблонів дописів.')}</p>}
+      {variantTemplate && <PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" />}
+      <button className="primary large" disabled={busy || !variantTemplate || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button>
     </section></div>}
     {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl="" onClose={() => setTuneOpen(false)} />}
   </>

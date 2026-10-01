@@ -18,7 +18,7 @@ from .phone_hero_styles import (
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v7"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v8"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
@@ -422,6 +422,14 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     """
 
     declarations = _SURFACE_COMPONENT_CONTRACTS.get(surface)
+    if catalog.get("schema") == "ptw.studio.daddy-catalog.v1":
+        return {"schema": "ptw.studio.agent-control-contract.v3", "surface": surface,
+            "instructions": ["Use the same bounded block controls as the manual editor. Changing preset applies its defaults, preserves copy/assets and then applies your other scalar edits.",
+                "Preserve unrelated settings, owner choices, exact Brief/Brand Identity and fixed Natal identity. Never invent claims or performance evidence.",
+                "Screen is generated UI; depicted text changes require an image action. Scene, subject, screen, feature and props are independent. No hands in phone imagery."],
+            "presets": [{k:v for k,v in item.items() if k != "configuration"} for item in catalog["presets"]],
+            "bounds": catalog["bounds"], "options": catalog["enums"]}
+
     if surface.startswith("post:") and catalog.get("schema") == "ptw.studio.authored-post-catalog.v1":
         declarations = {
             "authored.text": {
@@ -444,6 +452,13 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
             }
     if surface == "landing:app_showcase":
         declarations = {key: value for key, value in _SURFACE_COMPONENT_CONTRACTS["landing:project_landing"].items() if key != "project_landing.app_feature"}
+        if any("configuration.showcase.hero_body_mode" in item.get("setting_ids", []) for item in catalog.get("components", [])):
+            declarations["project_landing.hero"] = {
+                **declarations["project_landing.hero"],
+                "purpose": "Main title, editable eyebrow, switchable supporting text or exactly three hero bullets, CTA and artwork.",
+                "visible_result": "The line above the title uses content.hero.eyebrow. configuration.showcase.hero_body_mode selects text or bullets below the title; content.hero.bullets[0..2] supplies the bullet copy.",
+                "dependencies": "Preserve both text and bullets when switching formats. Complete all three bullets before selecting bullets. Image edits need an image action.",
+            }
         declarations["app_showcase.screens"] = {
             "purpose": "Three static screen interiors, captions, scale and offset.",
             "dependencies": ["Match app_screen_1/2/3 actions to content.app_screens[index].visual_direction. Depicted UI edits need an image action; external captions are copy.", "Preserve Natal identity and source claims."],

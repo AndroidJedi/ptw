@@ -161,7 +161,7 @@ def component(value: Any) -> dict:
 
 
 def normalize_document(value: Any) -> dict:
-    if not isinstance(value, Mapping) or set(value) not in (DOCUMENT_FIELDS, DOCUMENT_FIELDS | {"text_groups"}):
+    if not isinstance(value, Mapping) or set(value) not in (DOCUMENT_FIELDS, DOCUMENT_FIELDS | {"text_groups"}, DOCUMENT_FIELDS | {"daddy_configuration"}):
         raise ValueError("Template design fields are invalid")
     if len(canonical(value).encode()) > MAX_DOCUMENT_BYTES:
         raise ValueError("Template design exceeds its compact byte budget")
@@ -183,6 +183,11 @@ def normalize_document(value: Any) -> dict:
     result = {"name": bounded_text(value["name"], 80, "Template name"),
             "description": bounded_text(value["description"], 320, "Template description"),
             "canvas": dict(canvas), "background": color(value["background"]), "components": components}
+    if "daddy_configuration" in value:
+        from .studio_daddy import normalize_configuration
+        if canvas != {"width":1080,"height":1350,"mobile_height":1350}:
+            raise ValueError("Daddy template canvas is fixed")
+        result["daddy_configuration"] = normalize_configuration(value["daddy_configuration"])
     if "text_groups" in value:
         groups = value["text_groups"]
         if not isinstance(groups, list) or len(groups) > 4:
@@ -268,6 +273,17 @@ def apply_edits(documents: Mapping[str, dict], edits: Any) -> dict:
             raise ValueError("Template patch path is invalid")
         parts = path.split(".")
         target = result[edit["surface"]]
+        if "daddy_configuration" in target:
+            if parts[0] == "daddy_configuration" and len(parts) in {2,3}:
+                parent = target["daddy_configuration"]
+                if len(parts)==3:
+                    parent = parent.get(parts[1])
+                if not isinstance(parent,dict) or parts[-1] not in parent or isinstance(parent[parts[-1]],dict):
+                    raise ValueError("Daddy template setting is not editable")
+                parent[parts[-1]] = deepcopy(edit["value"])
+                continue
+            if path not in {"name","description"}:
+                raise ValueError("Use Daddy block settings for this native template")
         # One bounded component insertion/removal, or scalar/box setting.
         if len(parts) == 2 and parts[0] == "components" and parts[1] == "append":
             target["components"].append(component(edit["value"]))
@@ -514,6 +530,11 @@ def resolved_assets(document: Mapping[str, Any], assets: Mapping[str, Any] | Non
 
 def render(document: Mapping[str, Any], *, surface: str, mobile: bool = False,
            content: Mapping[str, str] | None = None, assets: Mapping[str, Any] | None = None) -> dict:
+    if "daddy_configuration" in document:
+        if surface != "post":
+            raise ValueError("Daddy definitions are Post-only")
+        from .daddy_assets import neutral_render
+        return neutral_render(normalize_document(document)["daddy_configuration"])
     template = primitive(document, surface=surface, mobile=mobile, content=content)
     return StudioRenderer().render_preview(template, semantic_data={}, assets=resolved_assets(document, assets))
 
@@ -523,7 +544,13 @@ def render_contract_sha256(document: Mapping[str, Any]) -> str:
 
     doc = normalize_document(document)
     from .template_cutout import MODEL_SHA256
+    daddy_renderer = None
+    if "daddy_configuration" in doc:
+        from pathlib import Path
+        daddy_renderer = [hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+                          for name in ("studio_daddy.py", "daddy_assets.py", "studio_primitives.py")]
     return sha({"document": doc, "renderer_version": RENDERER_VERSION,
+                **({"daddy_renderer": daddy_renderer} if daddy_renderer else {}),
                 "cutout_model_sha256": MODEL_SHA256 if any(c["type"] == "cutout_image" for c in doc["components"]) else None,
                 "assets": [{"asset_id": item["asset_id"], "sha256": item["sha256"]}
                            for item in document_asset_manifest(doc)]})
@@ -536,6 +563,9 @@ class DeclarativeTemplateDefinition(TemplateDefinition):
 
 def definition(record: Mapping[str, Any]) -> TemplateDefinition:
     doc = normalize_document(record["document"])
+    if "daddy_configuration" in doc:
+        from .studio_daddy import saved_definition
+        return saved_definition(record)
     def normalize_content(value: Mapping) -> dict:
         primitive(doc, surface=record["surface"], content=value)
         return dict(value)

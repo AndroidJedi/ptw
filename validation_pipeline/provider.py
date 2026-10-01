@@ -43,9 +43,11 @@ STRUCTURED_MODE_BUDGETS: dict[str, dict[str, int]] = {
     },
     "studio_manual_edit": {
         "system_prompt": 8 * 1024,
-        "input_payload": 20 * 1024,
+        # Full V3 brand context plus populated Ukrainian Landing copy and the
+        # existing 1 KiB correction reserve; never truncate the pinned Brief.
+        "input_payload": 22 * 1024,
         "output_schema": 6 * 1024,
-        "total": 32 * 1024,
+        "total": 34 * 1024,
         "response": 16 * 1024,
     },
     "studio_creative_generation": {

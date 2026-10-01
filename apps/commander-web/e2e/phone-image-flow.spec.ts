@@ -159,6 +159,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const generationRequests: any[] = []
   const selectionRequests: any[] = []
   const previewRequests: any[] = []
+  const historyRequests: string[] = []
   let generated = 0
 
   await page.route('**/api/v1/**', async (route) => {
@@ -185,6 +186,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
       })
     }
     if (url.pathname.startsWith(`${creativePath}/phone-screen/history/`) && method === 'GET') {
+      historyRequests.push(url.pathname)
       const digest = url.pathname.split('/').at(-1) || ''
       const index = imageDigests.indexOf(digest)
       return index < 0 ? json({ detail: 'not found' }, 404) : route.fulfill({
@@ -257,12 +259,14 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await expect(heroSectionHeading).toBeVisible()
   const heroSection = heroSectionHeading.locator('xpath=ancestor::details')
   await expect(heroSection).not.toHaveAttribute('open', '')
+  expect(historyRequests).toEqual([])
   await heroSectionHeading.click()
   await expect(heroSection).toHaveAttribute('open', '')
   await expect(page.getByRole('radio', { name: 'iPhone image 1, current' }).locator('img')).toBeVisible()
   await expect.poll(() => page.getByRole('radio', { name: 'iPhone image 1, current' }).locator('img').evaluate(
     (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
   )).toBe(true)
+  expect(selectionRequests).toEqual([])
   const closedSections = page.locator('.phone-metrics-controls > details:not([open])')
   await expect(closedSections).toHaveCount(7)
   await page.getByRole('heading', { name: 'Visible content' }).click()

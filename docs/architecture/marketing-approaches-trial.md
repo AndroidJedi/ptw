@@ -82,3 +82,43 @@ Implementation validation also covers English/Ukrainian contracts, populated
 Ukrainian context at the full 1 KiB positioning bound, corrective-response
 headroom, old V1 reservations, immutable replacements, concurrent PostgreSQL
 requests, restarts, pinned source Briefs, and desktop/360px/iPhone entry flows.
+
+## Four-move Identity-led prompt review — local
+
+Editorial policy revision 6 asks Briefs to connect a category reframe, a
+grounded convention or tradeoff, the buyer's valued self-image and a real
+functional reason for the emotional reward. Fitting plain language is valid;
+elevated diction is optional. No output contract or provider budget changed.
+
+Two fresh real `gpt-6-astra` / `xhigh` Briefs and Natal Post/Landing bindings
+used the same source Brief for each pair:
+
+| Idea | Brief identity | Post and Landing continuity |
+| --- | --- | --- |
+| Ukrainian bottled-water label comparison | An attentive buyer understands a daily choice; side-by-side labels and plain explanations support it. The challenged habit is choosing a familiar bottle without comparing composition. | Both final Natal titles say “Знаю, чому обираю цю воду”; support names the actual label task. |
+| English property-maintenance handover | A dependable lead leaves teammates a clear starting point; the request, assigned owner and recorded status support it. The tension is moving on quickly while leaving unfinished work unclear. | Both Natal titles say “Give Teammates a Clear Start”; support names the repair list and handover details. |
+
+Direct Project Post and Landing composition was also run with each exact Brief.
+The Ukrainian Post/Landing shared “Знаю, чому обираю воду”; Landing features
+addressed the familiar-bottle habit, label comparison and a self-explainable
+choice. The English final Post/Landing shared “Give Teammates a Clear Start”;
+the Landing explained request, owner and status without promising prediction or
+response times. Both used ordinary language. No fabricated testimonials or
+measured outcomes were added. Post Phone Metrics numbers remain explicitly
+unvalidated hypotheses and were not reused as Landing proof.
+
+The first Natal binding crowded the Ukrainian tension into a longer Landing
+title. Its revised prompt moved the tension into support and kept the short
+Post hook on both surfaces. The first English direct Post had an incomplete
+offer, invisible Unicode formatting and a cut-off image direction. The final
+Post prompt asks for complete bounded phrases; a generated-copy validator now
+rejects invisible formatting before artwork. A fresh real run returned a
+complete offer and image direction. The focused failure/retry regression passes.
+
+Receipts are under `.local/identity-four-principles-water-uk/`,
+`.local/identity-four-principles-water-bindings-v3/`,
+`.local/identity-four-principles-water-composers/`, and matching
+`identity-four-principles-maintenance-*` private folders. Natal fixture renders
+reported no geometry issues on Post desktop or Landing desktop/mobile. Direct
+composer output passed its bounded domain validators. This review did not
+generate new final artwork, approve drafts, publish, or measure conversion.

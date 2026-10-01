@@ -1,0 +1,1033 @@
+{
+  "schema": "ptw.studio.workspace.v8",
+  "template_id": "daddy",
+  "template_reference": {
+    "surface": "post",
+    "template_id": "daddy",
+    "template_version": 1,
+    "template_sha256": "3330e7f292a0cc88da23716ef9c2571bd7b79070a7e073e3c23b40b1e20e7c04"
+  },
+  "template_name": "Daddy",
+  "editor_key": "post.daddy.react",
+  "templates": [
+    {
+      "template_id": "phone_metrics",
+      "name": "Phone & metrics",
+      "description": "Natal 4:5 phone creative with three metrics and a full-width CTA.",
+      "template_version": 27,
+      "template_sha256": "2458d8bc7ab1d587a776814282690fd6b6d2c1d84fa252066395e46ed8ce481b",
+      "capabilities": {
+        "image_slots": [
+          "phone_screen"
+        ],
+        "supports_manual_agent": true,
+        "supports_generation": true,
+        "supports_preview": true
+      },
+      "canvas": {
+        "width": 1080,
+        "height": 1350
+      }
+    },
+    {
+      "template_id": "daddy",
+      "name": "Daddy",
+      "description": "Twelve modular compositions with independent assets, brand-aware generation and grouped tuning.",
+      "template_version": 1,
+      "template_sha256": "3330e7f292a0cc88da23716ef9c2571bd7b79070a7e073e3c23b40b1e20e7c04",
+      "capabilities": {
+        "image_slots": [
+          "scene",
+          "subject",
+          "screen",
+          "feature",
+          "prop_one",
+          "prop_two"
+        ],
+        "supports_manual_agent": true,
+        "supports_generation": true,
+        "supports_preview": true
+      },
+      "canvas": {
+        "width": 1080,
+        "height": 1350
+      }
+    }
+  ],
+  "catalog": {
+    "schema": "ptw.studio.daddy-catalog.v1",
+    "template_id": "daddy",
+    "template_version": 1,
+    "name": "Daddy",
+    "canvas": {
+      "width": 1080,
+      "height": 1350
+    },
+    "presets": [
+      {
+        "id": "blurred_phone",
+        "name": "Phone on a blurred scene",
+        "name_uk": "Телефон на розмитому фоні",
+        "description": "A standalone phone against a soft thematic background; no hands.",
+        "slots": [
+          "scene",
+          "screen"
+        ],
+        "configuration": {
+          "schema": "ptw.studio.daddy.v1",
+          "preset": "blurred_phone",
+          "style": "photography",
+          "logo": {
+            "symbol_color": "#87D0DD",
+            "name_color": "#383840"
+          },
+          "background": {
+            "focal_x": 0.5,
+            "focal_y": 0.5,
+            "shape_color": "#C8BBFF",
+            "annotation_kind": "circle",
+            "annotation_x": 6.851851851851851,
+            "annotation_y": 53.333333333333336,
+            "annotation_width": 21.296296296296294,
+            "annotation_height": 13.333333333333334,
+            "annotation_rotation": 0,
+            "enabled": true,
+            "color": "#F4EEE8",
+            "end_color": "#DDD4CB",
+            "blur": 18,
+            "overlay": 0,
+            "overlay_color": "#091C2E",
+            "shape": "plain"
+          },
+          "message": {
+            "enabled": true,
+            "x": 7,
+            "y": 14,
+            "width": 86,
+            "title_size": 83,
+            "body_size": 36,
+            "gap": 24,
+            "font": "Manrope",
+            "color": "#101B25",
+            "align": "left",
+            "flow": true
+          },
+          "device": {
+            "feature_enabled": true,
+            "feature_x": 11.11111111111111,
+            "feature_y": 70.37037037037037,
+            "feature_width": 75,
+            "feature_height": 13.333333333333334,
+            "feature_size": 30,
+            "detail_size": 26,
+            "feature_fill": "#FFFFFF",
+            "feature_color": "#152030",
+            "detail_color": "#354453",
+            "enabled": true,
+            "x": 36,
+            "y": 40,
+            "width": 62,
+            "height": 51,
+            "rotation": 7,
+            "pose": "portrait",
+            "shadow": 24
+          },
+          "subject": {
+            "enabled": false,
+            "x": 15,
+            "y": 42,
+            "width": 70,
+            "height": 45,
+            "rotation": 0,
+            "fit": "contain",
+            "focal_x": 0.5,
+            "focal_y": 0.5,
+            "cutout": false
+          },
+          "collage": {
+            "second_x": 0,
+            "second_y": 0,
+            "second_rotation": 0,
+            "enabled": false,
+            "x": 8,
+            "y": 46,
+            "width": 84,
+            "height": 39,
+            "rotation": 0,
+            "gap": 24
+          },
+          "offer": {
+            "enabled": true,
+            "x": 7,
+            "y": 57,
+            "width": 37,
+            "size": 27,
+            "color": "#101B25",
+            "fill": "#FFFFFF",
+            "radius": 30
+          },
+          "brand": {
+            "surface": false,
+            "fill": "#FFFFFF",
+            "padding": 16,
+            "radius": 18,
+            "enabled": true,
+            "x": 7,
+            "y": 6,
+            "width": 25
+          },
+          "action": {
+            "enabled": true,
+            "x": 7,
+            "y": 88,
+            "width": 40,
+            "size": 26,
+            "color": "#FFFFFF",
+            "fill": "#101B25",
+            "radius": 38,
+            "badges": false
+          }
+        }
+      },
+      {
+        "id": "bold_poster",
+        "name": "Bold text poster",
+        "name_uk": "Яскравий текстовий постер",
+        "description": "One short hook on a vivid brand-colored field; no generated art.",
+        "slots": [],
+        "configuration": {
+          "schema": "ptw.studio.daddy.v1",
+          "preset": "bold_poster",
+          "style": "photography",
+          "logo": {
+            "symbol_color": "#87D0DD",
+            "name_color": "#383840"
+          },
+          "background": {
+            "focal_x": 0.5,
+            "focal_y": 0.5,
+            "shape_color": "#C8BBFF",
+            "annotation_kind": "circle",
+            "annotation_x": 6.851851851851851,
+            "annotation_y": 53.333333333333336,
+            "annotation_width": 21.296296296296294,
+            "annotation_height": 13.333333333333334,
+            "annotation_rotation": 0,
+            "enabled": true,
+            "color": "#E9FF61",
+            "end_color": "#B8E75B",
+            "blur": 0,
+            "overlay": 0,
+            "overlay_color": "#091C2E",
+            "shape": "plain"
+          },
+          "message": {
+            "enabled": true,
+            "x": 7,
+            "y": 22,
+            "width": 86,
+            "title_size": 112,
+            "body_size": 36,
+            "gap": 24,
+            "font": "Manrope",
+            "color": "#101B25",
+            "align": "left",
+            "flow": true
+          },
+          "device": {
+            "feature_enabled": true,
+            "feature_x": 11.11111111111111,
+            "feature_y": 70.37037037037037,
+            "feature_width": 75,
+            "feature_height": 13.333333333333334,
+            "feature_size": 30,
+            "detail_size": 26,
+            "feature_fill": "#FFFFFF",
+            "feature_color": "#152030",
+            "detail_color": "#354453",
+            "enabled": false,
+            "x": 39,
+            "y": 43,
+            "width": 55,
+            "height": 48,
+            "rotation": -8,
+            "pose": "portrait",
+            "shadow": 24
+          },
+          "subject": {
+            "enabled": false,
+            "x": 15,
+            "y": 42,
+            "width": 70,
+            "height": 45,
+            "rotation": 0,
+            "fit": "contain",
+            "focal_x": 0.5,
+            "focal_y": 0.5,
+            "cutout": false
+          },
+          "collage": {
+            "second_x": 0,
+            "second_y": 0,
+            "second_rotation": 0,
+            "enabled": false,
+            "x": 8,
+            "y": 46,
+            "width": 84,
+            "height": 39,
+            "rotation": 0,
+            "gap": 24
+          },
+          "offer": {
+            "enabled": true,
+            "x": 7,
+            "y": 72,
+            "width": 78,
+            "size": 36,
+            "color": "#101B25",
+            "fill": "#FFFFFF",
+            "radius": 30
+          },
+          "brand": {
+            "surface": false,
+            "fill": "#FFFFFF",
+            "padding": 16,
+            "radius": 18,
+            "enabled": true,
+            "x": 7,
+            "y": 6,
+            "width": 25
+          },
+          "action": {
+            "enabled": true,
+            "x": 7,
+            "y": 88,
+            "width": 70,
+            "size": 32,
+            "color": "#FFFFFF",
+            "fill": "#101B25",
+            "radius": 38,
+            "badges": false
+          }
+        }
+      }
+    ],
+    "styles": [
+      "photography",
+      "editorial_illustration",
+      "line_drawing",
+      "paper_collage",
+      "contemporary_3d"
+    ],
+    "enums": {
+      "preset": [
+        "phone_feature",
+        "offer_collage",
+        "lifestyle",
+        "still_life",
+        "blurred_phone",
+        "playful_demo",
+        "bold_poster",
+        "product_spotlight",
+        "editorial_collage",
+        "illustrated_metaphor",
+        "drawing",
+        "two_panel"
+      ],
+      "style": [
+        "photography",
+        "editorial_illustration",
+        "line_drawing",
+        "paper_collage",
+        "contemporary_3d"
+      ],
+      "shape": [
+        "plain",
+        "split",
+        "wave",
+        "paper",
+        "drawing"
+      ],
+      "font": [
+        "Inter",
+        "Roboto Condensed",
+        "Manrope",
+        "Montserrat",
+        "Source Sans 3",
+        "Oswald",
+        "Cormorant Garamond",
+        "Cormorant Garamond Italic",
+        "Lora",
+        "Lora Italic"
+      ],
+      "align": [
+        "left",
+        "center",
+        "right"
+      ],
+      "pose": [
+        "portrait",
+        "landscape",
+        "angled"
+      ],
+      "fit": [
+        "contain",
+        "cover"
+      ],
+      "annotation_kind": [
+        "circle",
+        "arrow"
+      ]
+    },
+    "bounds": {
+      "x": [
+        0,
+        95
+      ],
+      "y": [
+        0,
+        95
+      ],
+      "width": [
+        10,
+        100
+      ],
+      "height": [
+        10,
+        100
+      ],
+      "title_size": [
+        32,
+        150
+      ],
+      "body_size": [
+        24,
+        64
+      ],
+      "size": [
+        24,
+        100
+      ],
+      "gap": [
+        8,
+        80
+      ],
+      "blur": [
+        0,
+        40
+      ],
+      "overlay": [
+        0,
+        0.85
+      ],
+      "rotation": [
+        -30,
+        30
+      ],
+      "shadow": [
+        0,
+        60
+      ],
+      "focal_x": [
+        0,
+        1
+      ],
+      "focal_y": [
+        0,
+        1
+      ],
+      "radius": [
+        0,
+        100
+      ],
+      "feature_x": [
+        0,
+        95
+      ],
+      "feature_y": [
+        0,
+        95
+      ],
+      "feature_width": [
+        10,
+        100
+      ],
+      "feature_height": [
+        10,
+        100
+      ],
+      "feature_size": [
+        24,
+        64
+      ],
+      "detail_size": [
+        24,
+        64
+      ],
+      "second_x": [
+        -40,
+        40
+      ],
+      "second_y": [
+        -40,
+        40
+      ],
+      "second_rotation": [
+        -30,
+        30
+      ],
+      "annotation_x": [
+        0,
+        95
+      ],
+      "annotation_y": [
+        0,
+        95
+      ],
+      "annotation_width": [
+        10,
+        100
+      ],
+      "annotation_height": [
+        10,
+        100
+      ],
+      "annotation_rotation": [
+        -180,
+        180
+      ],
+      "padding": [
+        0,
+        60
+      ]
+    },
+    "asset_slots": {
+      "scene": {
+        "role": "background",
+        "description": "Contextual background with space for copy; no ad text.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "subject": {
+        "role": "hero",
+        "description": "Complete product, person, interaction or original illustration.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "screen": {
+        "role": "app_screen",
+        "description": "Generated app-screen interior; no hardware or outer ad copy.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "feature": {
+        "role": "secondary_media",
+        "description": "A close-up product feature or UI detail; no invented proof.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "prop_one": {
+        "role": "secondary_media",
+        "description": "First separate thematic object or second comparison scene.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "prop_two": {
+        "role": "secondary_media",
+        "description": "Second separate thematic object supporting the message.",
+        "allowed_mime_types": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
+    },
+    "components": [
+      {
+        "component_id": "preset",
+        "role": "preset",
+        "setting_ids": [
+          "configuration.preset"
+        ]
+      },
+      {
+        "component_id": "style",
+        "role": "style",
+        "setting_ids": [
+          "configuration.style"
+        ]
+      },
+      {
+        "component_id": "logo",
+        "role": "logo",
+        "setting_ids": [
+          "configuration.logo"
+        ]
+      },
+      {
+        "component_id": "background",
+        "role": "background",
+        "setting_ids": [
+          "configuration.background"
+        ]
+      },
+      {
+        "component_id": "message",
+        "role": "message",
+        "setting_ids": [
+          "configuration.message"
+        ]
+      },
+      {
+        "component_id": "device",
+        "role": "device",
+        "setting_ids": [
+          "configuration.device"
+        ]
+      },
+      {
+        "component_id": "subject",
+        "role": "subject",
+        "setting_ids": [
+          "configuration.subject"
+        ]
+      },
+      {
+        "component_id": "collage",
+        "role": "collage",
+        "setting_ids": [
+          "configuration.collage"
+        ]
+      },
+      {
+        "component_id": "offer",
+        "role": "offer",
+        "setting_ids": [
+          "configuration.offer"
+        ]
+      },
+      {
+        "component_id": "brand",
+        "role": "brand",
+        "setting_ids": [
+          "configuration.brand"
+        ]
+      },
+      {
+        "component_id": "action",
+        "role": "action",
+        "setting_ids": [
+          "configuration.action"
+        ]
+      },
+      {
+        "component_id": "copy",
+        "role": "copy",
+        "setting_ids": [
+          "content"
+        ]
+      }
+    ],
+    "sha256": "788029a4d070479bfa018753f9ffdb2143c680112d1f33c4120feb9be276de6b"
+  },
+  "state_sha256": "b79eac07723757282ae3a870f8f6324cae747707aacb5b90f615c248bd59422e",
+  "template_sha256": "a94204016799a0c90c64094a19074c7d7b2ee232a82c76a77682ae395c2c6c5f",
+  "configuration": {
+    "schema": "ptw.studio.daddy.v1",
+    "preset": "bold_poster",
+    "style": "photography",
+    "logo": {
+      "symbol_color": "#87D0DD",
+      "name_color": "#383840"
+    },
+    "background": {
+      "focal_x": 0.5,
+      "focal_y": 0.5,
+      "shape_color": "#C8BBFF",
+      "annotation_kind": "circle",
+      "annotation_x": 6.851851851851851,
+      "annotation_y": 53.333333333333336,
+      "annotation_width": 21.296296296296294,
+      "annotation_height": 13.333333333333334,
+      "annotation_rotation": 0,
+      "enabled": true,
+      "color": "#E9FF61",
+      "end_color": "#B8E75B",
+      "blur": 0,
+      "overlay": 0,
+      "overlay_color": "#091C2E",
+      "shape": "plain"
+    },
+    "message": {
+      "enabled": true,
+      "x": 7,
+      "y": 22,
+      "width": 86,
+      "title_size": 112,
+      "body_size": 36,
+      "gap": 24,
+      "font": "Manrope",
+      "color": "#101B25",
+      "align": "left",
+      "flow": true
+    },
+    "device": {
+      "feature_enabled": true,
+      "feature_x": 11.11111111111111,
+      "feature_y": 70.37037037037037,
+      "feature_width": 75,
+      "feature_height": 13.333333333333334,
+      "feature_size": 30,
+      "detail_size": 26,
+      "feature_fill": "#FFFFFF",
+      "feature_color": "#152030",
+      "detail_color": "#354453",
+      "enabled": false,
+      "x": 39,
+      "y": 43,
+      "width": 55,
+      "height": 48,
+      "rotation": -8,
+      "pose": "portrait",
+      "shadow": 24
+    },
+    "subject": {
+      "enabled": false,
+      "x": 15,
+      "y": 42,
+      "width": 70,
+      "height": 45,
+      "rotation": 0,
+      "fit": "contain",
+      "focal_x": 0.5,
+      "focal_y": 0.5,
+      "cutout": false
+    },
+    "collage": {
+      "second_x": 0,
+      "second_y": 0,
+      "second_rotation": 0,
+      "enabled": false,
+      "x": 8,
+      "y": 46,
+      "width": 84,
+      "height": 39,
+      "rotation": 0,
+      "gap": 24
+    },
+    "offer": {
+      "enabled": true,
+      "x": 7,
+      "y": 72,
+      "width": 78,
+      "size": 36,
+      "color": "#101B25",
+      "fill": "#FFFFFF",
+      "radius": 30
+    },
+    "brand": {
+      "surface": false,
+      "fill": "#FFFFFF",
+      "padding": 16,
+      "radius": 18,
+      "enabled": true,
+      "x": 7,
+      "y": 6,
+      "width": 25
+    },
+    "action": {
+      "enabled": true,
+      "x": 7,
+      "y": 88,
+      "width": 70,
+      "size": 32,
+      "color": "#FFFFFF",
+      "fill": "#101B25",
+      "radius": 38,
+      "badges": false
+    }
+  },
+  "content": {
+    "hero_title": "Make room for what matters",
+    "supporting_text": "One clear idea. Your next step.",
+    "offer": "",
+    "cta": "Discover more",
+    "feature_title": "",
+    "feature_text": "",
+    "left_label": "",
+    "right_label": "",
+    "previous_price": ""
+  },
+  "component_settings": {
+    "template_id": "daddy",
+    "configuration": {
+      "schema": "ptw.studio.daddy.v1",
+      "preset": "bold_poster",
+      "style": "photography",
+      "logo": {
+        "symbol_color": "#87D0DD",
+        "name_color": "#383840"
+      },
+      "background": {
+        "enabled": true,
+        "color": "#E9FF61",
+        "end_color": "#B8E75B",
+        "blur": 0,
+        "overlay": 0,
+        "overlay_color": "#091C2E",
+        "shape": "plain"
+      },
+      "message": {
+        "enabled": true,
+        "x": 7,
+        "y": 22,
+        "width": 86,
+        "title_size": 112,
+        "body_size": 36,
+        "gap": 24,
+        "font": "Manrope",
+        "color": "#101B25",
+        "align": "left",
+        "flow": true
+      },
+      "device": {
+        "enabled": false,
+        "x": 39,
+        "y": 43,
+        "width": 55,
+        "height": 48,
+        "rotation": -8,
+        "pose": "portrait",
+        "shadow": 24
+      },
+      "subject": {
+        "enabled": false,
+        "x": 15,
+        "y": 42,
+        "width": 70,
+        "height": 45,
+        "rotation": 0,
+        "fit": "contain",
+        "focal_x": 0.5,
+        "focal_y": 0.5,
+        "cutout": false
+      },
+      "collage": {
+        "enabled": false,
+        "x": 8,
+        "y": 46,
+        "width": 84,
+        "height": 39,
+        "rotation": 0,
+        "gap": 24
+      },
+      "offer": {
+        "enabled": true,
+        "x": 7,
+        "y": 72,
+        "width": 78,
+        "size": 36,
+        "color": "#101B25",
+        "fill": "#FFFFFF",
+        "radius": 30
+      },
+      "brand": {
+        "enabled": true,
+        "x": 7,
+        "y": 6,
+        "width": 25
+      },
+      "action": {
+        "enabled": true,
+        "x": 7,
+        "y": 88,
+        "width": 70,
+        "size": 32,
+        "color": "#FFFFFF",
+        "fill": "#101B25",
+        "radius": 38,
+        "badges": false
+      }
+    },
+    "content": {
+      "hero_title": "Make room for what matters",
+      "supporting_text": "One clear idea. Your next step.",
+      "offer": "",
+      "cta": "Discover more",
+      "feature_title": "",
+      "feature_text": "",
+      "left_label": "",
+      "right_label": ""
+    },
+    "sha256": "f1fbfcbe8ef2c73ad6c91dd7667479d8575a50a542226414c19d51cf6f368c58"
+  },
+  "assets": [
+    {
+      "slot": "scene",
+      "role": "background",
+      "description": "Contextual background with space for copy; no ad text.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "subject",
+      "role": "hero",
+      "description": "Complete product, person, interaction or original illustration.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "screen",
+      "role": "app_screen",
+      "description": "Generated app-screen interior; no hardware or outer ad copy.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "feature",
+      "role": "secondary_media",
+      "description": "A close-up product feature or UI detail; no invented proof.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "prop_one",
+      "role": "secondary_media",
+      "description": "First separate thematic object or second comparison scene.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "prop_two",
+      "role": "secondary_media",
+      "description": "Second separate thematic object supporting the message.",
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "editable": true,
+      "available": false,
+      "mime_type": null,
+      "sha256": null,
+      "byte_count": null,
+      "source": null
+    },
+    {
+      "slot": "iphone_frame",
+      "role": "device_frame",
+      "description": "Fixed checked-in black iPhone frame.",
+      "allowed_mime_types": [
+        "image/png"
+      ],
+      "editable": false,
+      "available": true,
+      "mime_type": "image/png",
+      "sha256": "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0",
+      "byte_count": 492223,
+      "source": {
+        "origin": "withframe_static_front_mockup_v1",
+        "source": "WithFrame iPhone 15 Pro black front mockup downloaded once on 2026-09-03.",
+        "source_url": "https://withfra.me/shot/iphone-15-pro",
+        "download_url": "https://shot.withfra.me/frames/iphone.15.pro/black",
+        "license_url": "https://withfra.me/shot/iphone-15-pro",
+        "transformation": "None to the hardware frame; the renderer composites the app screen behind its transparent aperture.",
+        "license": "Personal and commercial use permitted; owner-authorized for bundled Studio use; do not redistribute or sell the frame standalone.",
+        "filename": "iphone-15-pro-black.png",
+        "sha256": "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0"
+      }
+    },
+    {
+      "slot": "logo",
+      "role": "brand",
+      "description": "Fixed canonical Natal logo and name.",
+      "allowed_mime_types": [
+        "image/png"
+      ],
+      "editable": false,
+      "available": true,
+      "mime_type": "image/png",
+      "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba",
+      "byte_count": 3194,
+      "source": {
+        "origin": "canonical_natal_brand_asset",
+        "filename": "logo-natal.png"
+      }
+    }
+  ],
+  "phone_screen_generation_available": false,
+  "versions": [],
+  "phone_screen_history": [],
+  "required_asset_slots": [],
+  "asset_generation_available": false,
+  "creative_id": "22222222-2222-4222-8222-222222222222",
+  "project_id": "11111111-1111-4111-8111-111111111111",
+  "source_brief_id": "33333333-3333-4333-8333-333333333333",
+  "ordinal": 1,
+  "origin": "brief_generation",
+  "status": "draft",
+  "generation": {
+    "stage": "draft"
+  },
+  "approved_version_count": 0
+}

@@ -7,12 +7,13 @@ function normalize(value: string) {
   return trimmed.startsWith('#') ? trimmed : `#${trimmed}`
 }
 
-export function EditableColorField({ label, value, onChange, className = '', hexLabel = `${label} hex` }: {
+export function EditableColorField({ label, value, onChange, className = '', hexLabel = `${label} hex`, disabled = false }: {
   label: string
   value: string
   onChange: (value: string) => void
   className?: string
   hexLabel?: string
+  disabled?: boolean
 }) {
   const canonical = normalize(value)
   const [draft, setDraft] = useState(canonical)
@@ -36,11 +37,11 @@ export function EditableColorField({ label, value, onChange, className = '', hex
     <span>{label}</span>
     <span className="editable-color-controls">
       <input
-        aria-label={label} type="color" value={canonical}
+        aria-label={label} type="color" value={canonical} disabled={disabled}
         onChange={(event) => commit(event.target.value)}
       />
       <input
-        className="editable-color-hex" aria-label={accessibleHexLabel} type="text"
+        className="editable-color-hex" aria-label={accessibleHexLabel} type="text" disabled={disabled}
         inputMode="text" autoCapitalize="characters" autoComplete="off" spellCheck={false}
         maxLength={7} value={draft} pattern="#[0-9A-Fa-f]{6}"
         onChange={(event) => {

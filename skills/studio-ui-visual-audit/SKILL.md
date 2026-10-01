@@ -39,6 +39,18 @@ a specific remote target.
 
 ## Regression gate
 
+Daddy has twelve modular presets and six independent art slots. Render EN/UK at
+1080×1350 and inspect at 360px. Check optional/long copy, phone aperture/perspective,
+feature-card clearance, cutout completeness, local text contrast and no hands.
+Native text keeps the chosen font; flow moves grouped content and reports remaining
+geometry findings. Test preset switching, per-slot replacement/history/enhancement,
+lost-response UUID recovery, asset failure/restart, neutral template acceptance,
+caption/Landing visible copy, approval/export/clone and old artifact preservation.
+Initial generation and explicit polish permit two correction rounds, at most one
+asset regeneration each; inspect the final draft before manual tuning and retain
+unresolved findings. Ordinary field edits wait for Update preview. Preset names
+and polished appearance are not evidence of advertising performance.
+
 Run the deterministic Studio geometry and colour audit from the repository root:
 
 ```sh

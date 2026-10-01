@@ -115,6 +115,14 @@ class ProductBriefV1:
         cls, value: Mapping[str, Any], *, raw_idea: str,
         required_language: str | None = None,
     ) -> "ProductBriefV1":
+        return cls._from_dict(value, raw_idea=raw_idea, required_language=required_language,
+                              require_promotion=True)
+
+    @classmethod
+    def _from_dict(
+        cls, value: Mapping[str, Any], *, raw_idea: str,
+        required_language: str | None, require_promotion: bool,
+    ) -> "ProductBriefV1":
         expected = {"schema_version", "language", *BRIEF_FIELDS}
         _exact(value, expected, "product_brief")
         language = required_language or infer_language(raw_idea)
@@ -129,7 +137,7 @@ class ProductBriefV1:
         if len(set(item.casefold() for item in benefits)) != len(benefits):
             raise ValueError("key_benefits must be distinct")
         offer = _text(value.get("offer"), "offer", 500)
-        if not VALIDATION_OFFER_PATTERN.search(offer):
+        if require_promotion and not VALIDATION_OFFER_PATTERN.search(offer):
             raise ValueError("offer must contain one explicit low-friction validation promotion")
         normalized = {
             "schema_version": 1,
@@ -163,7 +171,7 @@ class ProductBriefV1:
             "language_required": True,
             "one_hypothesis": True,
             "three_to_five_benefits": True,
-            "strong_offer_present": True,
+            ("strong_offer_present" if require_promotion else "offer_present"): True,
             "fabricated_proof_absent": True,
             "passed": True,
         }
@@ -174,6 +182,12 @@ class ProductBriefV1:
 
 
 POSITIONING_FIELDS = ("desired_identity", "customer_tension", "category_frame", "functional_value")
+BRAND_IDENTITY_FIELDS = (
+    "belief", "identity_signal", "values", "cultural_tension", "category_reframe",
+    "emotional_reward", "competence_cue", "proof_anchor", "voice", "visual_world", "ritual",
+)
+OPTIONAL_BRAND_FIELDS = {"identity_signal", "emotional_reward", "cultural_tension", "ritual"}
+BRAND_IDENTITY_MAX_BYTES = 3072
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,9 +200,9 @@ class ProductBriefV2(ProductBriefV1):
         _exact(value, {"schema_version", "language", *BRIEF_FIELDS, "positioning"}, "product_brief")
         if value.get("schema_version") != 2:
             raise ValueError("Product Brief version must be 2")
-        base = ProductBriefV1.from_dict(
+        base = ProductBriefV1._from_dict(
             {**{k: v for k, v in value.items() if k != "positioning"}, "schema_version": 1},
-            raw_idea=raw_idea, required_language=required_language,
+            raw_idea=raw_idea, required_language=required_language, require_promotion=False,
         )
         positioning = value["positioning"]
         if not isinstance(positioning, Mapping):
@@ -211,13 +225,50 @@ class ProductBriefV2(ProductBriefV1):
         return cls(document, _canonical(document)[1], {**base.quality_gates, "positioning_bounded": True})
 
 
+@dataclass(frozen=True, slots=True)
+class ProductBriefV3(ProductBriefV2):
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any], *, raw_idea: str,
+                  required_language: str | None = None, marketing_approach: str | None = None) -> "ProductBriefV3":
+        _exact(value, {"schema_version", "language", *BRIEF_FIELDS, "positioning", "brand_identity"}, "product_brief")
+        if value.get("schema_version") != 3:
+            raise ValueError("Product Brief version must be 3")
+        base = ProductBriefV2.from_dict(
+            {**{k: v for k, v in value.items() if k != "brand_identity"}, "schema_version": 2},
+            raw_idea=raw_idea, required_language=required_language, marketing_approach=marketing_approach,
+        )
+        brand = value["brand_identity"]
+        if not isinstance(brand, Mapping):
+            raise ValueError("brand_identity must be an object")
+        _exact(brand, set(BRAND_IDENTITY_FIELDS), "brand_identity")
+        optional = OPTIONAL_BRAND_FIELDS.copy()
+        if base.value["positioning"]["marketing_approach"] == "identity_led":
+            optional -= {"identity_signal", "emotional_reward"}
+        normalized = {}
+        for field in BRAND_IDENTITY_FIELDS:
+            item = brand[field]
+            if not isinstance(item, str):
+                raise ValueError(f"brand_identity.{field} must be text")
+            normalized[field] = "" if field in optional and not item.strip() else _text(item, f"brand_identity.{field}", 260)
+            if normalized[field]:
+                _require_brief_field_language(base.value["language"], normalized[field], f"brand_identity.{field}")
+        if len(_canonical(normalized)[0].encode("utf-8")) > BRAND_IDENTITY_MAX_BYTES:
+            raise ValueError("brand_identity exceeds 3072 UTF-8 bytes; shorten its sentences")
+        document = {**base.to_dict(), "schema_version": 3, "brand_identity": normalized}
+        return cls(document, _canonical(document)[1], {**base.quality_gates, "brand_identity_bounded": True})
+
+
 def parse_product_brief(value: Mapping[str, Any], *, raw_idea: str,
                         required_language: str | None = None,
                         generation_settings: Mapping[str, Any] | None = None) -> ProductBriefV1:
     if generation_settings is None:
         return ProductBriefV1.from_dict(value, raw_idea=raw_idea, required_language=required_language)
-    return ProductBriefV2.from_dict(value, raw_idea=raw_idea, required_language=required_language,
-                                   marketing_approach=generation_settings["marketing_approach"])
+    version = generation_settings["output_schema_version"]
+    if version not in {2, 3}:
+        raise ValueError("Unsupported Product Brief version")
+    reader = ProductBriefV3 if version == 3 else ProductBriefV2
+    return reader.from_dict(value, raw_idea=raw_idea, required_language=required_language,
+                            marketing_approach=generation_settings["marketing_approach"])
 
 
 def product_brief_schema(required_language: str | None = None, *, generation_settings: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -246,7 +297,10 @@ def product_brief_schema(required_language: str | None = None, *, generation_set
         "additionalProperties": False,
     }
     if generation_settings is not None:
-        schema["properties"]["schema_version"]["const"] = 2
+        version = generation_settings["output_schema_version"]
+        if version not in {2, 3}:
+            raise ValueError("Unsupported Product Brief version")
+        schema["properties"]["schema_version"]["const"] = version
         schema["properties"]["positioning"] = {
             "type": "object", "additionalProperties": False,
             "properties": {"marketing_approach": {"type": "string", "const": generation_settings["marketing_approach"]},
@@ -255,4 +309,16 @@ def product_brief_schema(required_language: str | None = None, *, generation_set
             "description": "Complete object must fit 1024 UTF-8 bytes. Use short sentences.",
         }
         schema["required"].append("positioning")
+        if version == 3:
+            optional = OPTIONAL_BRAND_FIELDS.copy()
+            if generation_settings["marketing_approach"] == "identity_led":
+                optional -= {"identity_signal", "emotional_reward"}
+            schema["properties"]["brand_identity"] = {
+                "type": "object", "additionalProperties": False,
+                "properties": {field: {"type": "string", "minLength": 0 if field in optional else 1,
+                                       "maxLength": 260} for field in BRAND_IDENTITY_FIELDS},
+                "required": list(BRAND_IDENTITY_FIELDS),
+                "description": "Brand hypothesis and creative direction, not business facts. Entire object <=3072 UTF-8 bytes. Empty optional fields when inapplicable.",
+            }
+            schema["required"].append("brand_identity")
     return schema

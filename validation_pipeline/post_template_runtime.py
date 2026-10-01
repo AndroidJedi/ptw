@@ -83,6 +83,9 @@ def post_definition(record):
     if record["surface"] != "post" or record.get("builtin"):
         raise ValueError("Select an accepted Post template")
     doc = normalize_document(record["document"])
+    if "daddy_configuration" in doc:
+        from .studio_daddy import saved_definition
+        return saved_definition(record)
     fields = text_fields(doc)
     identity = TemplateIdentity("post", record["template_id"], record["template_version"], record["template_sha256"])
 
@@ -184,7 +187,7 @@ def post_definition(record):
         default_configuration=PHONE_METRICS_DEFINITION.default_configuration,
         default_content=lambda: bind_content(doc, PHONE_METRICS_DEFINITION.default_content()),
         normalize_configuration=configuration, normalize_content=content,
-        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",), supports_generation=False),
+        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",)),
         renderer_key="post.declarative.pillow.v1", editor_key="post.declarative.react",
         build_template=build, semantic_data=lambda configuration, value: {},
         asset_slots=PHONE_METRICS_DEFINITION.asset_slots,

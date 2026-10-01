@@ -43,6 +43,10 @@ def landing_fixture(template_id="project_landing", *, reference=None) -> dict:
     if template_id == "app_showcase":
         content.pop("app_feature", None)
         content["app_screens"] = [{"title": f"Step {i + 1}", "description": "Project-specific app screen", "visual_direction": "Neutral interface preview"} for i in range(3)]
+        if definition.identity.template_version >= 3:
+            content["hero"].update(eyebrow="Your space. Your possibilities.", bullets=[
+                "A clear place for your next task", "An app screen for each step", "One simple action to get started",
+            ])
     if "marketing" in content:
         m = content["marketing"]
         m.update(introduction="Your app, everyday possibilities.", comparison_heading="A simpler way with Natal", walkthrough_heading="How it works", benefits_heading="Made for everyday tasks", benefits_supporting="A clear, connected experience", benefit_highlight_title="Your next step", benefit_highlight_text="Project-specific benefit", cta_heading="Explore the app", cta_text="Start with one simple step")
@@ -78,6 +82,8 @@ def builtin_preview_contract(record: dict) -> str:
         paths.extend(ROOT / "validation_pipeline" / name for name in
                      ("studio_phone_metrics.py", "studio.py", "studio_primitives.py", "studio_workspace.py", "natal_brand.py"))
         definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
+        if definition.editor_key == "post.daddy.react":
+            paths.extend(ROOT / "validation_pipeline" / name for name in ("studio_daddy.py", "daddy_assets.py"))
         fixture = sha({"configuration": definition.default_configuration(), "content": definition.default_content()})
     return sha({"reference": {key: record[key] for key in ("surface", "template_id", "template_version", "template_sha256")},
                 "fixture_sha256": fixture,
@@ -89,9 +95,10 @@ def render_builtin(record: dict, *, mobile=False) -> dict:
     if record["surface"] == "post":
         definition = POST_TEMPLATE_REGISTRY.resolve_reference(reference)
         configuration, content = definition.default_configuration(), definition.default_content()
-        content.update(hero_title="Your next idea starts here", supporting_text="Describe the task your app helps people complete.",
-                       offer="TEMPLATE PREVIEW", cta="Explore the details", phone_hero_title="Your workspace",
-                       phone_buttons=["Explore options", "View requests", "Profile"])
+        content.update(hero_title="Your next idea starts here", supporting_text="Describe the task your product helps people complete.",
+                       offer="" if definition.editor_key == "post.daddy.react" else "TEMPLATE PREVIEW", cta="Explore the details")
+        if "phone_hero_title" in content:
+            content.update(phone_hero_title="Your workspace", phone_buttons=["Explore options", "View requests", "Profile"])
         for item in content.get("stats", []):
             item.update(value="01", label="Label")
         import tempfile

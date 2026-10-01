@@ -1,19 +1,118 @@
 # Commander current state
 
-Updated: 2026-09-29
-Branch: `candidate/ptw-prod-access-20260922`
-Deployment: selective preserving release `studio-brief-context-20260929-f20b4ea`,
-accepted application revision `f20b4ea58bb8de7e7da41c16e43d4eae5beea53d`
-with unchanged companion platform `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/ptw-updates-20260929`, containing every reviewed workspace
-change. Validation runs the Brief-context release; Owner Gateway retains the prior
-combined release, and Commander/GOD and all companion images are preserved.
-No migration or reset ran. Owner Hosting version `18f60d15da474826` and public
-Landing Hosting version `085a88ff58d3858e`
-are live. All 11 structured/media canaries, Pexels, unchanged database-authority
-comparison, dependency/resource and live Hosting/auth/CORS audits passed.
+Updated: 2026-10-01
+Branch: `release/local-studio-20261001`
+Deployment: in-place preserving release `marketing-approaches-20260929-f33ffa1`,
+accepted application revision `f33ffa153af7104f3c112cea894739b7eb0cc92d`
+with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
+Source branch: `release/marketing-approaches-20260929`. Commander, Validation
+and Owner Gateway run the new release; unchanged companion images were retagged
+for the serial publisher. GOD retains its previous image. Migration 020 applied
+with a checksummed root-only backup and exact preservation of pre-existing
+Commander business rows; no reset ran. Owner Hosting version `f01925e19b399209`
+and public Landing Hosting version `ac7b6d8bf5058db1` are live. All structured/
+media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
+passed. The 24-hour resource follow-up timer is active.
 
-## Shared marketing approaches — implemented and verified locally
+The pending release candidate contains the local App Showcase v3 controls,
+initial Post template selection, and Product Brief V3 brand identity below.
+Preflight passed 488 Validation tests in the built image, 149 Owner unit tests
+and build, all 153 Owner browser checks, the public build, 54 Commander checks
+and demo, canonical skill verification, and a disposable PostgreSQL migration
+check preserving historical V1/V2 rows. Production remains on the revision
+above until the migration-bearing in-place release is accepted.
+
+## App Showcase hero controls — local, not deployed
+
+App Showcase v3 adds editable eyebrow copy above the hero title and a preserved
+text/three-bullet switch below it. All three bullets are separately editable in
+Landing Studio and available to its Agent. New Project composition writes both
+formats from the approved Brief; v1/v2 identities, defaults and published copy
+remain exact. The v3 gallery preview renders the native desktop and 360px Hero.
+
+Production Template run `3fef5cae-57c1-42fc-85eb-9b6a7ac9f2ae` remains failed
+and unchanged. Its durable record shows analysis completed, then two `compose`
+provider failures with one attempt each, zero comparisons and no proposal.
+Read-only platform job metadata identifies `TimeoutExpired` after about six
+minutes for both compose calls; the run record has no validation error. The new
+native version does not depend on resuming
+that run. Local checks: built-image App Showcase/marketing/Agent and template
+registry/authoring tests, 149 Owner unit tests/build, native desktop/mobile PNG
+inspection, all 150 desktop/360px/iPhone WebKit browser checks, and skill verifier.
+
+## Initial Post template selection — local, not deployed
+
+Brief approval and the empty Post Studio now show the accepted Post gallery with
+preview cards. The owner selects an exact template version and image direction;
+the first creative is initialized on that layout and composed from its source
+Brief. Generating another creative from an approved Brief uses the same chooser.
+Accepted authored layouts generate copy and artwork directly. The exact
+version/digest is retained through duplicate requests, retries, Save/Approve and
+restart. Phone Metrics remains one selectable option. The local gallery currently
+contains Phone Metrics and two accepted authored Post designs. A scrollable
+desktop dialog fix keeps image-direction controls operable after selection.
+
+Verified locally: accepted authored generation, image-failure recovery, exact
+reference rejection, preview, edit, Save, Approve and restart; 486 Validation
+tests, 148 Owner web tests/build, disposable PostgreSQL first-creative canary,
+focused desktop/360px/iPhone WebKit chooser,
+deterministic Post visual audit, canonical skills, Commander 54 checks/demo and
+whitespace. No production release or publication occurred.
+The current loopback review instance is at `http://127.0.0.1:5180/?e2e=1`.
+
+## Brand identity — local, not deployed
+
+The owner found that an occasion and self-image did not define a brand. New
+ProductBriefV3 adds a dedicated Brand identity section in Project Briefs and
+Natal Create: belief, identity signal, values, cultural tension, category reframe,
+emotional reward, competence cue, functional proof anchor, voice, visual world
+and optional ritual. Canonical marketing policy revision 6 connects category
+reframing, a grounded convention or tradeoff, the buyer's desired identity and a
+functional reason for the emotional reward. Elevated language is optional; plain
+precise language remains valid. A weekend occasion alone does not define a brand.
+
+The object is bounded to 3 KiB alongside 1 KiB positioning. Exact source context
+reaches Post, Landing, Manual Agent, images and exports. Natal branding/templates
+remain authoritative. New corrections of V1/V2 select the current policy for the
+inherited approach and create unapproved V3 replacements. Historical documents,
+queued/failed reservations and retries retain their original contract/snapshot.
+Migration 021 only widens accepted contract versions; immutability remains intact.
+
+A real Ukrainian weekend example returned “Вихідні з друзями починаєш ти.” Its
+brand direction pairs initiative and time together with a practical choice cue:
+people, bags and route before the car. Real Natal binding carried that cue into
+Landing support and the same identity into copy and artwork. A separate sparse
+“car sharing” run chose Sunday family visits. These are private hypotheses, not
+conversion evidence. Receipts and review: [car-sharing review](car-sharing-identity-review.md).
+
+Earlier local fixes remain: natural product-specific offers, no forced free
+consultation, explicit Project selection, on-demand history images and manual
+retry. The loopback app is available through `scripts/run_local_studio.sh` at
+port 5173. Generate a new Brief or explicitly correct an old one to obtain V3.
+No production deployment, approval, automatic lesson promotion or publishing.
+
+Verified: 483 full built-image backend checks; 49 final image/brand/budget/source
+checks; 147 frontend tests/build; 39 affected browser cases plus three Ukrainian
+brand/history checks across desktop, 360px and iPhone WebKit. Project browser
+responses are scripted; Natal uses real local HTTP/storage with scripted inference.
+Disposable PostgreSQL verified migration preservation, V1/V2 execution, V3
+correction, duplicates, immutable settings and fresh-instance reads. Commander
+54 checks (five isolated-receiver skips in the built image), demo, canonical skills
+and whitespace passed. The test container needed Git and a safe-directory entry;
+no application image changed. Manual Agent’s measured full Ukrainian V3 request
+needed 22 KiB input / 34 KiB total; the correction reserve is retained.
+
+The local Identity-led prompt review now applies four connected strategy moves
+across Brief, Post, Landing, Natal Create and editor Agent. Plain precise copy is
+valid; elevated wording is optional. Fresh Ukrainian water-label and English
+maintenance-tool Briefs, Natal bindings and direct Post/Landing compositions kept
+one identity with supported practical benefits. A malformed generated Post offer
+found during review led to a narrow invisible-format-character guard and a
+complete-copy prompt. Private receipts and limits are in
+[the marketing trial review](marketing-approaches-trial.md). No deployment or
+approval occurred.
+
+## Shared marketing approaches — deployed
 
 Project Briefs and Natal Create now offer Benefit-led (default) and Identity-led
 with English/Ukrainian explanations. Both Brief views display bounded V2
@@ -50,9 +149,15 @@ gallery and receipts are under `.local/marketing-approaches-trial/`. A real
 newline-copy renderer failure moved into bounded provider response validation.
 No trial preference activated a learning rule or established conversion evidence.
 
-Production remains unchanged. A future release must apply migration 020 and
-compatible backend/readers before exposing the frontend selector, and run the
-updated V2 production canaries. No rollout or production canary ran here.
+The exact release passed 476 built-image backend checks, 143 Owner unit checks/
+build and all 147 desktop/360px/iPhone browser cases before cutover and again
+before Owner Hosting publication. The updated V2 production canaries, Pexels,
+approved Post access, business-row comparison, production skill/dependency and
+resource audits, and live public/Owner Hosting audits all passed. Production
+has five active Projects and eight accessible immutable approved Post PNGs;
+organic and manual Instagram source projections match PostgreSQL. Evidence:
+`.local/ptw-combined-release/.local/marketing-release-deploy.log` and
+`.local/ptw-combined-release/.local/releases/marketing-approaches-20260929-f33ffa1/`.
 
 ## Studio Agent copy recovery and full Brief context — deployed
 

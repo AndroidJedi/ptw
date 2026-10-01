@@ -4,7 +4,7 @@ import type { ApiClient } from '../../api'
 import type { StudioPhoneMetricsDetail } from '../../types'
 import { PostTemplatePicker } from './PostTemplatePicker'
 vi.mock('../../firebase', () => ({ appCheck: {} }))
-vi.mock('../../views/TemplatesView', () => ({ TemplateImage: ({ label }: { label: string }) => <span>{label} preview</span> }))
+vi.mock('../TemplateImage', () => ({ TemplateImage: ({ label }: { label: string }) => <span>{label} preview</span> }))
 
 it('refreshes pending previews without losing the selected exact Post template', async () => {
   const item = { surface: 'post', template_id: 'phone_metrics', template_version: 27, template_sha256: 'a'.repeat(64), name: 'Phone & metrics', preview_status: 'pending', previews: {} }

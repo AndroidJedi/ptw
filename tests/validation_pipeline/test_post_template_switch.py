@@ -170,7 +170,7 @@ class PostTemplateSwitchTests(unittest.TestCase):
             if item['template_id'] == self.reference['template_id']
         )
         self.assertTrue(authored['capabilities']['supports_manual_agent'])
-        self.assertFalse(authored['capabilities']['supports_generation'])
+        self.assertTrue(authored['capabilities']['supports_generation'])
         exact_reference = {
             'surface': 'post',
             'template_id': authored['template_id'],

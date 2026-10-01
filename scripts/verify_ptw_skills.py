@@ -64,6 +64,9 @@ def main() -> None:
         if name == "studio-manual-agent":
             require(len((skill / "SKILL.md").read_bytes()) <= 5 * 1024,
                     "studio-manual-agent skill exceeds its 5 KiB maintenance budget")
+        if name == "natal-creation-studio":
+            require(len((skill / "SKILL.md").read_bytes()) <= 6 * 1024,
+                    "natal-creation-studio skill exceeds its runtime prompt budget")
 
     validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(

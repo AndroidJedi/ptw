@@ -175,6 +175,10 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/studio/templates' && method === 'GET') return json({ items: [
       { template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition', canvas: { width: 1080, height: 1350 }, template_version: 17, template_sha256: 'b'.repeat(64) },
     ] })
+    if (url.pathname === '/api/v1/templates' && url.searchParams.get('surface') === 'post' && method === 'GET') return json({ items: [
+      { surface: 'post', template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition', template_version: 27, template_sha256: 'a'.repeat(64), previews: {} },
+      { surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', name: 'Editorial Post', description: 'Accepted Post layout', template_version: 3, template_sha256: 'b'.repeat(64), previews: {} },
+    ] })
     if (url.pathname === `/api/v1/studio/projects/${projectId}/creatives` && method === 'GET') return json({ items: [{
       creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
       ordinal: 1, origin: 'brief_generation', template_id: 'phone_metrics',
@@ -320,14 +324,16 @@ test('approves a Brief through the required template picker and opens its creati
   const picker = page.getByRole('dialog', { name: 'Choose the creative template' })
   await expect(picker).toBeVisible()
   await expect(picker.getByRole('button', { name: 'Approve Brief & generate creative' })).toBeDisabled()
-  await picker.getByRole('button', { name: /Phone & metrics/ }).click()
+  await expect(picker.locator('.post-template-choices article')).toHaveCount(2)
+  await picker.getByRole('button', { name: /Editorial Post/ }).click()
   await picker.locator('input[value="cinematic"]').check()
   await picker.locator('input[value="scene"]').check()
   const approveButton = picker.getByRole('button', { name: 'Approve Brief & generate creative' })
   await expect(approveButton).toBeEnabled()
   await approveButton.dispatchEvent('click')
   await expect.poll(() => approvalBody).toEqual({
-    honor_confirmed: true, template_id: 'phone_metrics',
+    honor_confirmed: true, template_id: 'design_aaaaaaaaaaaaaaaaaaaa',
+    template_reference: { surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', template_version: 3, template_sha256: 'b'.repeat(64) },
     creative_direction: {
       schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
     },
@@ -386,7 +392,7 @@ test('explains a persisted API-backed Brief failure without exposing raw provide
 })
 
 test('shows Brief, the project-scoped Post editor, Landing, and Instagram tests', async ({ page }) => {
-  await page.goto('/?e2e=1')
+  await page.goto(`/?e2e=1&project=${projectId}`)
   await expect(page.getByRole('button', { name: 'Бриф' }).first()).toBeVisible()
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
@@ -429,7 +435,7 @@ test('shows Project and All Projects analytics without automatic activation', as
 })
 
 test('opens the local Tune wizard and submits all three generation inputs', async ({ page }) => {
-  await page.goto('/?e2e=1&page=posts')
+  await page.goto(`/?e2e=1&page=posts&project=${projectId}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
   await page.getByRole('button', { name: 'Feedback & iterations' }).click()
@@ -478,10 +484,19 @@ test('opens the local Tune wizard and submits all three generation inputs', asyn
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
-test('separates new Project creation from the selected Project workspace', async ({ page }) => {
+test('waits for an explicit Project selection before loading project content', async ({ page }) => {
+  const projectReads: string[] = []
+  page.on('request', request => {
+    if (/\/briefs\?|\/studio\/projects\//.test(request.url())) projectReads.push(request.url())
+  })
   await page.goto('/?e2e=1')
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
+  await expect(page.getByLabel('Existing Project')).toHaveValue('')
+  await expect(page.getByText('BRIEF HISTORY', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Marketing approach', { exact: true })).toHaveCount(0)
+  expect(projectReads).toEqual([])
+  await page.getByLabel('Existing Project').selectOption(projectId)
   await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 
@@ -496,7 +511,7 @@ test('separates new Project creation from the selected Project workspace', async
 })
 
 test('deletes a Project only after exact name confirmation', async ({ page }) => {
-  await page.goto('/?e2e=1')
+  await page.goto(`/?e2e=1&project=${projectId}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
 
@@ -523,7 +538,13 @@ test('deletes a Project only after exact name confirmation', async ({ page }) =>
 test('Project marketing choice creates a visible hypothesis and immutable replacement', async ({ page }, info) => {
   await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   const values: typeof brief[] = []
-  const createDocument = (approach: string) => ({ ...briefDocument, schema_version: 2, positioning: {
+  const createDocument = (approach: string) => ({ ...briefDocument, schema_version: 3, brand_identity: {
+    belief: "Your next step deserves attention.", identity_signal: "I choose my next move deliberately.",
+    values: "Curiosity and practical progress.", cultural_tension: "Advice that never becomes action.",
+    category_reframe: "A conversation that opens a next step.", emotional_reward: "Confidence in a considered choice.",
+    competence_cue: "Bring one decision to the conversation.", proof_anchor: "Real consultant profiles and clear booking.",
+    voice: "Warm and direct. Choose your next step.", visual_world: "Two people in conversation with an open notebook.", ritual: "",
+  }, positioning: {
     marketing_approach: approach, desired_identity: 'Ready to take a considered first step',
     customer_tension: 'Want guidance without a large commitment', category_frame: 'A guided first conversation',
     functional_value: 'Clear booking and real consultant profiles',
@@ -556,6 +577,7 @@ test('Project marketing choice creates a visible hypothesis and immutable replac
   await page.getByRole('button', { name: 'Generate first Product Brief', exact: true }).click()
   await expect(page.locator('.marketing-approach-badge')).toContainText('Identity-led')
   await expect(page.getByRole('region', { name: 'Positioning', exact: true })).toContainText('Clear booking')
+  await expect(page.getByRole('region', { name: 'Brand identity', exact: true })).toContainText('Your next step deserves attention.')
   await page.getByLabel('Marketing approach for replacement', { exact: true }).selectOption('benefit_led')
   await page.getByRole('button', { name: 'Create replacement', exact: true }).click()
   await expect(page.locator('.marketing-approach-badge')).toContainText('Benefit-led')
@@ -565,4 +587,38 @@ test('Project marketing choice creates a visible hypothesis and immutable replac
   await expect(page.locator('.marketing-approach-badge')).toContainText('Benefit-led')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.screenshot({ path: info.outputPath('marketing-approach-project.png'), fullPage: true })
+})
+
+test('Ukrainian brand strategy stays readable and historical V2 has no invented section', async ({ page }, info) => {
+  await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'uk'))
+  const doc = { ...briefDocument, schema_version: 3, language: 'uk', product: 'Авто для вихідних із друзями',
+    promise: 'Вихідні з друзями починаєш ти.', target_audience: 'Друг, який бере ініціативу зібрати всіх.',
+    main_pain: 'Спільні плани залишаються розмовами.', cta: 'Запитати про авто', offer: 'Дізнайтеся про авто на ваші дати.',
+    trust_strategy: 'Відкрито пояснити умови користування.', key_benefits: ['Авто на час поїздки', 'Час разом у дорозі', 'Без купівлі власного авто'],
+    positioning: { marketing_approach: 'identity_led', desired_identity: 'Друг, який перетворює плани на спільний час.',
+      customer_tension: 'Хочеться поїхати, але плани відкладаються.', category_frame: 'Початок вихідних разом.', functional_value: 'Тимчасове користування авто.' },
+    brand_identity: {
+      belief: 'Спільним планам варто давати початок.', identity_signal: 'Я беру на себе перший крок, щоб у нас був час одне для одного.',
+      values: 'Ініціатива — запропонувати поїздку; дружба — виділити час; уважність — обрати авто під спільні плани.',
+      cultural_tension: 'Звичне «треба якось зібратися» залишає вихідні на рівні розмов.', category_reframe: 'Каршеринг як перший практичний крок до вихідних разом.',
+      emotional_reward: 'Приємно бути тим, хто допоміг друзям зібратися.', competence_cue: 'Спершу визначте кількість людей, багаж і маршрут; потім обирайте автомобіль.',
+      proof_anchor: 'Тимчасове користування автомобілем.', voice: 'Тепла й рішуча: «Ці вихідні — наші».',
+      visual_world: 'У дворі друзі складають сумки в чітко впізнаваний автомобіль. Дорожні сумки й тепле ранкове світло.',
+      ritual: 'Запропонувати в чаті конкретний день і місце наступного виїзду.',
+    },
+  }
+  const older = { ...brief, brief_id: '018f07ea-7f20-7000-8000-000000000098', document: { ...doc, schema_version: 2, brand_identity: undefined, product: 'Попередній бриф' } }
+  const current = { ...brief, document: doc }
+  await page.route('**/api/v1/briefs**', route => {
+    const path = new URL(route.request().url()).pathname
+    return route.fulfill({ json: path === '/api/v1/briefs' ? { items: [current, older] } : path.endsWith(older.brief_id) ? older : current })
+  })
+  await page.goto(`/?e2e=1&project=${projectId}`)
+  const section = page.getByRole('region', { name: 'Ідентичність бренду', exact: true })
+  await expect(section).toContainText(doc.brand_identity.visual_world)
+  await section.screenshot({ path: info.outputPath('brand-identity-uk.png') })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  await page.getByRole('button', { name: /Попередній бриф/ }).click()
+  await expect(section).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Позиціонування', exact: true })).toBeVisible()
 })

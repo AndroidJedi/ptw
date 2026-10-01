@@ -362,7 +362,7 @@ class ValidationRepository:
             )
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'product_brief',%s)",
-                (brief_id, Jsonb({"schema_version": 2})),
+                (brief_id, Jsonb({"schema_version": settings["output_schema_version"]})),
             )
             connection.execute(
                 """INSERT INTO product_briefs(
@@ -416,7 +416,7 @@ class ValidationRepository:
             for entity_id, kind, attributes in (
                 (feedback_id, "human_feedback", {"domain": "product_brief"}),
                 (weight_id, "weight_update", {"component": "product_brief", "delta": 0}),
-                (brief_id, "product_brief", {"schema_version": 2}),
+                (brief_id, "product_brief", {"schema_version": settings["output_schema_version"]}),
             ):
                 connection.execute(
                     "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,%s,%s)",

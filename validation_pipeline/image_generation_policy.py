@@ -30,7 +30,7 @@ IMAGE_POLICY = (
     "unless requested inside the picture. This operation changes artwork, not editor settings. "
     "Return the result as-is; do not score, reject or regenerate for visual quality."
 )
-BRIEF_FIELDS = ("product", "target_audience", "main_pain", "promise", "key_benefits", "offer", "language", "positioning")
+BRIEF_FIELDS = ("product", "target_audience", "main_pain", "promise", "key_benefits", "offer", "language", "positioning", "brand_identity")
 
 
 def canonical(value: Any) -> str:
@@ -103,6 +103,14 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
     settings = context.get("settings") or {}
     destination = context.get("destination") or {}
     guidance = "Keep the requested interaction inside the destination's visible crop."
+    if ((context.get("brief") or {}).get("document") or {}).get("brand_identity"):
+        guidance += (
+            " Interpret brand_identity.visual_world, values and identity_signal as creative direction: "
+            "show the recognizable product, purposeful action and defining scene cues together. "
+            "Preserve them in the destination crop. Brand belief and emotional reward guide mood; "
+            "proof_anchor bounds capabilities. Rituals and scene props are hypotheses, not supplied "
+            "features or proof. Preserve fixed Natal branding and exact owner instructions."
+        )
     if destination.get("mode") == "app_mockup":
         guidance += " Generate ONE polished 4:3 composition of three or four staggered front-facing phone mockups illustrating the supplied steps. This slot includes complete phone hardware, unlike app_screen interiors. Keep every device inside modest safe margins, occupying most of the canvas; no cut-off corners, duplicated frames, warped screens or illegible microtext. Use coherent readable UI in screen_language and the shared screen_design, with short labels grounded in the Brief. Request a transparent background with real alpha outside the phones, keeping the entire screen interiors opaque. No white panel, scenic backdrop or checkerboard. Do not copy another app's UI or logo; do not generate store badges, external captions, testimonials, fabricated claims, or a replacement Natal logo. The renderer uses contain fitting and supplies all surrounding copy and store buttons. For enhancement preserve devices and unchanged screen contents unless explicitly requested."
     elif destination.get("mode") == "app_screen":

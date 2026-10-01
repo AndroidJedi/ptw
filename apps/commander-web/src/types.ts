@@ -223,8 +223,9 @@ export interface BriefPositioning {
 }
 
 export interface ProductBriefDocument {
-  schema_version: 1 | 2
+  schema_version: 1 | 2 | 3
   positioning?: BriefPositioning
+  brand_identity?: BriefBrandIdentity
   language: 'uk' | 'en'
   product: string
   target_audience: string
@@ -234,6 +235,20 @@ export interface ProductBriefDocument {
   cta: string
   trust_strategy: string
   offer: string
+}
+
+export interface BriefBrandIdentity {
+  belief: string
+  identity_signal: string
+  values: string
+  cultural_tension: string
+  category_reframe: string
+  emotional_reward: string
+  competence_cue: string
+  proof_anchor: string
+  voice: string
+  visual_world: string
+  ritual: string
 }
 
 export interface ProductBrief extends Partial<ProductBriefDocument> {
@@ -419,6 +434,17 @@ export interface StudioTemplateSummary {
     styles: StudioPhoneHeroStyle[]
     backgrounds: StudioPhoneHeroBackground[]
   }
+}
+
+export interface AcceptedPostTemplate {
+  surface: 'post'
+  template_id: string
+  template_version: number
+  template_sha256: string
+  name: string
+  description: string
+  preview_status: string
+  previews: Record<string, { sha256: string; definition_sha256: string }>
 }
 
 export type StudioCreativeStatus = 'queued' | 'composing' | 'generating_image' | 'draft' | 'failed'
@@ -670,7 +696,7 @@ export interface LandingMarketingContent {
 export interface LandingGradient { id: string; en: string; uk: string; start: string; end: string }
 export interface LandingConfiguration {
   marketing?: LandingMarketingConfiguration
-  showcase?: { gradient_end: string; screen_scale: number; screen_offset: number }
+  showcase?: { gradient_end: string; screen_scale: number; screen_offset: number; hero_body_mode?: 'text' | 'bullets' }
   visual_mode?: 'phone' | 'image'
   phone_mockup?: LandingPhoneMockup
   components?: LandingComponents
@@ -699,7 +725,7 @@ export interface LandingContent {
   app_screens?: Array<{ title: string; description: string; visual_direction: string }>
   app_feature?: LandingAppFeature
   schema: 'ptw.landing.content.v1'
-  hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string }
+  hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string; eyebrow?: string; bullets?: string[] }
   features: Array<{ title: string; description: string }>
   social_proof: { heading: string; items: Array<{ statement: string; attribution: string }> }
   visual_break: { visual_direction: string }

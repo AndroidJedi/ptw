@@ -117,9 +117,15 @@ APP_SHOWCASE_V2_DEFINITION = replace(APP_SHOWCASE_DEFINITION,
     default_configuration=landing_showcase.enhanced_configuration,
     default_content=landing_showcase.enhanced_content,
 )
+APP_SHOWCASE_V3_DEFINITION = replace(APP_SHOWCASE_V2_DEFINITION,
+    identity=TemplateIdentity("landing", "app_showcase", 3, landing_showcase.v3_catalog()["sha256"]),
+    catalog=landing_showcase.v3_catalog, agent_catalog=landing_showcase.v3_catalog,
+    default_configuration=landing_showcase.v3_configuration,
+    default_content=landing_showcase.v3_content,
+)
 
 LANDING_TEMPLATE_REGISTRY = TemplateRegistry(
-    "landing", (PROJECT_LANDING_DEFINITION, APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V2_DEFINITION),
+    "landing", (PROJECT_LANDING_DEFINITION, APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V2_DEFINITION, APP_SHOWCASE_V3_DEFINITION),
 )
 
 

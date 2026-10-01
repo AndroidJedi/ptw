@@ -268,7 +268,7 @@ class CreationStudio:
     def call(self, run, phase, payload, schema, validator, images=(), *, attempt=0):
         kwargs = {"mode": "template_creation", "system_prompt": self.skill,
             "input_payload": {"phase": phase, **payload}, "output_schema": schema,
-            "idempotency_key": f"creation:{key(run, f'{phase}:{attempt}')}", "prompt_version": "natal-creation-v1",
+            "idempotency_key": f"creation:{key(run, f'{phase}:{attempt}')}", "prompt_version": "natal-creation-v3",
             "reasoning_effort": "xhigh", "response_validator": validator}
         if images:
             kwargs["input_artifacts"] = [artifact(data, i + 1) for i, data in enumerate(images)]
@@ -448,7 +448,8 @@ class CreationStudio:
                 if self.image_provider is None:
                     raise RuntimeError("Image generation is unavailable")
                 image = self.image_provider.generate("Create artwork for this Natal concept. No logos, advertising text, metrics or testimonials. " + run["image_direction"]
-                    + "\nBrief positioning (hypothesis, not evidence): " + __import__("json").dumps(run["brief"]["document"].get("positioning", {}), ensure_ascii=False))
+                    + "\nBrief positioning (hypothesis, not evidence): " + __import__("json").dumps(run["brief"]["document"].get("positioning", {}), ensure_ascii=False)
+                    + "\nBrand identity (creative direction, not capabilities): " + __import__("json").dumps(run["brief"]["document"].get("brand_identity", {}), ensure_ascii=False))
                 records = [{"sha256": self.media(normalized_png(image["bytes"])), "origin": "generated", "source": image.get("source", {})}]
                 changed_surfaces = [run["edit"]["target"]] if run.get("edit") and run["edit"]["target"] in {"post", "landing"} else list(run["documents"])
                 run = self.update(run, image_assets=records, surface_images={**run.get("surface_images", {}), **{s: records for s in changed_surfaces}})

@@ -47,7 +47,9 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
     if (!value.trim()) issues.push({ section, path, en, uk })
   }
   required('hero', 'hero.title', content.hero.title, 'Add a headline', 'Додайте заголовок')
-  required('hero', 'hero.supporting_text', content.hero.supporting_text, 'Add supporting copy', 'Додайте опис')
+  if (configuration.showcase?.hero_body_mode === 'bullets') {
+    (content.hero.bullets || []).forEach((bullet, index) => required('hero', `hero.bullets.${index}`, bullet, `Add hero bullet ${index + 1}`, `Додайте пункт ${index + 1}`))
+  } else required('hero', 'hero.supporting_text', content.hero.supporting_text, 'Add supporting copy', 'Додайте опис')
   required('hero', 'hero.cta_label', content.hero.cta_label, 'Add a button label', 'Додайте текст кнопки')
   content.features.forEach((v, i) => { required('features', `features.${i}.title`, v.title, `Feature ${i + 1}: add a title`, `Перевага ${i + 1}: додайте назву`); required('features', `features.${i}.description`, v.description, `Feature ${i + 1}: add a description`, `Перевага ${i + 1}: додайте опис`) })
   if (content.social_proof.items.length) required('social_proof', 'social_proof.heading', content.social_proof.heading, 'Add an evidence heading', 'Додайте заголовок доказів')
@@ -81,6 +83,8 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   }
   bounded('hero', 'hero.title', content.hero.title, 140)
   bounded('hero', 'hero.supporting_text', content.hero.supporting_text, 360)
+  if (content.hero.eyebrow !== undefined) bounded('hero', 'hero.eyebrow', content.hero.eyebrow, 100)
+  content.hero.bullets?.forEach((bullet, index) => bounded('hero', `hero.bullets.${index}`, bullet, 160))
   bounded('hero', 'hero.cta_label', content.hero.cta_label, 60)
   bounded('hero', 'hero.visual_direction', content.hero.visual_direction, 600, 8)
   bounded('visual_break', 'visual_break.visual_direction', content.visual_break.visual_direction, 600, 8)

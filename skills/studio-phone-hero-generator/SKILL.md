@@ -5,7 +5,16 @@ description: Compose domain-aware Post artwork using the shared image policy, cu
 
 # Studio Phone Hero Generator
 
-When Brief positioning is supplied, illustrate its customer situation and supported task. Identity-led imagery uses a believable desired outcome; it never invents status, capabilities or health results.
+Use supplied V3 brand_identity.visual_world, values and identity_signal as the visual brief; positioning supplies the task. Identity-led imagery uses a believable desired outcome; it never invents status, capabilities or health results.
+
+Translate desired_identity and category_frame into a purposeful action and 1–2
+visible occasion cues. Keep the actual product recognizable at the final crop:
+for weekend car sharing, friends loading bags into a readable car expresses a
+resourceful organiser and time together. Keep enough vehicle silhouette to read
+as a car; do not replace it with a road, scenic landscape or generic luxury shot.
+Props and styling suggest values and purpose, not included features or fleet
+inventory. In other domains choose their equivalent concrete interaction. Avoid
+generic lifestyle decoration or literal "smart customer" symbols.
 
 Use the versioned image-generation context. Direct owner instructions control
 image content and appearance, followed by current image settings, approved Brief

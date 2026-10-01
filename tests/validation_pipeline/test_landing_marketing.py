@@ -162,10 +162,12 @@ class MarketingTests(unittest.TestCase):
             self.assertEqual(context['settings']['primary_gradient']['id'],'ocean')
 
     def test_new_template_retains_v1_and_composition_structure(self):
-        from validation_pipeline.landing_templates import APP_SHOWCASE_DEFINITION, LANDING_TEMPLATE_REGISTRY
+        from validation_pipeline.landing_templates import APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V2_DEFINITION, LANDING_TEMPLATE_REGISTRY
         ref={k:v for k,v in APP_SHOWCASE_DEFINITION.identity.to_reference().items() if k!='surface'}
         self.assertEqual(LANDING_TEMPLATE_REGISTRY.resolve_reference(ref).identity.template_version,1)
-        self.assertEqual(LANDING_TEMPLATE_REGISTRY.get('app_showcase').identity.template_version,2)
+        self.assertEqual(LANDING_TEMPLATE_REGISTRY.get('app_showcase').identity.template_version,3)
+        ref2={k:v for k,v in APP_SHOWCASE_V2_DEFINITION.identity.to_reference().items() if k!='surface'}
+        self.assertEqual(LANDING_TEMPLATE_REGISTRY.resolve_reference(ref2).identity.template_version,2)
         schema=landing_generation_schema('app_showcase',marketing=True)['properties']['content']['properties']['marketing']['properties']
         self.assertEqual(schema['comparison_rows']['minItems'],6)
         self.assertEqual(schema['walkthrough_steps']['maxItems'],4)

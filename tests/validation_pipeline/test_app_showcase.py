@@ -5,12 +5,13 @@ from uuid import uuid4
 import unittest
 
 from tests.validation_pipeline.test_landing_workspace import FakeImages, complete_content
-from validation_pipeline.landing_templates import APP_SHOWCASE_DEFINITION, LANDING_TEMPLATE_REGISTRY
+from validation_pipeline.landing_templates import APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V3_DEFINITION, LANDING_TEMPLATE_REGISTRY
 from validation_pipeline.landing_workspace import LandingWorkspace, normalize_configuration, normalize_content
 from validation_pipeline.landing_pages import LandingService, LocalLandingAuthority, landing_generation_schema
 from validation_pipeline.landing_publication import public_snapshot, selected_assets
 from validation_pipeline.local_brief_store import LocalBriefStore
 from validation_pipeline.landing_showcase import SCREEN_SLOTS, VISUAL_SLOTS
+from validation_pipeline.studio_manual_agent import manual_agent_editable_values
 
 REFERENCE = {key: value for key, value in APP_SHOWCASE_DEFINITION.identity.to_reference().items() if key != 'surface'}
 
@@ -226,3 +227,55 @@ class AppShowcaseTests(unittest.TestCase):
         self.assertIn('app_screens', schema['required'])
         self.assertNotIn('app_feature', schema['properties'])
         self.assertEqual(schema['properties']['app_screens']['minItems'], 3)
+
+    def test_v3_hero_options_save_and_reopen_with_agent_paths(self):
+        reference = {key: value for key, value in APP_SHOWCASE_V3_DEFINITION.identity.to_reference().items() if key != 'surface'}
+        workspace = LandingWorkspace(Path(self.directory.name) / 'v3')
+        workspace.template_reference = reference
+        detail = workspace.detail()
+        self.assertEqual(detail['configuration']['showcase']['hero_body_mode'], 'bullets')
+        self.assertEqual(len(detail['content']['hero']['bullets']), 3)
+        content = showcase_content()
+        content['hero'].update(eyebrow='Make each task easier', bullets=['Find what you need', 'Add useful details', 'Keep everything together'])
+        saved = workspace.save_configuration(base_sha256=detail['state_sha256'], configuration=detail['configuration'], content=content)
+        reopened = LandingWorkspace(workspace.root)
+        reopened.template_reference = reference
+        self.assertEqual(reopened.detail()['content']['hero'], saved['content']['hero'])
+        values = manual_agent_editable_values(catalog=saved['catalog'], configuration=saved['configuration'], content=saved['content'])
+        self.assertEqual(values['content.hero.eyebrow'], 'Make each task easier')
+        self.assertEqual(values['content.hero.bullets[2]'], 'Keep everything together')
+        self.assertEqual(values['configuration.showcase.hero_body_mode'], 'bullets')
+        schema = landing_generation_schema('app_showcase', template_version=3)['properties']['content']['properties']['hero']
+        self.assertIn('bullets', schema['required'])
+        self.assertNotIn('bullets', landing_generation_schema('app_showcase', template_version=2)['properties']['content']['properties']['hero']['required'])
+        with self.assertRaisesRegex(ValueError, 'exactly three bullets'):
+            normalize_content({**content, 'hero': {**content['hero'], 'bullets': ['Only one']}})
+
+    def test_v3_generation_uses_exact_catalog_and_populates_both_hero_modes(self):
+        reference = {key: value for key, value in APP_SHOWCASE_V3_DEFINITION.identity.to_reference().items() if key != 'surface'}
+        authority = MemoryAuthority()
+        authority.page['template_reference'] = reference
+        class V3Provider(ContentProvider):
+            def call(self, **kwargs):
+                self.calls.append(kwargs)
+                content = showcase_content()
+                from tests.validation_pipeline.test_landing_marketing import complete_marketing
+                content['marketing'] = complete_marketing()
+                content['contacts']['email'] = ''
+                content['hero'].update(eyebrow='Your home in one place', bullets=['Find your things', 'Record the details', 'Browse by category'])
+                return {'response': kwargs['response_validator']({'content': content}), 'invocation': {}}
+        provider = V3Provider()
+        active = service(Path(self.directory.name) / 'v3-generation', authority, provider=provider)
+        result = active.generate(authority.page['landing_id'])
+        self.assertEqual(result['status'], 'draft', result.get('generation'))
+        detail = active.detail(authority.page['project_id'], authority.page['landing_id'])
+        self.assertEqual(detail['content']['hero']['bullets'], ['Find your things', 'Record the details', 'Browse by category'])
+        self.assertEqual(detail['configuration']['showcase']['hero_body_mode'], 'bullets')
+        self.assertEqual(provider.calls[0]['input_payload']['live_landing_catalog']['template_version'], 3)
+        self.assertIn('bullets', provider.calls[0]['output_schema']['properties']['content']['properties']['hero']['required'])
+        workspace = active._workspace(authority.page['landing_id'])
+        workspace.approve_configuration(base_sha256=detail['state_sha256'], configuration=detail['configuration'], content=detail['content'], change_note='Reviewed hero')
+        approved = workspace.version_detail(1)
+        snapshot = public_snapshot({'slug': 'sample'}, 'Sample', {'landing_version_sha256': approved['version_sha256'], 'created_at': 'now'}, approved)
+        self.assertEqual(snapshot['content']['hero']['bullets'], detail['content']['hero']['bullets'])
+        self.assertEqual(snapshot['configuration']['showcase']['hero_body_mode'], 'bullets')

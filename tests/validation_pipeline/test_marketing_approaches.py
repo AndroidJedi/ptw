@@ -19,12 +19,32 @@ from validation_pipeline.image_generation_policy import build_image_context, ins
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def document(selected="identity_led"):
+def document(selected="identity_led", version=2):
     return brief_response({"input_payload": {"marketing_approach": selected},
-                           "output_schema": product_brief_schema("en", generation_settings=generation_settings(selected))})
+                           "output_schema": product_brief_schema("en", generation_settings={**generation_settings(selected), "output_schema_version": version})})
 
 
 class MarketingContractTests(unittest.TestCase):
+    def test_v2_offer_allows_product_specific_actions_without_promotion(self):
+        for selected in ('identity_led', 'benefit_led'):
+            value = document(selected)
+            value['offer'] = 'Tell us about your next special ride and ask about car options.'
+            parsed = ProductBriefV2.from_dict(value, raw_idea='car sharing')
+            self.assertEqual(value['offer'], parsed.value['offer'])
+            self.assertTrue(parsed.quality_gates['offer_present'])
+            for invalid in ('', 'Trusted by 500 customers'):
+                with self.assertRaises(ValueError):
+                    ProductBriefV2.from_dict({**value, 'offer': invalid}, raw_idea='car sharing')
+            legacy = {k: v for k, v in value.items() if k != 'positioning'}
+            with self.assertRaisesRegex(ValueError, 'promotion'):
+                ProductBriefV1.from_dict({**legacy, 'schema_version': 1}, raw_idea='car sharing')
+        from tests.validation_pipeline.test_studio_agent_copy import BRIEF as UK_BRIEF
+        uk = {**{k: deepcopy(v) for k, v in UK_BRIEF.items() if k != "brand_identity"}, 'schema_version': 2, 'offer': 'Розкажіть про особливу поїздку та дізнайтеся про варіанти авто.',
+              'positioning': {'marketing_approach': 'identity_led', 'desired_identity': 'Створюю спільні спогади.',
+                 'customer_tension': 'Плани обмежені звичним маршрутом.', 'category_frame': 'Авто для особливих поїздок.',
+                 'functional_value': 'Доступ до авто на час поїздки.'}}
+        ProductBriefV2.from_dict(uk, raw_idea='car sharing', required_language='uk')
+
     def test_both_profiles_have_selected_examples_and_integrity(self):
         benefit, identity = (generation_settings(v) for v in ("benefit_led", "identity_led"))
         self.assertNotEqual(benefit["policy_sha256"], identity["policy_sha256"])
@@ -57,7 +77,7 @@ class MarketingContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ProductBriefV2.from_dict(value, raw_idea="Planner")
         from tests.validation_pipeline.test_studio_agent_copy import BRIEF as UK_BRIEF
-        value = {**deepcopy(UK_BRIEF), "schema_version": 2, "positioning": document()["positioning"]}
+        value = {**{k: deepcopy(v) for k, v in UK_BRIEF.items() if k != "brand_identity"}, "schema_version": 2, "positioning": document()["positioning"]}
         for field in ("desired_identity", "customer_tension", "category_frame", "functional_value"):
             value["positioning"][field] = "Вода для вибору"
         ProductBriefV2.from_dict(value, raw_idea="Вода", required_language="uk")
@@ -77,7 +97,7 @@ class MarketingContractTests(unittest.TestCase):
                 validate_revision_input({"request_id": request["request_id"], "instruction": "Change it", "marketing_approach": value})
 
     def test_manual_and_image_context_keep_exact_source_positioning(self):
-        value = document()
+        value = document(version=3)
         brief = {"brief_id": str(uuid4()), "project_id": str(uuid4()), "approved": True, "document": value}
         manual = manual_agent_brief_context(brief, brief_id=brief["brief_id"], project_id=brief["project_id"])
         image = build_image_context(direction="A shopper comparing labels", instruction=instruction_context("A shopper comparing labels"),
@@ -85,6 +105,7 @@ class MarketingContractTests(unittest.TestCase):
             operation="generate", base_sha256="a" * 64)
         self.assertEqual(value, manual["document"])
         self.assertEqual(value["positioning"], image["brief"]["document"]["positioning"])
+        self.assertEqual(value["brand_identity"], image["brief"]["document"]["brand_identity"])
         self.assertNotIn("generation_settings", image["brief"])
 
 
@@ -156,7 +177,27 @@ class MarketingLifecycleTests(unittest.TestCase):
         completed = self.service.generate_brief(brief_id)
         self.assertEqual(1, completed["document"]["schema_version"])
         replacement, _ = self.service.correct_brief(brief_id, request_id=str(uuid4()), instruction="Improve clarity", requested_by="test")
-        self.assertEqual(2, self.service.generate_brief(replacement["brief_id"])["document"]["schema_version"])
+        self.assertEqual(3, self.service.generate_brief(replacement["brief_id"])["document"]["schema_version"])
+
+    def test_historical_v2_retry_is_frozen_and_correction_upgrades_without_rewriting(self):
+        source_id, brief_id = str(uuid4()), str(uuid4())
+        settings = {**generation_settings("identity_led"), "output_schema_version": 2}
+        self.store.append("sources", source_id, {"content": "Planner", "required_language": "en"})
+        self.store.append("briefs", brief_id, {"brief_id": brief_id, "project_id": self.project["project_id"],
+            "owner_idea_source_id": source_id, "raw_idea": "Planner", "status": "failed", "failure_count": 1,
+            "approved": False, "document": None, "document_sha256": None, "generation_settings": settings})
+        self.service.retry_brief(brief_id)
+        with patch("validation_pipeline.marketing.generation_settings", side_effect=AssertionError("retry must not upgrade")):
+            old = self.service.generate_brief(brief_id)
+        self.assertEqual(2, old["document"]["schema_version"])
+        self.assertNotIn("brand_identity", old["document"])
+        old = self.service.get_brief(brief_id)
+        replacement, _ = self.service.correct_brief(brief_id, request_id=str(uuid4()), instruction="Develop brand identity", requested_by="test")
+        new = self.service.generate_brief(replacement["brief_id"])
+        self.assertEqual(3, new["document"]["schema_version"])
+        self.assertEqual("identity_led", new["generation_settings"]["marketing_approach"])
+        self.assertFalse(new["approved"])
+        self.assertEqual(old, self.service.get_brief(brief_id))
 
     def test_post_landing_and_artwork_keep_source_after_a_newer_brief(self):
         from tests.validation_pipeline.test_studio_creatives import FakeStructuredProvider, FakeImageProvider, PHONE_DIRECTION
@@ -189,6 +230,7 @@ class MarketingLifecycleTests(unittest.TestCase):
         self.assertEqual("draft", detail["status"])
         self.assertEqual(original["document"], provider.calls[0]["input_payload"]["approved_product_brief"])
         self.assertEqual(original["positioning"], detail["assets"][0]["source"]["image_context"]["brief"]["document"]["positioning"])
+        self.assertEqual(original["brand_identity"], detail["assets"][0]["source"]["image_context"]["brief"]["document"]["brand_identity"])
         posts.checkpoint(pid, cid, kind="approve", base_sha256=detail["state_sha256"],
             configuration=detail["configuration"], content=detail["content"], change_note="Test source lineage")
         landing_provider = ContentProvider()
@@ -207,3 +249,4 @@ class MarketingLifecycleTests(unittest.TestCase):
         for asset in landing["assets"]:
             source = landings._workspace(landing["landing_id"])._history(asset["slot"])[-1]["source"]
             self.assertEqual(original["positioning"], source["image_context"]["brief"]["document"]["positioning"])
+            self.assertEqual(original["brand_identity"], source["image_context"]["brief"]["document"]["brand_identity"])

@@ -53,6 +53,30 @@ for _field in ("desired_identity", "customer_tension", "category_frame", "functi
         BRIEF["positioning"] = trial
 
 
+BRIEF.update(schema_version=3, brand_identity={
+    "belief": "Щоденний вибір вартий розуміння.",
+    "identity_signal": "Я обираю уважно, бо знаю, що порівнювати.",
+    "values": "Допитливість, власний смак і зрозумілі пояснення.",
+    "cultural_tension": "Складна етикетка не має вирішувати за покупця.",
+    "category_reframe": "Від каталогу марок до помічника усвідомленого вибору.",
+    "emotional_reward": "Задоволення від власного обґрунтованого рішення.",
+    "competence_cue": "Спершу визначте смак, потім порівняйте склад.",
+    "proof_anchor": "Каталог зіставляє склад і пояснює показники.",
+    "voice": "Зрозуміло й без зверхності. Знай, що обираєш.",
+    "visual_world": "Покупець порівнює дві пляшки біля полиці; етикетки й уважний жест.",
+    "ritual": "Порівняти склад перед наступною покупкою.",
+})
+# Keep the new extension near its UTF-8 ceiling in populated real-service
+# envelopes; the existing tests exercise the corrective response as well.
+for _field in BRIEF["brand_identity"]:
+    while len(BRIEF["brand_identity"][_field]) < 260:
+        trial = deepcopy(BRIEF["brand_identity"])
+        trial[_field] += "а"
+        if len(json.dumps(trial, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()) > 3072:
+            break
+        BRIEF["brand_identity"] = trial
+
+
 class CopyBridge(StructuredBridge):
     def __init__(self, path):
         super().__init__('https://bridge.invalid', 'unused', 'model')

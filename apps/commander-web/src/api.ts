@@ -347,13 +347,13 @@ export class ApiClient {
     return new Blob([bytes], { type: contentType })
   }
 
-  async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
-    const response = await this.response(path, {}, {})
+  async image(path: string, expectedMimeType: string, expectedSha256: string, options: ApiRequestOptions = {}): Promise<Blob> {
+    const response = await this.response(path, {}, options)
     return validateImageResponse(response, expectedMimeType, expectedSha256, this.language, path)
   }
 
-  async media(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
-    return this.image(path, expectedMimeType, expectedSha256)
+  async media(path: string, expectedMimeType: string, expectedSha256: string, options: ApiRequestOptions = {}): Promise<Blob> {
+    return this.image(path, expectedMimeType, expectedSha256, options)
   }
 
   async download(path: string, expectedMimeType: string, options: ApiRequestOptions = {}): Promise<Blob> {

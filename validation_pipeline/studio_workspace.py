@@ -672,6 +672,27 @@ class PostStudioWorkspace:
         self._atomic_json(self.root / "content.json", normalized_content)
         return self.detail()
 
+    def initialize_template(
+        self, *, template_reference: Mapping[str, Any], logo_colors: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Start an empty creative on its selected immutable Post layout."""
+
+        if any((self.root / name).exists() for name in ("template.json", "configuration.json", "content.json")) or any(self.assets.iterdir()):
+            raise RuntimeError("Studio workspace is already initialized")
+        if set(template_reference) != {"surface", "template_id", "template_version", "template_sha256"} or template_reference["surface"] != "post":
+            raise ValueError("Select an exact Post template version")
+        definition = self.template_registry().resolve_reference({
+            key: template_reference[key] for key in ("template_id", "template_version", "template_sha256")
+        })
+        configuration = definition.default_configuration()
+        configuration["logo"].update(normalize_natal_logo_colors(dict(logo_colors)))
+        self._atomic_json(self.root / "template.json", {
+            "schema": _TEMPLATE_SELECTION_SCHEMA,
+            **{key: template_reference[key] for key in ("template_id", "template_version", "template_sha256")},
+        })
+        self._atomic_json(self.root / "configuration.json", definition.normalize_configuration(configuration))
+        return self.detail()
+
     def apply_template(
         self, *, base_sha256: str, template_id: str,
         logo_colors: Mapping[str, Any] | None = None,

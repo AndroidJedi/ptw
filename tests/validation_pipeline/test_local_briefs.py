@@ -31,13 +31,28 @@ def brief_response(kwargs, value=None):
     """Scripted inference follows the requested version; legacy fixtures stay V1."""
     from copy import deepcopy
     result = deepcopy(BRIEF if value is None else value)
-    if kwargs["output_schema"]["properties"]["schema_version"]["const"] == 2:
+    version = kwargs["output_schema"]["properties"]["schema_version"]["const"]
+    if version >= 2:
         result.update(schema_version=2, positioning={
             "marketing_approach": kwargs["input_payload"]["marketing_approach"],
             "desired_identity": "Prepared for my day",
             "customer_tension": "Important work gets lost among tasks",
             "category_frame": "A practical daily planning companion",
             "functional_value": "See priorities together",
+        })
+    if version == 3:
+        result.update(schema_version=3, brand_identity={
+            "belief": "A good day has room for what matters.",
+            "identity_signal": "I protect attention for work I care about.",
+            "values": "Intention over busyness; space to finish.",
+            "cultural_tension": "A packed task list can hide the important work.",
+            "category_reframe": "From task storage to a daily moment of intention.",
+            "emotional_reward": "Quiet satisfaction in choosing my day.",
+            "competence_cue": "Choose one priority before adding more tasks.",
+            "proof_anchor": "The planner keeps daily priorities together.",
+            "voice": "Calm and decisive. Make room for what matters.",
+            "visual_world": "A person choosing one task at a clear desk in morning light.",
+            "ritual": "Choose the day's priority before opening messages.",
         })
     return result
 

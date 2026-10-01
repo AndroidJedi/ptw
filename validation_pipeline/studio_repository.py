@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import hashlib
 import json
+import re
 from pathlib import Path
 import threading
 from typing import Any, Iterator, Mapping
@@ -15,8 +16,6 @@ from commander.ids import new_uuid7
 from .studio_workspace import PostStudioWorkspace
 from .natal_brand import normalize_natal_logo_colors
 from .phone_hero_styles import normalize_phone_hero_creative_direction
-from .post_templates import POST_TEMPLATE_REGISTRY
-from .studio_phone_metrics import PHONE_METRICS_TEMPLATE_ID
 from .studio_creatives import (
     GLOBAL_SKILL_SCOPE, PROJECT_SKILL_SCOPE, _append_lesson, _skill_document,
     verified_skill_snapshot,
@@ -360,6 +359,19 @@ class DatabaseCreativeWorkspace:
             self._persist()
         self._loaded = True
 
+    def initialize_template(self, *, template_reference: Mapping[str, Any], logo_colors: Mapping[str, Any]) -> dict[str, Any]:
+        """Persist the selected first layout without materializing a Phone draft."""
+
+        with self._lock:
+            if self._loaded or self.repository.load_creative(self.workspace_id) is not None:
+                raise RuntimeError("Studio workspace is already initialized")
+            value = self.workspace.initialize_template(
+                template_reference=template_reference, logo_colors=logo_colors,
+            )
+            self._persist()
+            self._loaded = True
+            return self._enrich(value)
+
     def _enrich(self, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
@@ -502,18 +514,19 @@ class DatabaseStudioAuthority:
     def create_creative(
         self, *, project_id: str, brief_id: str, template_id: str,
         requested_by: str, origin: str, creative_direction: Mapping[str, Any] | None = None,
+        template_reference: Mapping[str, Any] | None = None,
         require_approved_previous: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
         project = self.project(project_id)
-        POST_TEMPLATE_REGISTRY.get(template_id)
-        if template_id == PHONE_METRICS_TEMPLATE_ID:
-            if creative_direction is None:
-                raise ValueError("Phone Metrics creative direction is required")
-            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
-        elif creative_direction is not None:
-            raise ValueError("creative direction is available only for Phone Metrics")
+        if template_id != "phone_metrics" and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
+            raise ValueError("Studio template is invalid")
+        if creative_direction is None:
+            raise ValueError("Studio image direction is required")
+        creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        generation = {"creative_direction": creative_direction,
+                      **({"template_reference": dict(template_reference)} if template_reference else {})}
         if origin not in {"brief_generation", "approved_variant"}:
             raise ValueError("Studio creative requires approved Product Brief lineage")
         with self.connection() as connection:
@@ -525,13 +538,22 @@ class DatabaseStudioAuthority:
                 (f"studio-brief:{brief_id}",),
             )
             siblings = connection.execute(
-                "SELECT entity_id,ordinal,template_id,generation FROM universal_studio_workspaces WHERE source_brief_id=%s ORDER BY ordinal",
+                "SELECT entity_id,ordinal,template_id,generation,template_version,template_sha256 FROM universal_studio_workspaces WHERE source_brief_id=%s ORDER BY ordinal",
                 (UUID(brief_id),),
             ).fetchall()
             if siblings and not require_approved_previous:
                 if siblings[0][2] != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
-                if template_id == PHONE_METRICS_TEMPLATE_ID and dict(siblings[0][3] or {}).get("creative_direction") != creative_direction:
+                if template_reference and dict(siblings[0][3] or {}).get("template_reference") != template_reference:
+                    legacy_native = (
+                        template_id == "phone_metrics"
+                        and dict(siblings[0][3] or {}).get("template_reference") is None
+                        and siblings[0][4] in (None, template_reference["template_version"])
+                        and siblings[0][5] in (None, template_reference["template_sha256"])
+                    )
+                    if not legacy_native:
+                        raise ValueError("Product Brief already reserved a different Studio template version")
+                if dict(siblings[0][3] or {}).get("creative_direction") != creative_direction:
                     raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 return self.get_creative(str(siblings[0][0])), False
             if require_approved_previous:
@@ -558,7 +580,7 @@ class DatabaseStudioAuthority:
                 (
                     creative_id, UUID(project_id), UUID(brief_id),
                     ordinal, origin, template_id, "queued", requested_by,
-                    Jsonb({} if creative_direction is None else {"creative_direction": creative_direction}),
+                    Jsonb(generation),
                 ),
             )
             self.repository._insert_edge(
@@ -650,18 +672,20 @@ class DatabaseStudioAuthority:
     def approve_and_create_creative(
         self, *, brief_id: str, template_id: str, requested_by: str,
         creative_direction: Mapping[str, Any] | None = None,
+        template_reference: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool, bool]:
         """Atomically approve one completed Brief and reserve its first creative."""
 
         from psycopg.types.json import Jsonb
 
-        POST_TEMPLATE_REGISTRY.get(template_id)
-        if template_id == PHONE_METRICS_TEMPLATE_ID:
-            if creative_direction is None:
-                raise ValueError("Phone Metrics creative direction is required")
-            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
-        elif creative_direction is not None:
-            raise ValueError("creative direction is available only for Phone Metrics")
+        if template_id != "phone_metrics" and not re.fullmatch(r"design_[a-f0-9]{20}", template_id):
+            raise ValueError("Studio template is invalid")
+
+        if creative_direction is None:
+            raise ValueError("Studio image direction is required")
+        creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        generation = {"creative_direction": creative_direction,
+                      **({"template_reference": dict(template_reference)} if template_reference else {})}
         brief_uuid = UUID(brief_id)
         with self.connection() as connection:
             connection.execute(
@@ -682,7 +706,7 @@ class DatabaseStudioAuthority:
                 (UUID(new_uuid7()), brief_uuid, requested_by),
             ).rowcount == 1
             existing = connection.execute(
-                """SELECT entity_id,generation FROM universal_studio_workspaces
+                """SELECT entity_id,generation,template_version,template_sha256 FROM universal_studio_workspaces
                     WHERE source_brief_id=%s AND ordinal=1""",
                 (brief_uuid,),
             ).fetchone()
@@ -694,7 +718,16 @@ class DatabaseStudioAuthority:
                 ).fetchone()[0]
                 if existing_template != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
-                if template_id == PHONE_METRICS_TEMPLATE_ID and dict(existing[1] or {}).get("creative_direction") != creative_direction:
+                if template_reference and dict(existing[1] or {}).get("template_reference") != template_reference:
+                    legacy_native = (
+                        template_id == "phone_metrics"
+                        and dict(existing[1] or {}).get("template_reference") is None
+                        and existing[2] in (None, template_reference["template_version"])
+                        and existing[3] in (None, template_reference["template_sha256"])
+                    )
+                    if not legacy_native:
+                        raise ValueError("Product Brief already reserved a different Studio template version")
+                if dict(existing[1] or {}).get("creative_direction") != creative_direction:
                     raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 creative_created = False
             else:
@@ -712,7 +745,7 @@ class DatabaseStudioAuthority:
                        ) VALUES(%s,%s,%s,1,'brief_generation',%s,'queued',%s,%s)""",
                     (
                         creative_id, brief[0], brief_uuid, template_id, requested_by,
-                        Jsonb({} if creative_direction is None else {"creative_direction": creative_direction}),
+                        Jsonb(generation),
                     ),
                 )
                 self.repository._insert_edge(

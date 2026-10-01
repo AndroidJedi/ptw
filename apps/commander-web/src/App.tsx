@@ -140,7 +140,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     const requested = preferredId || new URLSearchParams(window.location.search).get('project')
     const nextId = value.items.some((item) => item.project_id === requested)
       ? requested
-      : value.items[0]?.project_id || null
+      : null
     setProjectId(nextId)
     if (resetChildren) {
       setCreativeId(null)

@@ -15,7 +15,8 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from validation_pipeline.domain import _text, require_language
+from validation_pipeline.domain import _text, require_language, parse_product_brief
+from validation_pipeline.marketing import verified_settings
 from validation_pipeline.local_brief_store import LocalBriefStore
 from validation_pipeline.local_briefs import LocalBriefService
 from validation_pipeline.local_codex import LocalCodexStructuredProvider
@@ -31,6 +32,65 @@ IDEAS = {
 }
 
 
+def trial_review(destination, model):
+    """Run Natal's bounded visual review; retain original renders and raw art."""
+    import re
+    from validation_pipeline.creation_studio import artifact, apply_edits, EDIT_SCHEMA
+    provider = LocalCodexStructuredProvider(model=model, reasoning_effort='xhigh')
+    skill = (ROOT / 'skills/natal-creation-studio/SKILL.md').read_text()
+    for saved in sorted(destination.glob('*/example.json')):
+        entry = json.loads(saved.read_text())
+        folder = saved.parent
+        docs = {s: seed(s) for s in ('post', 'landing')}
+        if sha(docs) != entry['template_pair_sha256'] or entry['model'] != model:
+            raise ValueError('Keep the saved template/model for the visual review')
+        art = (folder / 'artwork.png').read_bytes()
+        for attempt in range(3):
+            previews = {}
+            for surface, doc in docs.items():
+                assets = {c['id']: {'bytes': art, 'mime_type': 'image/png'} for c in doc['components']
+                          if c['type'] in {'image', 'phone', 'cutout_image'} and c['role'] in {'hero', 'secondary_media'}}
+                for mobile in ([False, True] if surface == 'landing' else [False]):
+                    name = f"{surface}-{'mobile' if mobile else 'desktop'}"
+                    result = render(doc, surface=surface, mobile=mobile, content=entry['bindings'][surface], assets=assets)
+                    if geometry(result)[1]:
+                        raise ValueError('Trial review introduced layout geometry failures')
+                    previews[name] = result['bytes']
+                    (folder / f'{name}-reviewed.png').write_bytes(result['bytes'])
+            def validate(value):
+                if set(value) != {'ready', 'issues', 'edits'} or type(value['ready']) is not bool or not isinstance(value['issues'], list) or len(value['issues']) > 6:
+                    raise ValueError('Invalid visual review')
+                if any(not isinstance(v, str) or not 1 <= len(v) <= 300 for v in value['issues']) or value['ready'] != (not value['issues']):
+                    raise ValueError('Readiness must match bounded issues')
+                if not isinstance(value['edits'], list) or len(value['edits']) > 8 or (value['ready'] and value['edits']):
+                    raise ValueError('Inspect revised pixels before declaring ready')
+                for edit in value['edits']:
+                    if not re.fullmatch(r'components\.[a-z][a-z0-9_]*\.(fit|focal_x|focal_y|box|mobile_box|font_size)', str(edit.get('path', ''))):
+                        raise ValueError('Only layout/framing patches are permitted')
+                apply_edits(docs, value['edits'])
+                return value
+            receipt = folder / f'visual-review-{attempt}.json'
+            if receipt.exists():
+                result = json.loads(receipt.read_text())
+            else:
+                result = provider.call(mode='template_creation', system_prompt=skill,
+                    input_payload={'phase': 'review', 'brief': entry['brief'], 'definitions': docs,
+                        'image_order': list(previews), 'editable_surface': 'all',
+                        'rule': 'Inspect actual bound renders: readable copy, complete subjects, Brief-aligned art and no invented proof. Check product recognition and the identity-bearing action in every crop. For framing/spacing defects return up to eight components.ID.fit/focal_x/focal_y/box/mobile_box/font_size patches. Prefer contain for complete subjects. Do not change content, colors or assets. Return ready false until patched renders have been inspected.'},
+                    output_schema=obj({'ready': {'type': 'boolean'}, 'issues': {'type': 'array', 'items': text_schema(300), 'maxItems': 6},
+                        'edits': {'type': 'array', 'items': EDIT_SCHEMA, 'maxItems': 8}}),
+                    input_artifacts=[artifact(data, i+1) for i, data in enumerate(previews.values())],
+                    idempotency_key=f'private-visual-review:{uuid4()}', prompt_version='natal-creation-v3', response_validator=validate)
+                receipt.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+            value = validate(result['response'])
+            (folder / 'reviewed-layout.json').write_text(json.dumps({'documents': docs, 'review': value}, ensure_ascii=False, indent=2))
+            if value['ready'] or not value['edits'] or attempt == 2:
+                print(json.dumps({'case': entry['case'], 'review': value}, ensure_ascii=False), flush=True)
+                break
+            docs = apply_edits(docs, value['edits'])
+    trial_gallery(destination)
+
+
 def trial_artwork(destination, model):
     """Generate artwork for completed pairs without repeating Brief/copy calls."""
     def create(saved):
@@ -40,7 +100,10 @@ def trial_artwork(destination, model):
         path = saved.parent
         prompt = ("Create artwork for this Natal concept. No logos, advertising text, metrics or testimonials. "
                   + entry["image_direction"] + "\nBrief positioning (hypothesis, not evidence): "
-                  + json.dumps(entry["brief"]["positioning"], ensure_ascii=False))
+                  + json.dumps(entry["brief"]["positioning"], ensure_ascii=False)
+                  + (("\nBrand identity (creative direction, not capabilities): "
+                      + json.dumps(entry["brief"]["brand_identity"], ensure_ascii=False))
+                     if "brand_identity" in entry["brief"] else ""))
         receipt = path / "artwork-source.json"
         if receipt.exists():
             source = json.loads(receipt.read_text())
@@ -73,7 +136,10 @@ def trial_artwork(destination, model):
 
 def trial_gallery(destination):
     rows = []
-    for case in IDEAS:
+    reviewed = any(destination.glob('*/post-desktop-reviewed.png'))
+    review_options = '<option value="post-desktop-reviewed">Post after visual review</option><option value="landing-mobile-reviewed">Mobile after visual review</option>' if reviewed else ''
+    cases = sorted({json.loads(p.read_text())["case"] for p in destination.glob("*/example.json")})
+    for case in cases:
         cards = []
         for selected in ("benefit_led", "identity_led"):
             folder = f"{case}-{selected}"
@@ -83,8 +149,13 @@ def trial_gallery(destination):
             entry = json.loads(saved.read_text())
             position = entry["brief"]["positioning"]
             title = "Benefit-led" if selected == "benefit_led" else "Identity-led"
+            brand = entry["brief"].get("brand_identity", {})
+            brand_html = ('<details open><summary>Brand identity</summary><dl>'
+                          + ''.join(f'<dt><b>{escape(key.replace("_", " ").title())}</b></dt><dd>{escape(value)}</dd>'
+                                    for key, value in brand.items() if value) + '</dl></details>') if brand else ''
             cards.append(f'<article><h2>{title}</h2><p>{escape(entry["brief"]["promise"])}</p>'
                          f'<p><b>Functional value:</b> {escape(position["functional_value"])}</p>'
+                         + brand_html +
                          f'<img data-folder="{folder}" src="{folder}/post-desktop-artwork.png" alt="{title} private {case} draft">'
                          f'<p><a href="{folder}/brief.json">Brief JSON</a> · <a href="{folder}/example.json">Copy and provenance</a> · '
                          f'<a href="{folder}/artwork-source.json">Artwork provenance</a></p></article>')
@@ -92,10 +163,10 @@ def trial_gallery(destination):
     (destination / "index.html").write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Private marketing approach trial</title><style>
 body{font:16px/1.5 system-ui,sans-serif;background:#f5f6f8;color:#182333;max-width:1300px;margin:auto;padding:24px}h1{font-size:28px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}article{background:white;padding:20px;border-radius:16px}img{width:100%;height:auto}select{font:inherit;padding:10px;min-height:44px;margin:8px}a{color:#254aa5}section[hidden]{display:none}@media(max-width:650px){.pair{grid-template-columns:1fr}body{padding:12px}}
-</style><h1>Private marketing approach trial</h1><p>Real Brief, copy and artwork generation. Within each pair: same idea, language, selected model and template. Private drafts; no conversion evidence or performance winner.</p>
+</style><h1>Private marketing approach trial</h1><p>Real Brief, copy and artwork generation. Paired trials hold idea, language, model and template constant. Private drafts; no conversion evidence or performance winner.</p>
 <p><a href="README.md">Full copy comparison</a> · <a href="../../docs/architecture/marketing-approaches-trial.md">Review and limitations</a></p>
-<label>Idea <select id="idea"><option value="water">Consumer utility: water labels</option><option value="mentor">Personal service: mentoring</option><option value="maintenance">Business tool: repair tracker</option></select></label>
-<label>Preview <select id="surface"><option value="post-desktop-artwork">Post with artwork</option><option value="landing-desktop-artwork">Landing desktop</option><option value="landing-mobile-artwork">Landing mobile</option><option value="post-desktop">Post with fixed neutral artwork</option></select></label>
+<label>Idea <select id="idea">''' + ''.join(f'<option value="{escape(case)}">{escape(case.title())}</option>' for case in cases) + '''</select></label>
+<label>Preview <select id="surface">''' + review_options + '''<option value="post-desktop-artwork">Post with artwork</option><option value="landing-desktop-artwork">Landing desktop</option><option value="landing-mobile-artwork">Landing mobile</option><option value="post-desktop">Post with fixed neutral artwork</option></select></label>
 ''' + "".join(rows) + '''<script>
 const idea=document.getElementById('idea'),surface=document.getElementById('surface');
 function update(){document.querySelectorAll('section[data-case]').forEach(s=>s.hidden=s.dataset.case!==idea.value);document.querySelectorAll('img[data-folder]').forEach(i=>i.src=i.dataset.folder+'/'+surface.value+'.png')}
@@ -108,11 +179,16 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=ROOT / ".local/marketing-approaches-trial")
     parser.add_argument("--model", default="gpt-6-astra")
     parser.add_argument("--artwork-only", action="store_true", help="Generate private artwork for completed examples; keep fixed-art previews")
+    parser.add_argument("--brief-file", type=Path, help="Use one completed private Brief receipt without regenerating or approving it")
+    parser.add_argument("--review-only", action="store_true", help="Review existing artwork renders with bounded layout overrides; retain originals")
     args = parser.parse_args()
     destination = args.output_dir.resolve()
     if not destination.is_relative_to(ROOT / ".local"):
         raise ValueError("Trial output must stay in the private .local directory")
     destination.mkdir(parents=True, exist_ok=True)
+    if args.review_only:
+        trial_review(destination, args.model)
+        return
     if args.artwork_only:
         trial_artwork(destination, args.model)
         return
@@ -125,26 +201,39 @@ def main():
     fields = {s: {c["id"]: text_schema(500) for c in doc["components"] if c["type"] in {"text", "button"}} for s, doc in definitions.items()}
     schema = obj({"bindings": obj({s: obj(v) for s, v in fields.items()}), "image_direction": text_schema(1800), "replace_image": {"type": "boolean"}})
     skill = (ROOT / "skills/natal-creation-studio/SKILL.md").read_text()
+    pinned = None
+    if args.brief_file:
+        pinned = json.loads(args.brief_file.read_text())
+        settings = verified_settings(pinned.get('generation_settings'))
+        parsed = parse_product_brief(pinned['document'], raw_idea=pinned['raw_idea'],
+            required_language=pinned['document']['language'], generation_settings=settings)
+        if pinned['status'] != 'completed' or parsed.digest != pinned['document_sha256']:
+            raise ValueError('Expected a completed Brief with matching immutable document digest')
+    ideas = {'owner-example': pinned['raw_idea']} if pinned else IDEAS
+    approaches = [pinned['document']['positioning']['marketing_approach']] if pinned else ['benefit_led', 'identity_led']
+    language = pinned['document']['language'] if pinned else 'en'
     entries = []
-    for case, idea in IDEAS.items():
-        for selected in ("benefit_led", "identity_led"):
+    for case, idea in ideas.items():
+        for selected in approaches:
             path = destination / f"{case}-{selected}"
             path.mkdir(exist_ok=True)
             saved = path / "example.json"
             if saved.exists():
                 entry = json.loads(saved.read_text())
-                if (entry["raw_idea"], entry["model"], entry["language"], entry["template_pair_sha256"]) != (idea, args.model, "en", sha(definitions)):
+                if (entry["raw_idea"], entry["model"], entry["language"], entry["template_pair_sha256"]) != (idea, args.model, language, sha(definitions)) or (pinned and entry['brief_sha256'] != pinned['document_sha256']):
                     raise ValueError("Saved trial inputs changed; use another private output directory")
                 entries.append(entry)
                 continue
             name = f"Private trial: {case} / {selected}"
             existing = next((p for p in briefs.list_projects() if p["name"] == name), None)
-            if existing:
+            if pinned:
+                brief = pinned
+            elif existing:
                 brief = briefs.get_brief(existing["latest_brief_id"])
             else:
                 project, _ = briefs.create_project(request_id=str(uuid4()), name=name, requested_by="private-marketing-trial")
                 _, brief, _ = briefs.create_brief(project_id=project["project_id"], request_id=str(uuid4()), raw_idea=idea,
-                    required_language="en", requested_by="private-marketing-trial", marketing_approach=selected)
+                    required_language=language, requested_by="private-marketing-trial", marketing_approach=selected)
             if brief["status"] == "queued":
                 brief = briefs.generate_brief(brief["brief_id"])
             if brief["status"] != "completed":
@@ -161,7 +250,7 @@ def main():
                             raise ValueError("Copy must be text")
                         bounded_text(copy, 500, identifier)
                         _text(copy, identifier, 500)
-                    require_language("en", list(value["bindings"][surface].values()), "Trial copy")
+                    require_language(language, list(value["bindings"][surface].values()), "Trial copy")
                 if not isinstance(value["image_direction"], str) or not 24 <= len(value["image_direction"]) <= 1800:
                     raise ValueError("Image direction must be concrete and bounded")
                 return value
@@ -170,14 +259,14 @@ def main():
                 result = json.loads(binding_path.read_text())
             else:
                 result = provider.call(mode="template_creation", system_prompt=skill,
-                    input_payload={"phase": "bind", "brief": brief["document"], "language": "en", "definitions": constraints,
+                    input_payload={"phase": "bind", "brief": brief["document"], "language": language, "definitions": constraints,
                                    "owner_edit": None, "previous_bindings": {}, "fit_failures": {}, "has_images": False},
-                    output_schema=schema, idempotency_key=f"private-marketing-trial:{uuid4()}", prompt_version="natal-creation-v1",
+                    output_schema=schema, idempotency_key=f"private-marketing-trial:{uuid4()}", prompt_version="natal-creation-v3",
                     response_validator=validate)
                 binding_path.write_text(json.dumps(result, ensure_ascii=False, indent=2))
             value = result["response"]
             entry = {"case": case, "approach": selected, "raw_idea": idea, "model": args.model, "reasoning_effort": "xhigh",
-                "language": "en", "template_pair_sha256": sha(definitions), "brief_id": brief["brief_id"],
+                "language": language, "template_pair_sha256": sha(definitions), "brief_id": brief["brief_id"],
                 "brief_sha256": brief["document_sha256"], "policy_sha256": brief["generation_settings"]["policy_sha256"],
                 "brief": brief["document"], **value, "geometry": {}, "copy_invocation": result["invocation"],
                 "artwork": "Fixed neutral renderer fixture; not generated marketing artwork or performance evidence"}

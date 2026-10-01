@@ -73,7 +73,7 @@ test('opens the built-in Landing template through its exact version route', asyn
   await expect(page.getByRole('button', { name: 'Edit template' })).toBeEnabled()
 })
 
-test('App Showcase opens before its preview completes and retains both versions after restart', async ({ page, backend }, info) => {
+test('App Showcase opens before its preview completes and retains all three versions after restart', async ({ page, backend }, info) => {
   test.setTimeout(120000)
   await page.goto('/?page=templates')
   await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
@@ -84,7 +84,7 @@ test('App Showcase opens before its preview completes and retains both versions 
   await expect(page.getByText('Built-in · edits create a derivative')).toBeVisible()
   expect(Date.now() - started).toBeLessThan(10000)
   await expect(page.getByRole('button', { name: 'Edit template' })).toBeEnabled()
-  await expect(page.getByLabel('Version').locator('option')).toHaveText(['v1', 'v2'])
+  await expect(page.getByLabel('Version').locator('option')).toHaveText(['v1', 'v2', 'v3'])
   await expect(page.locator('.template-detail img')).toHaveCount(2, { timeout: 45000 })
   await expect(page.locator('.template-detail img').first()).toHaveJSProperty('naturalWidth', 1280)
   await page.screenshot({ path: info.outputPath('app-showcase-restored.png'), fullPage: true })
@@ -221,10 +221,10 @@ test('App Showcase has native desktop/mobile previews and an exact built-in iden
   await page.locator('.template-filter').getByRole('button', { name: 'Landing', exact: true }).click()
   const card = page.locator('.template-gallery .template-card').filter({ hasText: 'App Showcase' })
   await expect(card.locator('img')).toBeVisible({ timeout: 30000 })
-  const response = page.waitForResponse(r => r.url().includes('/landing/app_showcase/versions/2?sha256='))
+  const response = page.waitForResponse(r => r.url().includes('/landing/app_showcase/versions/3?sha256='))
   await card.getByRole('button', { name: 'Open template' }).click()
   const body = await (await response).json()
-  expect(body).toMatchObject({ template_id: 'app_showcase', template_version: 2, builtin: true })
+  expect(body).toMatchObject({ template_id: 'app_showcase', template_version: 3, builtin: true })
   expect(Object.keys(body.previews)).toEqual(expect.arrayContaining(['desktop', 'mobile']))
-  await expect(page.locator('.template-detail')).toContainText('App Showcase · v2')
+  await expect(page.locator('.template-detail')).toContainText('App Showcase · v3')
 })

@@ -184,7 +184,7 @@ def post_definition(record):
         default_configuration=PHONE_METRICS_DEFINITION.default_configuration,
         default_content=lambda: bind_content(doc, PHONE_METRICS_DEFINITION.default_content()),
         normalize_configuration=configuration, normalize_content=content,
-        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",), supports_generation=False),
+        component_settings=settings, capabilities=TemplateCapabilities(image_slots=("phone_screen",)),
         renderer_key="post.declarative.pillow.v1", editor_key="post.declarative.react",
         build_template=build, semantic_data=lambda configuration, value: {},
         asset_slots=PHONE_METRICS_DEFINITION.asset_slots,

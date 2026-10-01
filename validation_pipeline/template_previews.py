@@ -43,6 +43,10 @@ def landing_fixture(template_id="project_landing", *, reference=None) -> dict:
     if template_id == "app_showcase":
         content.pop("app_feature", None)
         content["app_screens"] = [{"title": f"Step {i + 1}", "description": "Project-specific app screen", "visual_direction": "Neutral interface preview"} for i in range(3)]
+        if definition.identity.template_version >= 3:
+            content["hero"].update(eyebrow="Your space. Your possibilities.", bullets=[
+                "A clear place for your next task", "An app screen for each step", "One simple action to get started",
+            ])
     if "marketing" in content:
         m = content["marketing"]
         m.update(introduction="Your app, everyday possibilities.", comparison_heading="A simpler way with Natal", walkthrough_heading="How it works", benefits_heading="Made for everyday tasks", benefits_supporting="A clear, connected experience", benefit_highlight_title="Your next step", benefit_highlight_text="Project-specific benefit", cta_heading="Explore the app", cta_text="Start with one simple step")

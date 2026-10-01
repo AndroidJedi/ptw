@@ -7,6 +7,8 @@ SCREEN_SLOTS = ("app_screen_1", "app_screen_2", "app_screen_3")
 VISUAL_SLOTS = (*SCREEN_SLOTS, "visual_break_visual")
 DEFAULT_SCREENS = [{"title": "", "description": "", "visual_direction": ""} for _ in SCREEN_SLOTS]
 DEFAULT_SHOWCASE = {"gradient_end": "#08cbb5", "screen_scale": 1.0, "screen_offset": 32}
+HERO_BODY_MODES = ("text", "bullets")
+DEFAULT_HERO_BULLETS = ["", "", ""]
 
 
 def screen_direction(content: Mapping[str, Any], slot: str) -> str:
@@ -29,13 +31,18 @@ def normalize_screens(value: Any) -> list[dict]:
 def normalize_showcase(value: Any) -> dict:
     import math
     from .landing_workspace import _object, _color
-    value = _object(value, set(DEFAULT_SHOWCASE), "showcase")
+    if not isinstance(value, Mapping) or set(value) not in (set(DEFAULT_SHOWCASE), set(DEFAULT_SHOWCASE) | {"hero_body_mode"}):
+        raise ValueError("App Showcase configuration fields are invalid")
     result = {"gradient_end": _color(value["gradient_end"], "gradient end")}
     for key, low, high in (("screen_scale", .8, 1.15), ("screen_offset", 0, 64)):
         number = value[key]
         if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number) or not low <= number <= high:
             raise ValueError(f"App Showcase {key} is invalid")
         result[key] = number
+    if "hero_body_mode" in value:
+        if value["hero_body_mode"] not in HERO_BODY_MODES:
+            raise ValueError("App Showcase hero body mode is invalid")
+        result["hero_body_mode"] = value["hero_body_mode"]
     return result
 
 
@@ -109,6 +116,33 @@ def enhanced_catalog():
     value["template_version"] = 2
     value["visual_slots"] = [*VISUAL_SLOTS, "walkthrough_visual"]
     value["sha256"] = sha256_json({"configuration": enhanced_configuration(), "content": enhanced_content(), "renderer": 2})
+    return value
+
+
+def v3_configuration():
+    value = enhanced_configuration()
+    value["showcase"]["hero_body_mode"] = "bullets"
+    return value
+
+
+def v3_content():
+    value = enhanced_content()
+    value["hero"].update(eyebrow="", bullets=deepcopy(DEFAULT_HERO_BULLETS))
+    return value
+
+
+def v3_catalog():
+    from .landing_workspace import sha256_json
+    value = deepcopy(enhanced_catalog())
+    value["template_version"] = 3
+    hero = next(component for component in value["components"] if component["role"] == "hero")
+    hero["setting_ids"].extend(("content.hero.eyebrow", "content.hero.bullets", "configuration.showcase.hero_body_mode"))
+    value["setting_definitions"].extend([
+        {"setting_id": "content.hero.eyebrow", "component_id": hero["component_id"], "value_type": "string"},
+        {"setting_id": "content.hero.bullets", "component_id": hero["component_id"], "value_type": "structured"},
+        {"setting_id": "configuration.showcase.hero_body_mode", "component_id": hero["component_id"], "value_type": "enum", "values": list(HERO_BODY_MODES)},
+    ])
+    value["sha256"] = sha256_json({"configuration": v3_configuration(), "content": v3_content(), "renderer": 3})
     return value
 
 

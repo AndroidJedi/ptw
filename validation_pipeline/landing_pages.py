@@ -43,7 +43,7 @@ from .studio_manual_agent import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
-LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v5"
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v6"
 
 
 def _uuid(value: str, field: str) -> str:
@@ -111,7 +111,7 @@ def _assert_variant_retry(page, source_creative_id, source_version, reference):
         raise RuntimeError("Landing request ID was already used for another template or source")
 
 
-def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketing: bool = False) -> dict[str, Any]:
+def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketing: bool = False, template_version: int | None = None) -> dict[str, Any]:
     """Return only the bounded AI-owned portion of a Landing composition."""
     result = {
         "type": "object",
@@ -160,6 +160,15 @@ def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketi
         for key, maximum in (("title", 90), ("description", 300), ("visual_direction", 600)):
             content["app_screens"]["items"]["properties"][key].update(minLength=8 if key == "visual_direction" else 1, maxLength=maximum)
         result["properties"]["content"]["required"].append("app_screens")
+        if template_version is None or template_version >= 3:
+            hero = content["hero"]
+            hero["properties"]["eyebrow"] = {"type": "string", "maxLength": LANDING_CONTENT_LIMITS["hero.eyebrow"][1]}
+            hero["properties"]["bullets"] = {
+                "type": "array", "items": {"type": "string", "minLength": 1,
+                                          "maxLength": LANDING_CONTENT_LIMITS["hero.bullet"][1]},
+                "minItems": 3, "maxItems": 3,
+            }
+            hero["required"].extend(("eyebrow", "bullets"))
     if marketing:
         from .landing_marketing import DEFAULT_CONTENT as MARKETING, TEXT_LIMITS, URL_FIELDS
         content["marketing"] = _json_schema(MARKETING)
@@ -186,7 +195,11 @@ def landing_composition_payload(
     active_creative_skills: Mapping[str, Any], live_landing_catalog: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the one canonical, bounded payload used by runtime and canaries."""
-    definition = LANDING_TEMPLATE_REGISTRY.get(str(live_landing_catalog.get("template_id")))
+    definition = LANDING_TEMPLATE_REGISTRY.resolve_reference({
+        "template_id": live_landing_catalog.get("template_id"),
+        "template_version": live_landing_catalog.get("template_version"),
+        "template_sha256": live_landing_catalog.get("sha256"),
+    })
     if live_landing_catalog.get("template_id") != definition.identity.template_id:
         raise ValueError("Landing generation catalog is not registered")
     post_reference = {
@@ -1241,7 +1254,7 @@ class LandingService:
             else:
                 result = self._provider_call(
                     mode="studio_creative_generation", system_prompt=self.composer_skill,
-                    input_payload=payload, output_schema=landing_generation_schema(detail["template_id"], marketing="marketing" in detail["configuration"]),
+                    input_payload=payload, output_schema=landing_generation_schema(detail["template_id"], marketing="marketing" in detail["configuration"], template_version=detail["template_reference"]["template_version"] if detail.get("template_reference") else None),
                     idempotency_key=f"landing-page:{landing_id}", prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
                     response_validator=validate_landing_composition,
                 )

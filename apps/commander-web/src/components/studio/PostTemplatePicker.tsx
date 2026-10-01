@@ -3,7 +3,7 @@ import { LayoutTemplate, X } from 'lucide-react'
 import { ApiFailure, type ApiClient } from '../../api'
 import type { Language } from '../../i18n'
 import type { StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent, StudioPhoneMetricsDetail } from '../../types'
-import { TemplateImage } from '../../views/TemplatesView'
+import { TemplateImage } from '../TemplateImage'
 
 type Choice = { surface: 'post'; template_id: string; template_version: number; template_sha256: string; name: string; preview_status?: string; previews: Record<string, { sha256: string; definition_sha256: string }> }
 export function PostTemplatePicker({ api, language, basePath, detail, configuration, content, disabled, onApply }: {

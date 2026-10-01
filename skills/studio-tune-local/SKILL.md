@@ -112,9 +112,12 @@ off, preserve that choice across successful fresh generations and failed
 retries. Keep generation pending state separate from other editor mutations,
 show the active operation, and prove that success, rejection, and timeout all
 restore an actionable Generate & apply control. Do not silently leave a failed
-current thumbnail as an empty placeholder: retry bounded transient authenticated
-media failures, expose a keyboard-operable manual retry after exhaustion, and
-retain digest/MIME verification on every attempt.
+current thumbnail as an empty placeholder. Load raw artwork history only when
+the owner opens its inspector in the selected Project. Use the bounded media
+deadline, expose a keyboard-operable retry on failure, and do not run automatic
+retry loops. History GETs must authorize the exact Project/creative without
+building the full editor detail; retain digest/MIME verification on every read.
+Test collapsed-panel zero requests, manual recovery and cross-Project rejection.
 
 Natal logo tuning may expose only the shared symbol color and `NATAL` name color.
 Keep canonical alpha, dimensions, spacing, type, and placement geometry fixed;
@@ -146,7 +149,11 @@ reset-to-preset operation is not a content-preserving template switch.
 Verify the full apply/edit/preview/save/approve/restart path against real local
 HTTP and disposable PostgreSQL. Clone and Landing-source reads must resolve the
 approved record's template, never infer it from the creative's current layout.
-Keep initial Brief generation on its supported composer definitions. Authored
+Keep initial Brief generation on the exact selected accepted Post definition.
+The chooser uses the accepted gallery, not only the built-in Studio catalog;
+create the first draft on that version and preserve its version/digest through
+retry and restart. Additional generated creatives from an approved Brief use
+the same choice before reservation. Authored
 layouts expose their own text fields and use the shared image workflow and
 instruction/screenshot Agent panel. Derive authored Agent paths from the exact
 accepted definition, including font/palette defaults; omit hidden legacy Phone

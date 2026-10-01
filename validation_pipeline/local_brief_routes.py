@@ -131,10 +131,10 @@ def local_brief_router(
     ) -> dict[str, Any]:
         template_id = str(request.get("template_id") or "")
         expected = (
-            {"honor_confirmed", "template_id", "creative_direction"}
-            if template_id == "phone_metrics" else {"honor_confirmed", "template_id"}
+            {"honor_confirmed", "template_id", "creative_direction"},
+            {"honor_confirmed", "template_id", "template_reference", "creative_direction"},
         )
-        if set(request) != expected or request.get("honor_confirmed") is not True:
+        if set(request) not in expected or request.get("honor_confirmed") is not True:
             raise HTTPException(status_code=400, detail="Brief approval requires explicit honor confirmation")
         try:
             value, created, creative, creative_created = (
@@ -143,6 +143,7 @@ def local_brief_router(
                     requested_by="loopback:owner",
                     brief_approver=service.approve_brief,
                     creative_direction=request.get("creative_direction"),
+                    template_reference=request.get("template_reference"),
                 )
             )
             if creative_created:

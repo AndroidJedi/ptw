@@ -1,6 +1,6 @@
-import { useId } from 'react'
+import { Fragment, useId } from 'react'
 import type { Language } from '../i18n'
-import type { MarketingApproach, ProductBriefDocument } from '../types'
+import type { BriefBrandIdentity, MarketingApproach, ProductBriefDocument } from '../types'
 
 export function approachLabel(value: MarketingApproach, language: Language) {
   return value === 'identity_led' ? (language === 'uk' ? 'Через ідентичність' : 'Identity-led') : (language === 'uk' ? 'Через практичну користь' : 'Benefit-led')
@@ -35,7 +35,28 @@ export function BriefContent({ value, language }: { value: ProductBriefDocument;
       <dt>{tr('Category framing', 'Контекст продукту')}</dt><dd>{positioning.category_frame}</dd>
       <dt>{tr('Functional value', 'Практична користь')}</dt><dd>{positioning.functional_value}</dd>
     </dl></section>}
+    {value.brand_identity && <section aria-label={tr('Brand identity', 'Ідентичність бренду')}>
+      <small>{tr('BRAND IDENTITY', 'ІДЕНТИЧНІСТЬ БРЕНДУ')}</small>
+      <h2>{value.brand_identity.belief}</h2>
+      <p>{tr('A brand hypothesis guiding copy and imagery.', 'Гіпотеза бренду, що визначає тексти й образи.')}</p>
+      <dl className="brief-brand-fields">{brandFields.map(([key, en, uk]) => value.brand_identity?.[key] && <Fragment key={key}>
+        <dt>{tr(en, uk)}</dt><dd>{value.brand_identity[key]}</dd>
+      </Fragment>)}</dl>
+    </section>}
     <section><small>{tr('STRONG VALIDATION OFFER', 'СИЛЬНА ВАЛІДАЦІЙНА ПРОПОЗИЦІЯ')}</small><h2>{value.offer}</h2><p>{value.trust_strategy}</p></section>
     <section><small>{tr('KEY BENEFITS', 'КЛЮЧОВІ ПЕРЕВАГИ')}</small><ul>{value.key_benefits.map(item => <li key={item}>{item}</li>)}</ul></section>
   </div>
 }
+
+const brandFields: [keyof BriefBrandIdentity, string, string][] = [
+  ['identity_signal', 'What choosing us says about me', 'Що цей вибір говорить про мене'],
+  ['values', 'Values we share', 'Спільні цінності'],
+  ['cultural_tension', 'Convention we challenge', 'З якою звичкою ми не згодні'],
+  ['category_reframe', 'A new way to see the product', 'Новий погляд на продукт'],
+  ['emotional_reward', 'How I want to feel', 'Як я хочу почуватися'],
+  ['competence_cue', 'How the choice makes me more capable', 'Що допомагає діяти зі знанням справи'],
+  ['proof_anchor', 'The practical reason to believe', 'Практична опора обіцянки'],
+  ['voice', 'Brand voice', 'Голос бренду'],
+  ['visual_world', 'Visual world', 'Візуальний світ'],
+  ['ritual', 'A shared ritual', 'Спільний ритуал'],
+]

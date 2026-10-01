@@ -412,7 +412,7 @@ class LocalBriefService:
         excluded = {
             "product", "target_audience", "main_pain", "promise", "key_benefits",
             "cta", "trust_strategy", "offer", "document", "document_sha256",
-            "quality_gates", "provider_invocation_id", "project_name", "positioning", "schema_version", "generation_settings",
+            "quality_gates", "provider_invocation_id", "project_name", "positioning", "brand_identity", "schema_version", "generation_settings",
         }
         replacement = {
             **{key: value for key, value in base.items() if key not in excluded},

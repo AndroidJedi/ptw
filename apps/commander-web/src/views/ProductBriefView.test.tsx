@@ -120,10 +120,12 @@ describe('Product Brief workspace', () => {
     const get = vi.fn(async (path: string) => {
       if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
       if (path === '/api/v1/briefs/brief-1') return brief
-      if (path === '/api/v1/studio/templates') return { items: [{
-        template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
-        canvas: { width: 1080, height: 1080 }, template_version: 1,
-        template_sha256: 'a'.repeat(64),
+      if (path === '/api/v1/templates?surface=post') return { items: [{
+        surface: 'post', template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
+        template_version: 1, template_sha256: 'a'.repeat(64), previews: {},
+      }, {
+        surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', name: 'Editorial Post', description: 'Accepted layout',
+        template_version: 3, template_sha256: 'b'.repeat(64), previews: {},
       }] }
       throw new Error(`Unexpected GET ${path}`)
     })
@@ -143,13 +145,14 @@ describe('Product Brief workspace', () => {
 
     await screen.findByText('Move faster')
     fireEvent.click(screen.getByRole('button', { name: /I can honor this promise/ }))
-    fireEvent.click(await screen.findByRole('button', { name: /Phone Metrics/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Editorial Post/ }))
     fireEvent.click(screen.getByDisplayValue('cinematic'))
     fireEvent.click(screen.getByDisplayValue('scene'))
     fireEvent.click(screen.getByRole('button', { name: 'Approve Brief & generate creative' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/briefs/brief-1/approve', {
-      honor_confirmed: true, template_id: 'phone_metrics',
+      honor_confirmed: true, template_id: 'design_aaaaaaaaaaaaaaaaaaaa',
+      template_reference: { surface: 'post', template_id: 'design_aaaaaaaaaaaaaaaaaaaa', template_version: 3, template_sha256: 'b'.repeat(64) },
       creative_direction: {
         schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
       },
@@ -213,10 +216,9 @@ describe('Product Brief workspace', () => {
       if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
       if (path === '/api/v1/briefs/brief-1') return brief
       if (path === '/api/v1/studio/projects/project-1/creatives') return { items: [] }
-      if (path === '/api/v1/studio/templates') return { items: [{
-        template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
-        canvas: { width: 1080, height: 1080 }, template_version: 1,
-        template_sha256: 'a'.repeat(64),
+      if (path === '/api/v1/templates?surface=post') return { items: [{
+        surface: 'post', template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
+        template_version: 1, template_sha256: 'a'.repeat(64), previews: {},
       }] }
       throw new Error(`Unexpected GET ${path}`)
     })
@@ -240,6 +242,7 @@ describe('Product Brief workspace', () => {
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/briefs/brief-1/approve', {
       honor_confirmed: true, template_id: 'phone_metrics',
+      template_reference: { surface: 'post', template_id: 'phone_metrics', template_version: 1, template_sha256: 'a'.repeat(64) },
       creative_direction: {
         schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
       },

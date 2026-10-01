@@ -363,6 +363,11 @@ sections, domain gradients, optional motifs and complete generated walkthrough
 mockups. V1 remains resolvable by its exact identity. Existing original Landing
 pages can enable these sections explicitly in Studio without replacing their
 base template. Reference reviews are never displayed publicly or supplied as Project evidence.
+App Showcase v3 adds an editable Hero eyebrow and three editable bullet fields.
+The Hero body mode selects the existing supporting text or all three bullets;
+both sets of copy persist when switching. New composition supplies both from the
+approved Brief. Earlier v1/v2 identities and documents keep their exact catalogs
+and text rendering. The native gallery preview exercises the v3 bullet layout.
 Preserve the feedback section when adapting domains. Verified quotes require
 exact-product evidence; absent proof uses three labelled example expectations
 from this product's own benefits, with editable bounded `feedback_examples`.

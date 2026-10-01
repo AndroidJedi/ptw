@@ -58,6 +58,8 @@ LANDING_SECTION_OPTIONS = {
 LANDING_CONTENT_LIMITS = {
     "hero.title": (1, 140),
     "hero.supporting_text": (1, 360),
+    "hero.eyebrow": (1, 100),
+    "hero.bullet": (1, 160),
     "hero.cta_label": (1, 60),
     "hero.visual_direction": (8, 600),
     "feature.title": (1, 90),
@@ -282,7 +284,12 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     root = value
     if root.get("schema") != LANDING_CONTENT_SCHEMA:
         raise ValueError("Landing content schema is invalid")
-    hero = _object(root["hero"], set(DEFAULT_CONTENT["hero"]), "hero")
+    hero = root["hero"]
+    hero_fields = set(DEFAULT_CONTENT["hero"])
+    if not isinstance(hero, Mapping) or not hero_fields <= set(hero) or set(hero) - hero_fields - {"eyebrow", "bullets"}:
+        raise ValueError("Landing hero fields are invalid")
+    if ("eyebrow" in hero) != ("bullets" in hero):
+        raise ValueError("App Showcase hero eyebrow and bullets must be supplied together")
     visual_break = _object(root["visual_break"], set(DEFAULT_CONTENT["visual_break"]), "visual break")
     contacts = root["contacts"]
     contact_fields = set(DEFAULT_CONTENT["contacts"])
@@ -318,6 +325,12 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
             hero["visual_direction"], "hero.visual_direction", "hero visual direction",
         ),
     }
+    if "eyebrow" in hero:
+        bullets = hero["bullets"]
+        if not isinstance(bullets, list) or len(bullets) != 3:
+            raise ValueError("App Showcase hero requires exactly three bullets")
+        result["hero"]["eyebrow"] = bounded(hero["eyebrow"], "hero.eyebrow", "hero eyebrow")
+        result["hero"]["bullets"] = [bounded(item, "hero.bullet", f"hero bullet {index + 1}") for index, item in enumerate(bullets)]
     result["features"] = [
         {
             "title": bounded(_object(item, {"title", "description"}, "feature")["title"], "feature.title", "feature title"),
@@ -390,6 +403,8 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
         required.extend(item["label"] for item in result["app_feature"]["items"])
     if "app_screens" in result:
         required.extend(all(item.values()) for item in result["app_screens"])
+    if "bullets" in result["hero"]:
+        required.extend(result["hero"]["bullets"])
     required.extend(item["title"] and item["description"] for item in result["features"])
     required.extend(item["question"] and item["answer"] for item in result["faq"])
     if not all(required):
@@ -519,6 +534,12 @@ class LandingWorkspace:
         showcase = self.definition.identity.template_id == "app_showcase"
         if ("app_screens" in content) != showcase or ("showcase" in configuration) != showcase:
             raise ValueError("Landing content does not match its selected template")
+        has_hero_options = "bullets" in content["hero"]
+        if showcase and self.definition.identity.template_version >= 3:
+            if not has_hero_options or "hero_body_mode" not in configuration["showcase"]:
+                raise ValueError("App Showcase v3 requires editable hero options")
+        elif has_hero_options or (showcase and "hero_body_mode" in configuration["showcase"]):
+            raise ValueError("Landing hero options do not match its selected template")
 
     @staticmethod
     def _atomic_json(path: Path, value: Any) -> None:

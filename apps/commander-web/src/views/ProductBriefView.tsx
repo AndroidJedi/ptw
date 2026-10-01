@@ -6,8 +6,9 @@ import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
+import { TemplateImage } from '../components/TemplateImage'
 import type {
-  ProductBrief, MarketingApproach, StudioCreativeSummary, StudioTemplateSummary,
+  ProductBrief, MarketingApproach, StudioCreativeSummary, AcceptedPostTemplate,
   ValidationProject,
 } from '../types'
 
@@ -42,8 +43,9 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [approvalOpen, setApprovalOpen] = useState(false)
-  const [templates, setTemplates] = useState<StudioTemplateSummary[]>([])
-  const [templateId, setTemplateId] = useState<string>('')
+  const [templates, setTemplates] = useState<AcceptedPostTemplate[] | null>(null)
+  const [template, setTemplate] = useState<AcceptedPostTemplate | null>(null)
+  const [templateError, setTemplateError] = useState('')
   const [creativeDirection, setCreativeDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const load = async (preferredId?: string, targetProjectId = projectId) => {
@@ -100,12 +102,11 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const openApproval = async () => {
-    setApprovalOpen(true); setTemplateId(''); setCreativeDirection({ style: '', background: '' }); setError('')
-    if (templates.length) return
+    setApprovalOpen(true); setTemplates(null); setTemplate(null); setCreativeDirection({ style: '', background: '' }); setError(''); setTemplateError('')
     try {
-      const value = await api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates')
+      const value = await api.get<{ items: AcceptedPostTemplate[] }>('/api/v1/templates?surface=post', { deadlineMs: 120_000 })
       setTemplates(value.items)
-    } catch (cause) { setError((cause as Error).message); setApprovalOpen(false) }
+    } catch (cause) { setTemplateError((cause as Error).message) }
   }
   const openOrCreateCreative = async () => {
     if (!selected) return
@@ -123,15 +124,17 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const approve = async () => {
-    if (!selected || !templateId) return
+    if (!selected || !template) return
     const direction = creativeDirectionFromDraft(creativeDirection)
-    if (templateId === 'phone_metrics' && !direction) return
+    if (!direction) return
     const alreadyApproved = selected.approved
     setBusy(true); setError('')
     try {
       const result = await api.post<{ creative: StudioCreativeSummary }>(`/api/v1/briefs/${selected.brief_id}/approve`, {
-        honor_confirmed: true, template_id: templateId,
-        ...(templateId === 'phone_metrics' ? { creative_direction: direction } : {}),
+        honor_confirmed: true, template_id: template.template_id,
+        template_reference: { surface: 'post', template_id: template.template_id,
+          template_version: template.template_version, template_sha256: template.template_sha256 },
+        creative_direction: direction,
       })
       setApprovalOpen(false)
       setNotice(alreadyApproved
@@ -176,12 +179,19 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     </div>}
     {approvalOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-labelledby="brief-template-title">
       <header><div><small>{selected?.approved ? tr('CREATE CREATIVE', 'СТВОРИТИ КРЕАТИВ') : tr('APPROVE & CREATE', 'СХВАЛИТИ Й СТВОРИТИ')}</small><h2 id="brief-template-title">{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setApprovalOpen(false)}><X /></button></header>
-      <p>{tr('The selected common template will be populated from this approved Brief.', 'Обраний спільний шаблон буде заповнено на основі цього схваленого брифу.')}</p>
-      <div className="studio-template-grid">{templates.filter(template => template.capabilities?.supports_generation !== false).map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => { setTemplateId(template.template_id); if (template.template_id !== 'phone_metrics') setCreativeDirection({ style: '', background: '' }) }}>
-        <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
-      </button>)}</div>
-      {templateId === 'phone_metrics' && <PhoneHeroDirectionPicker language={language} value={creativeDirection} onChange={setCreativeDirection} disabled={busy} idPrefix="brief-creative-direction" />}
-      <button className="primary large" disabled={busy || !templateId || (templateId === 'phone_metrics' && !creativeDirectionFromDraft(creativeDirection))} onClick={() => void approve()}><Check />{selected?.approved ? tr('Create creative', 'Створити креатив') : tr('Approve Brief & generate creative', 'Схвалити бриф і згенерувати креатив')}</button>
+      <p>{tr('Choose the layout for this creative. It will be composed directly from this Brief.', 'Оберіть макет креативу. Він буде створений безпосередньо з цього брифу.')}</p>
+      {error && <p role="alert">{error}</p>}
+      {templateError && <p role="alert">{templateError} <button className="secondary" onClick={() => void openApproval()}>{tr('Retry', 'Повторити')}</button></p>}
+      {!templates && !templateError && <p role="status">{tr('Loading templates…', 'Завантаження шаблонів…')}</p>}
+      <div className="post-template-choices">{templates?.map((choice) => <article key={`${choice.template_id}:${choice.template_version}`} className={template?.template_sha256 === choice.template_sha256 ? 'is-selected' : ''}>
+        <TemplateImage api={api} preview={choice.previews?.desktop} label={choice.name} language={language} />
+        <button type="button" className="secondary" aria-pressed={template?.template_sha256 === choice.template_sha256} disabled={busy} onClick={() => setTemplate(choice)}>{choice.name} · v{choice.template_version}</button>
+        <small>{choice.description}</small>
+      </article>)}</div>
+      {templates?.length === 1 && <p>{tr('Accept another Post design in Templates to add it here.', 'Прийміть інший дизайн допису в Шаблонах, щоб додати його сюди.')}</p>}
+      {templates?.length === 0 && <p>{tr('No accepted Post templates are available.', 'Немає доступних прийнятих шаблонів дописів.')}</p>}
+      {template && <PhoneHeroDirectionPicker language={language} value={creativeDirection} onChange={setCreativeDirection} disabled={busy} idPrefix="brief-creative-direction" />}
+      <button className="primary large" disabled={busy || !template || !creativeDirectionFromDraft(creativeDirection)} onClick={() => void approve()}><Check />{selected?.approved ? tr('Create creative', 'Створити креатив') : tr('Approve Brief & generate creative', 'Схвалити бриф і згенерувати креатив')}</button>
     </section></div>}
   </>
 }

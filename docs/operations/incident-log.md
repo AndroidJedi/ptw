@@ -1,5 +1,24 @@
 # PTW incident log
 
+## 2026-09-30 — App Showcase template request stopped during composition
+
+Read-only PostgreSQL inspection of Template run
+`3fef5cae-57c1-42fc-85eb-9b6a7ac9f2ae` found a completed analysis followed by
+two failed `compose` invocations, each on its first attempt with `gpt-6-astra` /
+`xhigh`. The corresponding platform jobs ended with `TimeoutExpired` after about
+six minutes each. The run has zero comparisons and no proposal; it remains failed
+and resumable. Validation, Owner Gateway, worker and auth containers were healthy
+when inspected, which does not prove inference readiness. No retry, acceptance,
+template-authority write or production code change was made during diagnosis.
+
+The requested reusable Hero controls were absent from the native App Showcase
+definition: its eyebrow was hard coded and its body had only supporting text.
+The local repair adds v3 with an editable eyebrow, three distinct bullets and a
+text/bullets switch, preserving exact v1/v2 references. Template Creation guidance
+now separates provider timeouts before comparison from capability gaps. The local
+v3 implementation is tested but not deployed; the failed production run is not
+silently converted into an accepted template.
+
 ## 2026-09-29 — Landing copy-only Agent rejected its own context
 
 The owner's Ukrainian copy-improvement request failed during interpretation,

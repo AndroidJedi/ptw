@@ -45,14 +45,12 @@ function PhoneScreenHistoryOption({
   useEffect(() => {
     let disposed = false
     let objectUrl = ''
-    let retryTimer: number | undefined
-    let retry = 0
     setUrl('')
     setLoading(true)
     setLoadFailed(false)
     const load = () => void api.media(
         `${basePath}/phone-screen/history/${item.sha256}`,
-        item.mime_type, item.sha256,
+        item.mime_type, item.sha256, { deadlineMs: 60_000 },
       ).then((blob) => {
         objectUrl = URL.createObjectURL(blob)
         if (disposed) URL.revokeObjectURL(objectUrl)
@@ -62,18 +60,12 @@ function PhoneScreenHistoryOption({
         }
       }).catch(() => {
         if (disposed) return
-        if (retry < 2) {
-          retry += 1
-          retryTimer = window.setTimeout(load, retry * 750)
-          return
-        }
         setLoading(false)
         setLoadFailed(true)
       })
     load()
     return () => {
       disposed = true
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [api, basePath, item.mime_type, item.sha256, loadAttempt])
@@ -111,6 +103,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [busy, setBusy] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [artworkOpen, setArtworkOpen] = useState(false)
   const initialScreenAsset = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')
   const [screenDirection, setScreenDirection] = useState(() => {
     const source = initialScreenAsset?.source
@@ -751,6 +744,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           className="phone-screen-rule" eyebrow={authored ? tr('POST IMAGE', 'ЗОБРАЖЕННЯ ДОПИСУ') : tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}
           title={tr('Generate or enhance hero artwork', 'Згенерувати або покращити герой-візуал')}
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
+          onOpenChange={setArtworkOpen}
         >
           {savedCreativeDirection && !editingCreativeDirection
             ? <PhoneHeroDirectionPicker
@@ -778,7 +772,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           /></label>
           <ImageReferenceInput value={referenceImage} onChange={setReferenceImage} language={language}
             disabled={mutationBusy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
-          {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
+          {artworkOpen && detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
             <div className="phone-screen-history-options" data-recent-image-contract="firebase-token-coalescing-v1" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
               {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption

@@ -1,5 +1,6 @@
 from copy import deepcopy
 import base64
+import json
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -81,9 +82,11 @@ class CreationProvider(ScriptedTemplateProvider):
 class CreationImages:
     def __init__(self):
         self.calls = 0
+        self.prompts = []
 
     def generate(self, prompt):
         self.calls += 1
+        self.prompts.append(prompt)
         output = BytesIO()
         Image.new('RGB', (1000, 700), '#BBCDBB').save(output, format='PNG')
         return {'bytes': output.getvalue(), 'source': {'origin': 'scripted_test_fixture'}}
@@ -136,6 +139,10 @@ class CreationTests(unittest.TestCase):
         calls = [c for c in self.provider.calls if c["input_payload"].get("phase") == "bind"]
         self.assertEqual("identity_led", calls[0]["input_payload"]["brief"]["positioning"]["marketing_approach"])
         self.assertEqual("benefit_led", calls[-1]["input_payload"]["brief"]["positioning"]["marketing_approach"])
+        self.assertEqual(original["brief"]["document"]["brand_identity"], calls[0]["input_payload"]["brief"]["brand_identity"])
+        self.assertIn(json.dumps(original["brief"]["document"]["brand_identity"], ensure_ascii=False), self.service.image_provider.prompts[0])
+        with zipfile.ZipFile(BytesIO(export_bundle(self.service, changed))) as archive:
+            self.assertEqual(changed["brief"]["document"]["brand_identity"], json.loads(archive.read("brief.json"))["brand_identity"])
 
     def test_control_characters_fail_binding_before_render_and_keep_source(self):
         self.provider.newline_binding = True

@@ -20,7 +20,9 @@ Post and Landing templates use independent immutable registries:
   normalizers.
 
 A template identity is `{surface, template_id, template_version,
-template_sha256}`. IDs need only be unique inside their surface. Initial Brief composition uses `phone_metrics`. Existing Posts may select an
+template_sha256}`. IDs need only be unique inside their surface. Initial Brief
+composition accepts an exact registered Post version, including Phone Metrics
+and accepted authored designs. Existing Posts may also select an
 accepted authored Post definition through the exact versioned registry.
 Unsupported IDs fail at that boundary; retired renderers remain unsupported.
 
@@ -82,8 +84,7 @@ blank items leave no empty row, and adjacent items retain the configured gap.
 The original Phone configuration
 and prior template drafts are retained. The exact accepted definition is pinned
 in workspace selection, state hashes, checkpoints and approved records, so later
-template versions do not alter an existing Post. Initial Brief composition
-remains Phone Metrics.
+template versions do not alter an existing Post.
 
 Migration `014_project_post_templates.sql` widens the preserving workspace ID
 constraint for authored IDs; the runtime still requires exact accepted registry
@@ -93,10 +94,19 @@ the approved record, independently of the current draft's template.
 
 ## Brief-to-Post workflow
 
-Brief approval requires a template choice. The server transactionally records
+Raw artwork history is fetched only when its inspector is opened. Reads use a
+60-second bounded media deadline and explicit manual retry; failed reads are not
+automatically repeated. The history endpoint checks Project/creative ownership
+without rebuilding editor detail, and preserves byte-digest/MIME validation.
+Opening history does not select or apply an image.
+
+Brief approval requires an accepted Post template choice and image direction.
+The server validates and pins the exact selected version, transactionally records
 approval and reserves ordinal 1 for that Brief, returning HTTP 202. The browser
 opens the creative progress view while composition advances through queued,
-composing, optional phone-image generation, and editable draft.
+composing, artwork generation, and editable draft. The initial workspace uses the
+selected layout directly. A duplicate reservation must match the pinned version
+and direction.
 
 The composer receives only the approved Brief, selected definition defaults, a
 generation-specific compact catalog, the canonical composer skill, and a bounded
@@ -106,6 +116,8 @@ leaves an explicit retryable creative.
 
 A replacement Brief receives a new creative. Another composed creative from the
 same Brief requires the latest sibling to have an approved version. The owner
+chooses its accepted Post template version before generation; the variant starts
+on that layout directly. The owner
 may clone an approved version into a new same-template draft without AI;
 configuration, content, and exact raw-asset snapshot are inherited while
 identity and approval history start fresh.
@@ -167,7 +179,12 @@ The value tree preserves array indices and every allowed leaf without repeating
 parent prefixes. The output schema and server validation retain the complete
 original path allowlist; the Brief is never an editable path. Populated Ukrainian
 Landing and both Post regression fixtures include their full source Brief within
-the same 20 KiB input / 32 KiB total budgets, including correction headroom.
+22 KiB input / 34 KiB total budgets, including correction headroom. V3 adds the
+exact source `brand_identity` (<=3 KiB), including voice and visual direction.
+The fully populated Ukrainian fixture measured 20,933 input bytes and 32,184
+total bytes before correction, exceeding the previous 20 KiB input ceiling.
+Only Manual Agent input/total ceilings increase by 2 KiB; prompt/schema/response
+caps, the 1 KiB correction reserve and composer/image limits remain unchanged.
 Provider output rejection and oversized server envelopes are sanitized service
 failures, distinct from invalid editor input. All path, type, claim, immutable
 endpoint, evidence and stale-state guards remain enforced.

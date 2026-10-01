@@ -14,6 +14,9 @@ completed work across explicit UUID-bound Retry and restart. The UI labels the
 unfinished preview and identifies the failed slot. A real Daddy bridge canary
 joins preserving release acceptance. Disposable PostgreSQL recovery and three
 browser viewports pass; full release verification and live recovery remain.
+Two full Daddy production-bridge canaries passed, including actual-PNG review.
+Candidate releases rolled back on intermittent Pexels HTTP 500s; its readiness
+probe now retries only transient upstream 5xx within a three-attempt bound.
 
 Branch: `fix/daddy-generation-stages-20261001`
 Deployment: in-place preserving release `daddy-stage-recovery-20261001-82b8216`,

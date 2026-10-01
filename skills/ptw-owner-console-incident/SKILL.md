@@ -141,6 +141,12 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
 
 ## Brief, Studio, and provider checks
 
+- A Pexels readiness HTTP 5xx may be transient. Compare the one-off release
+  transport with the running service without printing credentials. Permit at
+  most three read-only attempts with bounded backoff for upstream 5xx only;
+  authentication, rate limits and invalid image data still fail immediately.
+  Acceptance requires a real downloaded, decoded source of sufficient size.
+
 - A Daddy preview with copy but no photograph may be an interrupted asset stage,
   not a completed text-poster choice. Read its saved preset, phase, slot receipts
   and generation errors. For `Studio image cannot be decoded`, inspect the exact

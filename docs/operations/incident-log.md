@@ -17,6 +17,12 @@ The UI identifies the missing image and labels incomplete previews. The source
 Brief is V2 and supplies the consultation offer; this repair does not rewrite it.
 Release and exact-Creative recovery are pending; no approval or reset is required.
 
+Two candidate releases passed the full Daddy production-bridge canary, then
+rolled back on Pexels HTTP 500 responses; the standalone photo probe succeeded.
+The readiness probe now permits three read-only attempts for upstream 5xx, with
+one- and two-second backoff. It still requires a real decoded photo; credentials,
+rate limits, malformed images and persistent upstream failures remain blocking.
+
 ## 2026-10-01 — Daddy Post strategy recorded as failed after completed inference
 
 Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` belongs to the reported

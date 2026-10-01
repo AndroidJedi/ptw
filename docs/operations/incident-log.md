@@ -23,8 +23,17 @@ a corrective response; both first responses left the second phone-button label
 blank. All platform jobs completed, but the release correctly requires domain
 validation on attempt 1. The third attempt exhausted the bounded retry for that
 canary; its prompt now explicitly requires three nonblank labels, including for
-disabled buttons. The existing Creative still needs an explicit retry after the
-confirmed in-place release; no reset, deletion, approval or new Creative is
+disabled buttons. The next reviewed candidate passed Phone Metrics on attempt 1,
+but a separate Landing canary reached its six-minute `TimeoutExpired`; source,
+images and Hosting rolled back cleanly. One fresh full attempt passed all eleven
+structured/media bridge canaries on attempt 1, Pexels, database preservation,
+dependency/resource checks, 153 Owner unit and 156 browser cases, both Hosting
+publications and the live authentication/CORS audit. Accepted revision
+`82b8216291e0075cc15e6c8ae8158cde1e833391` is healthy on all six services;
+the 24-hour resource timer is active. Migration 023 is checksummed in the live
+ledger. The reported Creative remains `failed` at `strategy` with zero runs,
+assets or approved versions. Its next step is the owner's authenticated Retry
+action in the web console; no reset, deletion, approval or new Creative is
 warranted.
 The complete local release gates passed: 501 Validation, 54 Commander and 21
 Gateway tests in the accepted images, 153 Owner and 15 public-shell unit tests,

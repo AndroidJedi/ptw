@@ -2,19 +2,18 @@
 
 Updated: 2026-10-01
 Branch: `fix/daddy-generation-stages-20261001`
-Deployment: in-place preserving release `daddy-studio-20261001-ea6f307`,
-accepted application revision `ea6f30755ea87fb2a179a49fa6627686f3742a95`
+Deployment: in-place preserving release `daddy-stage-recovery-20261001-82b8216`,
+accepted application revision `82b8216291e0075cc15e6c8ae8158cde1e833391`
 with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/daddy-studio-20261001`. Commander, Validation
+Source branch: `fix/daddy-generation-stages-20261001`. Commander, Validation
 and Owner Gateway run the new release; unchanged companion images were retagged
-for the serial publisher. GOD retains its previous image. Migration 022 applied
+for the serial publisher. GOD retains its previous image. Migrations 022–023 applied
 with a checksummed root-only backup and exact preservation of pre-existing
-Commander business rows; no reset ran. Owner Hosting version `d31d3f61a8207f95`
-and public Landing Hosting version `73bfaeaf062adeb0` are live. All structured/
-media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
-passed. The 24-hour resource follow-up timer is active.
+Commander business rows; no reset ran. Owner and public Landing Hosting were
+published. All structured/media canaries, Pexels, dependency/resource and live
+Hosting/auth/CORS audits passed. The 24-hour resource follow-up timer is active.
 
-## Daddy generation stage incident — migration applied, release pending
+## Daddy generation stage incident — repair deployed, Creative awaits retry
 
 Production Daddy Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` is failed
 at `strategy` with no generation runs, assets or approved versions. Its bridge
@@ -27,13 +26,16 @@ unknown stage. The first preserving release applied 023 with a checksummed
 root-only backup and unchanged business rows, then rolled back application
 images/source/Hosting after a dependency health check. Two further full attempts
 rolled back before application cutover because the Phone Metrics canary generated
-a blank second button label on attempt 1. The live stage constraint now admits
-Daddy, but the accepted application revision is still `ea6f307` and the target
-Creative has not been retried. A reviewed composer instruction now requires all
-three nonblank button labels. Release through the confirmation-gated in-place
-publisher; after cutover, retry the Creative's exact ID once and verify append-only
-runs, assets, draft state and restart persistence. No reset or approval is part
-of recovery.
+a blank second button label on attempt 1. A reviewed composer instruction now
+requires all three nonblank button labels. Its first release attempt timed out on
+a separate Landing canary; a fresh full attempt passed all eleven bridge canaries
+on attempt 1, Pexels, pre-existing-row preservation, dependency/resource audits,
+153 Owner unit and 156 browser cases, both Hosting publications and live audit.
+The live stage constraint admits Daddy and the accepted application revision is
+`82b8216`. The exact Creative remains `failed` at `strategy` with zero runs,
+assets and versions. The owner must refresh its page and use the authenticated
+**Retry** action; then verify append-only runs, assets, draft state and restart
+persistence. No reset or approval is part of recovery.
 
 Local verification: the disposable PostgreSQL test reproduced the migration 022
 failure, applied 023, accepted every emitted Daddy stage, rejected an unknown

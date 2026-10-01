@@ -447,6 +447,9 @@ class ResultBridgePhoneScreenImageProvider:
                     result = candidate
                     break
                 if status in {"failed", "cancelled"}:
+                    if state.get("error") == "InvalidGeneratedImage":
+                        from .image_errors import InvalidGeneratedImage
+                        raise InvalidGeneratedImage(request_id)
                     raise RuntimeError(f"Result media bridge request {request_id} {status}")
                 time.sleep(1)
             if result is None:
@@ -462,10 +465,18 @@ class ResultBridgePhoneScreenImageProvider:
             raise RuntimeError("Result media bridge returned no generated image")
         response = self._request("GET", f"{self.bridge_url}/{request_id}/asset")
         data = response.content
-        inspected = inspect_media(data, "image/png")
-        if output_spec:
-            validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
         digest = hashlib.sha256(data).hexdigest()
+        if image.get("digest") != digest or image.get("output_digest") != digest:
+            raise RuntimeError("Result media bridge image failed integrity validation")
+        try:
+            from .png_integrity import validate_png
+            validate_png(data)
+            inspected = inspect_media(data, "image/png")
+            if output_spec:
+                validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
+        except (ValueError, OSError) as error:
+            from .image_errors import InvalidGeneratedImage
+            raise InvalidGeneratedImage(request_id) from error
         if (
             image.get("digest") != digest
             or image.get("output_digest") != digest

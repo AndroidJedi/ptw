@@ -1,5 +1,22 @@
 # PTW incident log
 
+## 2026-10-01 — Daddy scene failed on a truncated completed bridge image
+
+Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` retained its lifestyle
+strategy and composed Ukrainian copy, then failed at `asset:scene`. Job 1347
+stored 2,117,632 bytes with an incomplete IDAT chunk and no IEND, while the old
+companion checked only the PNG signature/dimensions before marking it completed.
+Validation rejected full decoding; ordinary Retry reused the broken cached job.
+The visible background was a fallback, and visual polish had never run.
+
+The repair validates structure, CRCs and pixels at the companion boundary and
+classifies historical corrupt results in the PTW client. Durable slot attempts
+allow one automatic replacement for confirmed corruption; uncertainty retains
+the same key. Explicit UUID-bound Retry resumes saved work and is deduplicated.
+The UI identifies the missing image and labels incomplete previews. The source
+Brief is V2 and supplies the consultation offer; this repair does not rewrite it.
+Release and exact-Creative recovery are pending; no approval or reset is required.
+
 ## 2026-10-01 — Daddy Post strategy recorded as failed after completed inference
 
 Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` belongs to the reported

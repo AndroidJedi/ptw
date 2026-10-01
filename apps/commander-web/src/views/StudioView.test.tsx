@@ -101,7 +101,27 @@ function apiFor(options: { items?: unknown[]; selected?: StudioPhoneMetricsDetai
 }
 
 describe('Post Studio shell', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear() })
+
+  it('labels the incomplete image failure and preserves Retry UUID after a lost response', async () => {
+    const selected = structuredClone(detail)
+    selected.template_id = 'daddy'
+    selected.status = 'failed'
+    selected.generation.daddy = { phase: 'asset:scene', corrections: 0, failure: { code: 'invalid_image', slot: 'scene', provider_request_id: 1347 } }
+    const { api, post } = apiFor({ selected })
+    post.mockRejectedValueOnce(new Error('Connection lost'))
+    const view = render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    expect(await screen.findByRole('heading', { name: 'Background image failed; your text and layout are saved' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry image' }))
+    await screen.findByText('Connection lost')
+    const request = post.mock.calls[0]
+    view.unmount()
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry image' }))
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
+    expect(post.mock.calls[1]).toEqual(request)
+    expect(await screen.findByText('Image request #1347')).toBeVisible()
+  })
 
   it('opens the registered Phone Metrics editor', async () => {
     const { api } = apiFor()

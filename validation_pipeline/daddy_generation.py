@@ -51,16 +51,51 @@ def asset_context(service, creative, detail, slot, direction, *, owner=False, en
         operation="enhance_current" if enhance else "generate_new",base_sha256=detail["state_sha256"],previous=current)
 
 
-def generate_slot(service, creative, slot, direction, key, *, enhance=False):
+def generate_slot(service, creative, slot, direction, key, *, enhance=False, run=None, persist=None):
+    """Reconcile uncertain work; only proven corrupt output advances the attempt key."""
+    from .image_errors import InvalidGeneratedImage
     workspace = service._workspace(creative["creative_id"])
-    detail = workspace.detail()
-    request_id = str(uuid5(NAMESPACE_URL,key))
-    current = workspace._asset_record(slot)
-    if current and current.get("source", {}).get("request_id") == request_id:
-        return detail
-    return workspace.daddy_asset_operation(slot=slot,base_sha256=detail["state_sha256"],request_id=request_id,
-        action="generate",options={"visual_direction":direction,"enhance_current":enhance},
-        image_context=asset_context(service,creative,detail,slot,direction,enhance=enhance))
+    operations = run.setdefault("asset_operations", {}) if run is not None else {}
+    record = operations.setdefault(key, {"slot":slot,"attempt":0,"max_attempt":1,"attempts":{}})
+    def save():
+        if persist:
+            persist()
+    while True:
+        attempt = record["attempt"]
+        receipt = record["attempts"].setdefault(str(attempt), {"status":"pending"})
+        if receipt.get("failure_code") == "invalid_image":
+            if attempt >= record["max_attempt"]:
+                raise InvalidGeneratedImage(receipt.get("provider_request_id"))
+            record["attempt"] += 1
+            save()
+            continue
+        detail = workspace.detail()
+        request_id = str(uuid5(NAMESPACE_URL, key if attempt == 0 else f"{key}:recovery:{attempt}"))
+        current = workspace._asset_record(slot)
+        if current and current.get("source", {}).get("request_id") == request_id:
+            receipt.update(status="completed", asset_sha256=current["sha256"])
+            save()
+            return detail
+        def progress(value):
+            receipt.update(status=value.get("stage", "pending"))
+            if isinstance(value.get("provider_request_id"), int):
+                receipt["provider_request_id"] = value["provider_request_id"]
+            save()
+        try:
+            result = workspace.daddy_asset_operation(slot=slot,base_sha256=detail["state_sha256"],request_id=request_id,
+                action="generate",options={"visual_direction":direction,"enhance_current":enhance},
+                image_context=asset_context(service,creative,detail,slot,direction,enhance=enhance),progress=progress)
+            receipt.update(status="completed",asset_sha256=workspace._asset_record(slot)["sha256"])
+            receipt.pop("failure_code", None)
+            save()
+            return result
+        except InvalidGeneratedImage as error:
+            receipt.update(status="failed",failure_code="invalid_image",provider_request_id=error.provider_request_id)
+            save()
+        except Exception:
+            receipt.update(status="interrupted",failure_code="unconfirmed")
+            save()
+            raise
 
 
 def generate(service, creative_id):
@@ -82,6 +117,8 @@ def generate(service, creative_id):
         run["phase"] = phase
         generation["stage"] = phase
         service.authority.update_creative(creative_id,status=status,generation=generation,state_sha256=workspace.state_sha256())
+    def asset_progress():
+        service.authority.update_creative(creative_id,generation=generation)
     def call(phase,payload,schema,validator,*,artifacts=None,mode="studio_creative_generation",key=None):
         result = service._provider_call(mode=mode,system_prompt=service.composer_skill+"\n\n"+POLICY,input_payload=payload,output_schema=schema,
             idempotency_key=f"daddy:{operation}:{key or phase}",prompt_version="daddy-v1",response_validator=validator,
@@ -142,14 +179,14 @@ def generate(service, creative_id):
             progress(f"asset:{slot}","generating_image")
             if not workspace._asset_record(slot):
                 direction = directions.get(slot, f"{SLOTS[slot]['description']} Interpret the approved Brief and the chosen creative strategy.")
-                generate_slot(service,creative,slot,direction,f"daddy:{operation}:asset:{slot}")
+                generate_slot(service,creative,slot,direction,f"daddy:{operation}:asset:{slot}",run=run,persist=asset_progress)
             run["assets"][slot] = "completed"
             progress("assets","generating_image")
         while True:
             if run.get("pending_polish"):
                 progress("polish", "generating_image")
                 for action in run["pending_polish"]:
-                    generate_slot(service,creative,action["slot"],action["visual_direction"],f"daddy:{operation}:polish:{run['corrections']}",enhance=action["enhance_current"])
+                    generate_slot(service,creative,action["slot"],action["visual_direction"],f"daddy:{operation}:polish:{run['corrections']}",enhance=action["enhance_current"],run=run,persist=asset_progress)
                 run.pop("pending_polish")
                 progress("review")
             progress("review")
@@ -205,9 +242,25 @@ def generate(service, creative_id):
             run["pending_polish"] = review["image_actions"]
             progress("polish")
         run["phase"] = "needs_review" if run.get("issues") else "ready"
+        run.pop("error", None)
+        run.pop("failure", None)
+        generation.pop("error_type", None)
+        generation.pop("error_message", None)
         return service._finish_draft(creative_id,workspace.detail(),generation)
     except Exception as error:
+        from .image_errors import InvalidGeneratedImage
         run["error"] = "The current stage did not complete. Retry resumes saved progress."
+        slot = run["phase"].partition(":")[2] if run["phase"].startswith("asset:") else None
+        if run["phase"] == "polish" and run.get("pending_polish"):
+            slot = run["pending_polish"][0]["slot"]
+        run["failure"] = {"code":"invalid_image" if isinstance(error,InvalidGeneratedImage) else "stage_failed", "slot":slot,
+            "provider_request_id":getattr(error,"provider_request_id",None)}
+        if slot and not run["failure"]["provider_request_id"]:
+            for record in reversed(list(run.get("asset_operations", {}).values())):
+                if record["slot"] == slot:
+                    run["failure"]["provider_request_id"] = record["attempts"].get(str(record["attempt"]),{}).get("provider_request_id")
+                    break
+        generation.update(error_type=type(error).__name__,error_message=run["error"])
         service.authority.update_creative(creative_id,status="failed",generation=generation,state_sha256=workspace.state_sha256())
         service.authority.record_generation(creative_id=creative_id,stage=f"daddy_{run['phase']}",status="failed",provenance={"source_brief_id":creative["source_brief_id"]},error=error)
         raise

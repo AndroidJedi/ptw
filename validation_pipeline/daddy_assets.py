@@ -69,7 +69,7 @@ def store(workspace, slot, data, mime_type, source):
             path.unlink()
 
 
-def operate(workspace, *, slot, base_sha256, request_id, action, options, image_context=None):
+def operate(workspace, *, slot, base_sha256, request_id, action, options, image_context=None, progress=None):
     check_slot(workspace,slot)
     request_id = str(UUID(str(request_id)))
     if action not in {"generate","upload","select","stock","registered"} or not isinstance(options,dict):
@@ -93,7 +93,7 @@ def operate(workspace, *, slot, base_sha256, request_id, action, options, image_
             raise ValueError("Enhance requires a current image and no uploaded reference")
         reference = decode_reference(options["reference_image"]) if options.get("reference_image") else current["bytes"] if enhance else None
         result = generate_image(workspace.image_provider,compile_image_prompt(image_context),reference_image=reference,
-            uploaded_reference=bool(options.get("reference_image")),output_spec=image_context.get("output_spec"),operation_key=f"daddy:{workspace.root.name}:{request_id}")
+            uploaded_reference=bool(options.get("reference_image")),output_spec=image_context.get("output_spec"),operation_key=f"daddy:{workspace.root.name}:{request_id}",progress=progress)
         data,mime = result["bytes"],result["mime_type"]
         source = {**result.get("source",{}),**image_provenance(image_context),"visual_direction":options["visual_direction"],
                   "request_id":request_id,

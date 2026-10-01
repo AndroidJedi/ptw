@@ -82,6 +82,63 @@ def verify(url, root):
     source=DatabaseLandingAuthority(url)._source_version(project,cid,version)
     assert source['template_id']=='daddy'
     assert source['content']['hero_title']==detail['content']['hero_title']
+    # The image recovery cursor and rejected attempt survive fresh PG workspaces.
+    from validation_pipeline.image_errors import InvalidGeneratedImage
+    from validation_pipeline.studio_daddy import default_configuration
+    from tests.validation_pipeline.test_daddy import DaddyProvider
+    clone_id = cloned['creative_id']
+    configuration = default_configuration('lifestyle')
+    updated = restored.mutate(project,clone_id,'save_configuration',base_sha256=actual['state_sha256'],configuration=configuration,content=actual['content'])
+    generation = {'creative_direction':{'schema':'ptw.studio.phone-hero-direction.v1','style':'ultra_realistic_lifestyle','background':'scene'},
+        'daddy':{'phase':'assets','composed':True,'assets':{},'corrections':0,
+            'strategy':{'preset':'lifestyle','style':'photography','reason':'Recovery canary','assets':[{'slot':'scene','direction':'A complete contextual scene without hands.'}]}}}
+    restored.authority.update_creative(clone_id,status='queued',generation=generation)
+    keys = []
+    class Images:
+        supports_operation_tracking = True
+        broken = True
+        def generate(self,prompt,**options):
+            keys.append(options['operation_key'])
+            options['progress']({'stage':'generating','provider_request_id':1347+len(keys)})
+            if self.broken: raise InvalidGeneratedImage(1347+len(keys))
+            return {'bytes':_png(),'mime_type':'image/png','source':{'origin':'disposable-fixture'}}
+    images = Images()
+    def recovery(path):
+        instance = service(path)
+        instance.workspace_factory = lambda p:DatabaseCreativeWorkspace(PostStudioWorkspace(p,image_provider=images),instance.authority.repository,p.name)
+        instance.structured_provider = DaddyProvider('lifestyle')
+        return instance
+    from psycopg.types.json import Jsonb
+    from validation_pipeline.local_brief_store import sha256_json
+    document={'schema_version':1,'language':'en','product':'A useful service','target_audience':'Independent operators',
+        'main_pain':'Unclear next step','promise':'Understand the next step','key_benefits':['A clear plan'],
+        'cta':'Learn more','trust_strategy':'Explain the process','offer':'A guided first setup'}
+    with psycopg.connect(url) as db:
+        db.execute('UPDATE product_briefs SET document=%s,document_sha256=%s WHERE entity_id=%s',
+            (Jsonb(document),sha256_json(document),actual['source_brief_id']))
+        db.execute('INSERT INTO product_brief_approvals(id,brief_id,approved_by) VALUES(%s,%s,%s)',
+            (uuid4(),actual['source_brief_id'],'disposable-test'))
+    first = recovery(root/'recovery-first')
+    try: first.generate(clone_id)
+    except InvalidGeneratedImage: pass
+    else: raise AssertionError('Corrupt image was accepted')
+    second = recovery(root/'recovery-second')
+    failed = second.detail(project,clone_id)
+    assert failed['status']=='failed'
+    record = next(iter(failed['generation']['daddy']['asset_operations'].values()))
+    assert record['attempt']==1 and record['attempts']['1']['failure_code']=='invalid_image'
+    assert len(keys)==2 and keys[0]!=keys[1]
+    images.broken = False
+    retry_id = str(uuid4())
+    second.retry_generation(project,clone_id,request_id=retry_id)
+    third = recovery(root/'recovery-third')
+    third.retry_generation(project,clone_id,request_id=retry_id)
+    third.generate(clone_id)
+    done = recovery(root/'recovery-fourth').detail(project,clone_id)
+    assert done['status']=='draft' and done['content']==actual['content']
+    assert len(keys)==3 and len(set(keys))==3
+    assert done['generation']['retry_requests']==[retry_id]
+    assert restored._workspace(cid).version_render(1)['bytes']==original
     print('Disposable PostgreSQL: migration preserves old rows/files/PNG; Daddy stages, assets, duplicate requests, approval, clone, Landing source and three fresh caches passed.')
 
 

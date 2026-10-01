@@ -1,6 +1,20 @@
 # Commander current state
 
 Updated: 2026-10-01
+
+## Daddy corrupt image recovery — implemented locally, release pending
+
+The reported Creative advanced past strategy/composition, then failed at
+`asset:scene`. Bridge job 1347 persisted a truncated PNG as completed: its final
+IDAT chunk is incomplete and IEND is absent. No scene was saved or visual review
+run. The companion now checks complete PNG structure, CRCs and full pixel
+decoding before success. Daddy records slot job IDs/attempts, permits one fresh
+attempt for proven corrupt output, reconciles uncertain outcomes, and preserves
+completed work across explicit UUID-bound Retry and restart. The UI labels the
+unfinished preview and identifies the failed slot. A real Daddy bridge canary
+joins preserving release acceptance. Disposable PostgreSQL recovery and three
+browser viewports pass; full release verification and live recovery remain.
+
 Branch: `fix/daddy-generation-stages-20261001`
 Deployment: in-place preserving release `daddy-stage-recovery-20261001-82b8216`,
 accepted application revision `82b8216291e0075cc15e6c8ae8158cde1e833391`

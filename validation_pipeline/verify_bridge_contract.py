@@ -366,6 +366,8 @@ def main() -> None:
                             "agent_model": provenance.get("agent_model"), "image_model": provenance.get("image_model"),
                             "output_spec": provenance.get("output_spec"), "preparation": preparation,
                             "output_sha256": hashlib.sha256(prepared).hexdigest()})
+    from .verify_daddy_bridge import verify as verify_daddy
+    invocations.append(verify_daddy(settings, visual_provider, media, base_document, accept))
     print(json.dumps({
         "status": "ok", "canary_id": marker,
         "capabilities": capabilities, "invocations": invocations,

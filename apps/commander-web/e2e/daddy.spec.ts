@@ -8,7 +8,8 @@ const digest = createHash('sha256').update(image).digest('hex')
 const base = `/api/v1/studio/projects/${fixture.project_id}/creatives/${fixture.creative_id}`
 
 test('Daddy preserves copy across presets, Agent changes and explicit preview / save', async ({ page }) => {
-  let current = structuredClone(fixture)
+  let current = { ...structuredClone(fixture), status: 'failed', generation: { ...fixture.generation, daddy: { phase: 'asset:scene', composed: true, corrections: 0, failure: { code: 'invalid_image', slot: 'scene', provider_request_id: 1347 } } } }
+  const retries: string[] = []
   const previews: Array<Record<string, any>> = []
   const saves: Array<Record<string, any>> = []
   await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
@@ -19,6 +20,11 @@ test('Daddy preserves copy across presets, Agent changes and explicit preview / 
     if (path === '/api/v1/projects') return json({ items: [{ project_id: fixture.project_id, name: 'Daddy review', latest_brief_status: 'completed', brief_count: 1 }] })
     if (path === `/api/v1/studio/projects/${fixture.project_id}/creatives`) return json({ items: [current] })
     if (path === base) return json(current)
+    if (path === `${base}/retry`) {
+      retries.push(route.request().postDataJSON().request_id)
+      current = { ...current, status: 'draft', generation: { ...current.generation, daddy: { ...current.generation.daddy, phase: 'ready' } } }
+      return json(current)
+    }
     if (path === `${base}/agent`) {
       const body = route.request().postDataJSON()
       return json({ request_id: body.request_id, base_sha256: body.base_sha256, configuration: body.configuration,
@@ -36,7 +42,12 @@ test('Daddy preserves copy across presets, Agent changes and explicit preview / 
     return json({ items: [] })
   })
   await page.goto(`/?e2e=1&page=posts&project=${fixture.project_id}&creative=${fixture.creative_id}`)
+  await expect(page.getByRole('heading', { name: 'Background image failed; your text and layout are saved' })).toBeVisible()
+  await expect(page.getByText('Incomplete preview — generation and review have not finished.')).toBeVisible()
+  await page.getByRole('button', { name: 'Retry image' }).click()
   await expect(page.getByRole('heading', { name: 'Compose a Post' })).toBeVisible()
+  expect(retries).toHaveLength(1)
+  expect(retries[0]).toMatch(/^[a-f0-9-]{36}$/)
   await expect(page.getByAltText('Daddy Post preview')).toBeVisible()
   const initialPreviews = previews.length
   const copy = page.getByRole('heading', { name: 'Copy', exact: true })

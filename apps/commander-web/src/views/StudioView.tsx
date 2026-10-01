@@ -26,7 +26,7 @@ function GenerationPreview({ api, basePath, stateSha256, language }: { api: ApiC
     return () => { cancelled = true }
   }, [api, basePath, stateSha256])
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
-  return url ? <div className="panel daddy-preview"><img src={url} alt={language === 'uk' ? 'Поточне прев’ю допису' : 'Current Post preview'} /></div> : null
+  return url ? <div className="panel daddy-preview"><p role="status">{language === 'uk' ? 'Незавершене прев’ю — генерація та перевірка ще не завершені.' : 'Incomplete preview — generation and review have not finished.'}</p><img src={url} alt={language === 'uk' ? 'Незавершене прев’ю допису' : 'Incomplete Post preview'} /></div> : null
 }
 
 export function StudioView({
@@ -43,6 +43,7 @@ export function StudioView({
   const [creatives, setCreatives] = useState<StudioCreativeSummary[] | null>(null)
   const [approvedBriefs, setApprovedBriefs] = useState<ProductBrief[] | null>(null)
   const [templates, setTemplates] = useState<AcceptedPostTemplate[] | null>(null)
+  const retryRequests = useRef(new Map<string, string>())
   const [firstSelection, setFirstSelection] = useState<{
     brief: ProductBrief; template: AcceptedPostTemplate; direction: PhoneHeroDirectionDraft
   } | null>(null)
@@ -182,7 +183,18 @@ export function StudioView({
 
   const retry = async (path: string) => {
     setBusy(true); setError('')
-    try { await api.post(path, {}); await load() }
+    const key = `studio-retry:${path}`
+    let requestId = retryRequests.current.get(key)
+    try { requestId ||= sessionStorage.getItem(key) || undefined } catch { /* Keep in-memory retry available when storage is disabled. */ }
+    requestId ||= crypto.randomUUID()
+    retryRequests.current.set(key, requestId)
+    try { sessionStorage.setItem(key, requestId) } catch { /* The current tab still retains the UUID. */ }
+    try {
+      await api.post(path, path.endsWith('/phone-screen/retry') ? {} : { request_id: requestId })
+      retryRequests.current.delete(key)
+      try { sessionStorage.removeItem(key) } catch { /* A repeated acknowledged UUID is safe. */ }
+      await load()
+    }
     catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
@@ -229,7 +241,19 @@ export function StudioView({
     const progress = phase === 'strategy' ? tr('Choosing a creative direction', 'Обираємо творчий напрям') : phase === 'composition' ? tr('Composing the message and layout', 'Створюємо текст і композицію') : phase.startsWith('asset') ? tr('Preparing the images', 'Готуємо зображення') : ['polish', 'review'].includes(phase) ? tr('Reviewing and polishing the Post', 'Перевіряємо й покращуємо допис') : tr('Building the creative', 'Створюємо креатив')
     return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{progress}</h2></section>{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
-  if (detail.status === 'failed' && detail.generation?.creative_direction) {
+  if (detail.status === 'failed' && (detail.generation?.creative_direction || detail.generation?.daddy)) {
+    const daddy = detail.generation?.daddy
+    if (daddy) {
+      const slot = daddy.failure?.slot || (daddy.phase.startsWith('asset:') ? daddy.phase.slice(6) : '')
+      const names: Record<string, string> = { scene: tr('Background image', 'Фонове зображення'), screen: tr('App screen', 'Екран застосунку'), subject: tr('Main image', 'Основне зображення'), feature: tr('Feature image', 'Зображення функції'), prop_one: tr('First collage image', 'Перше зображення колажу'), prop_two: tr('Second collage image', 'Друге зображення колажу') }
+      return <div className="studio-page">{creativePicker}<section className="panel" role="alert">
+        <h2>{slot ? tr(`${names[slot] || 'Image'} failed; your text and layout are saved`, `${names[slot] || 'Зображення'} не вдалося створити; текст і композицію збережено`) : tr('Post generation paused', 'Генерацію допису призупинено')}</h2>
+        <p>{slot ? tr('Retry resumes this image, keeps completed work, then reviews the finished Post.', 'Повторення відновить це зображення, збереже готові елементи та перевірить завершений допис.') : tr('Retry resumes the unfinished step and keeps completed work.', 'Повторення відновить незавершений крок і збереже готові елементи.')}</p>
+        {daddy.failure?.provider_request_id && <p>{tr('Image request', 'Запит зображення')} #{daddy.failure.provider_request_id}</p>}
+        {error && <p>{error}</p>}
+        <button className="secondary" disabled={busy} onClick={() => void retry(`${basePath}/retry`)}><RefreshCcw />{slot ? tr('Retry image', 'Повторити зображення') : tr('Resume Post', 'Продовжити допис')}</button>
+      </section>{daddy.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
+    }
     return <div className="studio-page">{creativePicker}<ErrorState
       message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)}
       retry={() => void retry(`${basePath}/retry`)} language={language}

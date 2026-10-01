@@ -1596,19 +1596,43 @@ class StudioCreativeService:
             })
             return self.summary(creative_id)
 
-    def retry_generation(self, project_id: str, creative_id: str) -> dict[str, Any]:
-        creative = self.authority.get_creative(creative_id)
-        if creative["project_id"] != _uuid(project_id, "project_id"):
-            raise KeyError("Studio creative was not found in this Project")
-        if creative["status"] != "failed":
-            raise ValueError("only a failed Studio creative can be retried")
-        if self._creative_direction(creative) is None:
-            raise ValueError("Select a Phone Metrics visual style before retrying" if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else "Select an image direction before retrying")
-        self.authority.update_creative(
-            creative_id, status="queued",
-            generation=_clear_generation_failure(creative.get("generation")),
-        )
-        return self.summary(creative_id)
+    def retry_generation(self, project_id: str, creative_id: str, request_id=None) -> dict[str, Any]:
+        lock = self._creative_lock(creative_id)
+        if not lock.acquire(blocking=False):
+            creative = self.authority.get_creative(creative_id)
+            if creative["project_id"] != _uuid(project_id, "project_id"):
+                raise KeyError("Studio creative was not found in this Project")
+            return self.summary(creative_id)
+        try:
+            creative = self.authority.get_creative(creative_id)
+            if creative["project_id"] != _uuid(project_id, "project_id"):
+                raise KeyError("Studio creative was not found in this Project")
+            generation = _clear_generation_failure(creative.get("generation"))
+            receipts = generation.setdefault("retry_requests", [])
+            if request_id is not None:
+                request_id = _uuid(request_id, "request_id")
+                if request_id in receipts:
+                    return self.summary(creative_id)
+            if creative["status"] in {"queued", "composing", "generating_image"}:
+                return self.summary(creative_id)
+            if creative["status"] != "failed":
+                raise ValueError("only a failed Studio creative can be retried")
+            if self._creative_direction(creative) is None:
+                raise ValueError("Select a Phone Metrics visual style before retrying" if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else "Select an image direction before retrying")
+            daddy = generation.get("daddy", {})
+            for record in daddy.get("asset_operations", {}).values():
+                attempt = record["attempt"]
+                if record["attempts"].get(str(attempt), {}).get("failure_code") == "invalid_image":
+                    # One new attempt per explicit retry after automatic recovery exhausted.
+                    record["max_attempt"] = max(record["max_attempt"], attempt + 1)
+            daddy.pop("error", None)
+            daddy.pop("failure", None)
+            if request_id is not None:
+                receipts.append(request_id)
+            self.authority.update_creative(creative_id, status="queued", generation=generation)
+            return self.summary(creative_id)
+        finally:
+            lock.release()
 
     def recompose_daddy(self, project_id, creative_id, *, request_id, base_sha256, configuration, content):
         lock = self._creative_lock(creative_id)

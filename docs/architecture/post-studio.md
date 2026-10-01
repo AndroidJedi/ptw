@@ -48,6 +48,16 @@ as its starting point. Authenticated slot and recomposition APIs retain request
 UUIDs and stale-state checks; browser image queues reconcile uncertain responses
 and retain pending UUIDs across tab reloads.
 
+Daddy asset operations retain provider job IDs, per-attempt status and failure
+classification in the existing generation JSON. Confirmed corrupt PNG output
+permits one automatic fresh attempt; exhausted recovery requires explicit Retry
+with a persisted UUID and advances one further attempt. Timeouts reconcile the
+same provider key. Complete strategies, copy and other assets are preserved.
+The companion validates PNG structure, checksums and pixels before completing a
+job, and the client independently rejects corrupt historical results. Incomplete
+previews identify the failed slot beside the saved layout. Release acceptance
+includes a full disposable Daddy run through the production bridge transport.
+
 Tuned settings become neutral `daddy_configuration` proposals through Templates.
 Private images and Project copy are excluded; normal comparison and owner
 acceptance create an exact reusable definition that reopens in Daddy. Caption

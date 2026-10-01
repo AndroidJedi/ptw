@@ -102,10 +102,12 @@ def studio_creative_router(
         project_id: str, creative_id: str, request: Mapping[str, Any],
         background: BackgroundTasks,
     ) -> dict[str, Any]:
-        fields(request, set(), "Studio creative retry has no input fields")
+        if set(request) - {"request_id"}:
+            raise fail(ValueError("Studio retry accepts only an optional request ID"))
         try:
-            value = service.retry_generation(project_id, creative_id)
-            background.add_task(service.generate, creative_id)
+            value = service.retry_generation(project_id, creative_id, request_id=request.get("request_id"))
+            if value["status"] == "queued":
+                background.add_task(service.generate, creative_id)
             return value
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error

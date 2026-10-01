@@ -141,6 +141,18 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
 
 ## Brief, Studio, and provider checks
 
+- A Daddy preview with copy but no photograph may be an interrupted asset stage,
+  not a completed text-poster choice. Read its saved preset, phase, slot receipts
+  and generation errors. For `Studio image cannot be decoded`, inspect the exact
+  bridge job's stored PNG: a matching digest and valid header do not prove a
+  complete IDAT stream, IEND, CRCs or decodable pixels. Reject corrupt output in
+  the companion before marking the job completed; never enable truncated-image
+  decoding. A confirmed invalid result may advance a persisted bounded attempt
+  key; network uncertainty must reconcile the original key. Explicit retry keeps
+  completed strategy, copy and assets. Verify the production bridge path and
+  PostgreSQL restart, not only the local image provider. Label unfinished
+  previews and show the failed slot, retained work and safe retry action.
+
 - When a new Post generator fails after a completed bridge job, compare its
   append-only generation stage with PostgreSQL's live
   `studio_generation_runs_stage_check` before retrying. An unsupported stage can

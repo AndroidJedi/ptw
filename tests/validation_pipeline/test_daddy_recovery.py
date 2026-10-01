@@ -126,6 +126,11 @@ class DaddyRecoveryTests(unittest.TestCase):
             return value
         self.fixture.images.generate = generate
         self.provider.preset = 'lifestyle'
-        result = verify(settings,self.provider,self.fixture.images,document,lambda *args:None)
+        scripted = self.provider
+        class BridgeContract:
+            def call(self, *, response_validator, **request):
+                value = scripted.generate(**request)
+                return {**value, 'response': response_validator(value['response'])}
+        result = verify(settings,BridgeContract(),self.fixture.images,document,lambda *args:None)
         self.assertEqual('daddy_pipeline',result['mode'])
         self.assertEqual('scene',result['assets'][0]['slot'])

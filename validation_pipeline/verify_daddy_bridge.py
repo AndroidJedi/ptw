@@ -13,8 +13,8 @@ from .png_integrity import validate_png
 
 def verify(settings, provider, media, brief_document, accept):
     class CheckedProvider:
-        def generate(self, **request):
-            value = provider.generate(**request)
+        def call(self, *, response_validator, **request):
+            value = provider.call(response_validator=response_validator, **request)
             accept(value, "daddy_" + request["mode"])
             return value
 

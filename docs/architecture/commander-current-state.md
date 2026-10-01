@@ -2,19 +2,34 @@
 
 Updated: 2026-10-01
 Branch: `candidate/ptw-prod-access-20260922`
-Deployment: in-place preserving release `brand-studio-20261001-b7c505d`,
-accepted application revision `b7c505dd781ff1cbc3bc3c7107d5a133cc3df303`
+Deployment: in-place preserving release `daddy-studio-20261001-ea6f307`,
+accepted application revision `ea6f30755ea87fb2a179a49fa6627686f3742a95`
 with companion platform revision `e0113876fd57650c499d97703ace61f57dc89079`.
-Source branch: `release/local-studio-20261001`. Commander, Validation
+Source branch: `release/daddy-studio-20261001`. Commander, Validation
 and Owner Gateway run the new release; unchanged companion images were retagged
-for the serial publisher. GOD retains its previous image. Migration 021 applied
+for the serial publisher. GOD retains its previous image. Migration 022 applied
 with a checksummed root-only backup and exact preservation of pre-existing
-Commander business rows; no reset ran. Owner Hosting version `5def3e592480bf1e`
-is live. All structured/
+Commander business rows; no reset ran. Owner Hosting version `d31d3f61a8207f95`
+and public Landing Hosting version `73bfaeaf062adeb0` are live. All structured/
 media canaries, Pexels, dependency/resource and live Hosting/auth/CORS audits
 passed. The 24-hour resource follow-up timer is active.
 
-## Daddy modular Post builder — local, not deployed
+## Daddy modular Post builder — deployed
+
+The owner-authorized release passed 501 built-image Validation tests, 21 Gateway
+tests, 153 Owner unit tests/build, 15 public-shell tests/build, and all 156
+desktop/360px/iPhone browser cases before cutover. The serial publisher repeated
+the full Owner checks and all 156 browser cases before Hosting publication.
+Commander host/image checks and demo, canonical skills, whitespace and disposable
+PostgreSQL preservation passed. All eleven real structured/media canaries and
+Pexels passed without retry; dependency/resource/OOM and live Hosting/auth/CORS
+audits accepted the release. Six active Projects and eight immutable approved
+Post PNGs remain accessible, with both Instagram source projections matching
+PostgreSQL. Live Daddy v1 appears in both matching five-item Post catalogs, with
+a digest-verified native 1080×1350 gallery PNG. Migration 022 preserved all prior
+business rows; the checksummed backup remains root-only. The persistent 24-hour
+resource follow-up is active. Evidence: `.local/daddy-release-verification/` and
+`.local/daddy-studio-release/.local/deploy-preflight/publish.log`.
 
 Daddy is selectable in the existing Post gallery. Twelve composition presets
 compile shared Background, Message, Device, Subject, Collage, Offer, Brand and
@@ -53,7 +68,8 @@ ads or performance evidence. Private results are under `.local/daddy-trials` and
 `.local/daddy-illustration-trial`; the edited standalone-phone reference is under
 `.local/daddy-review`. The refreshed local app is
 `http://127.0.0.1:5180/?e2e=1`; health, authenticated detail and a fresh authoritative
-Daddy gallery PNG were verified. Deployment remains a separate operation.
+Daddy gallery PNG were verified. The subsequent production acceptance is recorded
+above.
 
 ## App Showcase hero controls — deployed in the Brand Studio release
 

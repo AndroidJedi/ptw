@@ -8,7 +8,7 @@ const digest = createHash('sha256').update(image).digest('hex')
 const base = `/api/v1/studio/projects/${fixture.project_id}/creatives/${fixture.creative_id}`
 
 test('Daddy preserves copy across presets, Agent changes and explicit preview / save', async ({ page }) => {
-  let current = { ...structuredClone(fixture), status: 'failed', generation: { ...fixture.generation, daddy: { phase: 'asset:scene', composed: true, corrections: 0, failure: { code: 'invalid_image', slot: 'scene', provider_request_id: 1347 } } } }
+  let current = { ...structuredClone(fixture), status: 'failed', generation: { ...fixture.generation, daddy: { phase: 'asset:scene', composed: true, corrections: 0, failure: { code: 'temporary_storage_full', slot: 'scene', provider_request_id: 1434 } } } }
   const retries: string[] = []
   const previews: Array<Record<string, any>> = []
   const saves: Array<Record<string, any>> = []
@@ -43,6 +43,7 @@ test('Daddy preserves copy across presets, Agent changes and explicit preview / 
   })
   await page.goto(`/?e2e=1&page=posts&project=${fixture.project_id}&creative=${fixture.creative_id}`)
   await expect(page.getByRole('heading', { name: 'Background image failed; your text and layout are saved' })).toBeVisible()
+  await expect(page.getByText(/This preview is incomplete. The image worker ran out of temporary storage./)).toBeVisible()
   await expect(page.getByText('Incomplete preview — generation and review have not finished.')).toBeVisible()
   await page.getByRole('button', { name: 'Retry image' }).click()
   await expect(page.getByRole('heading', { name: 'Compose a Post' })).toBeVisible()

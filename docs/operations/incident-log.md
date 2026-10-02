@@ -2,6 +2,18 @@
 
 ## 2026-10-02 — Daddy manual-review release
 
+Deployment completed for PTW `c39bc8e` and companion `06a99e5` under
+`daddy-manual-review-20261002-c39bc8e`. The full production bridge, Daddy
+scene/render canary, Pexels, dependency and resource audits passed. A late
+silent service/image assertion in the preserving wrapper rolled back those
+healthy candidate images. The same revision-labelled images were directly cut
+over under the maintenance lock after image, readiness and health checks;
+Firebase Owner Hosting was published and its live audit passed. The exact late
+wrapper assertion is still unconfirmed and should be investigated separately.
+The reported Creative was not retried: it remains failed at `asset:scene`, with
+all four provider job references and error codes saved for owner-initiated
+Retry. No other Post was changed by this deployment.
+
 The first capacity-fix rollout passed image generation and file checks, then
 rolled back when its Daddy AI screenshot-review call timed out. Accepted images
 were restored; the source checkouts were subsequently reconciled to the

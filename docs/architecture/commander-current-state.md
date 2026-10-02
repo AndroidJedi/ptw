@@ -2,7 +2,26 @@
 
 Updated: 2026-10-02
 
-## Daddy manual-review capacity release in progress
+## Daddy manual-review capacity release deployed
+
+PTW revision `c39bc8e89365f0c85231b4882fe7f27fb66cdd93` and companion
+revision `06a99e5b05198bb9444544da9bb720c0a1f5ab83` are live under tag
+`daddy-manual-review-20261002-c39bc8e`. The real production-bridge and Daddy
+canaries passed, including a decoded scene and editable deterministic render.
+The 256 MiB worker `/tmp`, Validation, worker and auth images are healthy. Owner
+Hosting was published and the live auth/CORS audit passed. A late silent
+assertion in the preserving release wrapper triggered image rollback after its
+canaries and audits; the exact already-verified images were then cut over under
+the maintenance lock, with revision and image/health checks. The wrapper's late
+assertion remains to diagnose separately.
+
+The reported car-sharing Creative remains `failed` at `asset:scene` and was not
+retried. Its four saved attempts (jobs 1347, 1417, 1418 and 1434), precise
+failure receipt, approved Brief, copy and settings remain available. The owner
+will initiate Retry personally. No automatic Daddy screenshot review or polish
+runs; a successful attempt opens an unapproved draft for manual tuning.
+
+## Daddy manual-review capacity release history
 
 The first 256 MiB worker release candidate generated and validated a real
 Daddy scene, but its automatic AI screenshot review timed out. The rollback

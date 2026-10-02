@@ -7,9 +7,11 @@ Updated: 2026-10-02
 The first preserving candidate rolled back on a terminal Landing bridge
 `TimeoutExpired`; one fresh attempt passed the full bridge, Daddy and Pexels
 canaries but rolled back when the companion worker's 5-second PostgreSQL health
-probe timed out briefly. Accepted images, source marker and Hosting remain
-unchanged. A bounded worker recovery check is being added to the release gate;
-production publication is still pending.
+probe timed out briefly. A new candidate added a bounded worker recovery check,
+but its Landing composition canary also reached a terminal `TimeoutExpired`.
+Further unchanged retries are stopped. The accepted `c39bc8e` services/source
+marker and both Hosting versions remain unchanged; release and live feature
+verification are pending a reviewed Landing contract repair.
 
 The owner reported that the eyebrow above the Hero title and the choice between
 three benefit bullets and supporting text were missing on an existing Landing.

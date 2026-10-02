@@ -1,6 +1,6 @@
 # PTW incident log
 
-## 2026-10-02 — App Showcase preserving release rejected twice
+## 2026-10-02 — App Showcase preserving release rejected three times
 
 The first attempt for PTW `4538f9a` rolled back after Landing composition
 bridge job 1483 ended `failed`/`TimeoutExpired`. Its accepted source, Validation
@@ -10,8 +10,13 @@ bridge/Daddy and Pexels canaries, but the dependency audit found the companion
 worker temporarily `unhealthy`. Its 5-second PostgreSQL health checks had timed
 out; it recovered without restart, with empty `/tmp` and zero OOM events. The
 deployer restored the accepted service images and marker, and Hosting did not
-advance. A bounded two-probe recovery check now precedes dependency and final
-image audits; a further preserving attempt is pending.
+advance. A bounded two-probe recovery check was committed as `cc4b90d` before
+the third preserving attempt. That attempt again stopped at Landing composition:
+bridge job 1502 ended `failed`/`TimeoutExpired`. The receiver restored the
+accepted Validation and Gateway images, row authority remained unchanged, and
+the source checkout was restored under both locks with canonical skill links.
+Both Hosting versions stayed exact. The repeated Landing deadline now requires
+a reviewed contract repair; no further unchanged provider retry is justified.
 
 ## 2026-10-02 — Daddy manual-review release
 

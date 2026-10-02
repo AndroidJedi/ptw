@@ -446,6 +446,12 @@ marker and Hosting rollback, and only then allow the single fresh full attempt.
 Do not resubmit while the original provider outcome is uncertain, change model or
 reasoning settings to pass a canary, or skip any acceptance gate. Record the failed
 attempt and successful acceptance separately in the incident log.
+If a later fresh Landing canary reaches the same worker deadline, stop unchanged
+release retries. Keep the accepted release live, compare bounded prompt/input/
+schema sizes and worker timing with the one successful run, then repair the
+runtime and canary's shared Landing contract in a reviewed revision. A healthy
+bridge worker or one prior successful canary does not authorize skipping the
+fresh release gate.
 When two fresh structured canaries need the same corrective domain validation,
 inspect the bounded correction reason in the second bridge job, then repair the
 owning prompt or contract in a new reviewed revision. Keep the first-attempt gate

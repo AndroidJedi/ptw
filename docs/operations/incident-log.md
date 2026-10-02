@@ -1,5 +1,24 @@
 # PTW incident log
 
+## 2026-10-02 — Landing composition timeout and older hero editor mismatch
+
+Two of three preserving release attempts reached a 360-second Landing worker
+deadline despite near-identical requests completing in 22–40 seconds on other
+runs. The successful intervening attempt rolled back after a transient worker
+database health probe failure. The accepted release stayed live. The owner also
+could not edit the Hero eyebrow on existing v2 App Showcase pages, because that
+control belongs to v3. The new candidate reduces the Landing AI contract,
+retains strict server validation and the same model, and provides an explicit
+JSON backup/restore path from v1/v2 to a private v3 draft. Nine production
+Landing backups were exported and checked before rollout; three published v2
+pages remain at their URLs. The resolver skills now require contract-size and
+worker-health diagnosis, complete private backups, historical reads and fresh
+canaries before accepting a preserving release. The audit also found that one
+published v2 row belongs to a deleted Project and already returns HTTP 404;
+the other two v2 URLs and one older Project Landing return HTTP 200. Keep the
+deleted Project boundary unless the owner explicitly requests a change.
+Deployment remains pending.
+
 ## 2026-10-02 — App Showcase preserving release rejected three times
 
 The first attempt for PTW `4538f9a` rolled back after Landing composition

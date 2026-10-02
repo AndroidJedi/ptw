@@ -231,7 +231,9 @@ class LandingAuthorityTests(unittest.TestCase):
             active_creative_skills=skills,
             live_landing_catalog=landing_catalog(),
         )
-        self.assertEqual("ptw.landing.catalog.v2", payload["live_landing_catalog"]["schema"])
+        self.assertEqual("project_landing", payload["landing_template"]["template_id"])
+        self.assertNotIn("live_landing_catalog", payload)
+        self.assertNotIn("template_content_defaults", payload)
         self.assertNotIn("configuration", payload["source_post_copy"])
         self.assertNotIn("assets", payload["source_post_copy"])
         self.assertEqual({
@@ -296,9 +298,8 @@ class LandingWorkspaceTests(unittest.TestCase):
         self.assertEqual(["content"], schema["required"])
         self.assertIn("app_feature", schema["properties"]["content"]["required"])
         content_schema = schema["properties"]["content"]["properties"]
-        self.assertEqual(
-            [""], content_schema["contacts"]["properties"]["url"]["enum"],
-        )
+        self.assertNotIn("url", content_schema["contacts"]["properties"])
+        self.assertNotIn("items", content_schema["social_proof"]["properties"])
         self.assertEqual(
             APP_FEATURE_LIMITS["description"],
             content_schema["app_feature"]["properties"]["description"]["maxLength"],
@@ -701,7 +702,7 @@ class LandingDesignTests(unittest.TestCase):
             self.assertEqual("draft", authority.page["status"])
             self.assertEqual(LANDING_COMPOSER_PROMPT_VERSION, provider.kwargs["prompt_version"])
             self.assertEqual({"content"}, set(provider.kwargs["output_schema"]["properties"]))
-            self.assertEqual("ptw.landing.catalog.v2", provider.kwargs["input_payload"]["live_landing_catalog"]["schema"])
+            self.assertEqual("project_landing", provider.kwargs["input_payload"]["landing_template"]["template_id"])
             self.assertEqual(["catalog_brand_and_brief", "explicit_owner_direction", "project_rules", "global_spirit", "template_defaults"], provider.kwargs["input_payload"]["active_creative_skills"]["precedence"])
             self.assertNotIn("configuration", provider.kwargs["input_payload"]["source_post_copy"])
 

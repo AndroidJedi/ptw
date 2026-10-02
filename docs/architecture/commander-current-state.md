@@ -2,34 +2,49 @@
 
 Updated: 2026-10-02
 
-## App Showcase older-draft hero controls — local fix pending release
+## Landing JSON restore and App Showcase hero — release pending
 
-The first preserving candidate rolled back on a terminal Landing bridge
-`TimeoutExpired`; one fresh attempt passed the full bridge, Daddy and Pexels
-canaries but rolled back when the companion worker's 5-second PostgreSQL health
-probe timed out briefly. A new candidate added a bounded worker recovery check,
-but its Landing composition canary also reached a terminal `TimeoutExpired`.
-Further unchanged retries are stopped. The accepted `c39bc8e` services/source
-marker and both Hosting versions remain unchanged; release and live feature
-verification are pending a reviewed Landing contract repair.
+The accepted `c39bc8e` production release is still live. Three preserving
+attempts rolled back: two fresh Landing composition jobs reached the worker's
+360-second deadline; the intervening job completed in 40 seconds but a transient
+companion-worker database health failure rejected that rollout. The same old
+Landing input and schema completed in 22–40 seconds on several other jobs, so
+the failure is intermittent. The candidate now sends a smaller AI-owned
+Landing prompt and output schema, keeps the same model, and validates the merged
+result against the existing domain rules. Fresh canary success is required
+before release acceptance.
 
-The owner reported that the eyebrow above the Hero title and the choice between
-three benefit bullets and supporting text were missing on an existing Landing.
-Those fields were added in App Showcase v3, while existing v1/v2 drafts remained
-pinned to their original editor contracts. Opening an older editable draft now
-automatically creates a deterministic v3 replacement with its current copy,
-selected images and retained image history, then navigates to it. The existing
-supporting text remains saved. When it contains three bullet markers, those
-become three visible editable bullets; otherwise text remains visible and the
-bullet fields are seeded from the saved feature copy.
-Old approved and published snapshots remain exact and the prior draft remains
-history. No provider call or publication occurs. The latest catalog remains the
-only choice for new Landings. Verification: 513 Validation tests in the built
-image, 21 Gateway tests, the complete Owner web unit suite/build, 159 browser
-cases across desktop/360px/iPhone WebKit, a disposable PostgreSQL upgrade with
-fresh-cache restart and unchanged publication bytes, Commander host checks/demo,
-canonical skill validation and whitespace. Production release and live
-verification are pending the separate preserving-release authorization.
+All nine production Landing workspaces were exported before cutover into
+`/root/ptw/.local/landing-json-backups/ptw-landings-20261002d` and the local
+ignored `.local/landing-json-backups/ptw-landings-20261002d`. Each self-contained
+JSON includes the configuration, copy, image bytes and digests, approved versions
+and publication events. The manifest has nine files, seven approved versions,
+seven historical publication events and 77,213,971 JSON bytes. The files are
+private and verified by readback and digest. Two published v2 pages currently
+return HTTP 200; a third published v2 row belongs to a deleted Project and its
+URL already returns HTTP 404. A published legacy Project Landing also returns
+HTTP 200. Preserve those exact public responses unless the owner explicitly
+directs restoration of the deleted Project's public access.
+
+The private Landing editor now offers Download JSON and Restore from JSON.
+Restore checks every digest, Project ownership, Post source and image slot before
+creating an unapproved draft. App Showcase v1/v2 maps to v3, exposing the
+editable eyebrow above the Hero title and the text/three-bullet choice; other
+pages map to the current matching template. The copy and selected artwork stay
+with the replacement. Existing approved history and public URLs are retained.
+App Showcase v1/v2 remain readable for historical pages and template history,
+but the creation API and active catalog only offer v3. The owner starts the
+restore from the button; the template agent guides the mapping without copying
+Project content itself.
+
+Local checks: 514 Validation tests, 21 Gateway tests, 156 Owner web unit
+tests, 159 browser cases across desktop/360px/iPhone WebKit, Commander host
+checks/demo and skill verification pass. The disposable PostgreSQL/App Showcase
+proof covers authenticated JSON export/restore, exact image bytes, restart and
+unchanged publication. All nine production JSON files validated and restored
+to current templates in a separate disposable local authority. A fresh real
+bridge call using the candidate v3 contract completed and validated on attempt
+one in 108.8 seconds; the preserving release's fresh canaries remain required.
 
 ## Daddy manual-review capacity release deployed
 

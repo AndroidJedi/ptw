@@ -103,7 +103,7 @@ test('App Showcase v3 hero switches between three editable bullets and text afte
   expect(hero && bulletsOrText && bulletsOrText.x >= hero.x && bulletsOrText.x + bulletsOrText.width <= hero.x + hero.width + 1).toBeTruthy()
 })
 
-test('older App Showcase opens the current hero editor without a template choice', async ({ page }) => {
+test('older App Showcase restores from downloaded JSON into the current hero editor', async ({ page }) => {
   const old = fixture()
   old.template_id = 'app_showcase'
   old.template_reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) }
@@ -115,7 +115,8 @@ test('older App Showcase opens the current hero editor without a template choice
   next.template_reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
   next.configuration.showcase!.hero_body_mode = 'bullets'
   next.content.hero = { ...next.content.hero, eyebrow: 'Ваш простір. Ваші можливості.', bullets: ['Порівнюйте склад.', 'Розумійте показники.', 'Обирайте за смаком.'] }
-  let upgrades = 0
+  let restores = 0
+  const backup = { backup_sha256: 'a'.repeat(64), project_id: project, landing_id: old.landing_id }
   await page.route('**/api/v1/**', route => {
     const path = new URL(route.request().url()).pathname
     const json = (value: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(value) })
@@ -123,7 +124,16 @@ test('older App Showcase opens the current hero editor without a template choice
     if (path.endsWith('/source-posts')) return json({ items: [] })
     if (path.endsWith('/pages')) return json({ items: [next, old] })
     if (path.endsWith('/landings/templates')) return json({ items: [next.template_reference] })
-    if (path.endsWith('/upgrade-showcase-hero')) { upgrades++; return json(next) }
+    if (path.endsWith('/backup')) {
+      const body = JSON.stringify(backup)
+      return route.fulfill({ contentType: 'application/json', body,
+        headers: { 'X-PTW-Content-SHA256': createHash('sha256').update(body).digest('hex') } })
+    }
+    if (path.endsWith('/pages/restore')) {
+      restores++
+      expect(route.request().postDataJSON().backup).toEqual(backup)
+      return json(next)
+    }
     if (path.endsWith(`/pages/${old.landing_id}`)) return json(old)
     if (path.endsWith(`/pages/${next.landing_id}`)) return json(next)
     return json({ items: [] })
@@ -131,10 +141,16 @@ test('older App Showcase opens the current hero editor without a template choice
   await page.goto(`/?e2e=1&page=landing&project=${project}&landing=${old.landing_id}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
+  await expect(page.getByRole('heading', { name: 'Restore on App Showcase v3' })).toBeVisible()
+  expect(restores).toBe(0)
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download JSON' }).click()
+  expect((await download).suggestedFilename()).toBe(`landing-${old.landing_id}.json`)
+  await page.locator('input[type="file"]').setInputFiles({ name: 'landing.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) })
   await expect(page.getByRole('textbox', { name: 'Text above hero title' })).toHaveValue('Ваш простір. Ваші можливості.')
   await expect(page.getByRole('combobox', { name: 'Under-title format' })).toHaveValue('bullets')
   await expect(page.locator('.as-hero-bullets li')).toHaveCount(3)
-  expect(upgrades).toBe(1)
+  expect(restores).toBe(1)
 })
 
 for (const showcase of [false, true]) test(`blocking image progress survives refresh and retries unfinished work (${showcase ? 'showcase' : 'original'})`, async ({ page }) => {
@@ -239,7 +255,7 @@ test('changes template directly from an unsaved unapproved draft and returns thr
   })
   await page.reload()
   await page.getByLabel('Hero title').fill('Збережіть цю незавершену думку')
-  await expect(page.locator('.landing-actions > button')).toHaveCount(2)
+  await expect(page.locator('.landing-actions > button')).toHaveCount(4)
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Change template' }).click()
   const chooser = page.getByRole('dialog', { name: 'Change template', exact: true })

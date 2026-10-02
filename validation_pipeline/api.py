@@ -246,6 +246,7 @@ def create_app(
     ))
     app.include_router(landing_page_router(
         landing_pages, prefix="/internal/v1/landings", dependencies=project_dependencies,
+        publications=landing_publications,
     ))
     app.include_router(landing_publication_owner_router(
         landing_publications, prefix="/internal/v1/landings", dependencies=project_dependencies,

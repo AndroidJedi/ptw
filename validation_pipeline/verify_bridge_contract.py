@@ -15,7 +15,7 @@ from .landing_pages import (
     LANDING_COMPOSER_PROMPT_VERSION, landing_composition_payload,
     landing_generation_schema, validate_landing_composition,
 )
-from .landing_workspace import LandingWorkspace
+from .landing_workspace import DEFAULT_APP_FEATURE, LandingWorkspace
 from .creative_analytics import (
     learning_output_schema, normalize_rule, validate_visual_descriptor,
     visual_descriptor_schema,
@@ -266,7 +266,9 @@ def main() -> None:
             output_schema=landing_generation_schema(),
             prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
             idempotency_key=f"canary:{marker}:landing_composition",
-            response_validator=validate_landing_composition,
+            response_validator=lambda value: validate_landing_composition(value, defaults={
+                **landing_detail["content"], "app_feature": DEFAULT_APP_FEATURE,
+            }),
         )
         landing_saved = landing_workspace.save_configuration(
             base_sha256=landing_detail["state_sha256"],

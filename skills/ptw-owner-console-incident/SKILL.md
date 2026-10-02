@@ -10,6 +10,14 @@ Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gate
 A healthy Gateway alone does not prove Brief, creative, image, or learning
 readiness.
 
+For an App Showcase eyebrow visible in Preview but absent from the editor,
+compare the page's exact template version with the current catalog. Historical
+v1/v2 snapshots can render fallback copy while their editor lacks v3 controls.
+Use the owner-started JSON backup/restore path to create a private v3 draft;
+check every file digest and retain the old publication. Verify the v3 Hero
+inspector and an authenticated Gateway restore route, then Save separately.
+Do not treat a local UI build or a rejected preserving release as production.
+
 ## Daddy image handoff failures
 
 For a Daddy Post with a blank scene, read its durable generation receipt before

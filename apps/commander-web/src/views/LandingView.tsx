@@ -3,7 +3,7 @@ import { LandingOperationOverlay } from '../landing/LandingOperationOverlay'
 import { useLandingOperation } from '../landing/useLandingOperation'
 import { useLandingImages } from '../landing/useLandingImages'
 import { imageReferencePayload } from '../components/ImageReferenceInput'
-import { Check, ExternalLink, Globe2, History, LayoutTemplate, Maximize2, Monitor, MoreHorizontal, RefreshCcw, Save, Smartphone, Sparkles, Tablet } from 'lucide-react'
+import { Check, Download, ExternalLink, Globe2, History, LayoutTemplate, Maximize2, Monitor, MoreHorizontal, RefreshCcw, Save, Smartphone, Sparkles, Tablet, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
@@ -38,8 +38,8 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [templateOpen, setTemplateOpen] = useState(false)
   const [panel, setPanel] = useState<'history' | 'publication' | 'inquiries' | null>(null)
   const drafts = useRef(new Map<string, PendingDraft>())
-  const upgradeAttempted = useRef(new Set<string>())
-  const upgradeRunning = useRef<string | null>(null)
+  const restoreInput = useRef<HTMLInputElement | null>(null)
+  const restoreRequests = useRef(new Map<string, string>())
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [pages, setPages] = useState<LandingSummary[] | null>(null)
   const [sources, setSources] = useState<SourcePost[] | null>(null)
@@ -203,21 +203,39 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       throw cause
     } finally { if (epoch === requestEpoch.current) setBusy(false) }
   }
-  const upgradeShowcaseHero = async () => {
-    if (!detail || upgradeRunning.current === detail.landing_id) return
-    const epoch = requestEpoch.current
-    const sourceId = detail.landing_id
-    upgradeRunning.current = sourceId
+  const downloadBackup = async () => {
+    if (!detail) return
     setBusy(true); setError('')
     try {
-      const source = dirty ? await persist(epoch) : detail
-      if (epoch !== requestEpoch.current) return
-      const next = await api.post<LandingDetail>(`${base}/pages/${source.landing_id}/upgrade-showcase-hero`, {
-        base_sha256: source.state_sha256,
+      const blob = await api.download(`${base}/pages/${detail.landing_id}/backup`, 'application/json', { deadlineMs: 120_000 })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = `landing-${detail.landing_id}.json`; link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+  const restoreBackup = async (file: File) => {
+    if (!projectId) return
+    setBusy(true); setError('')
+    try {
+      if (file.size > 48 * 1024 * 1024) throw new Error(tr('Landing JSON exceeds 48 MiB.', 'JSON лендінгу перевищує 48 МіБ.'))
+      const backupText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result || ''))
+        reader.onerror = () => reject(new Error(tr('Could not read the JSON file.', 'Не вдалося прочитати JSON-файл.')))
+        reader.readAsText(file)
       })
-      if (epoch === requestEpoch.current) onLanding(next.landing_id)
-    } catch (cause) { if (epoch === requestEpoch.current) setError(cause instanceof Error ? cause.message : String(cause)) }
-    finally { if (upgradeRunning.current === sourceId) upgradeRunning.current = null; if (epoch === requestEpoch.current) setBusy(false) }
+      const backup = JSON.parse(backupText) as { backup_sha256?: string }
+      if (!backup?.backup_sha256) throw new Error(tr('Choose a PTW Landing backup JSON.', 'Виберіть JSON резервної копії лендінгу PTW.'))
+      const key = `${projectId}:${backup.backup_sha256}`
+      const requestId = restoreRequests.current.get(key) || crypto.randomUUID()
+      restoreRequests.current.set(key, requestId)
+      const next = await api.post<LandingDetail>(`${base}/pages/restore`, { request_id: requestId, backup }, { deadlineMs: 120_000 })
+      restoreRequests.current.delete(key)
+      onLanding(next.landing_id)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false); if (restoreInput.current) restoreInput.current.value = '' }
   }
   const save = async (approve = false) => {
     if (!detail || !configuration || !content) return
@@ -324,13 +342,9 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const status = detail?.status
   const dirty = Boolean(detail && configuration && content && (JSON.stringify(configuration) !== JSON.stringify(detail.configuration) || JSON.stringify(content) !== JSON.stringify(detail.content)))
   const olderShowcase = detail?.template_id === 'app_showcase' && (detail.template_reference?.template_version || 1) < 3 && status === 'draft'
-  useEffect(() => {
-    if (!olderShowcase || !detail) return
-    const key = `${detail.landing_id}:${detail.state_sha256}`
-    if (upgradeAttempted.current.has(key)) return
-    upgradeAttempted.current.add(key)
-    void upgradeShowcaseHero()
-  }, [olderShowcase, detail?.landing_id, detail?.state_sha256]) // eslint-disable-line react-hooks/exhaustive-deps
+  const backupControls = <><input ref={restoreInput} type="file" accept="application/json,.json" hidden onChange={event => { const file = event.target.files?.[0]; if (file) void restoreBackup(file) }} />
+    <button className="secondary" disabled={busy || !detail} onClick={() => void downloadBackup()}><Download />{tr('Download JSON', 'Завантажити JSON')}</button>
+    <button className="secondary" disabled={busy} onClick={() => restoreInput.current?.click()}><Upload />{tr('Restore from JSON', 'Відновити з JSON')}</button></>
   const issues = configuration && content && detail ? landingIssues(configuration, content, detail.assets) : []
   const refreshPublication = async () => {
     if (!projectId) return null
@@ -378,7 +392,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   if (pages === null || sources === null) return <Loading language={language} />
   if (error && !detail) return <ErrorState message={error} retry={() => void reload()} language={language} />
   if (!detail) return <section className="panel landing-source-picker">{overlay}<small>{tr('PRIVATE LANDING', 'ПРИВАТНИЙ ЛЕНДІНГ')}</small><h1>{tr('Create a Landing from an approved Post', 'Створіть лендінг із затвердженого допису')}</h1><p>{tr('Landing captures the selected Post version’s design, then remains independently editable.', 'Лендінг зафіксує дизайн обраної версії допису та далі редагуватиметься окремо.')}</p>{templatePicker}{sources.length ? <div className="landing-source-list">{sources.map((source) => <button key={`${source.creative_id}:${source.version}`} className="panel" disabled={busy} onClick={() => void create(source)}><Sparkles /><span>{source.template_id} · v{source.version}</span><small>{source.creative_id.slice(0, 8)}</small></button>)}</div> : <Empty><h2>{tr('Approve a Post first', 'Спершу затвердьте допис')}</h2><p>{tr('Landing starts only from an immutable approved Post version.', 'Лендінг створюється лише з незмінної затвердженої версії допису.')}</p></Empty>}</section>
-  if (olderShowcase) return <section className="panel landing-progress"><h1>{tr('Updating App Showcase', 'Оновлюємо App Showcase')}</h1><p>{tr('Keeping your draft copy and artwork while enabling the latest hero controls.', 'Зберігаємо текст і зображення чернетки та додаємо актуальні налаштування першого екрана.')}</p>{error && <ErrorState message={error} retry={() => void upgradeShowcaseHero()} language={language} />}</section>
+  if (olderShowcase) return <section className="panel landing-progress"><h1>{tr('Restore on App Showcase v3', 'Відновіть на App Showcase v3')}</h1><p>{tr('Download this page as JSON, then restore it as a new private draft with editable hero copy. Your current page and publication stay available.', 'Завантажте цю сторінку як JSON, потім відновіть її як нову приватну чернетку з редагованим текстом першого екрана. Поточна сторінка та публікація залишаться доступними.')}</p><div className="landing-progress-actions">{backupControls}</div>{error && <p role="alert">{error}</p>}</section>
   const templateName = (page: LandingSummary) => {
     const id = page.template_reference?.template_id || ('template_id' in page ? page.template_id : 'project_landing')
     const name = templates.find(item => item.template_id === id)?.name || (id === 'app_showcase' ? 'App Showcase' : 'Project landing')
@@ -392,7 +406,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     const initialJobs = initialAssets.map(asset => ({ slot: asset.slot, status: asset.available ? 'completed' : status === 'failed' ? 'failed' : status === 'generating_images' && asset.slot === generatingSlot ? 'generating' : 'queued' }))
     const previous = pages.find(item => item.landing_id !== detail.landing_id && item.source_creative_id === detail.source_creative_id && item.source_version === detail.source_version)
     return <section className="panel landing-progress">{dismissedGeneration !== detail.landing_id && <LandingOperationOverlay language={language} phase={status} jobs={initialJobs} startedAt={detail.created_at} error={error || (status === 'failed' ? operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language) : undefined)} retry={() => void retry()} close={() => setDismissedGeneration(detail.landing_id)} />}<small>{templateName(detail)}</small><h1>{status === 'failed' ? tr('Landing generation needs attention', 'Створення лендінгу потребує уваги') : tr('Building the Landing', 'Створюємо лендінг')}</h1>{status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'landing', detail: generation.error_message, code: generation.error_type, reference: detail.landing_id }, language)} retry={() => void retry()} language={language} /> : <p>{status === 'composing' ? tr('Writing the page sections…', 'Готуємо текст сторінки…') : status === 'generating_images' ? tr('Generating app screens and page images…', 'Створюємо екрани застосунку та зображення…') : tr('Queued for generation…', 'У черзі на створення…')}</p>}
-      <div className="landing-progress-actions">{previous && <button className="secondary" onClick={() => onLanding(previous.landing_id)}>{tr('Back to previous Landing', 'Повернутися до попереднього лендінгу')}</button>}{status === 'failed' && <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}>{tr('Change template', 'Змінити шаблон')}</button>}</div>{templateChooser}</section>
+      <div className="landing-progress-actions">{previous && <button className="secondary" onClick={() => onLanding(previous.landing_id)}>{tr('Back to previous Landing', 'Повернутися до попереднього лендінгу')}</button>}{status === 'failed' && <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}>{tr('Change template', 'Змінити шаблон')}</button>}{backupControls}</div>{templateChooser}</section>
   }
 
   const pageSections = content.app_screens ? ['theme', 'hero', 'features', 'app_screen_1', 'app_screen_2', 'app_screen_3', 'comparison', 'walkthrough', 'visual_break', 'social_proof', 'values', 'cta', 'downloads', 'faq', 'contacts'] as Section[] : [...sections, 'comparison', 'walkthrough', 'values', 'cta', 'downloads'] as Section[]
@@ -402,6 +416,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   return <section className="landing-studio">
     {overlay}<MarketingApproachBadge value={detail.marketing_approach} language={language} /><header className="landing-action-bar"><div><h1>{templateName(detail)}</h1><p role="status">{busy ? tr('Working…', 'Виконуємо…') : dirty ? tr('Unsaved changes', 'Незбережені зміни') : checkpointPending ? tr('Draft updated · Save to capture your changes', 'Чернетку оновлено · Збережіть свої зміни') : notice || tr('Private draft', 'Приватна чернетка')}</p></div><div className="landing-actions">
       <button className="secondary" disabled={busy || !templates.length} onClick={() => setTemplateOpen(true)}><LayoutTemplate />{tr('Change template', 'Змінити шаблон')}</button>
+      {backupControls}
       <button className="primary" aria-label={tr('Save Landing', 'Зберегти лендінг')} disabled={busy} onClick={() => void save(false)}><Save />{tr('Save', 'Зберегти')}</button>
       <details className="landing-more"><summary aria-label={tr('More actions', 'Інші дії')}><MoreHorizontal /></summary><div>
         <button disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); setPanel('history') }}><History />{tr('History', 'Історія')}</button>

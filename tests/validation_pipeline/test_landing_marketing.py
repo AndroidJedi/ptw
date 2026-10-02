@@ -171,4 +171,4 @@ class MarketingTests(unittest.TestCase):
         schema=landing_generation_schema('app_showcase',marketing=True)['properties']['content']['properties']['marketing']['properties']
         self.assertEqual(schema['comparison_rows']['minItems'],6)
         self.assertEqual(schema['walkthrough_steps']['maxItems'],4)
-        self.assertEqual(schema['apple_url']['enum'],[''])
+        self.assertNotIn('apple_url',schema)

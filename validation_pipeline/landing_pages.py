@@ -43,7 +43,7 @@ from .studio_manual_agent import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
-LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v6"
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v7"
 
 
 def _uuid(value: str, field: str) -> str:
@@ -180,13 +180,36 @@ def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketi
         for key, count in (("comparison_rows", 6), ("walkthrough_steps", 4), ("values", 4)):
             m[key].update(minItems=count, maxItems=count)
         result["properties"]["content"]["required"].append("marketing")
+        for field in URL_FIELDS:
+            content["marketing"]["properties"].pop(field)
+            content["marketing"]["required"].remove(field)
+    # These values are server-owned. Their presence in the model schema added
+    # work and could only be accepted when the model copied blank defaults.
+    content.pop("schema")
+    result["properties"]["content"]["required"].remove("schema")
+    content["social_proof"]["properties"].pop("items")
+    content["social_proof"]["required"].remove("items")
+    for field in ("email", "phone", "url", "instagram"):
+        if field in content["contacts"]["properties"]:
+            content["contacts"]["properties"].pop(field)
+            content["contacts"]["required"].remove(field)
     return result
 
 
-def validate_landing_composition(value: Mapping[str, Any]) -> dict[str, Any]:
+def validate_landing_composition(value: Mapping[str, Any], *, defaults: Mapping[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != {"content"}:
         raise ValueError("Landing composer response fields are invalid")
-    return {"content": normalize_composed_content(value["content"])}
+    if not isinstance(value["content"], Mapping):
+        raise ValueError("Landing composer content is invalid")
+    content = deepcopy(dict(defaults or {**DEFAULT_CONTENT, "app_feature": DEFAULT_APP_FEATURE}))
+    for key, section in value["content"].items():
+        if key not in content:
+            content[key] = section
+        elif isinstance(section, Mapping) and isinstance(content[key], Mapping):
+            content[key] = {**content[key], **section}
+        else:
+            content[key] = section
+    return {"content": normalize_composed_content(content)}
 
 
 def landing_composition_payload(
@@ -219,10 +242,8 @@ def landing_composition_payload(
         },
         **({"source_post_template_reference": post_reference}
            if len(post_reference) == 3 else {}),
-        "template_content_defaults": {
-            "content": deepcopy(dict(content_defaults)),
-        },
-        "live_landing_catalog": {**definition.agent_catalog(), "components": deepcopy(live_landing_catalog.get("components", []))},
+        "landing_template": {"template_id": definition.identity.template_id,
+                             "template_version": definition.identity.template_version},
         "active_creative_skills": compact_active_skills(
             active_creative_skills, surface="landing",
         ),
@@ -1001,6 +1022,55 @@ class LandingService:
                 learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
             return self.detail(project_id, target_id)
 
+    def restore_backup(self, project_id: str, backup: Mapping[str, Any], *, request_id: str, requested_by: str) -> dict[str, Any]:
+        """Create one private current-template draft from a verified JSON backup."""
+        from .landing_backup import restore_content, validate_backup
+
+        with self.operations.lock:
+            verified, files = validate_backup(backup, project_id=project_id)
+            self.authority.project(project_id)
+            reference = verified["template_reference"] or {}
+            template_id = reference.get("template_id", LANDING_TEMPLATE_ID)
+            if template_id not in {LANDING_TEMPLATE_ID, "app_showcase"}:
+                raise ValueError("Landing backup template has no current restore target")
+            definition = LANDING_TEMPLATE_REGISTRY.get(template_id)
+            target_reference = {key: value for key, value in definition.identity.to_reference().items() if key != "surface"}
+            source = self.authority._source_version(project_id, verified["source_creative_id"], verified["source_version"])
+            if source["version_sha256"] != verified["source_version_sha256"]:
+                raise ValueError("Landing backup source Post version has changed")
+            target, created = self.reserve_from_post(
+                project_id=project_id, source_creative_id=verified["source_creative_id"],
+                source_version=verified["source_version"], requested_by=requested_by,
+                additional=True, template_reference=target_reference, request_id=request_id,
+            )
+            target_id = target["landing_id"]
+            marker = {"backup_sha256": verified["backup_sha256"], "source_landing_id": verified["landing_id"]}
+            if not created:
+                if target.get("generation", {}).get("restore") != marker:
+                    raise RuntimeError("Restore request belongs to another Landing backup")
+                if target["status"] == "draft":
+                    return self.detail(project_id, target_id)
+            self.authority.update_page(target_id, status="failed", generation={"stage": "restoring", "restore": marker})
+            workspace = self._workspace(target_id)
+            workspace.detail()
+            underlying = workspace.workspace if isinstance(workspace, DatabaseLandingWorkspace) else workspace
+            for relative, raw in files.items():
+                if not relative.startswith(("assets/", "delivery/")):
+                    continue
+                path = underlying.root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(raw)
+            configuration, content = restore_content(verified)
+            saved = workspace.save_configuration(
+                base_sha256=workspace.detail()["state_sha256"], configuration=configuration, content=content,
+            )
+            self._synchronize_workspace(target_id, workspace)
+            snapshot = _snapshot(saved)
+            self.authority.update_page(target_id, status="draft", state_sha256=saved["state_sha256"],
+                generation={"stage": "draft", "restore": marker},
+                learning_baseline=snapshot, learning_baseline_sha256=sha256_json(snapshot))
+            return self.detail(project_id, target_id)
+
     def summary(self, landing_id: str) -> dict[str, Any]:
         from .marketing import brief_approach
         value = deepcopy(self.authority.get_page(landing_id))
@@ -1293,14 +1363,15 @@ class LandingService:
             landing_id, status="generating_images" if resume_images else "composing",
             generation={**(page.get("generation") or {}), "stage": "generating_images" if resume_images else "composing", **skill_provenance},
         )
+        composition_defaults = {
+            **detail["content"],
+            **({"app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE)} if detail["template_id"] != "app_showcase" else {}),
+        }
         payload = landing_composition_payload(
             landing_id=landing_id,
             approved_product_brief=brief["document"],
             source_post_snapshot=page["source_post_snapshot"],
-            content_defaults={
-                **detail["content"],
-                **({"app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE)} if detail["template_id"] != "app_showcase" else {}),
-            },
+            content_defaults=composition_defaults,
             active_creative_skills=skills,
             live_landing_catalog=detail["catalog"],
         )
@@ -1315,7 +1386,7 @@ class LandingService:
                     mode="studio_creative_generation", system_prompt=self.composer_skill,
                     input_payload=payload, output_schema=landing_generation_schema(detail["template_id"], marketing="marketing" in detail["configuration"], template_version=detail["template_reference"]["template_version"] if detail.get("template_reference") else None),
                     idempotency_key=f"landing-page:{landing_id}", prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
-                    response_validator=validate_landing_composition,
+                    response_validator=lambda value: validate_landing_composition(value, defaults=composition_defaults),
                 )
                 self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version=LANDING_COMPOSER_PROMPT_VERSION, invocation=sanitized(result.get("invocation") or {}))
                 # Owner-supplied defaults enter saved content, never AI output or

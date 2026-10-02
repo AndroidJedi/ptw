@@ -177,6 +177,8 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/landings/projects/{project_id}/source-posts",
             "/api/v1/landings/projects/{project_id}/pages",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/backup",
+            "/api/v1/landings/projects/{project_id}/pages/restore",
             "/api/v1/landings/projects/{project_id}/pages/variants",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/upgrade-showcase-hero",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/retry",

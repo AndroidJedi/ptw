@@ -684,6 +684,20 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_detail(project_id: str, landing_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", landing_path(project_id, landing_id), timeout=60)).json()
 
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/backup")
+    async def landing_backup(project_id: str, landing_id: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", landing_path(project_id, landing_id, "/backup"), timeout=120)
+        return Response(content=response.content, media_type="application/json", headers={
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "X-PTW-Content-SHA256": response.headers.get("x-ptw-content-sha256", ""),
+            "Content-Disposition": response.headers.get("content-disposition", "attachment; filename=landing.json"),
+        })
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/restore")
+    async def landing_restore(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/landings/projects/{project_id}/pages/restore",
+            body=request, actor=actor(identity), timeout=120)).json()
+
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/upgrade-showcase-hero")
     async def landing_upgrade_showcase_hero(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, "/upgrade-showcase-hero", request, identity)

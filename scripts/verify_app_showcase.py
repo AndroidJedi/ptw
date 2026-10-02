@@ -14,8 +14,9 @@ from fastapi.testclient import TestClient
 from scripts.verify_studio_save_restart import verify as seed_post, wait_database
 from tests.validation_pipeline.test_app_showcase import showcase_content
 from tests.validation_pipeline.test_landing_marketing import complete_marketing
-from validation_pipeline.landing_templates import APP_SHOWCASE_V2_DEFINITION
+from validation_pipeline.landing_templates import APP_SHOWCASE_V2_DEFINITION, APP_SHOWCASE_V3_DEFINITION
 REFERENCE = {k:v for k,v in APP_SHOWCASE_V2_DEFINITION.identity.to_reference().items() if k != "surface"}
+CURRENT_REFERENCE = {k:v for k,v in APP_SHOWCASE_V3_DEFINITION.identity.to_reference().items() if k != "surface"}
 from tests.validation_pipeline.test_landing_workspace import FakeImages
 from validation_pipeline.landing_pages import DatabaseLandingAuthority, DatabaseLandingWorkspace, LandingService
 from validation_pipeline.landing_workspace import LandingWorkspace
@@ -51,16 +52,18 @@ def verify(url, root):
     app=FastAPI()
     def owner(authorization: str=Header(default='')):
         if authorization != 'Bearer canary': raise HTTPException(401,'owner required')
-    app.include_router(landing_page_router(active,prefix='/landings',dependencies=[Depends(owner)]))
+    publication=DatabaseLandingPublicationAuthority(url)
+    app.include_router(landing_page_router(active,prefix='/landings',dependencies=[Depends(owner)],publications=publication))
     base=f'/landings/projects/{project}/pages/{lid}'
     with TestClient(app) as client:
         assert client.get(base).status_code==401
         client.headers['Authorization']='Bearer canary'
         # Trying another template never requires approving the latest draft.
         before_variant=authority.get_page(lid)
-        request={'source_creative_id':creative,'source_version':1,'template_reference':REFERENCE,'request_id':str(uuid4())}
+        request={'source_creative_id':creative,'source_version':1,'template_reference':CURRENT_REFERENCE,'request_id':str(uuid4())}
         variants=f'/landings/projects/{project}/pages/variants'
         with patch.object(active,'generate') as generate:
+            assert client.post(variants,json={**request,'template_reference':REFERENCE}).status_code==400
             first=client.post(variants,json=request)
             assert first.status_code==202,first.text
             assert first.json()['created']
@@ -108,13 +111,32 @@ def verify(url, root):
     assert hashlib.sha256(prepared).hexdigest()==preparation['prepared_sha256']==mockup['sha256']
     image=Image.open(BytesIO(prepared)).convert('RGBA')
     assert image.getpixel((0,0))[3]==0 and image.getpixel((image.width//2,image.height//2))[3]==255
-    publication=DatabaseLandingPublicationAuthority(url)
     publication.publish(project_id=project,request_id=str(uuid4()),landing_id=lid,version=1,slug='showcase-test',requested_by='test')
     snapshot=publication.snapshot('showcase-test')
     assert snapshot['template_reference']==REFERENCE and set(snapshot['assets'])==set(VISUAL_SLOTS)
     for asset in restored['assets']:
         result=publication.asset('showcase-test',snapshot['version_sha256'],asset['slot'],asset['sha256'])
         assert result['bytes']==restarted._workspace(lid).visual_image(asset['slot'],asset['sha256'])['bytes']
+    with TestClient(app) as client:
+        assert client.get(base+'/backup').status_code==401
+        client.headers['Authorization']='Bearer canary'
+        backup_response=client.get(base+'/backup')
+        assert backup_response.status_code==200,backup_response.text[:200]
+        backup=backup_response.json()
+        assert backup['approved_versions'] and backup['publication']['events']
+        assert backup_response.headers['x-ptw-content-sha256']==hashlib.sha256(backup_response.content).hexdigest()
+        restore_request={'backup':backup,'request_id':str(uuid4())}
+        corrupted={**backup,'backup_sha256':'0'*64}
+        assert client.post(f'/landings/projects/{project}/pages/restore',json={**restore_request,'backup':corrupted}).status_code==400
+        restored_response=client.post(f'/landings/projects/{project}/pages/restore',json=restore_request)
+        assert restored_response.status_code==200,restored_response.text[:200]
+        copy=restored_response.json()
+        assert copy['template_reference']==CURRENT_REFERENCE and copy['status']=='draft' and not copy['versions']
+        assert [(asset['slot'],asset['sha256']) for asset in copy['assets']]==[(asset['slot'],asset['sha256']) for asset in restored['assets']]
+        assert client.post(f'/landings/projects/{project}/pages/restore',json=restore_request).json()['landing_id']==copy['landing_id']
+    copy_fresh=service(root/'copy-fresh-cache')
+    assert copy_fresh.detail(project,copy['landing_id'])['state_sha256']==copy['state_sha256']
+    assert publication.snapshot('showcase-test')['version_sha256']==snapshot['version_sha256']
     upgraded=restarted.upgrade_showcase_hero(project,lid,base_sha256=restored['state_sha256'],requested_by='test')
     assert upgraded['template_reference']['template_version']==3
     assert upgraded['content']['hero']['supporting_text']==restored['content']['hero']['supporting_text']
@@ -123,7 +145,7 @@ def verify(url, root):
     assert upgrade_fresh.detail(project,upgraded['landing_id'])['state_sha256']==upgraded['state_sha256']
     assert upgrade_fresh.upgrade_showcase_hero(project,lid,base_sha256=restored['state_sha256'],requested_by='test')['landing_id']==upgraded['landing_id']
     assert publication.snapshot('showcase-test')['version_sha256']==snapshot['version_sha256']
-    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, raw/prepared alpha provenance, exact public bytes, historical version preservation, and database-backed v3 upgrade.')
+    print('PASS: authenticated HTTP, current template choices, idempotent retries/restart, five image slots, approval, raw/prepared provenance, exact public bytes, historical versions, database-backed v3 upgrade, and JSON export/restore into a private draft.')
 
 
 def main():

@@ -124,8 +124,22 @@ APP_SHOWCASE_V3_DEFINITION = replace(APP_SHOWCASE_V2_DEFINITION,
     default_content=landing_showcase.v3_content,
 )
 
+def _historical_landing_definition(reference: Mapping[str, Any]) -> TemplateDefinition:
+    """Keep exact published v1/v2 reads without offering old templates for new work."""
+    legacy = {
+        ("app_showcase", 1): APP_SHOWCASE_DEFINITION,
+        ("app_showcase", 2): APP_SHOWCASE_V2_DEFINITION,
+    }
+    try:
+        return legacy[(reference["template_id"], reference["template_version"])]
+    except (KeyError, TypeError) as error:
+        raise ValueError("Template reference is stale or not registered") from error
+
+
 LANDING_TEMPLATE_REGISTRY = TemplateRegistry(
-    "landing", (PROJECT_LANDING_DEFINITION, APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V2_DEFINITION, APP_SHOWCASE_V3_DEFINITION),
+    "landing", (PROJECT_LANDING_DEFINITION, APP_SHOWCASE_DEFINITION,
+                APP_SHOWCASE_V2_DEFINITION, APP_SHOWCASE_V3_DEFINITION),
+    version_loader=_historical_landing_definition,
 )
 
 

@@ -452,6 +452,15 @@ schema sizes and worker timing with the one successful run, then repair the
 runtime and canary's shared Landing contract in a reviewed revision. A healthy
 bridge worker or one prior successful canary does not authorize skipping the
 fresh release gate.
+When comparing these jobs, query only mode, status, error class, elapsed time,
+model/effort and byte counts; do not print private payloads. Two exact 360-second
+`TimeoutExpired` jobs beside a 40-second success with the same roughly 7 KiB
+prompt, 7 KiB input and 3 KiB schema indicate intermittent execution, not a
+confirmed malformed response. Keep the model/low reasoning setting. Simplify
+the shared runtime composition contract, prove it with fresh local calls, and
+rerun the complete fresh release canary. Before retiring historical App Showcase
+choices, export and digest-verify each production Landing as a private JSON
+backup; preserve legacy reads for currently published v2 pages.
 When two fresh structured canaries need the same corrective domain validation,
 inspect the bounded correction reason in the second bridge job, then repair the
 owning prompt or contract in a new reviewed revision. Keep the first-attempt gate

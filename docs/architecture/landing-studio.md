@@ -271,6 +271,17 @@ hashes. Repeating the first reservation with a different explicit identity
 conflicts. Existing pages try another template through the variant path without
 requiring approval of the current Landing.
 
+The private editor offers Download JSON and Restore from JSON. Export is a
+self-contained, digest-checked copy of the Landing workspace files, approved
+version records and publication references. Restore validates the Project,
+source Post version, image bytes and slots, then reserves one idempotent,
+unapproved draft. App Showcase v1/v2 restores onto v3, where the Hero eyebrow
+and supporting-text/three-bullet format can be edited. Public publication
+events and URLs stay attached to their original approved versions. Historical
+v1/v2 template definitions remain readable, while the active catalog and
+creation route select only v3. The owner starts Restore from JSON; the
+`landing-template-restore` skill describes the template agent's guidance.
+
 The new template stores exactly three `content.app_screens` records (title,
 description, visual_direction) and bounded `configuration.showcase` controls
 (gradient_end, screen_scale, screen_offset). Its image slots are `app_screen_1`,

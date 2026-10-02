@@ -6,11 +6,12 @@ import unittest
 
 from tests.validation_pipeline.test_landing_workspace import FakeImages, complete_content
 from validation_pipeline.landing_templates import APP_SHOWCASE_DEFINITION, APP_SHOWCASE_V3_DEFINITION, LANDING_TEMPLATE_REGISTRY
-from validation_pipeline.landing_workspace import LandingWorkspace, normalize_configuration, normalize_content
+from validation_pipeline.landing_workspace import LandingWorkspace, normalize_configuration, normalize_content, sha256_json
 from validation_pipeline.landing_pages import LandingService, LocalLandingAuthority, landing_generation_schema
 from validation_pipeline.landing_publication import public_snapshot, selected_assets
 from validation_pipeline.local_brief_store import LocalBriefStore
 from validation_pipeline.landing_showcase import SCREEN_SLOTS, VISUAL_SLOTS
+from validation_pipeline.landing_backup import export_backup, validate_backup
 from validation_pipeline.studio_manual_agent import manual_agent_editable_values
 
 REFERENCE = {key: value for key, value in APP_SHOWCASE_DEFINITION.identity.to_reference().items() if key != 'surface'}
@@ -66,6 +67,7 @@ class AppShowcaseTests(unittest.TestCase):
         store = LocalBriefStore(Path(self.directory.name) / 'upgrade-authority')
         authority = LocalLandingAuthority(store, post_workspace_root=Path(self.directory.name))
         project_id, creative_id, brief_id = (str(uuid4()) for _ in range(3))
+        store.append('projects', project_id, {'project_id': project_id})
         authority._source_version = lambda *_: {'source_brief_id': brief_id, 'version_sha256': 'a' * 64}
         authority.brief = lambda *_: {'approved': True, 'document': {'language': 'uk', 'idea': 'Water comparison'}}
         active = service(Path(self.directory.name) / 'upgrade-pages', authority)
@@ -104,6 +106,69 @@ class AppShowcaseTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'changed'):
             restarted.upgrade_showcase_hero(project_id, source_id,
                 base_sha256='0' * 64, requested_by='test')
+
+    def test_json_backup_restores_private_v3_draft_and_preserves_history(self):
+        store = LocalBriefStore(Path(self.directory.name) / 'backup-authority')
+        authority = LocalLandingAuthority(store, post_workspace_root=Path(self.directory.name))
+        project_id, creative_id, brief_id = (str(uuid4()) for _ in range(3))
+        store.append('projects', project_id, {'project_id': project_id})
+        authority._source_version = lambda *_: {'source_brief_id': brief_id, 'version_sha256': 'a' * 64}
+        authority.brief = lambda *_: {'approved': True, 'document': {'language': 'uk', 'idea': 'Water comparison'}}
+        active = service(Path(self.directory.name) / 'backup-pages', authority)
+        page, _ = active.reserve_from_post(project_id=project_id, source_creative_id=creative_id,
+            source_version=1, requested_by='test', template_reference=REFERENCE)
+        source_id = page['landing_id']
+        workspace = active._workspace(source_id)
+        draft = workspace.detail()
+        content = showcase_content()
+        content['hero']['supporting_text'] = '• Порівнюйте склад. • Розумійте показники. • Обирайте за смаком.'
+        content['contacts']['email'] = 'owner@example.com'
+        draft = workspace.save_configuration(base_sha256=draft['state_sha256'], configuration=draft['configuration'], content=content)
+        for slot in VISUAL_SLOTS:
+            draft = workspace.generate_visual(base_sha256=draft['state_sha256'], slot=slot,
+                visual_direction='A retained illustration', prompt='sample')
+        draft = workspace.approve_configuration(base_sha256=draft['state_sha256'],
+            configuration=draft['configuration'], content=draft['content'], change_note='Original approved page')
+        authority.update_page(source_id, status='draft', state_sha256=draft['state_sha256'])
+        publication = {'slug': 'water', 'status': 'published', 'current_event_id': str(uuid4()),
+                       'events': [{'landing_id': source_id, 'action': 'publish', 'landing_version': 1}]}
+        backup = export_backup(active, project_id, source_id, type('Publications', (), {'get': lambda _, project: publication})())
+        self.assertEqual(len(backup['approved_versions']), 1)
+        self.assertEqual(len(backup['publication']['events']), 1)
+        validate_backup(backup, project_id=project_id)
+        request_id = str(uuid4())
+        restored = active.restore_backup(project_id, backup, request_id=request_id, requested_by='test')
+        self.assertEqual(restored['template_reference']['template_version'], 3)
+        self.assertEqual(restored['status'], 'draft')
+        self.assertEqual(restored['versions'], [])
+        self.assertEqual(restored['content']['hero']['bullets'], ['Порівнюйте склад.', 'Розумійте показники.', 'Обирайте за смаком.'])
+        for source, target in zip(active.detail(project_id, source_id)['assets'], restored['assets']):
+            self.assertEqual(source['sha256'], target['sha256'])
+            self.assertEqual(workspace.visual_image(source['slot'], source['sha256'])['bytes'],
+                active._workspace(restored['landing_id']).visual_image(target['slot'], target['sha256'])['bytes'])
+        self.assertEqual(active.restore_backup(project_id, backup, request_id=request_id, requested_by='test')['landing_id'], restored['landing_id'])
+        self.assertEqual(len(store.list('landing_pages')), 2)
+        self.assertEqual(workspace.version_detail(1), backup['approved_versions'][0])
+        self.assertEqual(publication['current_event_id'], backup['publication']['current_event_id'])
+        restarted = service(Path(self.directory.name) / 'backup-pages', authority)
+        self.assertEqual(restarted.detail(project_id, restored['landing_id'])['state_sha256'], restored['state_sha256'])
+        damaged = deepcopy(backup)
+        first = next(iter(damaged['files']))
+        damaged['files'][first]['bytes_base64'] = 'AAAA'
+        damaged['backup_sha256'] = sha256_json({key: value for key, value in damaged.items() if key != 'backup_sha256'})
+        with self.assertRaisesRegex(ValueError, 'digest'):
+            validate_backup(damaged, project_id=project_id)
+        with self.assertRaisesRegex(ValueError, 'another Project'):
+            validate_backup(backup, project_id=str(uuid4()))
+        changed = deepcopy(backup)
+        changed['status'] = 'failed'
+        changed['backup_sha256'] = sha256_json({key: value for key, value in changed.items() if key != 'backup_sha256'})
+        with self.assertRaisesRegex(RuntimeError, 'another Landing backup'):
+            active.restore_backup(project_id, changed, request_id=request_id, requested_by='test')
+        authority._source_version = lambda *_: {'source_brief_id': brief_id, 'version_sha256': 'b' * 64}
+        with self.assertRaisesRegex(ValueError, 'source Post version has changed'):
+            active.restore_backup(project_id, backup, request_id=str(uuid4()), requested_by='test')
+        self.assertEqual(len(store.list('landing_pages')), 2)
 
     def test_contract_rejects_unknown_slots_wrong_template_and_invalid_screens(self):
         detail = self.workspace.detail()
@@ -314,7 +379,7 @@ class AppShowcaseTests(unittest.TestCase):
         detail = active.detail(authority.page['project_id'], authority.page['landing_id'])
         self.assertEqual(detail['content']['hero']['bullets'], ['Find your things', 'Record the details', 'Browse by category'])
         self.assertEqual(detail['configuration']['showcase']['hero_body_mode'], 'bullets')
-        self.assertEqual(provider.calls[0]['input_payload']['live_landing_catalog']['template_version'], 3)
+        self.assertEqual(provider.calls[0]['input_payload']['landing_template']['template_version'], 3)
         self.assertIn('bullets', provider.calls[0]['output_schema']['properties']['content']['properties']['hero']['required'])
         workspace = active._workspace(authority.page['landing_id'])
         workspace.approve_configuration(base_sha256=detail['state_sha256'], configuration=detail['configuration'], content=detail['content'], change_note='Reviewed hero')

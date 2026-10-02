@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
+import hashlib
+import json
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.params import Depends as DependsParameter
@@ -12,7 +14,7 @@ from .image_reference import generation_request
 from .studio_manual_agent import StudioManualAgentProviderError, manual_agent_request
 
 
-def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[DependsParameter] = ()) -> APIRouter:
+def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[DependsParameter] = (), publications: Any | None = None) -> APIRouter:
     router = APIRouter(prefix=prefix, dependencies=list(dependencies))
 
     def fail(error: Exception) -> HTTPException:
@@ -54,6 +56,15 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
             raise HTTPException(status_code=400, detail="Landing source Post version is invalid")
         if "request_id" in request and not isinstance(request["request_id"], str):
             raise HTTPException(status_code=400, detail="Landing request ID must be a UUID")
+        if "template_reference" in request:
+            from .landing_templates import LANDING_TEMPLATE_REGISTRY
+            try:
+                reference = request["template_reference"]
+                current = LANDING_TEMPLATE_REGISTRY.get(reference["template_id"]).identity.to_reference()
+                if dict(reference) != {key: value for key, value in current.items() if key != "surface"}:
+                    raise ValueError("Only the current Landing template can be selected")
+            except (KeyError, TypeError, ValueError) as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
         try:
             page, created = service.reserve_from_post(
                 project_id=project_id, source_creative_id=str(request["source_creative_id"]),
@@ -80,6 +91,31 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         try:
             return service.detail(project_id, landing_id)
         except (KeyError, ValueError) as error:
+            raise fail(error) from error
+
+    @router.get("/projects/{project_id}/pages/{landing_id}/backup")
+    def backup(project_id: str, landing_id: str) -> Response:
+        from .landing_backup import export_backup
+        try:
+            document = export_backup(service, project_id, landing_id, publications)
+            raw = (json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
+            return Response(content=raw, media_type="application/json", headers={
+                "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+                "X-PTW-Content-SHA256": hashlib.sha256(raw).hexdigest(),
+                "Content-Disposition": f'attachment; filename="landing-{landing_id}.json"',
+            })
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/pages/restore")
+    def restore(project_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        fields(request, {"request_id", "backup"}, "Landing restore fields are invalid")
+        if not isinstance(request["backup"], Mapping):
+            raise HTTPException(status_code=400, detail="Landing restore requires a JSON backup")
+        try:
+            return service.restore_backup(project_id, request["backup"],
+                request_id=str(request["request_id"]), requested_by="owner-web")
+        except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 
     @router.post("/projects/{project_id}/pages/{landing_id}/upgrade-showcase-hero")

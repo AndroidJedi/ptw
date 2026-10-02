@@ -416,7 +416,7 @@ it('passes the exact selected template reference when reserving a Landing', asyn
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/pages'), expect.objectContaining({ template_reference: reference })))
 })
 
-it('opens an older App Showcase draft through the latest hero controls automatically', async () => {
+it('restores an older App Showcase JSON backup as a new private draft on owner action', async () => {
   const old = landingDetail()
   old.template_id = 'app_showcase'
   old.template_reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) }
@@ -429,9 +429,13 @@ it('opens an older App Showcase draft through the latest hero controls automatic
     post: vi.fn(async () => latest), image: vi.fn(),
   } as unknown as ApiClient
   const onLanding = vi.fn()
-  render(<LandingView api={api} language="en" projectId={projectId} landingId={old.landing_id} onLanding={onLanding} />)
+  const { container } = render(<LandingView api={api} language="en" projectId={projectId} landingId={old.landing_id} onLanding={onLanding} />)
+  await screen.findByRole('button', { name: 'Restore from JSON' })
+  expect(api.post).not.toHaveBeenCalled()
+  const input = container.querySelector('input[type=file]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File([JSON.stringify({ backup_sha256: 'a'.repeat(64) })], 'landing.json', { type: 'application/json' })] } })
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-    expect.stringMatching(/\/pages\/[^/]+\/upgrade-showcase-hero$/), { base_sha256: old.state_sha256 },
+    expect.stringMatching(/\/pages\/restore$/), expect.objectContaining({ backup: { backup_sha256: 'a'.repeat(64) } }), expect.any(Object),
   ))
   await waitFor(() => expect(onLanding).toHaveBeenCalledWith(latest.landing_id))
   expect(api.post).toHaveBeenCalledTimes(1)

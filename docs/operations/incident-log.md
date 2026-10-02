@@ -1,5 +1,18 @@
 # PTW incident log
 
+## 2026-10-02 — Daddy manual-review release
+
+The first capacity-fix rollout passed image generation and file checks, then
+rolled back when its Daddy AI screenshot-review call timed out. Accepted images
+were restored; the source checkouts were subsequently reconciled to the
+accepted revisions under the maintenance lock. Daddy now stops after required
+assets and a deterministic render, recording its digest and layout findings.
+AI image analysis and automatic polish are not part of generation or explicit
+recomposition; owner review and tuning happen in Studio. Strict PNG integrity,
+worker capacity checks and the real bridge image canary remain release gates.
+The exact car-sharing Post is still failed pending the compatible deployment
+and one deliberate scene Retry. No design or Brief changes are authorized.
+
 ## 2026-10-02 — Daddy scene PNG truncated by worker tmpfs exhaustion
 
 The diagnostic release passed its real image and Daddy canaries, then one
@@ -22,7 +35,7 @@ The capacity repair changes only the worker tmpfs from 64 to 256 MiB, adds a
 separately. The image validator remains strict. The next release must pass
 two-job worker/resource checks, the real bridge/Daddy canary, affected suites,
 Owner browser flows and preservation audits. Only after acceptance may one
-UUID-bound Retry resume this exact scene and run actual-PNG review. Preserve
+UUID-bound Retry resume this exact scene and open a rendered manual-edit draft. Preserve
 the old failure receipts, approved Brief and other Projects.
 
 ## 2026-10-01 — Daddy scene failed on a truncated completed bridge image

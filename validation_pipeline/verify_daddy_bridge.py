@@ -50,7 +50,9 @@ def verify(settings, provider, media, brief_document, accept):
             assets.append({"slot":slot,"sha256":asset["sha256"],"request_id":asset["source"].get("bridge_request_id")})
         rendered = workspace.render_preview(state_sha256=detail["state_sha256"])
         digest = hashlib.sha256(rendered["bytes"]).hexdigest()
-        if detail["generation"]["daddy"]["review"]["render_sha256"] != digest:
-            raise RuntimeError("Daddy canary did not review its actual final PNG")
+        run = detail["generation"]["daddy"]
+        if (run.get("phase") != "ready_for_manual_edit" or run.get("review_mode") != "manual"
+                or run.get("render_sha256") != digest):
+            raise RuntimeError("Daddy canary did not deliver a rendered manual-edit draft")
         return {"mode":"daddy_pipeline","assets":assets,"render_sha256":digest,
             "findings":detail["generation"]["daddy"].get("issues",[])}

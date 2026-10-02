@@ -22,7 +22,7 @@ test('Daddy preserves copy across presets, Agent changes and explicit preview / 
     if (path === base) return json(current)
     if (path === `${base}/retry`) {
       retries.push(route.request().postDataJSON().request_id)
-      current = { ...current, status: 'draft', generation: { ...current.generation, daddy: { ...current.generation.daddy, phase: 'ready' } } }
+      current = { ...current, status: 'draft', generation: { ...current.generation, daddy: { ...current.generation.daddy, phase: 'ready_for_manual_edit', review_mode: 'manual' } } }
       return json(current)
     }
     if (path === `${base}/agent`) {
@@ -44,12 +44,13 @@ test('Daddy preserves copy across presets, Agent changes and explicit preview / 
   await page.goto(`/?e2e=1&page=posts&project=${fixture.project_id}&creative=${fixture.creative_id}`)
   await expect(page.getByRole('heading', { name: 'Background image failed; your text and layout are saved' })).toBeVisible()
   await expect(page.getByText(/This preview is incomplete. The image worker ran out of temporary storage./)).toBeVisible()
-  await expect(page.getByText('Incomplete preview — generation and review have not finished.')).toBeVisible()
+  await expect(page.getByText('Incomplete preview — required images are not ready yet.')).toBeVisible()
   await page.getByRole('button', { name: 'Retry image' }).click()
   await expect(page.getByRole('heading', { name: 'Compose a Post' })).toBeVisible()
   expect(retries).toHaveLength(1)
   expect(retries[0]).toMatch(/^[a-f0-9-]{36}$/)
   await expect(page.getByAltText('Daddy Post preview')).toBeVisible()
+  await expect(page.getByText('Ready for your review and manual tuning. No automatic visual polish was applied.')).toBeVisible()
   const initialPreviews = previews.length
   const copy = page.getByRole('heading', { name: 'Copy', exact: true })
   await expect(copy.locator('xpath=../..')).not.toHaveAttribute('open')

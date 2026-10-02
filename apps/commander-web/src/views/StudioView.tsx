@@ -26,7 +26,7 @@ function GenerationPreview({ api, basePath, stateSha256, language }: { api: ApiC
     return () => { cancelled = true }
   }, [api, basePath, stateSha256])
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
-  return url ? <div className="panel daddy-preview"><p role="status">{language === 'uk' ? 'Незавершене прев’ю — генерація та перевірка ще не завершені.' : 'Incomplete preview — generation and review have not finished.'}</p><img src={url} alt={language === 'uk' ? 'Незавершене прев’ю допису' : 'Incomplete Post preview'} /></div> : null
+  return url ? <div className="panel daddy-preview"><p role="status">{language === 'uk' ? 'Незавершене прев’ю — потрібні зображення ще не готові.' : 'Incomplete preview — required images are not ready yet.'}</p><img src={url} alt={language === 'uk' ? 'Незавершене прев’ю допису' : 'Incomplete Post preview'} /></div> : null
 }
 
 export function StudioView({
@@ -238,7 +238,7 @@ export function StudioView({
 
   if (['queued', 'composing', 'generating_image'].includes(detail.status)) {
     const phase = detail.generation?.daddy?.phase || ''
-    const progress = phase === 'strategy' ? tr('Choosing a creative direction', 'Обираємо творчий напрям') : phase === 'composition' ? tr('Composing the message and layout', 'Створюємо текст і композицію') : phase.startsWith('asset') ? tr('Preparing the images', 'Готуємо зображення') : ['polish', 'review'].includes(phase) ? tr('Reviewing and polishing the Post', 'Перевіряємо й покращуємо допис') : tr('Building the creative', 'Створюємо креатив')
+    const progress = phase === 'strategy' ? tr('Choosing a creative direction', 'Обираємо творчий напрям') : phase === 'composition' ? tr('Composing the message and layout', 'Створюємо текст і композицію') : phase.startsWith('asset') ? tr('Preparing the images', 'Готуємо зображення') : phase === 'render' ? tr('Preparing your editable preview', 'Готуємо прев’ю для редагування') : tr('Building the creative', 'Створюємо креатив')
     return <div className="studio-page">{creativePicker}<section className="panel studio-generation-progress" aria-live="polite"><RefreshCcw className="spin" /><small>STUDIO AI</small><h2>{progress}</h2></section>{detail.generation?.daddy?.composed && <GenerationPreview api={api} basePath={basePath} stateSha256={detail.state_sha256} language={language} />}</div>
   }
   if (detail.status === 'failed' && (detail.generation?.creative_direction || detail.generation?.daddy)) {
@@ -261,7 +261,7 @@ export function StudioView({
       return <div className="studio-page">{creativePicker}<section className="panel" role="alert">
         <h2>{slot ? tr(`${names[slot] || 'Image'} failed; your text and layout are saved`, `${names[slot] || 'Зображення'} не вдалося створити; текст і композицію збережено`) : tr('Post generation paused', 'Генерацію допису призупинено')}</h2>
         <p>{tr('This preview is incomplete.', 'Цей попередній перегляд неповний.')} {reasons[failureCode] || tr('The current step did not finish.', 'Поточний етап не завершено.')}</p>
-        <p>{slot ? tr('Retry resumes this image, keeps completed work, then reviews the finished Post.', 'Повторення відновить це зображення, збереже готові елементи та перевірить завершений допис.') : tr('Retry resumes the unfinished step and keeps completed work.', 'Повторення відновить незавершений крок і збереже готові елементи.')}</p>
+        <p>{slot ? tr('Retry resumes this image and keeps completed work. You can tune the draft when it is ready.', 'Повторення відновить це зображення й збереже готові елементи. Потім ви зможете налаштувати чернетку.') : tr('Retry resumes the unfinished step and keeps completed work.', 'Повторення відновить незавершений крок і збереже готові елементи.')}</p>
         {slot && attempt !== undefined && <p>{tr('Image attempt', 'Спроба створення зображення')} {attempt + 1} · {tr('Failure code', 'Код помилки')} {failureCode}</p>}
         {daddy.failure?.provider_request_id && <p>{tr('Image request', 'Запит зображення')} #{daddy.failure.provider_request_id}</p>}
         {error && <p>{error}</p>}

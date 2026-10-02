@@ -42,7 +42,7 @@ class DaddyRecoveryTests(unittest.TestCase):
         keys = install_provider(self, ['invalid','valid'])
         project,identifier,detail = self.generate()
         self.assertEqual(2,len(keys)); self.assertNotEqual(*keys)
-        self.assertEqual(3,len(self.provider.calls))
+        self.assertEqual(2,len(self.provider.calls))
         record = next(iter(detail['generation']['daddy']['asset_operations'].values()))
         self.assertEqual('invalid_image',record['attempts']['0']['failure_code'])
         self.assertEqual(101,record['attempts']['0']['provider_request_id'])

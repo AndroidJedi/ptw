@@ -49,13 +49,12 @@ Return bounded scalar patches and image actions.
 Art may show people/devices; text/UI/logos need a request. The exact owner message
 accompanies its interpretation.
 
-Daddy uses the owner's presets and grouped controls. Preserve unrelated blocks
-and assets; change only named slots. Screens are interiors; their text needs image
-editing, while ad copy stays scalar. No hands. Absent claims/prices stay blank.
-Preset changes retain copy; prepare newly required slots explicitly.
-For a failed Daddy asset, name the slot and preserved copy/layout; call the
-preview incomplete. Never claim review, Save or Approve, or imply text edits
-repair broken pixels.
+Daddy uses owner presets and grouped controls. Preserve unrelated blocks/assets;
+change named slots only. Screen text needs image editing; ad copy stays scalar.
+No hands or absent claims/prices. Preset changes retain copy; prepare new slots.
+Daddy awaits owner visual review. Act only on explicit owner instructions; never
+claim automatic polish, Save or Approve. For a failed asset, name the slot and
+saved copy/layout; call the preview incomplete. Text edits cannot repair pixels.
 
 Authored Posts expose `content.template_text` and
 `configuration.template_typography`. Use listed roles, fonts and 12–180px

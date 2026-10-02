@@ -31,8 +31,9 @@ only that composition's contract. Reuse suitable current assets; prepare declare
 slots separately. Screens contain UI interiors, never hardware or ad copy. Use
 standalone phones without hands. Keep absent offers/previous prices empty; the
 Phone Metrics numeric-hypothesis exception does not apply. Presets are testing
-hypotheses. Inspect the actual PNG; at most two correction rounds and one targeted
-asset replacement per round. Return remaining findings with the editable draft.
+hypotheses. After required assets arrive, render once and return an editable
+draft with deterministic layout findings. Do not request AI screenshot review or
+automatic visual polish; the owner tunes the Post in Studio.
 If a required image fails, report the missing slot, bounded reason and saved
 copy/layout plainly. Do not call a fallback or incomplete preview finished,
 reviewed or polished. Resume from the durable slot receipt only after the

@@ -14,8 +14,10 @@ readiness.
 
 For a Daddy Post with a blank scene, read its durable generation receipt before
 calling the Post complete: phase, required slot, provider job ID, attempt,
-failure code, saved assets, and actual-PNG review. The preview is incomplete
-until every required slot and review finish. Tell the owner exactly which copy
+failure code, saved assets, and rendered preview digest. The preview is incomplete
+until every required slot and deterministic render finish. Daddy does not run
+automatic AI screenshot review or polish; manual owner review follows. Tell
+the owner exactly which copy
 and layout remain saved, what failed, and whether Retry is safe; never describe
 an unfinished preview as a finished creative.
 
@@ -35,7 +37,7 @@ An image file ending inside IDAT on a 4 KiB boundary while the worker's
 Check `df` inside the worker and its cgroup limit, not only host disk/RAM or
 OOM counters. Preserve the Brief, copy, layout and other slots. Fix the worker
 capacity and verify a production-bridge canary before one UUID-bound Retry of
-the exact creative. On success require a decoded saved scene, actual-PNG review,
+the exact creative. On success require a decoded saved scene, deterministic render,
 reload persistence and unchanged other Projects; on failure keep the precise
 receipt and stop rather than replaying uncertain work.
 

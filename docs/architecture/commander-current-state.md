@@ -2,6 +2,18 @@
 
 Updated: 2026-10-02
 
+## Daddy manual-review capacity release in progress
+
+The first 256 MiB worker release candidate generated and validated a real
+Daddy scene, but its automatic AI screenshot review timed out. The rollback
+restored accepted service images; source checkouts were then restored under the
+maintenance lock to PTW `553da39` and platform `9bb43d7`, with accepted skills
+verified. The new candidate removes automatic Daddy visual review and polish:
+after required assets it renders once, records digest/layout findings, and
+opens an unapproved draft for owner tuning. The production bridge still checks
+image integrity. Build, release, exact scene Retry and reload verification are
+pending. Preserve the saved Brief/copy/owner settings and other Projects.
+
 ## Daddy image handoff — temporary-storage root cause confirmed, capacity fix pending
 
 The diagnostic release is live and passed 510 Validation tests, 63 companion
@@ -21,8 +33,8 @@ The next preserving release increases the worker tmpfs to 256 MiB with a
 96 MiB pre-generation free-space guard and a distinct
 `temporary_storage_full` failure code. Keep the 768 MiB worker cgroup cap and
 two-job capacity. After tests and a real bridge canary, perform one explicit
-Retry of only `scene`, then verify full PNG decode, actual-PNG review, native
-and phone-size appearance, saved Brief/copy/layout, reload persistence and
+Retry of only `scene`, then verify full PNG decode, rendered manual-edit draft,
+saved Brief/copy/layout, reload persistence and
 unchanged other Projects. Until then this Creative remains failed at
 `asset:scene`, with no visual polish or approved version.
 

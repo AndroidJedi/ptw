@@ -475,7 +475,7 @@ export interface StudioCreativeSummary {
   state_sha256: string | null
   approved_version_count: number
   generation: {
-    daddy?: { phase: string; composed?: boolean; corrections: number; issues?: string[]; strategy?: { reason: string }; failure?: { code: string; slot: string | null; provider_request_id?: number | null }; asset_operations?: Record<string, { slot: string; attempt: number; max_attempt: number; attempts: Record<string, { status: string; failure_code?: string; provider_request_id?: number }> }> }
+    daddy?: { phase: string; composed?: boolean; corrections: number; issues?: string[]; review_mode?: 'manual'; render_sha256?: string; strategy?: { reason: string }; failure?: { code: string; slot: string | null; provider_request_id?: number | null }; asset_operations?: Record<string, { slot: string; attempt: number; max_attempt: number; attempts: Record<string, { status: string; failure_code?: string; provider_request_id?: number }> }> }
     metric_provenance?: MetricProvenance[]
     stage?: StudioCreativeStatus
     error_type?: string

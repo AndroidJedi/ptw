@@ -1,17 +1,14 @@
-"""Resumable Brief → composition → independent assets → bounded visual polish."""
+"""Resumable Brief → composition → independent assets → editable draft."""
 from __future__ import annotations
 
 from copy import deepcopy
-import hashlib
 import json
 import re
 from uuid import NAMESPACE_URL, uuid5
 
 from .studio_daddy import PRESETS, STYLES, COPY, SLOTS, default_configuration, normalize_configuration, normalize_content, required_slots, agent_catalog
-from .studio_manual_agent import (manual_agent_editable_values, manual_agent_payload, manual_agent_schema,
-    apply_manual_agent_edits, screenshot_artifacts, validate_image_actions, manual_agent_brief_context)
 from .image_generation_policy import build_image_context, instruction_context
-from .template_components import bounded_text, sha
+from .template_components import bounded_text
 from .agent_context import compact_active_skills
 
 POLICY = """Daddy is a professional modular Post art director. Produce one post from the exact approved Brief.
@@ -182,66 +179,19 @@ def generate(service, creative_id):
                 generate_slot(service,creative,slot,direction,f"daddy:{operation}:asset:{slot}",run=run,persist=asset_progress)
             run["assets"][slot] = "completed"
             progress("assets","generating_image")
-        while True:
-            if run.get("pending_polish"):
-                progress("polish", "generating_image")
-                for action in run["pending_polish"]:
-                    generate_slot(service,creative,action["slot"],action["visual_direction"],f"daddy:{operation}:polish:{run['corrections']}",enhance=action["enhance_current"],run=run,persist=asset_progress)
-                run.pop("pending_polish")
-                progress("review")
-            progress("review")
-            detail = workspace.detail()
-            rendered = workspace.render_preview(state_sha256=detail["state_sha256"])
-            digest = rendered["bytes_sha256"]
-            if run.get("review",{}).get("render_sha256")==digest:
-                review = run["review"]
-            else:
-                catalog = agent_catalog()
-                values = manual_agent_editable_values(catalog=catalog,configuration=detail["configuration"],content=detail["content"])
-                slots = required_slots(detail["configuration"])
-                schema = manual_agent_schema(editable_paths=list(values),image_slots=slots,screenshot_count=0)
-                schema["properties"].update(ready={"type":"boolean"},issues={"type":"array","items":string(300),"maxItems":6})
-                schema["required"] += ["ready","issues"]
-                schema["properties"]["image_actions"]["maxItems"] = min(1,len(slots))
-                def validate(value):
-                    if set(value)!={"edits","image_actions","reply","ready","issues"} or not isinstance(value["ready"],bool) or not isinstance(value["issues"],list) or len(value["issues"])>6:
-                        raise ValueError("Daddy review is invalid")
-                    for issue in value["issues"]:
-                        bounded_text(issue,300,"Review issue")
-                    if len(value["image_actions"])>1:
-                        raise ValueError("Polish may regenerate at most one asset per round")
-                    state = apply_manual_agent_edits(value["edits"],current_values=values,configuration=detail["configuration"],content=detail["content"])
-                    normalize_configuration(state["configuration"]); normalize_content(state["content"])
-                    before_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", " ".join(detail["content"].values())))
-                    after_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", " ".join(state["content"].values())))
-                    if after_numbers - before_numbers:
-                        raise ValueError("Visual polish cannot introduce new quantitative claims")
-                    if state["configuration"]["logo"]!=detail["configuration"]["logo"] or state["configuration"]["preset"]!=detail["configuration"]["preset"]:
-                        raise ValueError("Polish preserves selected composition and brand")
-                    if state["configuration"]["message"]["font"] != detail["configuration"]["message"]["font"]:
-                        raise ValueError("Polish preserves the exact selected font")
-                    validate_image_actions(value["image_actions"],slots=slots,screenshot_count=0,available_slots={v["slot"] for v in detail["assets"] if v["available"]})
-                    return value
-                review = call("review",{"approved_product_brief":brief["document"],"configuration":detail["configuration"],"content":detail["content"],
-                    "layout_issues":rendered.get("layout_issues",[]),"rule":"Inspect the actual final PNG at phone size. Correct meaningful clipping, unreadable copy, incoherent palette, incomplete subject/device or Brief mismatch. Preserve claims, identity and unrelated choices. At most one targeted image action. ready=true only if there are no needed edits or image actions."},
-                    schema,validate,artifacts=screenshot_artifacts([rendered["bytes"]]),mode="studio_manual_edit",key=f"review:{digest}")
-                run["review"] = {**review,"render_sha256":digest}
-                progress("review")
-            if review["ready"] and not review["issues"] and not review["edits"] and not review["image_actions"] and not rendered.get("layout_issues"):
-                run["issues"] = []
-                break
-            run["issues"] = review["issues"] + [str(v.get("issue", v)) for v in rendered.get("layout_issues",[])]
-            if not run["issues"] and not review["ready"]:
-                run["issues"] = ["Visual review did not confirm readiness. Inspect the current preview."]
-            if run["corrections"]>=2 or not (review["edits"] or review["image_actions"]):
-                break
-            values = manual_agent_editable_values(catalog=agent_catalog(),configuration=detail["configuration"],content=detail["content"])
-            state = apply_manual_agent_edits(review["edits"],current_values=values,configuration=detail["configuration"],content=detail["content"])
-            workspace.save_configuration(base_sha256=detail["state_sha256"],**state)
-            run["corrections"] += 1
-            run["pending_polish"] = review["image_actions"]
-            progress("polish")
-        run["phase"] = "needs_review" if run.get("issues") else "ready"
+        # Rendering checks that the complete composition is usable. Its layout
+        # diagnostics are shown in the editor; the owner decides what to change.
+        # A saved polish proposal from an older interrupted run is never applied
+        # implicitly after switching to manual review.
+        if run.get("pending_polish"):
+            run["skipped_polish"] = run.pop("pending_polish")
+        progress("render")
+        detail = workspace.detail()
+        rendered = workspace.render_preview(state_sha256=detail["state_sha256"])
+        run["render_sha256"] = rendered["bytes_sha256"]
+        run["review_mode"] = "manual"
+        run["issues"] = [str(v.get("issue", v)) for v in rendered.get("layout_issues",[])]
+        run["phase"] = "ready_for_manual_edit"
         run.pop("error", None)
         run.pop("failure", None)
         generation.pop("error_type", None)

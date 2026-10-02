@@ -253,10 +253,11 @@ export function DaddyStudio({ api, language, basePath, detail: initial, onDetail
     <div className="daddy-workspace"><aside className="daddy-preview panel">
       {previewUrl && <img src={previewUrl} alt={tr('Daddy Post preview', 'Прев’ю допису Daddy')} />}
       <p aria-live="polite">{previewBusy ? tr('Rendering…', 'Рендеринг…') : renderedState !== draftKey ? tr('Changes are ready. Update preview to inspect them.', 'Зміни готові. Оновіть прев’ю для перегляду.') : '1080 × 1350'}</p>
+      {(detail.generation as unknown as { daddy?: { review_mode?: string } })?.daddy?.review_mode === 'manual' && <p>{tr('Ready for your review and manual tuning. No automatic visual polish was applied.', 'Готово до вашого перегляду й ручного налаштування. Автоматичне візуальне доопрацювання не застосовувалося.')}</p>}
       {[...findings, ...layoutIssues].length > 0 && <ul>{[...new Set([...findings, ...layoutIssues])].map((item, i) => <li key={i}>{item}</li>)}</ul>}
     </aside><div className="daddy-inspector">
       <StudioManualAgent api={api} language={language} endpoint={`${basePath}/agent`} stateSha256={detail.state_sha256} configuration={configuration} content={content} disabled={locked} onApply={agentApply} />
-      <button disabled={locked} onClick={() => void polish()}>{tr('Prepare missing images and polish', 'Підготувати відсутні зображення та покращити')}</button>
+      <button disabled={locked} onClick={() => void polish()}>{tr('Prepare missing images', 'Підготувати відсутні зображення')}</button>
       <StudioSection {...sectionProps} eyebrow="01" title={tr('Composition', 'Композиція')} onOpenChange={setPresetsOpen}>
         <div className="daddy-presets">{detail.catalog.presets.map(p => <button key={p.id} className={p.id === configuration.preset ? 'is-selected' : ''} aria-pressed={p.id === configuration.preset} disabled={locked} onClick={() => setConfiguration({ ...structuredClone(p.configuration), logo: structuredClone(configuration.logo) })}>
           {presetsOpen && <Media api={api} path={`${basePath}/presets/${p.id}/preview`} alt="" />}<strong>{language === 'uk' ? p.name_uk : p.name}</strong>

@@ -66,41 +66,51 @@ class DaddyTests(unittest.TestCase):
         self.assertEqual('draft',detail['status'],detail.get('generation'))
         return project,identifier,detail
 
-    def test_text_only_brief_run_reviews_png_and_stays_editable(self):
+    def test_text_only_brief_run_renders_without_image_analysis_and_stays_editable(self):
         project,identifier,detail = self.generate()
-        self.assertEqual('ready',detail['generation']['daddy']['phase'])
+        run = detail['generation']['daddy']
+        self.assertEqual('ready_for_manual_edit',run['phase'])
+        self.assertEqual('manual',run['review_mode'])
+        self.assertEqual(self.service._workspace(identifier).render_preview(state_sha256=detail['state_sha256'])['bytes_sha256'],run['render_sha256'])
         self.assertEqual([],self.fixture.images.prompts)
-        self.assertEqual(3,len(self.provider.calls))
-        self.assertIn('input_artifacts',self.provider.calls[-1])
+        self.assertEqual(2,len(self.provider.calls))
+        self.assertTrue(all('input_artifacts' not in call for call in self.provider.calls))
         self.assertEqual([],detail['versions'])
         again = self.service.generate(identifier)
         self.assertEqual('draft',again['status'])
-        self.assertEqual(3,len(self.provider.calls))
+        self.assertEqual(2,len(self.provider.calls))
         result = self.service.manual_agent_edit(project,identifier,request_id=str(uuid4()),base_sha256=detail['state_sha256'],
             message='Change only the headline',history=[],configuration=detail['configuration'],content=detail['content'],screenshots=[])
         self.assertEqual('Owner-directed copy',result['content']['hero_title'])
         self.assertEqual(detail['configuration'],result['configuration'])
         self.assertEqual(detail['content'],self.service.detail(project,identifier)['content'])
 
-    def test_polish_is_bounded_and_reports_unresolved_findings(self):
+    def test_automatic_polish_is_skipped_even_when_provider_would_request_it(self):
         self.provider.polish = True
         _project,_identifier,detail = self.generate()
-        self.assertEqual(2,detail['generation']['daddy']['corrections'])
-        self.assertEqual('needs_review',detail['generation']['daddy']['phase'])
-        self.assertLessEqual(len(self.provider.calls),5)
+        self.assertEqual(0,detail['generation']['daddy']['corrections'])
+        self.assertEqual('ready_for_manual_edit',detail['generation']['daddy']['phase'])
+        self.assertEqual(2,len(self.provider.calls))
 
-    def test_interrupted_review_resumes_without_recomposition(self):
-        project,identifier = self.reserve()
+    def test_review_provider_failure_cannot_block_manual_draft(self):
         self.provider.fail_review = True
-        with self.assertRaisesRegex(RuntimeError,'Interrupted'):
-            self.service.generate(identifier)
-        detail = self.service.detail(project,identifier)
-        self.assertEqual('failed',detail['status'])
-        self.assertTrue(detail['generation']['daddy']['composed'])
-        self.service.retry_generation(project,identifier)
+        _project,_identifier,detail = self.generate()
+        self.assertEqual('draft',detail['status'])
+        self.assertEqual(2,len(self.provider.calls))
+
+    def test_interrupted_old_polish_is_kept_as_history_without_applying_it(self):
+        project,identifier,detail = self.generate()
+        original_configuration = detail['configuration']
+        generation = deepcopy(detail['generation'])
+        generation['daddy']['pending_polish'] = [{'slot':'scene','visual_direction':'Old request','enhance_current':False}]
+        self.service.authority.update_creative(identifier,status='failed',generation=generation)
+        self.service.retry_generation(project,identifier,request_id=str(uuid4()))
         self.service.generate(identifier)
-        self.assertEqual('draft',self.service.detail(project,identifier)['status'])
-        self.assertEqual(4,len(self.provider.calls))
+        recovered = self.service.detail(project,identifier)
+        self.assertEqual(original_configuration,recovered['configuration'])
+        self.assertEqual(2,len(self.provider.calls))
+        self.assertEqual(generation['daddy']['pending_polish'],recovered['generation']['daddy']['skipped_polish'])
+        self.assertNotIn('pending_polish',recovered['generation']['daddy'])
 
     def test_partial_asset_failure_retains_screen_and_resumes_only_missing_feature(self):
         self.provider.preset='phone_feature'
@@ -139,10 +149,10 @@ class DaddyTests(unittest.TestCase):
         self.service.authority.update_creative(identifier,status='composing')
         self.assertEqual([],self.service.recover_interrupted())
         self.assertEqual('failed',self.service.detail(project,identifier)['status'])
-        self.assertEqual(3,len(self.provider.calls))
+        self.assertEqual(2,len(self.provider.calls))
         self.service.retry_generation(project,identifier)
         self.service.generate(identifier)
-        self.assertEqual(3,len(self.provider.calls))
+        self.assertEqual(2,len(self.provider.calls))
         self.assertEqual('draft',self.service.detail(project,identifier)['status'])
 
     def test_independent_assets_idempotency_stale_history_approval_clone(self):

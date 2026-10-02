@@ -35,15 +35,16 @@ selected block's appearance. Exact fonts and measured message flow replace silen
 type shrinking. Independent feature-card placement, collage offsets, background
 focal points, annotations and optional supplied previous prices remain editable.
 Manual edits wait for Update preview. Save and Approve use existing checkpoints;
-neither initial generation nor polish performs these owner actions.
+initial generation performs neither owner action.
 
-`daddy_generation.py` persists strategy → composition → required assets → actual
-PNG review. Strategy reads the pinned approved Brief, marketing approach, Brand
-Identity, owner direction and accepted Creative Skills. Only the selected preset
-contract is sent for composition. There are at most two correction rounds, each
-with at most one targeted image regeneration. Final findings stay on the editable
-draft. Explicit retry resumes completed stages/assets; ordinary edits do not
-trigger automatic polish. Explicit recomposition preserves current copy/settings
+`daddy_generation.py` persists strategy → composition → required assets →
+deterministic render → editable draft. Strategy reads the pinned approved Brief,
+marketing approach, Brand Identity, owner direction and accepted Creative Skills.
+Only the selected preset
+contract is sent for composition. Automatic AI screenshot review and polish are
+disabled. Renderer layout findings stay on the editable draft for the owner.
+Explicit retry resumes completed stages/assets; ordinary edits do not
+trigger automatic generation. Explicit recomposition preserves current copy/settings
 as its starting point. Authenticated slot and recomposition APIs retain request
 UUIDs and stale-state checks; browser image queues reconcile uncertain responses
 and retain pending UUIDs across tab reloads.

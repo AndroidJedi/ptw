@@ -21,6 +21,12 @@ stale Codex credential (`workspace routing discovery unauthorized (401)`, used
 refresh token). The auth service failed its working test. One official device
 flow is pending owner approval; verify `authorized`/`passed` and a real schema
 probe before restarting the preserving release. Keep the saved error receipts.
+The owner completed authorization and the schema-bound probe passed. A later
+canary then rejected a normally corrected Daddy composition: the first response
+had invalid `supporting_text`, the second passed. The canary is being narrowed
+to accept Daddy's one existing bounded correction while retaining image/render
+checks and strict first-attempt gates for other modes. Another preserving release
+is pending; the reported Post remains untouched.
 
 ## Daddy image handoff — temporary-storage root cause confirmed, capacity fix pending
 

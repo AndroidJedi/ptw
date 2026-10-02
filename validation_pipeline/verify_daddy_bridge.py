@@ -15,7 +15,9 @@ def verify(settings, provider, media, brief_document, accept):
     class CheckedProvider:
         def call(self, *, response_validator, **request):
             value = provider.call(response_validator=response_validator, **request)
-            accept(value, "daddy_" + request["mode"])
+            # Daddy uses the structured transport's one bounded correction for
+            # copy/schema mistakes; only the final valid response is composed.
+            accept(value, "daddy_" + request["mode"], True)
             return value
 
     with tempfile.TemporaryDirectory(prefix="ptw-daddy-bridge-") as temporary:

@@ -33,6 +33,21 @@ from .studio_manual_agent import (
 from .studio_workspace import PostStudioWorkspace
 
 
+def require_canary_attempt(invocation: dict, mode: str, *, allow_correction: bool = False) -> None:
+    attempt = invocation.get("bridge_attempt")
+    if attempt == 1:
+        return
+    history = invocation.get("validation_attempts")
+    if not (allow_correction and attempt == 2 and isinstance(history, list)
+            and len(history) == 2 and all(isinstance(item, dict) for item in history)
+            and history[0].get("bridge_attempt") == 1
+            and history[0].get("status") == "rejected"
+            and history[1].get("bridge_attempt") == 2
+            and history[1].get("status") == "completed"
+            and history[1].get("bridge_request_id") == invocation.get("bridge_request_id")):
+        raise RuntimeError(f"{mode} canary exceeded its accepted correction contract")
+
+
 def main() -> None:
     settings = Settings.from_environment()
     provider = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
@@ -48,10 +63,9 @@ def main() -> None:
     base_document: dict[str, object] | None = None
     invocations: list[dict[str, object]] = []
 
-    def accept(value: dict[str, object], mode: str) -> None:
+    def accept(value: dict[str, object], mode: str, allow_correction: bool = False) -> None:
         invocation = value["invocation"]
-        if invocation.get("bridge_attempt") != 1:
-            raise RuntimeError(f"{mode} canary required a corrective attempt")
+        require_canary_attempt(invocation, mode, allow_correction=allow_correction)
         fingerprint = invocation.get("request_fingerprint")
         if not isinstance(fingerprint, str) or len(fingerprint) != 64:
             raise RuntimeError(f"{mode} canary omitted its request fingerprint")
@@ -78,6 +92,7 @@ def main() -> None:
         invocations.append({
             "mode": mode,
             "request_id": invocation.get("bridge_request_id"),
+            "attempt_count": invocation.get("bridge_attempt"),
             "request_fingerprint": fingerprint,
             "contract_bytes": contract_bytes,
         })

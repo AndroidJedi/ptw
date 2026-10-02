@@ -29,6 +29,10 @@ the preserving release, run a real bridge canary, then use one explicit
 UUID-bound Retry for the named creative. Verify the saved asset, rendered
 manual-edit draft, reload, and unrelated Project fingerprints before closing
 the incident. Do not wait for or claim automatic Daddy AI visual review.
+Daddy composition may legitimately use the structured bridge's one validation
+correction for bounded copy; its release canary must verify a rejected-first,
+completed-second receipt and final valid draft, not reject all corrections.
+Keep first-attempt requirements for the unrelated contract canaries.
 
 Before enabling two Landing image jobs, run the explicit
 `scripts/verify_landing_parallel_worker.py` canary with the candidate worker in

@@ -38,6 +38,17 @@ class DaddyRecoveryTests(unittest.TestCase):
     reserve = fixture.DaddyTests.reserve
     generate = fixture.DaddyTests.generate
 
+    def test_release_gate_accepts_only_a_bounded_daddy_correction(self):
+        from validation_pipeline.verify_bridge_contract import require_canary_attempt
+        corrected = {'bridge_attempt':2,'bridge_request_id':1464,'validation_attempts':[
+            {'bridge_attempt':1,'bridge_request_id':1463,'status':'rejected'},
+            {'bridge_attempt':2,'bridge_request_id':1464,'status':'completed'}]}
+        require_canary_attempt(corrected,'daddy_studio_creative_generation',allow_correction=True)
+        with self.assertRaises(RuntimeError):
+            require_canary_attempt(corrected,'product_brief')
+        with self.assertRaises(RuntimeError):
+            require_canary_attempt({**corrected,'bridge_request_id':1465},'daddy_studio_creative_generation',allow_correction=True)
+
     def test_corrupt_result_gets_one_fresh_attempt(self):
         keys = install_provider(self, ['invalid','valid'])
         project,identifier,detail = self.generate()

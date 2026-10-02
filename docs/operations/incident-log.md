@@ -22,6 +22,15 @@ the owner must complete it before canaries can pass. Neither release attempt
 retried or changed the reported Post. Per the owner's latest instruction, the
 Post will now be left for owner-initiated Retry after deployment.
 
+After the owner completed authorization, a schema-bound worker probe passed.
+The following candidate canary completed the normal Daddy composition after
+one bounded correction: its first response had an invalid `supporting_text`,
+and the second satisfied the validator. The release gate nevertheless rejected
+all corrected Daddy responses and rolled back. The Daddy-only canary now accepts
+exactly that existing one-correction contract, recording the attempt count;
+other structured canaries retain their first-attempt requirement. Image and
+render integrity requirements are unchanged.
+
 ## 2026-10-02 — Daddy scene PNG truncated by worker tmpfs exhaustion
 
 The diagnostic release passed its real image and Daddy canaries, then one

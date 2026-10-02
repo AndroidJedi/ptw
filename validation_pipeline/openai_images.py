@@ -447,9 +447,10 @@ class ResultBridgePhoneScreenImageProvider:
                     result = candidate
                     break
                 if status in {"failed", "cancelled"}:
-                    if state.get("error") == "InvalidGeneratedImage":
-                        from .image_errors import InvalidGeneratedImage
-                        raise InvalidGeneratedImage(request_id)
+                    from .image_errors import CONFIRMED_IMAGE_FAILURES, InvalidGeneratedImage
+                    error_code = state.get("error")
+                    if error_code == "InvalidGeneratedImage" or error_code in CONFIRMED_IMAGE_FAILURES:
+                        raise InvalidGeneratedImage(request_id, error_code if error_code in CONFIRMED_IMAGE_FAILURES else "invalid_image")
                     raise RuntimeError(f"Result media bridge request {request_id} {status}")
                 time.sleep(1)
             if result is None:
@@ -475,8 +476,8 @@ class ResultBridgePhoneScreenImageProvider:
             if output_spec:
                 validate_output_dimensions(inspected["width"], inspected["height"], output_spec)
         except (ValueError, OSError) as error:
-            from .image_errors import InvalidGeneratedImage
-            raise InvalidGeneratedImage(request_id) from error
+            from .image_errors import InvalidGeneratedImage, classify_image_validation_error
+            raise InvalidGeneratedImage(request_id, classify_image_validation_error(error)) from error
         if (
             image.get("digest") != digest
             or image.get("output_digest") != digest

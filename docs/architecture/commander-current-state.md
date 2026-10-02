@@ -1,6 +1,24 @@
 # Commander current state
 
-Updated: 2026-10-01
+Updated: 2026-10-02
+
+## Daddy image handoff diagnosis — diagnostic release pending
+
+The 2026-10-01 image-integrity repair is deployed, but the exact car-sharing
+Creative remains failed at `asset:scene` after jobs 1417 and 1418. Jobs 1182 and
+1347 are the only corrupt stored completions among 258 inspected; both truncate
+inside IDAT at a 4 KiB boundary. Host disk and RAM were available and no worker
+OOM or restart was recorded. A separate 64 MiB worker `/tmp` mount held about
+30 MiB at idle; its free space at generation time is not yet known.
+
+The next preserving release records safe boundary metadata for provider result,
+file save, byte count/digest, strict PNG validation, geometry, and asset commit.
+It propagates distinct image failure codes, slot, job and attempt to the Daddy
+receipt and labels the owner preview incomplete. One rejected image per job may
+be kept in a private, bounded, 48-hour diagnostic store. The exact Creative
+must receive only one deliberate Retry after this release; its evidence decides
+the fix before any further Retry. No approved Brief, copy, layout or other
+Project should change during diagnosis.
 
 ## Daddy corrupt image recovery — implemented locally, release pending
 

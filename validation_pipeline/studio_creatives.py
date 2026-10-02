@@ -1622,7 +1622,8 @@ class StudioCreativeService:
             daddy = generation.get("daddy", {})
             for record in daddy.get("asset_operations", {}).values():
                 attempt = record["attempt"]
-                if record["attempts"].get(str(attempt), {}).get("failure_code") == "invalid_image":
+                from .image_errors import CONFIRMED_IMAGE_FAILURES
+                if record["attempts"].get(str(attempt), {}).get("failure_code") in CONFIRMED_IMAGE_FAILURES:
                     # One new attempt per explicit retry after automatic recovery exhausted.
                     record["max_attempt"] = max(record["max_attempt"], attempt + 1)
             daddy.pop("error", None)

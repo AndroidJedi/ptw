@@ -107,11 +107,13 @@ describe('Post Studio shell', () => {
     const selected = structuredClone(detail)
     selected.template_id = 'daddy'
     selected.status = 'failed'
-    selected.generation.daddy = { phase: 'asset:scene', corrections: 0, failure: { code: 'invalid_image', slot: 'scene', provider_request_id: 1347 } }
+    selected.generation.daddy = { phase: 'asset:scene', corrections: 0, failure: { code: 'invalid_png_structure', slot: 'scene', provider_request_id: 1347 }, asset_operations: { scene: { slot: 'scene', attempt: 1, max_attempt: 1, attempts: {} } } }
     const { api, post } = apiFor({ selected })
     post.mockRejectedValueOnce(new Error('Connection lost'))
     const view = render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
     expect(await screen.findByRole('heading', { name: 'Background image failed; your text and layout are saved' })).toBeVisible()
+    expect(screen.getByText(/This preview is incomplete. The saved image file is incomplete./)).toBeVisible()
+    expect(screen.getByText('Image attempt 2 · Failure code invalid_png_structure')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Retry image' }))
     await screen.findByText('Connection lost')
     const request = post.mock.calls[0]

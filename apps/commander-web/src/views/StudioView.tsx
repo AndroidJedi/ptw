@@ -246,9 +246,22 @@ export function StudioView({
     if (daddy) {
       const slot = daddy.failure?.slot || (daddy.phase.startsWith('asset:') ? daddy.phase.slice(6) : '')
       const names: Record<string, string> = { scene: tr('Background image', 'Фонове зображення'), screen: tr('App screen', 'Екран застосунку'), subject: tr('Main image', 'Основне зображення'), feature: tr('Feature image', 'Зображення функції'), prop_one: tr('First collage image', 'Перше зображення колажу'), prop_two: tr('Second collage image', 'Друге зображення колажу') }
+      const reasons: Record<string, string> = {
+        invalid_image: tr('The image could not be validated.', 'Не вдалося перевірити зображення.'),
+        invalid_png_structure: tr('The saved image file is incomplete.', 'Збережений файл зображення неповний.'),
+        invalid_png_checksum: tr('The saved image file has damaged data.', 'Збережений файл зображення містить пошкоджені дані.'),
+        pixel_decode_failed: tr('The image pixels could not be decoded.', 'Не вдалося прочитати пікселі зображення.'),
+        dimension_mismatch: tr('The image size does not fit this layout.', 'Розмір зображення не підходить для цієї композиції.'),
+        missing_image_result: tr('The image service did not save an image.', 'Сервіс зображень не зберіг зображення.'),
+        save_failed: tr('The image service could not save the image.', 'Сервіс зображень не зміг зберегти зображення.'),
+      }
+      const failureCode = daddy.failure?.code || ''
+      const attempt = Object.values(daddy.asset_operations || {}).find(record => record.slot === slot)?.attempt
       return <div className="studio-page">{creativePicker}<section className="panel" role="alert">
         <h2>{slot ? tr(`${names[slot] || 'Image'} failed; your text and layout are saved`, `${names[slot] || 'Зображення'} не вдалося створити; текст і композицію збережено`) : tr('Post generation paused', 'Генерацію допису призупинено')}</h2>
+        <p>{tr('This preview is incomplete.', 'Цей попередній перегляд неповний.')} {reasons[failureCode] || tr('The current step did not finish.', 'Поточний етап не завершено.')}</p>
         <p>{slot ? tr('Retry resumes this image, keeps completed work, then reviews the finished Post.', 'Повторення відновить це зображення, збереже готові елементи та перевірить завершений допис.') : tr('Retry resumes the unfinished step and keeps completed work.', 'Повторення відновить незавершений крок і збереже готові елементи.')}</p>
+        {slot && attempt !== undefined && <p>{tr('Image attempt', 'Спроба створення зображення')} {attempt + 1} · {tr('Failure code', 'Код помилки')} {failureCode}</p>}
         {daddy.failure?.provider_request_id && <p>{tr('Image request', 'Запит зображення')} #{daddy.failure.provider_request_id}</p>}
         {error && <p>{error}</p>}
         <button className="secondary" disabled={busy} onClick={() => void retry(`${basePath}/retry`)}><RefreshCcw />{slot ? tr('Retry image', 'Повторити зображення') : tr('Resume Post', 'Продовжити допис')}</button>

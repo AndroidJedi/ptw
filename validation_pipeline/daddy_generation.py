@@ -53,7 +53,7 @@ def asset_context(service, creative, detail, slot, direction, *, owner=False, en
 
 def generate_slot(service, creative, slot, direction, key, *, enhance=False, run=None, persist=None):
     """Reconcile uncertain work; only proven corrupt output advances the attempt key."""
-    from .image_errors import InvalidGeneratedImage
+    from .image_errors import CONFIRMED_IMAGE_FAILURES, InvalidGeneratedImage
     workspace = service._workspace(creative["creative_id"])
     operations = run.setdefault("asset_operations", {}) if run is not None else {}
     record = operations.setdefault(key, {"slot":slot,"attempt":0,"max_attempt":1,"attempts":{}})
@@ -63,9 +63,9 @@ def generate_slot(service, creative, slot, direction, key, *, enhance=False, run
     while True:
         attempt = record["attempt"]
         receipt = record["attempts"].setdefault(str(attempt), {"status":"pending"})
-        if receipt.get("failure_code") == "invalid_image":
+        if receipt.get("failure_code") in CONFIRMED_IMAGE_FAILURES:
             if attempt >= record["max_attempt"]:
-                raise InvalidGeneratedImage(receipt.get("provider_request_id"))
+                raise InvalidGeneratedImage(receipt.get("provider_request_id"), receipt["failure_code"])
             record["attempt"] += 1
             save()
             continue
@@ -90,7 +90,7 @@ def generate_slot(service, creative, slot, direction, key, *, enhance=False, run
             save()
             return result
         except InvalidGeneratedImage as error:
-            receipt.update(status="failed",failure_code="invalid_image",provider_request_id=error.provider_request_id)
+            receipt.update(status="failed",failure_code=error.failure_code,provider_request_id=error.provider_request_id)
             save()
         except Exception:
             receipt.update(status="interrupted",failure_code="unconfirmed")
@@ -253,7 +253,7 @@ def generate(service, creative_id):
         slot = run["phase"].partition(":")[2] if run["phase"].startswith("asset:") else None
         if run["phase"] == "polish" and run.get("pending_polish"):
             slot = run["pending_polish"][0]["slot"]
-        run["failure"] = {"code":"invalid_image" if isinstance(error,InvalidGeneratedImage) else "stage_failed", "slot":slot,
+        run["failure"] = {"code":error.failure_code if isinstance(error,InvalidGeneratedImage) else "stage_failed", "slot":slot,
             "provider_request_id":getattr(error,"provider_request_id",None)}
         if slot and not run["failure"]["provider_request_id"]:
             for record in reversed(list(run.get("asset_operations", {}).values())):

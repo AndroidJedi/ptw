@@ -49,6 +49,36 @@ class DaddyRecoveryTests(unittest.TestCase):
         self.assertEqual('completed',record['attempts']['1']['status'])
         self.assertEqual([],detail['versions'])
 
+    def test_precise_image_failure_reaches_receipt_and_retry(self):
+        self.provider.preset = 'lifestyle'
+        images = self.fixture.images
+        original = images.generate
+        images.supports_operation_tracking = True
+        calls = []
+        def generate(prompt, **kwargs):
+            calls.append(kwargs['operation_key'])
+            if len(calls) <= 2:
+                kwargs['progress']({'stage':'generating','provider_request_id':1400+len(calls)})
+                raise InvalidGeneratedImage(1400+len(calls), 'dimension_mismatch')
+            return original(prompt, output_spec=kwargs.get('output_spec'))
+        images.generate = generate
+        project, identifier = self.reserve()
+        with self.assertRaises(InvalidGeneratedImage) as failure:
+            self.service.generate(identifier)
+        self.assertEqual('dimension_mismatch', failure.exception.failure_code)
+        failed = self.service.detail(project,identifier)
+        run = failed['generation']['daddy']
+        record = next(iter(run['asset_operations'].values()))
+        self.assertEqual('dimension_mismatch', record['attempts']['0']['failure_code'])
+        self.assertEqual('dimension_mismatch', run['failure']['code'])
+        self.assertEqual(1402, run['failure']['provider_request_id'])
+        self.service.retry_generation(project,identifier,request_id=str(uuid4()))
+        self.service.generate(identifier)
+        done = self.service.detail(project,identifier)
+        self.assertEqual(failed['content'],done['content'])
+        self.assertEqual(failed['configuration'],done['configuration'])
+        self.assertEqual(3,len(calls))
+
 
     def test_exhaustion_explicit_retry_and_duplicate_uuid(self):
         keys = install_provider(self, ['invalid','invalid','valid'])

@@ -387,7 +387,9 @@ it('republishes old approved events and unpublishes without releasing the URL', 
 it('shows three static app screens and targets the selected screen for generation', async () => {
   const detail = landingDetail()
   detail.template_id = 'app_showcase'
-  detail.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  detail.template_reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
+  detail.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32, hero_body_mode: 'text' }
+  detail.content.hero = { ...detail.content.hero, eyebrow: 'Your space', bullets: ['First benefit', 'Second benefit', 'Third benefit'] }
   detail.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A project-specific task', visual_direction: `A polished app interface ${i}` }))
   const api = landingApi(detail)
   vi.mocked(api.post).mockImplementation(async (_path, body) => ({ operation_id: 'operation-screen', request_id: (body as { request: { request_id: string } }).request.request_id, status: 'completed', phase: 'completed', started_at: new Date().toISOString(), jobs: [{ slot: 'app_screen_2', status: 'completed' }], result: { configuration: detail.configuration, content: detail.content } }) as never)
@@ -403,7 +405,7 @@ it('shows three static app screens and targets the selected screen for generatio
 })
 
 it('passes the exact selected template reference when reserving a Landing', async () => {
-  const reference = { template_id: 'app_showcase', template_version: 1, template_sha256: 'c'.repeat(64) }
+  const reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
   const api = {
     get: vi.fn(async (path: string) => path.endsWith('/templates') ? { items: [{ ...reference, name: 'App Showcase' }] } : path.endsWith('/source-posts') ? { items: [{ creative_id: creativeId, version: 1, version_sha256: 'a'.repeat(64), template_id: 'phone_metrics' }] } : { items: [] }),
     post: vi.fn(async () => ({ landing: { landing_id: landingId } })), image: vi.fn(),
@@ -414,11 +416,33 @@ it('passes the exact selected template reference when reserving a Landing', asyn
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/pages'), expect.objectContaining({ template_reference: reference })))
 })
 
+it('opens an older App Showcase draft through the latest hero controls automatically', async () => {
+  const old = landingDetail()
+  old.template_id = 'app_showcase'
+  old.template_reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) }
+  old.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  old.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A task', visual_direction: 'A readable app screen' }))
+  const latest = { ...old, landing_id: '55555555-5555-4555-8555-555555555555', template_reference: { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) } }
+  const api = {
+    get: vi.fn(async (path: string) => path.endsWith('/landings/templates') ? { items: [{ ...latest.template_reference, name: 'App Showcase' }] }
+      : path.endsWith('/pages') ? { items: [old] } : path.endsWith(`/pages/${old.landing_id}`) ? old : { items: [] }),
+    post: vi.fn(async () => latest), image: vi.fn(),
+  } as unknown as ApiClient
+  const onLanding = vi.fn()
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={old.landing_id} onLanding={onLanding} />)
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+    expect.stringMatching(/\/pages\/[^/]+\/upgrade-showcase-hero$/), { base_sha256: old.state_sha256 },
+  ))
+  await waitFor(() => expect(onLanding).toHaveBeenCalledWith(latest.landing_id))
+  expect(api.post).toHaveBeenCalledTimes(1)
+})
+
 it('tries a selected template from an incomplete draft without Save or Approve and restores pending edits from history', async () => {
   const old = landingDetail()
-  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  const reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
   const next = { ...landingDetail(), landing_id: '55555555-5555-4555-8555-555555555555', ordinal: 2, template_reference: reference, template_id: 'app_showcase' as const }
-  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32, hero_body_mode: 'text' }
+  next.content.hero = { ...next.content.hero, eyebrow: 'Your space', bullets: ['First benefit', 'Second benefit', 'Third benefit'] }
   next.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A task', visual_direction: 'A readable app screen' }))
   let created = false
   const api = {
@@ -444,7 +468,7 @@ it('tries a selected template from an incomplete draft without Save or Approve a
   })
   view.rerender(<LandingView api={api} language="en" projectId={projectId} landingId={next.landing_id} onLanding={onLanding} />)
   await waitFor(() => expect(view.container.querySelector('.as-page')).not.toBeNull())
-  expect(screen.getByRole('heading', { name: 'App Showcase', level: 1 })).toBeVisible()
+  expect(screen.getByRole('heading', { name: 'App Showcase v3', level: 1 })).toBeVisible()
   view.rerender(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} onLanding={onLanding} />)
   expect(await screen.findByLabelText('Hero title')).toHaveValue('Keep this unfinished copy')
   expect(api.post).toHaveBeenCalledTimes(1)

@@ -684,6 +684,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_detail(project_id: str, landing_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", landing_path(project_id, landing_id), timeout=60)).json()
 
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/upgrade-showcase-hero")
+    async def landing_upgrade_showcase_hero(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/upgrade-showcase-hero", request, identity)
+
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/retry", status_code=202)
     async def landing_retry(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, "/retry", request, identity, timeout=60)

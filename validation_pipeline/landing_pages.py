@@ -943,6 +943,64 @@ class LandingService:
             self.authority.update_page(page["landing_id"], state_sha256=detail["state_sha256"], learning_baseline=_snapshot(detail), learning_baseline_sha256=sha256_json(_snapshot(detail)))
         return self.summary(page["landing_id"]), created
 
+    def upgrade_showcase_hero(self, project_id: str, landing_id: str, *, base_sha256: str, requested_by: str) -> dict[str, Any]:
+        """Copy an older App Showcase draft into a v3 variant without inference."""
+        from shutil import copytree
+        from .landing_showcase import v3_catalog
+
+        with self.operations.lock:
+            self.operations.assert_idle(landing_id)
+            source = self.detail(project_id, landing_id)
+            if source["status"] != "draft" or source["template_id"] != "app_showcase" or source["template_reference"]["template_version"] >= 3:
+                raise ValueError("Only an App Showcase v1/v2 draft can be upgraded")
+            if source["state_sha256"] != base_sha256:
+                raise RuntimeError("Landing changed; reload before upgrading")
+            request_id = str(uuid5(NAMESPACE_URL, f"ptw:showcase-v3:{landing_id}:{base_sha256}"))
+            reference = {"template_id": "app_showcase", "template_version": 3, "template_sha256": v3_catalog()["sha256"]}
+            provenance = {"landing_id": landing_id, "state_sha256": base_sha256}
+            target, created = self.reserve_from_post(project_id=project_id,
+                source_creative_id=source["source_creative_id"], source_version=source["source_version"],
+                requested_by=requested_by, additional=True, template_reference=reference, request_id=request_id)
+            target_id = target["landing_id"]
+            if not created:
+                if target.get("generation", {}).get("upgraded_from") != provenance and not (target["status"] == "queued" and not target.get("generation")):
+                    raise RuntimeError("Upgrade request belongs to a different Landing state")
+                if target["status"] == "draft":
+                    return self.detail(project_id, target_id)
+            self.authority.update_page(target_id, status="failed", generation={"stage": "upgrading", "upgraded_from": provenance})
+            original, replacement = self._workspace(landing_id), self._workspace(target_id)
+            configuration, content = deepcopy(source["configuration"]), deepcopy(source["content"])
+            language = configuration.get("presentation", DEFAULT_PRESENTATION)["language"]
+            content["hero"]["eyebrow"] = "Ваш простір. Ваші можливості." if language == "uk" else "Your space. Your possibilities."
+            pieces = [part.strip() for part in content["hero"]["supporting_text"].split("•") if part.strip()]
+            has_bullets = len(pieces) == 3 and all(len(part) <= 160 for part in pieces)
+            configuration["showcase"]["hero_body_mode"] = "bullets" if has_bullets else "text"
+            content["hero"]["bullets"] = pieces if has_bullets else [item["description"][:160] for item in content["features"]]
+            # Validate every referenced byte before carrying its private history forward.
+            for asset in source["assets"]:
+                for entry in asset["history"]:
+                    original.visual_image(asset["slot"], entry["sha256"])
+                    for variant in entry.get("variants", []):
+                        original.display_image(asset["slot"], entry["sha256"], variant["sha256"])
+                    raw_digest = entry.get("source", {}).get("preparation", {}).get("raw_sha256")
+                    if raw_digest:
+                        raw_root = original.workspace.assets if isinstance(original, DatabaseLandingWorkspace) else original.assets
+                        if hashlib.sha256((raw_root / "raw" / f"{raw_digest}.png").read_bytes()).hexdigest() != raw_digest:
+                            raise RuntimeError("Landing raw image digest mismatch")
+            source_root = original.workspace.root if isinstance(original, DatabaseLandingWorkspace) else original.root
+            target_root = replacement.workspace.root if isinstance(replacement, DatabaseLandingWorkspace) else replacement.root
+            for folder in ("assets", "delivery"):
+                if (source_root / folder).exists():
+                    copytree(source_root / folder, target_root / folder, dirs_exist_ok=True)
+            current = replacement.detail()
+            detail = replacement.save_configuration(base_sha256=current["state_sha256"], configuration=configuration, content=content)
+            self._synchronize_workspace(target_id, replacement)
+            baseline = _snapshot(detail)
+            self.authority.update_page(target_id, status="draft", state_sha256=detail["state_sha256"],
+                generation={"stage": "draft", "upgraded_from": provenance},
+                learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
+            return self.detail(project_id, target_id)
+
     def summary(self, landing_id: str) -> dict[str, Any]:
         from .marketing import brief_approach
         value = deepcopy(self.authority.get_page(landing_id))

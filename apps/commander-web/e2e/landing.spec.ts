@@ -31,10 +31,11 @@ async function setup(page: Page, showcase = false, projectName = 'Landing visual
   let current = fixture()
   if (showcase) {
     current.template_id = 'app_showcase'
-    current.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+    current.template_reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
+    current.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32, hero_body_mode: 'text' }
+    current.content.hero = { ...current.content.hero, eyebrow: 'Легше щодня', bullets: ['Знайдіть потрібне', 'Додайте деталі', 'Тримайте все разом'] }
     if (heroOptions) {
       current.configuration.showcase.hero_body_mode = 'bullets'
-      current.content.hero = { ...current.content.hero, eyebrow: 'Легше щодня', bullets: ['Знайдіть потрібне', 'Додайте деталі', 'Тримайте все разом'] }
     }
     current.content.app_screens = [1, 2, 3].map(i => ({ title: `Екран застосунку ${i}`, description: 'Додавайте та впорядковуйте речі у власному просторі.', visual_direction: `A clean app screen ${i}` }))
     current.assets = (['app_screen_1', 'app_screen_2', 'app_screen_3', 'visual_break_visual'] as const).map(slot => ({ ...current.assets[0], slot }))
@@ -100,6 +101,40 @@ test('App Showcase v3 hero switches between three editable bullets and text afte
   const hero = await page.locator('.as-hero').boundingBox()
   const bulletsOrText = await page.locator('.as-hero-copy > p').boundingBox()
   expect(hero && bulletsOrText && bulletsOrText.x >= hero.x && bulletsOrText.x + bulletsOrText.width <= hero.x + hero.width + 1).toBeTruthy()
+})
+
+test('older App Showcase opens the current hero editor without a template choice', async ({ page }) => {
+  const old = fixture()
+  old.template_id = 'app_showcase'
+  old.template_reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'b'.repeat(64) }
+  old.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  old.content.hero.supporting_text = '• Порівнюйте склад. • Розумійте показники. • Обирайте за смаком.'
+  old.content.app_screens = [1, 2, 3].map(i => ({ title: `Screen ${i}`, description: 'A task', visual_direction: 'A readable app screen' }))
+  const next = structuredClone(old)
+  next.landing_id = '018f07ea-7f20-7000-8000-000000000099'
+  next.template_reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
+  next.configuration.showcase!.hero_body_mode = 'bullets'
+  next.content.hero = { ...next.content.hero, eyebrow: 'Ваш простір. Ваші можливості.', bullets: ['Порівнюйте склад.', 'Розумійте показники.', 'Обирайте за смаком.'] }
+  let upgrades = 0
+  await page.route('**/api/v1/**', route => {
+    const path = new URL(route.request().url()).pathname
+    const json = (value: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(value) })
+    if (path === '/api/v1/projects') return json({ items: [{ project_id: project, name: 'Water', created_at: '', updated_at: '' }] })
+    if (path.endsWith('/source-posts')) return json({ items: [] })
+    if (path.endsWith('/pages')) return json({ items: [next, old] })
+    if (path.endsWith('/landings/templates')) return json({ items: [next.template_reference] })
+    if (path.endsWith('/upgrade-showcase-hero')) { upgrades++; return json(next) }
+    if (path.endsWith(`/pages/${old.landing_id}`)) return json(old)
+    if (path.endsWith(`/pages/${next.landing_id}`)) return json(next)
+    return json({ items: [] })
+  })
+  await page.goto(`/?e2e=1&page=landing&project=${project}&landing=${old.landing_id}`)
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
+  await expect(page.getByRole('textbox', { name: 'Text above hero title' })).toHaveValue('Ваш простір. Ваші можливості.')
+  await expect(page.getByRole('combobox', { name: 'Under-title format' })).toHaveValue('bullets')
+  await expect(page.locator('.as-hero-bullets li')).toHaveCount(3)
+  expect(upgrades).toBe(1)
 })
 
 for (const showcase of [false, true]) test(`blocking image progress survives refresh and retries unfinished work (${showcase ? 'showcase' : 'original'})`, async ({ page }) => {
@@ -181,11 +216,12 @@ test('copy-only Agent failure explains the service problem and keeps owner input
 test('changes template directly from an unsaved unapproved draft and returns through history', async ({ page }) => {
   await setup(page, false, 'Застосунок для обліку домашньої аптечки за фото упаковок ліків')
   const original = fixture()
-  const reference = { template_id: 'app_showcase', template_version: 2, template_sha256: 'c'.repeat(64) }
+  const reference = { template_id: 'app_showcase', template_version: 3, template_sha256: 'c'.repeat(64) }
   const next = fixture()
   next.landing_id = '018f07ea-7f20-7000-8000-000000000099'
   next.ordinal = 2; next.template_id = 'app_showcase'; next.template_reference = reference
-  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32 }
+  next.configuration.showcase = { gradient_end: '#08cbb5', screen_scale: 1, screen_offset: 32, hero_body_mode: 'text' }
+  next.content.hero = { ...next.content.hero, eyebrow: 'Ваш простір', bullets: ['Пункт 1', 'Пункт 2', 'Пункт 3'] }
   next.content.app_screens = [1, 2, 3].map(i => ({ title: `Екран ${i}`, description: 'Завдання застосунку', visual_direction: 'A clear app screen' }))
   next.assets = []
   let created = false
@@ -211,15 +247,15 @@ test('changes template directly from an unsaved unapproved draft and returns thr
   expect(await chooser.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await chooser.getByRole('button', { name: 'Apply template', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(next.landing_id))
-  await expect(page.getByRole('heading', { name: 'App Showcase', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'App Showcase v3', exact: true })).toBeVisible()
   await expect(page.locator('.as-page')).toHaveCount(1)
   expect(writes).toEqual([`/api/v1/landings/projects/${project}/pages/variants`])
   await page.getByLabel('More actions', { exact: true }).click()
   await page.getByRole('button', { name: 'History', exact: true }).click()
   await page.getByRole('dialog', { name: 'Landing history' }).getByRole('button', { name: /Project landing/ }).click()
-  await expect(page.getByLabel('Hero title')).toHaveValue('Збережіть цю незавершену думку')
+  await expect(page.getByLabel('Hero title', { exact: true })).toHaveValue('Збережіть цю незавершену думку')
   await page.reload()
-  await expect(page.getByLabel('Hero title')).toHaveValue('Збережіть цю незавершену думку')
+  await expect(page.getByLabel('Hero title', { exact: true })).toHaveValue('Збережіть цю незавершену думку')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.setViewportSize({ width: 768, height: 1024 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

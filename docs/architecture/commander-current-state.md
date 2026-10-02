@@ -2,6 +2,26 @@
 
 Updated: 2026-10-02
 
+## App Showcase older-draft hero controls — local fix pending release
+
+The owner reported that the eyebrow above the Hero title and the choice between
+three benefit bullets and supporting text were missing on an existing Landing.
+Those fields were added in App Showcase v3, while existing v1/v2 drafts remained
+pinned to their original editor contracts. Opening an older editable draft now
+automatically creates a deterministic v3 replacement with its current copy,
+selected images and retained image history, then navigates to it. The existing
+supporting text remains saved. When it contains three bullet markers, those
+become three visible editable bullets; otherwise text remains visible and the
+bullet fields are seeded from the saved feature copy.
+Old approved and published snapshots remain exact and the prior draft remains
+history. No provider call or publication occurs. The latest catalog remains the
+only choice for new Landings. Verification: 513 Validation tests in the built
+image, 21 Gateway tests, the complete Owner web unit suite/build, 159 browser
+cases across desktop/360px/iPhone WebKit, a disposable PostgreSQL upgrade with
+fresh-cache restart and unchanged publication bytes, Commander host checks/demo,
+canonical skill validation and whitespace. Production release and live
+verification are pending the separate preserving-release authorization.
+
 ## Daddy manual-review capacity release deployed
 
 PTW revision `c39bc8e89365f0c85231b4882fe7f27fb66cdd93` and companion

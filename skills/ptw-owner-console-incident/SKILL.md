@@ -135,6 +135,12 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
   fallback choice. Verify cold and warm live GET latency, digest-bound desktop and
   mobile PNGs, both App Showcase versions, apply/save/reopen and restart. Preserve
   accepted PNGs and Project approvals/publications; update only preview caches.
+- When new App Showcase hero controls are absent on an existing Landing, inspect
+  its exact template version. The eyebrow and text/three-bullet switch require
+  v3. The editor upgrades v1/v2 drafts to a deterministic v3 replacement on open,
+  carrying copy and retained image history without provider work. Verify the new
+  draft after reload and keep old approved/public snapshots exact. Do not offer
+  an older version as a new template choice or require manual regeneration.
 - When a locally authored template appears missing, verify which process owns
   the browser and API ports and which database the API opened. The Templates
   browser canary serves a disposable database; a `proposed` run appears under

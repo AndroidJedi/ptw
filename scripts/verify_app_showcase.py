@@ -115,7 +115,15 @@ def verify(url, root):
     for asset in restored['assets']:
         result=publication.asset('showcase-test',snapshot['version_sha256'],asset['slot'],asset['sha256'])
         assert result['bytes']==restarted._workspace(lid).visual_image(asset['slot'],asset['sha256'])['bytes']
-    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, raw/prepared alpha provenance, exact public bytes, and historical version preservation.')
+    upgraded=restarted.upgrade_showcase_hero(project,lid,base_sha256=restored['state_sha256'],requested_by='test')
+    assert upgraded['template_reference']['template_version']==3
+    assert upgraded['content']['hero']['supporting_text']==restored['content']['hero']['supporting_text']
+    assert [(asset['slot'],asset['sha256']) for asset in upgraded['assets']]==[(asset['slot'],asset['sha256']) for asset in restored['assets']]
+    upgrade_fresh=service(root/'upgrade-fresh-cache')
+    assert upgrade_fresh.detail(project,upgraded['landing_id'])['state_sha256']==upgraded['state_sha256']
+    assert upgrade_fresh.upgrade_showcase_hero(project,lid,base_sha256=restored['state_sha256'],requested_by='test')['landing_id']==upgraded['landing_id']
+    assert publication.snapshot('showcase-test')['version_sha256']==snapshot['version_sha256']
+    print('PASS: authenticated HTTP, unapproved template changes, idempotent retries/restart, exact template, all five slots, mockup enhancement, approval, fresh-cache restart, raw/prepared alpha provenance, exact public bytes, historical version preservation, and database-backed v3 upgrade.')
 
 
 def main():

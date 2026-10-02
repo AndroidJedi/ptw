@@ -375,6 +375,10 @@ The Hero body mode selects the existing supporting text or all three bullets;
 both sets of copy persist when switching. New composition supplies both from the
 approved Brief. Earlier v1/v2 identities and documents keep their exact catalogs
 and text rendering. The native gallery preview exercises the v3 bullet layout.
+The private editor automatically opens an older App Showcase draft as a v3
+replacement with the same copy and retained image history. Its prior page and
+approved/public snapshots remain immutable history. New choices use the latest
+registered version, so the owner does not have to select an upgrade manually.
 Preserve the feedback section when adapting domains. Verified quotes require
 exact-product evidence; absent proof uses three labelled example expectations
 from this product's own benefits, with editable bounded `feedback_examples`.

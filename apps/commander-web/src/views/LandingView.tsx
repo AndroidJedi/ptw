@@ -38,6 +38,8 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [templateOpen, setTemplateOpen] = useState(false)
   const [panel, setPanel] = useState<'history' | 'publication' | 'inquiries' | null>(null)
   const drafts = useRef(new Map<string, PendingDraft>())
+  const upgradeAttempted = useRef(new Set<string>())
+  const upgradeRunning = useRef<string | null>(null)
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [pages, setPages] = useState<LandingSummary[] | null>(null)
   const [sources, setSources] = useState<SourcePost[] | null>(null)
@@ -169,9 +171,10 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     retry={references => { if (operation.phase === 'preview' && imageState.error) imageState.retry(); else if (localRetry.current) void localRetry.current().catch(() => {}); else void operation.retry(references) }}
     close={() => { operation.dismiss(); setBusy(false) }} />
 
-  const persist = async () => {
+  const persist = async (epoch?: number) => {
     if (!detail || !configuration || !content) throw new Error('Landing draft is not ready')
     const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/configuration`, { base_sha256: detail.state_sha256, configuration, content })
+    if (epoch !== undefined && epoch !== requestEpoch.current) return value
     applyDetail(value)
     setCheckpointPending(true)
     return value
@@ -199,6 +202,22 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       if (epoch === requestEpoch.current) operation.fail(cause instanceof Error ? cause.message : String(cause))
       throw cause
     } finally { if (epoch === requestEpoch.current) setBusy(false) }
+  }
+  const upgradeShowcaseHero = async () => {
+    if (!detail || upgradeRunning.current === detail.landing_id) return
+    const epoch = requestEpoch.current
+    const sourceId = detail.landing_id
+    upgradeRunning.current = sourceId
+    setBusy(true); setError('')
+    try {
+      const source = dirty ? await persist(epoch) : detail
+      if (epoch !== requestEpoch.current) return
+      const next = await api.post<LandingDetail>(`${base}/pages/${source.landing_id}/upgrade-showcase-hero`, {
+        base_sha256: source.state_sha256,
+      })
+      if (epoch === requestEpoch.current) onLanding(next.landing_id)
+    } catch (cause) { if (epoch === requestEpoch.current) setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { if (upgradeRunning.current === sourceId) upgradeRunning.current = null; if (epoch === requestEpoch.current) setBusy(false) }
   }
   const save = async (approve = false) => {
     if (!detail || !configuration || !content) return
@@ -304,6 +323,14 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   }
   const status = detail?.status
   const dirty = Boolean(detail && configuration && content && (JSON.stringify(configuration) !== JSON.stringify(detail.configuration) || JSON.stringify(content) !== JSON.stringify(detail.content)))
+  const olderShowcase = detail?.template_id === 'app_showcase' && (detail.template_reference?.template_version || 1) < 3 && status === 'draft'
+  useEffect(() => {
+    if (!olderShowcase || !detail) return
+    const key = `${detail.landing_id}:${detail.state_sha256}`
+    if (upgradeAttempted.current.has(key)) return
+    upgradeAttempted.current.add(key)
+    void upgradeShowcaseHero()
+  }, [olderShowcase, detail?.landing_id, detail?.state_sha256]) // eslint-disable-line react-hooks/exhaustive-deps
   const issues = configuration && content && detail ? landingIssues(configuration, content, detail.assets) : []
   const refreshPublication = async () => {
     if (!projectId) return null
@@ -351,9 +378,11 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   if (pages === null || sources === null) return <Loading language={language} />
   if (error && !detail) return <ErrorState message={error} retry={() => void reload()} language={language} />
   if (!detail) return <section className="panel landing-source-picker">{overlay}<small>{tr('PRIVATE LANDING', 'ПРИВАТНИЙ ЛЕНДІНГ')}</small><h1>{tr('Create a Landing from an approved Post', 'Створіть лендінг із затвердженого допису')}</h1><p>{tr('Landing captures the selected Post version’s design, then remains independently editable.', 'Лендінг зафіксує дизайн обраної версії допису та далі редагуватиметься окремо.')}</p>{templatePicker}{sources.length ? <div className="landing-source-list">{sources.map((source) => <button key={`${source.creative_id}:${source.version}`} className="panel" disabled={busy} onClick={() => void create(source)}><Sparkles /><span>{source.template_id} · v{source.version}</span><small>{source.creative_id.slice(0, 8)}</small></button>)}</div> : <Empty><h2>{tr('Approve a Post first', 'Спершу затвердьте допис')}</h2><p>{tr('Landing starts only from an immutable approved Post version.', 'Лендінг створюється лише з незмінної затвердженої версії допису.')}</p></Empty>}</section>
+  if (olderShowcase) return <section className="panel landing-progress"><h1>{tr('Updating App Showcase', 'Оновлюємо App Showcase')}</h1><p>{tr('Keeping your draft copy and artwork while enabling the latest hero controls.', 'Зберігаємо текст і зображення чернетки та додаємо актуальні налаштування першого екрана.')}</p>{error && <ErrorState message={error} retry={() => void upgradeShowcaseHero()} language={language} />}</section>
   const templateName = (page: LandingSummary) => {
     const id = page.template_reference?.template_id || ('template_id' in page ? page.template_id : 'project_landing')
-    return templates.find(item => item.template_id === id)?.name || (id === 'app_showcase' ? 'App Showcase' : 'Project landing')
+    const name = templates.find(item => item.template_id === id)?.name || (id === 'app_showcase' ? 'App Showcase' : 'Project landing')
+    return id === 'app_showcase' ? `${name} v${page.template_reference?.template_version || 1}` : name
   }
   const templateChooser = templateOpen && <LandingTemplatePicker api={api} language={language} items={templates} currentId={detail.template_id} requestKey={`ptw:landing-template-request:${projectId}:${detail.landing_id}`} source={{ source_creative_id: detail.source_creative_id, source_version: detail.source_version }} onApply={createVariant} onClose={() => setTemplateOpen(false)} />
   if (status !== 'draft' || !configuration || !content) {

@@ -82,6 +82,15 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
+    @router.post("/projects/{project_id}/pages/{landing_id}/upgrade-showcase-hero")
+    def upgrade_showcase_hero(project_id: str, landing_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        fields(request, {"base_sha256"}, "Landing upgrade fields are invalid")
+        try:
+            return service.upgrade_showcase_hero(project_id, landing_id,
+                base_sha256=str(request["base_sha256"]), requested_by="owner-web")
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
     @router.post("/projects/{project_id}/pages/{landing_id}/retry", status_code=202)
     def retry(project_id: str, landing_id: str, request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
         fields(request, set(), "Landing retry has no input fields")

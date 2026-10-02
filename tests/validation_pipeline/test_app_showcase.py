@@ -62,6 +62,49 @@ class AppShowcaseTests(unittest.TestCase):
             detail = self.workspace.generate_visual(base_sha256=detail['state_sha256'], slot=slot, visual_direction='A sample app interface', prompt='sample')
         return detail
 
+    def test_existing_showcase_upgrades_without_regenerating_copy_or_artwork(self):
+        store = LocalBriefStore(Path(self.directory.name) / 'upgrade-authority')
+        authority = LocalLandingAuthority(store, post_workspace_root=Path(self.directory.name))
+        project_id, creative_id, brief_id = (str(uuid4()) for _ in range(3))
+        authority._source_version = lambda *_: {'source_brief_id': brief_id, 'version_sha256': 'a' * 64}
+        authority.brief = lambda *_: {'approved': True, 'document': {'language': 'uk', 'idea': 'Water comparison'}}
+        active = service(Path(self.directory.name) / 'upgrade-pages', authority)
+        page, _ = active.reserve_from_post(project_id=project_id, source_creative_id=creative_id,
+            source_version=1, requested_by='test', template_reference=REFERENCE)
+        source_id = page['landing_id']
+        workspace = active._workspace(source_id)
+        draft = workspace.detail()
+        content = showcase_content()
+        content['hero']['supporting_text'] = '• Порівнюйте склад різних марок. • Розумійте показники води. • Обирайте воду за смаком.'
+        draft = workspace.save_configuration(base_sha256=draft['state_sha256'], configuration=draft['configuration'], content=content)
+        for slot in VISUAL_SLOTS:
+            draft = workspace.generate_visual(base_sha256=draft['state_sha256'], slot=slot,
+                visual_direction='A retained app illustration', prompt='sample')
+        authority.update_page(source_id, status='draft', state_sha256=draft['state_sha256'])
+        before = active.detail(project_id, source_id)
+        upgraded = active.upgrade_showcase_hero(project_id, source_id,
+            base_sha256=before['state_sha256'], requested_by='test')
+        self.assertEqual(upgraded['template_reference']['template_version'], 3)
+        self.assertEqual(upgraded['configuration']['showcase']['hero_body_mode'], 'bullets')
+        self.assertEqual(upgraded['content']['hero']['supporting_text'], before['content']['hero']['supporting_text'])
+        self.assertEqual(upgraded['content']['hero']['bullets'], [
+            'Порівнюйте склад різних марок.', 'Розумійте показники води.', 'Обирайте воду за смаком.',
+        ])
+        self.assertEqual(upgraded['content']['hero']['eyebrow'], 'Ваш простір. Ваші можливості.')
+        for old, new in zip(before['assets'], upgraded['assets']):
+            self.assertEqual((old['slot'], old['sha256']), (new['slot'], new['sha256']))
+            self.assertEqual(active._workspace(source_id).visual_image(old['slot'], old['sha256'])['bytes'],
+                active._workspace(upgraded['landing_id']).visual_image(new['slot'], new['sha256'])['bytes'])
+        self.assertEqual(active.detail(project_id, source_id)['template_reference'], REFERENCE)
+        restarted = service(Path(self.directory.name) / 'upgrade-pages', authority)
+        repeated = restarted.upgrade_showcase_hero(project_id, source_id,
+            base_sha256=before['state_sha256'], requested_by='test')
+        self.assertEqual(repeated['landing_id'], upgraded['landing_id'])
+        self.assertEqual(len(store.list('landing_pages')), 2)
+        with self.assertRaisesRegex(RuntimeError, 'changed'):
+            restarted.upgrade_showcase_hero(project_id, source_id,
+                base_sha256='0' * 64, requested_by='test')
+
     def test_contract_rejects_unknown_slots_wrong_template_and_invalid_screens(self):
         detail = self.workspace.detail()
         self.assertEqual(tuple(detail['catalog']['visual_slots']), VISUAL_SLOTS)

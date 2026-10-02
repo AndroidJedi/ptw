@@ -10,8 +10,17 @@ assets and a deterministic render, recording its digest and layout findings.
 AI image analysis and automatic polish are not part of generation or explicit
 recomposition; owner review and tuning happen in Studio. Strict PNG integrity,
 worker capacity checks and the real bridge image canary remain release gates.
-The exact car-sharing Post is still failed pending the compatible deployment
-and one deliberate scene Retry. No design or Brief changes are authorized.
+The exact car-sharing Post is still failed pending the compatible deployment;
+the owner will initiate any scene Retry. No design or Brief changes are authorized.
+
+The next preserving release rejected structured bridge job 1450 during its
+Product Brief canary, before Daddy. The durable job recorded `RuntimeError` after
+28 seconds; a schema-bound worker probe exposed `workspace routing discovery
+unauthorized (401)` and a refresh token already used. The auth service's
+working test failed. A single official device authorization flow was started;
+the owner must complete it before canaries can pass. Neither release attempt
+retried or changed the reported Post. Per the owner's latest instruction, the
+Post will now be left for owner-initiated Retry after deployment.
 
 ## 2026-10-02 — Daddy scene PNG truncated by worker tmpfs exhaustion
 

@@ -25,6 +25,13 @@ owner must complete OpenAI authentication and workspace approval.
   production `--ephemeral --output-schema` shape and suppresses raw CLI output.
   This catches a worker that can read the credential but still receives
   `unauthorized` on real structured execution.
+- A structured bridge job can persist only `RuntimeError` while the CLI's
+  bounded error event says `workspace routing discovery unauthorized (401)` and
+  its refresh token was already used. Record that sanitized diagnosis in the
+  incident log. A matching primary/published credential digest does not make
+  the credential valid. Wait for the auth service's bounded working test; if it
+  fails, start one device flow and require owner approval. Do not repeat release
+  canaries or creative generation against the same failed credential.
 
 ## Safe repair sequence
 

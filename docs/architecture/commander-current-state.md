@@ -11,8 +11,16 @@ maintenance lock to PTW `553da39` and platform `9bb43d7`, with accepted skills
 verified. The new candidate removes automatic Daddy visual review and polish:
 after required assets it renders once, records digest/layout findings, and
 opens an unapproved draft for owner tuning. The production bridge still checks
-image integrity. Build, release, exact scene Retry and reload verification are
-pending. Preserve the saved Brief/copy/owner settings and other Projects.
+image integrity. Release and live checks are pending. Preserve the saved
+Brief/copy/owner settings and other Projects.
+
+The owner subsequently asked to perform the Post Retry personally, so the
+deployment must not enqueue or alter that Creative. The next candidate release
+was rejected before Daddy when the Product Brief bridge canary encountered a
+stale Codex credential (`workspace routing discovery unauthorized (401)`, used
+refresh token). The auth service failed its working test. One official device
+flow is pending owner approval; verify `authorized`/`passed` and a real schema
+probe before restarting the preserving release. Keep the saved error receipts.
 
 ## Daddy image handoff — temporary-storage root cause confirmed, capacity fix pending
 
@@ -32,10 +40,9 @@ home during the job. Host disk and RAM availability did not measure this limit.
 The next preserving release increases the worker tmpfs to 256 MiB with a
 96 MiB pre-generation free-space guard and a distinct
 `temporary_storage_full` failure code. Keep the 768 MiB worker cgroup cap and
-two-job capacity. After tests and a real bridge canary, perform one explicit
-Retry of only `scene`, then verify full PNG decode, rendered manual-edit draft,
-saved Brief/copy/layout, reload persistence and
-unchanged other Projects. Until then this Creative remains failed at
+two-job capacity. After tests and a real bridge canary, leave the Post for the
+owner's explicit `scene` Retry. Verify no other Project changed. Until then this
+Creative remains failed at
 `asset:scene`, with no visual polish or approved version.
 
 ## Daddy corrupt image recovery — earlier integrity release

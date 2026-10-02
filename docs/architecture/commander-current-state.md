@@ -2,17 +2,18 @@
 
 Updated: 2026-10-02
 
-## Landing JSON restore and App Showcase hero — release pending
+## Landing JSON restore and App Showcase hero — deployed
 
-The accepted `c39bc8e` production release is still live. Three preserving
+PTW `3f2de451964aa6aec62314bc96fac51b914b8b56` is live under tag
+`landing-json-restore-20261002-3f2de45`. Three earlier preserving
 attempts rolled back: two fresh Landing composition jobs reached the worker's
 360-second deadline; the intervening job completed in 40 seconds but a transient
 companion-worker database health failure rejected that rollout. The same old
 Landing input and schema completed in 22–40 seconds on several other jobs, so
-the failure is intermittent. The candidate now sends a smaller AI-owned
+the failure was intermittent. The accepted release now sends a smaller AI-owned
 Landing prompt and output schema, keeps the same model, and validates the merged
-result against the existing domain rules. Fresh canary success is required
-before release acceptance.
+result against the existing domain rules. Fresh Landing canary job 1510 passed
+on attempt one with an 8,981-byte contract.
 
 All nine production Landing workspaces were exported before cutover into
 `/root/ptw/.local/landing-json-backups/ptw-landings-20261002d` and the local
@@ -44,12 +45,21 @@ proof covers authenticated JSON export/restore, exact image bytes, restart and
 unchanged publication. All nine production JSON files validated and restored
 to current templates in a separate disposable local authority. A fresh real
 bridge call using the candidate v3 contract completed and validated on attempt
-one in 108.8 seconds; the preserving release's fresh canaries remain required.
+one in 108.8 seconds. The preserving release passed all fresh structured/media,
+Daddy and Pexels canaries, dependency/resource audits, 156 Owner web unit tests,
+159 browser cases, Hosting deployment and the live auth/CORS audit. The deployed
+source marker and Validation/Gateway image tags match `3f2de45`; both services
+are healthy. A live private backup download matched the predeployment JSON
+digest, the active template catalog offers App Showcase v3 only, and the live
+Owner bundle contains Download JSON, Restore from JSON and Text above hero title.
+All four published records kept their predeployment public HTTP status; the
+three accessible JSON snapshots and their asset references are byte-identical,
+and all 12 referenced original PNGs passed live SHA-256 checks.
 
 ## Daddy manual-review capacity release deployed
 
 PTW revision `c39bc8e89365f0c85231b4882fe7f27fb66cdd93` and companion
-revision `06a99e5b05198bb9444544da9bb720c0a1f5ab83` are live under tag
+revision `06a99e5b05198bb9444544da9bb720c0a1f5ab83` were live under tag
 `daddy-manual-review-20261002-c39bc8e`. The real production-bridge and Daddy
 canaries passed, including a decoded scene and editable deterministic render.
 The 256 MiB worker `/tmp`, Validation, worker and auth images are healthy. Owner

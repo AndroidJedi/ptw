@@ -1,6 +1,6 @@
 # PTW incident log
 
-## 2026-10-02 — Landing composition timeout and older hero editor mismatch
+## 2026-10-02 — Landing composition timeout and older hero editor mismatch resolved
 
 Two of three preserving release attempts reached a 360-second Landing worker
 deadline despite near-identical requests completing in 22–40 seconds on other
@@ -17,7 +17,13 @@ canaries before accepting a preserving release. The audit also found that one
 published v2 row belongs to a deleted Project and already returns HTTP 404;
 the other two v2 URLs and one older Project Landing return HTTP 200. Keep the
 deleted Project boundary unless the owner explicitly requests a change.
-Deployment remains pending.
+The repaired preserving release passed fresh Landing composition on attempt
+one with an 8,981-byte contract, the other structured/media and Pexels canaries,
+dependency and resource audits, Owner UI tests, Hosting and its live audit.
+Production serves the new controls, all nine JSON backups remain verified in
+private storage, and the four published records retain their predeployment
+public response and snapshot/asset references. All 12 live original PNGs
+passed SHA-256 checks.
 
 ## 2026-10-02 — App Showcase preserving release rejected three times
 

@@ -125,6 +125,17 @@ describe('Post Studio shell', () => {
     expect(await screen.findByText('Image request #1347')).toBeVisible()
   })
 
+  it('explains exhausted temporary image storage without calling an incomplete preview finished', async () => {
+    const selected = structuredClone(detail)
+    selected.template_id = 'daddy'
+    selected.status = 'failed'
+    selected.generation.daddy = { phase: 'asset:scene', corrections: 0, failure: { code: 'temporary_storage_full', slot: 'scene', provider_request_id: 1434 } }
+    const { api } = apiFor({ selected })
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    expect(await screen.findByText(/This preview is incomplete. The image worker ran out of temporary storage./)).toBeVisible()
+    expect(screen.getByText('Image request #1434')).toBeVisible()
+  })
+
   it('opens the registered Phone Metrics editor', async () => {
     const { api } = apiFor()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)

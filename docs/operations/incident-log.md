@@ -1,5 +1,30 @@
 # PTW incident log
 
+## 2026-10-02 — Daddy scene PNG truncated by worker tmpfs exhaustion
+
+The diagnostic release passed its real image and Daddy canaries, then one
+deliberate Retry of the reported car-sharing Post reached scene job 1434.
+The worker's 64 MiB `/tmp` had 36,462,592 bytes free when generation began
+and zero when the CLI exited successfully. Its saved PNG is 2,002,944 bytes,
+a 4 KiB multiple, and has no IEND. A roughly 30 MiB shared Codex cache and
+roughly 34 MiB isolated job home occupied the mount during generation.
+The file-save boundary ran out of temporary space; the CLI success signal did
+not guarantee complete pixels. The worker's strict validator rejected the
+file and retained a root-only diagnostic copy. The Post remains failed at
+`asset:scene`, with copy/layout intact and no visual review or approval.
+This directly identifies the mechanism missing from the earlier host-disk and
+OOM checks. Jobs 1182 and 1347 had the same 4 KiB-truncated signature; their
+individual tmpfs state was not recorded, so their precise historical cause
+remains an inference.
+
+The capacity repair changes only the worker tmpfs from 64 to 256 MiB, adds a
+96 MiB pre-generation headroom guard, and classifies a full temporary store
+separately. The image validator remains strict. The next release must pass
+two-job worker/resource checks, the real bridge/Daddy canary, affected suites,
+Owner browser flows and preservation audits. Only after acceptance may one
+UUID-bound Retry resume this exact scene and run actual-PNG review. Preserve
+the old failure receipts, approved Brief and other Projects.
+
 ## 2026-10-01 — Daddy scene failed on a truncated completed bridge image
 
 Creative `01a0f720-8768-71f7-ba4e-7e453fbde37d` retained its lifestyle

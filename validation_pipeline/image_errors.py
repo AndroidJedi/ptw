@@ -5,6 +5,7 @@ CONFIRMED_IMAGE_FAILURES = frozenset({
     "invalid_image",  # Legacy receipts and bridge jobs.
     "invalid_png_structure", "invalid_png_checksum", "pixel_decode_failed",
     "dimension_mismatch", "missing_image_result", "save_failed",
+    "temporary_storage_full",
 })
 
 
@@ -12,7 +13,7 @@ def classify_image_validation_error(error: Exception) -> str:
     message = str(error)
     if "checksum" in message:
         return "invalid_png_checksum"
-    if "aspect ratio" in message or "dimension bounds" in message or "bounded square" in message:
+    if "aspect ratio" in message or "dimension bounds" in message or "dimensions exceed" in message or "bounded square" in message:
         return "dimension_mismatch"
     if isinstance(error, OSError) or "pixels" in message:
         return "pixel_decode_failed"

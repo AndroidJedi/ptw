@@ -5,6 +5,30 @@ description: Safely inspect, deploy, reset, verify, and troubleshoot PTW product
 
 # PTW VPS Operations
 
+## Image-worker temporary storage
+
+The companion worker's private `/tmp` is a Compose tmpfs, independent of the
+host's free disk. The former 64 MiB mount exhausted during a Daddy image save:
+a shared Codex plugin cache used about 30 MiB, an isolated job home used about
+34 MiB, and the saved PNG stopped inside IDAT at a 4 KiB boundary with zero
+free bytes. The CLI returned success, so PNG checks at the worker boundary are
+mandatory. Use the 256 MiB worker tmpfs and the pre-generation free-space guard;
+keep the worker's 768 MiB cgroup cap and at most two media jobs. Confirm
+`df -B1 /tmp` inside the worker and memory.current/peak/events while jobs run.
+Host `df` and absence of OOM are insufficient. Never expand the mount without
+checking two-job memory headroom.
+
+For a failed image job, compare sanitized provider-start/done events with
+file bytes/digest, PNG/CRC/pixel validation, geometry and asset-commit events.
+`temporary_storage_full` means a guard or full tmpfs; the other bounded codes
+separate structure, checksum, decode, dimensions and absent/failed saves. Keep
+one rejected file per job root-only, size-capped and short-lived; do not copy
+it into Git or public assets. Preserve the failed Daddy attempt and its
+idempotency key. Deploy the compatible worker, Validation and Owner UI through
+the preserving release, run a real bridge canary, then use one explicit
+UUID-bound Retry for the named creative. Verify the saved asset, actual-PNG
+review, reload, and unrelated Project fingerprints before closing the incident.
+
 Before enabling two Landing image jobs, run the explicit
 `scripts/verify_landing_parallel_worker.py` canary with the candidate worker in
 the existing bounded companion container. Require no queued/running companion

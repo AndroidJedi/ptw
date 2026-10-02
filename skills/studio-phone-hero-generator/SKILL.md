@@ -78,3 +78,6 @@ Return one technically valid PNG, including an imperfect or unchanged edit.
 Do not score or retry visual quality. Provider/file failures preserve the current
 image and history. All adapters and the production worker must advertise and use
 the same policy version; prompt changes alone cannot override legacy worker bans.
+When the worker reports `temporary_storage_full`, keep the existing image and
+receipt; do not change subject/style or claim a visual-quality problem. Resume
+only after worker capacity is repaired and a bridge canary passes.

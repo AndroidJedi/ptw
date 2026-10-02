@@ -33,6 +33,11 @@ standalone phones without hands. Keep absent offers/previous prices empty; the
 Phone Metrics numeric-hypothesis exception does not apply. Presets are testing
 hypotheses. Inspect the actual PNG; at most two correction rounds and one targeted
 asset replacement per round. Return remaining findings with the editable draft.
+If a required image fails, report the missing slot, bounded reason and saved
+copy/layout plainly. Do not call a fallback or incomplete preview finished,
+reviewed or polished. Resume from the durable slot receipt only after the
+provider boundary is ready; never rewrite an approved Brief to hide an asset
+failure.
 
 - Treat the Product Brief as the complete source of marketing claims. Preserve
   its language, promise, offer, CTA intent, and evidentiary limits.

@@ -10,6 +10,35 @@ Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gate
 A healthy Gateway alone does not prove Brief, creative, image, or learning
 readiness.
 
+## Daddy image handoff failures
+
+For a Daddy Post with a blank scene, read its durable generation receipt before
+calling the Post complete: phase, required slot, provider job ID, attempt,
+failure code, saved assets, and actual-PNG review. The preview is incomplete
+until every required slot and review finish. Tell the owner exactly which copy
+and layout remain saved, what failed, and whether Retry is safe; never describe
+an unfinished preview as a finished creative.
+
+Trace image jobs through provider completion, file presence/save, byte count
+and digest, strict PNG structure/checksums, pixel decode, requested versus
+actual geometry, and asset commit. The bounded codes are
+`invalid_png_structure`, `invalid_png_checksum`, `pixel_decode_failed`,
+`dimension_mismatch`, `missing_image_result`, `save_failed`, and
+`temporary_storage_full`; old `invalid_image` receipts remain readable.
+Inspect only sanitized events and the root-only short-lived rejected artifact.
+Never log prompts, pixels, credentials or private paths. The Codex CLI may end
+an image turn successfully after a file-save failure, so its exit status is
+not proof of a complete image.
+
+An image file ending inside IDAT on a 4 KiB boundary while the worker's
+`/tmp` has zero free bytes identifies worker temporary-storage exhaustion.
+Check `df` inside the worker and its cgroup limit, not only host disk/RAM or
+OOM counters. Preserve the Brief, copy, layout and other slots. Fix the worker
+capacity and verify a production-bridge canary before one UUID-bound Retry of
+the exact creative. On success require a decoded saved scene, actual-PNG review,
+reload persistence and unchanged other Projects; on failure keep the precise
+receipt and stop rather than replaying uncertain work.
+
 When a failed structured bridge request, a missing Landing tab, or a no-op
 ChatGPT Authorization button appears in production, read
 [references/bridge-landing-auth-incident.md](references/bridge-landing-auth-incident.md)

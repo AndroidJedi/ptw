@@ -2,25 +2,31 @@
 
 Updated: 2026-10-02
 
-## Daddy image handoff diagnosis — diagnostic release pending
+## Daddy image handoff — temporary-storage root cause confirmed, capacity fix pending
 
-The 2026-10-01 image-integrity repair is deployed, but the exact car-sharing
-Creative remains failed at `asset:scene` after jobs 1417 and 1418. Jobs 1182 and
-1347 are the only corrupt stored completions among 258 inspected; both truncate
-inside IDAT at a 4 KiB boundary. Host disk and RAM were available and no worker
-OOM or restart was recorded. A separate 64 MiB worker `/tmp` mount held about
-30 MiB at idle; its free space at generation time is not yet known.
+The diagnostic release is live and passed 510 Validation tests, 63 companion
+tests, 154 Owner tests, 156 desktop/360px/iPhone browser cases, the full
+production bridge canary, Pexels, resource audits and Hosting/live checks. The
+one deliberate Retry of car-sharing Creative
+`01a0f720-8768-71f7-ba4e-7e453fbde37d` produced job 1434. Its worker
+`/tmp` fell from 36,462,592 free bytes to zero while the CLI reported success.
+The saved file is exactly 2,002,944 bytes (a 4 KiB multiple), ends inside
+IDAT, and lacks IEND. Strict validation rejected it; the root-only diagnostic
+copy remains and the precise slot/job/attempt receipt is saved. This proves
+worker temporary-storage exhaustion at the file-save boundary. The 64 MiB
+tmpfs held a roughly 30 MiB shared Codex cache plus a roughly 34 MiB isolated
+home during the job. Host disk and RAM availability did not measure this limit.
 
-The next preserving release records safe boundary metadata for provider result,
-file save, byte count/digest, strict PNG validation, geometry, and asset commit.
-It propagates distinct image failure codes, slot, job and attempt to the Daddy
-receipt and labels the owner preview incomplete. One rejected image per job may
-be kept in a private, bounded, 48-hour diagnostic store. The exact Creative
-must receive only one deliberate Retry after this release; its evidence decides
-the fix before any further Retry. No approved Brief, copy, layout or other
-Project should change during diagnosis.
+The next preserving release increases the worker tmpfs to 256 MiB with a
+96 MiB pre-generation free-space guard and a distinct
+`temporary_storage_full` failure code. Keep the 768 MiB worker cgroup cap and
+two-job capacity. After tests and a real bridge canary, perform one explicit
+Retry of only `scene`, then verify full PNG decode, actual-PNG review, native
+and phone-size appearance, saved Brief/copy/layout, reload persistence and
+unchanged other Projects. Until then this Creative remains failed at
+`asset:scene`, with no visual polish or approved version.
 
-## Daddy corrupt image recovery — implemented locally, release pending
+## Daddy corrupt image recovery — earlier integrity release
 
 The reported Creative advanced past strategy/composition, then failed at
 `asset:scene`. Bridge job 1347 persisted a truncated PNG as completed: its final

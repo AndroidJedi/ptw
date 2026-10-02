@@ -53,27 +53,28 @@ Daddy uses the owner's presets and grouped controls. Preserve unrelated blocks
 and assets; change only named slots. Screens are interiors; their text needs image
 editing, while ad copy stays scalar. No hands. Absent claims/prices stay blank.
 Preset changes retain copy; prepare newly required slots explicitly.
+For a failed Daddy asset, name the slot and preserved copy/layout; call the
+preview incomplete. Never claim review, Save or Approve, or imply text edits
+repair broken pixels.
 
-Authored Posts expose named `content.template_text` and
-`configuration.template_typography` controls. Use listed roles, fonts and
-12–180px bounds; typography groups share font and size. `template_palette`
-changes only the full gradient. `phone_screen` is shared raw art regardless
-of phone presence. Preserve fixed art, badges, geometry and Natal identity.
-Hidden Phone Metrics fields need an accepted template revision.
+Authored Posts expose `content.template_text` and
+`configuration.template_typography`. Use listed roles, fonts and 12–180px
+bounds; groups share font/size. `template_palette` changes only the gradient.
+`phone_screen` is shared art even without a phone. Preserve fixed art, badges,
+geometry and Natal identity. Hidden Phone Metrics fields need a template revision.
 
 App Showcase has `app_screen_1/2/3` and `visual_break_visual`. Match actions to
-`content.app_screens[index].visual_direction`. Depicted text changes need an image
-action; external captions are scalar copy. Enhance a selected screen for focused
-corrections while preserving its other UI. Palette, scale and offset are scalar
-controls; preserve the fixed three-screen structure and Natal identity.
+`content.app_screens[index].visual_direction`. Depicted text needs an image
+action; captions are scalar. Enhance only the selected screen; preserve its
+other UI, fixed three-screen structure and Natal identity. Palette, scale and
+offset are scalar.
 
-Landing marketing has ten `gradient_id` presets, one `logo_color`, motifs,
-carousel, comparison visibility, four steps and values. Preserve URLs and
-feedback structure. Three supplied `content.marketing.feedback_examples` are
-labelled hypothetical wants relevant to this product; never invent names, ratings
-or past results or alter protected `social_proof`. `walkthrough_visual` contains
-complete phones; `app_screen_*` contains interiors. Depicted text needs image
-actions; external captions are copy. Missing claims stay blank for owner
-completion or can be explicitly hidden.
+Landing marketing has ten `gradient_id` presets, `logo_color`, motifs,
+carousel, comparison, four steps and values. Preserve URLs and feedback.
+Three `content.marketing.feedback_examples` are labelled hypothetical wants;
+never invent names, ratings or past results or alter protected `social_proof`.
+`walkthrough_visual` contains phones; `app_screen_*` contains interiors.
+Depicted text needs image actions; captions are copy. Missing claims stay blank
+or can be hidden.
 
 Preflight full Brief, editable paths and Ukrainian copy with correction headroom.

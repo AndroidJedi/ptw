@@ -254,6 +254,7 @@ export function StudioView({
         dimension_mismatch: tr('The image size does not fit this layout.', 'Розмір зображення не підходить для цієї композиції.'),
         missing_image_result: tr('The image service did not save an image.', 'Сервіс зображень не зберіг зображення.'),
         save_failed: tr('The image service could not save the image.', 'Сервіс зображень не зміг зберегти зображення.'),
+        temporary_storage_full: tr('The image worker ran out of temporary storage. Your work is saved.', 'На тимчасовому сховищі сервісу зображень закінчилося місце. Вашу роботу збережено.'),
       }
       const failureCode = daddy.failure?.code || ''
       const attempt = Object.values(daddy.asset_operations || {}).find(record => record.slot === slot)?.attempt

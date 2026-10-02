@@ -77,6 +77,15 @@ into a complete compatible release, read
 
 ## Start safely
 
+After long structured/media release canaries, the companion worker's 5-second
+PostgreSQL health probe can time out briefly even though the jobs completed and
+the worker later recovers. Inspect the bounded health-check exit/timing, worker
+`/tmp`, memory/OOM events and database readiness. The selective deployer may
+wait at most 90 seconds for two consecutive healthy worker states with real
+database probes, then must still run the complete dependency/resource audits
+and final image checks. A worker that fails that bound rejects the release;
+never turn a failed health state into acceptance or skip the canaries.
+
 For ENOSPC, a growing backup/log directory, or widespread health failures with
 Owner HTTP 401, read [references/storage-recovery.md](references/storage-recovery.md).
 Use the canonical storage guard for retention and bounded backup writes; a

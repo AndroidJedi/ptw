@@ -4,6 +4,13 @@ Updated: 2026-10-02
 
 ## App Showcase older-draft hero controls — local fix pending release
 
+The first preserving candidate rolled back on a terminal Landing bridge
+`TimeoutExpired`; one fresh attempt passed the full bridge, Daddy and Pexels
+canaries but rolled back when the companion worker's 5-second PostgreSQL health
+probe timed out briefly. Accepted images, source marker and Hosting remain
+unchanged. A bounded worker recovery check is being added to the release gate;
+production publication is still pending.
+
 The owner reported that the eyebrow above the Hero title and the choice between
 three benefit bullets and supporting text were missing on an existing Landing.
 Those fields were added in App Showcase v3, while existing v1/v2 drafts remained

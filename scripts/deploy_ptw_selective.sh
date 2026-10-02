@@ -59,6 +59,23 @@ run_with_progress_heartbeat() {
     wait "$heartbeat_pid" 2>/dev/null || true
     return "$status"
 }
+wait_for_platform_worker_health() {
+    local deadline=$((SECONDS + 90)) healthy_streak=0 status
+    while (( SECONDS < deadline )); do
+        status=$(docker inspect ptw-agent-platform-commander-worker-1 \
+            --format '{{.State.Health.Status}}') || return 1
+        if [[ $status == healthy ]] && docker exec ptw-agent-platform-commander-worker-1 \
+            python -m worker.healthcheck </dev/null >/dev/null 2>&1; then
+            healthy_streak=$((healthy_streak + 1))
+            if (( healthy_streak >= 2 )); then return 0; fi
+        else
+            healthy_streak=0
+        fi
+        sleep 5
+    done
+    echo "Platform worker did not recover two healthy database probes within 90 seconds" >&2
+    return 1
+}
 
 [[ -f $platform/.env && -f $repository/.env.commander && -f $repository/.env.owner-gateway ]]
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]]
@@ -329,6 +346,7 @@ if [[ $snapshot_ready -eq 1 ]]; then
     cmp -s "$before" "$after" || { echo "Commander authority changed during fast rollout" >&2; exit 1; }
 fi
 (cd "$repository"; "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/install_ptw_skill_sync.sh")
+wait_for_platform_worker_health
 if selected "$restart_components" platform; then
     "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" </dev/null
 else
@@ -340,6 +358,7 @@ PTW_MAINTENANCE_LOCK_HELD=1 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/au
   python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/send_ptw_bot_canary.py" --read-only)
 stage_complete "audits"
 
+wait_for_platform_worker_health
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 ptw-owner-gateway-1 \
     ptw-commander-god-1 ptw-commander-release-1 ptw-commander-plan-1 ptw-agent-platform-commander-api-1 \
     ptw-agent-platform-commander-worker-1 ptw-agent-platform-codex-auth-1; do

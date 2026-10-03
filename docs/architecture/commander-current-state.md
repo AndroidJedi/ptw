@@ -17,9 +17,12 @@ The shared renderer source replaces the testimonial-style blockquote, sample
 labels and alpha note with three product-information articles in the existing
 card layout. Actual customer quotes still require evidence in `social_proof`.
 Owner/public unit builds, targeted desktop/360px/iPhone browser checks, local
-visual captures, Commander tests/demo and skill verification pass. Hosting and
-the updated Manual Agent prompt are not deployed yet. The published Water version
-is unchanged; no approval or publication was requested.
+visual captures, Commander tests/demo and skill verification pass. The first
+preserving release passed its provider/Pexels canaries but did not reach
+acceptance; the accepted Validation/Gateway images and revision marker remain.
+The correction is narrowed to a Hosting-only release; the runtime Manual Agent
+prompt is unchanged. The published Water version is unchanged; no approval or
+publication was requested.
 
 ## Landing JSON restore and App Showcase hero — deployed
 

@@ -1,5 +1,20 @@
 # PTW incident log
 
+## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
+
+The Water draft's three bounded product cards were saved under the normal
+Landing Save path after a digest-checked JSON backup. An initial preserving
+release included a minor Manual Agent prompt change and therefore rebuilt
+Validation. Its full bridge and Pexels canaries passed, but the subsequent
+rollout never reported acceptance over the publishing SSH channel. Read-only
+inspection found the prior deployed marker, prior healthy Validation and Gateway
+images, no maintenance-lock holder and the candidate source checkout. The
+publisher's stale SSH transport was terminated locally. Do not infer acceptance
+from a passing canary or a candidate source checkout. The renderer correction
+is being narrowed to Hosting-only publication; the unapproved draft and its
+artwork/versions remain preserved. The exact post-canary transport cause is
+unconfirmed.
+
 ## 2026-10-02 — Landing composition timeout and older hero editor mismatch resolved
 
 Two of three preserving release attempts reached a 360-second Landing worker

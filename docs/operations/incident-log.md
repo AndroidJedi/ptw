@@ -11,9 +11,11 @@ inspection found the prior deployed marker, prior healthy Validation and Gateway
 images, no maintenance-lock holder and the candidate source checkout. The
 publisher's stale SSH transport was terminated locally. Do not infer acceptance
 from a passing canary or a candidate source checkout. The renderer correction
-is being narrowed to Hosting-only publication; the unapproved draft and its
-artwork/versions remain preserved. The exact post-canary transport cause is
-unconfirmed.
+was narrowed to a Hosting-only release, accepted as PTW `3477f56` without
+service restarts or provider canaries. Both Hosting sites were published; the
+required Owner browser gate passed all 159 cases. The unapproved draft and its
+artwork/versions remain preserved. The exact earlier post-canary transport cause
+is unconfirmed.
 
 ## 2026-10-02 — Landing composition timeout and older hero editor mismatch resolved
 

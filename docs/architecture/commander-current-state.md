@@ -2,7 +2,7 @@
 
 Updated: 2026-10-03
 
-## Water Landing feedback restoration — source release pending
+## Water Landing feedback restoration — deployed
 
 Water Project `01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` Landing
 `27f24647-6ef7-51f0-afd3-b2e27c64fb0d` remains an unapproved App Showcase
@@ -13,16 +13,20 @@ content, configuration, selected artwork, and zero-version history matched the
 backup afterward; state digest is
 `1fa738568376c4d9c75e37f52f94d2a7ab8438305475bd9f42eeaa24624f90b7`.
 
-The shared renderer source replaces the testimonial-style blockquote, sample
+The shared renderer replaces the testimonial-style blockquote, sample
 labels and alpha note with three product-information articles in the existing
 card layout. Actual customer quotes still require evidence in `social_proof`.
 Owner/public unit builds, targeted desktop/360px/iPhone browser checks, local
 visual captures, Commander tests/demo and skill verification pass. The first
 preserving release passed its provider/Pexels canaries but did not reach
-acceptance; the accepted Validation/Gateway images and revision marker remain.
-The correction is narrowed to a Hosting-only release; the runtime Manual Agent
-prompt is unchanged. The published Water version is unchanged; no approval or
-publication was requested.
+acceptance; it left the prior Validation/Gateway images and revision marker.
+The correction was narrowed to a Hosting-only release. PTW
+`3477f568c16b7db2a10b25a801582440ca155209` was accepted under
+`water-feedback-web-20261003-3477f56` without service restarts or provider
+canaries. The required Owner browser gate passed 159 cases, and both Hosting
+sites were published. Live Owner/public bundles contain the new heading and no
+illustrative-feedback disclaimer. The runtime Manual Agent prompt and published
+Water version are unchanged; no approval or publication was requested.
 
 ## Landing JSON restore and App Showcase hero — deployed
 

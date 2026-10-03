@@ -78,6 +78,8 @@ class MarketingTests(unittest.TestCase):
             marketing.approval_ready(c, {'marketing': v})
         c['marketing']['reference_reviews_enabled'] = False
         marketing.approval_ready(c, {'marketing': v})
+        c['marketing']['reference_reviews_enabled'] = True
+        marketing.approval_ready(c, {'marketing': v, 'social_proof': {'items': [{'statement': 'Editable feedback', 'attribution': 'Visitor'}]}})
 
     def test_preserving_normalization_and_bounded_sections(self):
         directory = TemporaryDirectory(); self.addCleanup(directory.cleanup)
@@ -146,14 +148,16 @@ class MarketingTests(unittest.TestCase):
         class Agent:
             def call(self, **kwargs):
                 self.payload = kwargs['input_payload']
-                return {'response': kwargs['response_validator']({'edits': [{'path': 'configuration.marketing.gradient_id', 'value': 'aurora'}, {'path': 'content.marketing.walkthrough_visual_direction', 'value': 'Enhance the phone mockups with a calm violet palette'}], 'image_actions': [{'slot': 'walkthrough_visual', 'visual_direction': 'Enhance the phone mockups with a calm violet palette', 'enhance_current': False, 'reference_index': 0}], 'reply': 'Updated mockups'}), 'invocation': {}}
+                return {'response': kwargs['response_validator']({'edits': [{'path': 'configuration.marketing.gradient_id', 'value': 'aurora'}, {'path': 'content.marketing.walkthrough_visual_direction', 'value': 'Enhance the phone mockups with a calm violet palette'}, {'path': 'content.social_proof.items[0].statement', 'value': 'The item list is easier to compare at a glance.'}, {'path': 'content.social_proof.items[0].attribution', 'value': 'Olena, Kyiv'}], 'image_actions': [{'slot': 'walkthrough_visual', 'visual_direction': 'Enhance the phone mockups with a calm violet palette', 'enhance_current': False, 'reference_index': 0}], 'reply': 'Updated mockups and feedback'}), 'invocation': {}}
         with TemporaryDirectory() as root:
             authority=MemoryAuthority(); authority.page['status']='draft'; provider=Agent(); active=service(Path(root),authority,provider=provider)
             w=active._workspace(authority.page['landing_id']); c=w._configuration(); c['marketing']=deepcopy(marketing.DEFAULT_CONFIGURATION); v=showcase_content();v['marketing']=complete_marketing()
+            v['social_proof']['items'] = [{'statement': 'The list is helpful.', 'attribution': 'Visitor'}]
             d=w.save_configuration(base_sha256=w.state_sha256(),configuration=c,content=v)
             from uuid import uuid4
             result=active.manual_agent_edit(authority.page['project_id'],authority.page['landing_id'],request_id=str(uuid4()),base_sha256=d['state_sha256'],message='Use aurora and generate calm phone mockups',history=[],screenshots=[],configuration=c,content=v)
             self.assertEqual(result['configuration']['marketing']['gradient_id'],'aurora')
+            self.assertEqual(result['content']['social_proof']['items'][0], {'statement': 'The item list is easier to compare at a glance.', 'attribution': 'Olena, Kyiv'})
             self.assertEqual(result['image_actions'][0]['slot'],'walkthrough_visual')
             context=active._image_context(authority.page,'walkthrough_visual',v['marketing']['walkthrough_visual_direction'],c,base_sha256=d['state_sha256'])
             self.assertEqual(context['destination']['mode'],'app_mockup')
@@ -172,3 +176,7 @@ class MarketingTests(unittest.TestCase):
         self.assertEqual(schema['comparison_rows']['minItems'],6)
         self.assertEqual(schema['walkthrough_steps']['maxItems'],4)
         self.assertNotIn('apple_url',schema)
+        feedback = landing_generation_schema('app_showcase', marketing=True)['properties']['content']['properties']['social_proof']['properties']['items']
+        self.assertEqual((feedback['minItems'], feedback['maxItems']), (3, 3))
+        self.assertEqual(feedback['items']['properties']['statement']['maxLength'], 360)
+        self.assertEqual(feedback['items']['properties']['attribution']['maxLength'], 120)

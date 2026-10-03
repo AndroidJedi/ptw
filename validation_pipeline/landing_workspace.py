@@ -381,7 +381,7 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Accept only AI's non-factual page copy; proof and endpoints remain owner input."""
+    """Accept bounded page copy, including editable marketing feedback cards."""
     result = normalize_content(value)
     if "app_feature" not in result and "app_screens" not in result:
         raise ValueError("Landing AI must provide the app feature screen")
@@ -389,8 +389,10 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
         from .landing_marketing import URL_FIELDS
         if any(result["marketing"][field] for field in URL_FIELDS):
             raise ValueError("Landing AI must not invent store or legal URLs")
-    if result["social_proof"]["items"]:
+    if result["social_proof"]["items"] and "marketing" not in result:
         raise ValueError("Landing AI must not invent social proof")
+    if "marketing" in result and len(result["social_proof"]["items"]) != 3:
+        raise ValueError("Landing marketing composition requires three feedback cards")
     if any(result["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
         raise ValueError("Landing AI must not invent contact endpoints")
     required = [
@@ -408,7 +410,7 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
     required.extend(item["title"] and item["description"] for item in result["features"])
     required.extend(item["question"] and item["answer"] for item in result["faq"])
     if not all(required):
-        raise ValueError("Landing AI must complete every non-evidence page field")
+        raise ValueError("Landing AI must complete every required page field")
     return result
 
 

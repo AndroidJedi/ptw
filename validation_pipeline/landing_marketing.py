@@ -146,7 +146,7 @@ def approval_ready(configuration, content):
         return
     if not v:
         raise ValueError("Complete the additional sections in Landing Studio")
-    if c["reference_reviews_enabled"] and "feedback_examples" in v and any(
+    if c["reference_reviews_enabled"] and not content.get("social_proof", {}).get("items") and "feedback_examples" in v and any(
         not all(item[field] for field in FEEDBACK_LIMITS) for item in v["feedback_examples"]
     ):
         raise ValueError("Complete or hide the missing feedback examples in Landing Studio")

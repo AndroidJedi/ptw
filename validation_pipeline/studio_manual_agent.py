@@ -359,11 +359,11 @@ _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
             "controllers": [{"name": "Feature cards", "allowed_values": "three_columns or stacked; bounded title and description for each fixed card."}],
         },
         "project_landing.social_proof": {
-            "name": "Social proof",
-            "purpose": "Supplied evidence presentation.",
-            "visible_result": "Can switch the existing evidence presentation between cards and quote without changing its supplied evidence.",
-            "dependencies": "Preserve all evidence exactly; only layout is editable.",
-            "controllers": [{"name": "Evidence presentation", "allowed_values": "cards or quote; no evidence-content changes are allowed in Agent mode."}],
+            "name": "Feedback cards",
+            "purpose": "Editable feedback section copy and presentation.",
+            "visible_result": "Changes the heading, each card's statement and attribution, and the card or quote presentation.",
+            "dependencies": "Keep feedback relevant to this Project and preserve the existing card count unless the owner explicitly changes it in Studio.",
+            "controllers": [{"name": "Feedback cards", "allowed_values": "heading; bounded statement and attribution for each card; cards or quote layout."}],
         },
         "project_landing.visual_break": {
             "name": "Visual break",
@@ -466,7 +466,7 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     if declarations is not None and any(item.get("component_id") == "landing.marketing" for item in catalog.get("components", [])):
         declarations = {**declarations, "landing.marketing": {
             "purpose": "Gradients, motifs, carousel, comparison, steps, values, feedback examples, store buttons and footer.",
-            "dependencies": ["Use listed gradient presets and per-item enabled toggles. Unsupported copy stays blank for owner completion.", "walkthrough_visual contains complete phones; app_screen slots contain interiors. Match actions to the slot's visual_direction; depicted edits require image actions.", "Preserve feedback structure, verified proof and URLs. Feedback examples describe hypothetical wants without identities, ratings or past results. Empty store URLs open early access."],
+            "dependencies": ["Use listed gradient presets and per-item enabled toggles. Unsupported copy stays blank for owner completion.", "walkthrough_visual contains complete phones; app_screen slots contain interiors. Match actions to the slot's visual_direction; depicted edits require image actions.", "Use the social_proof cards for visible generated feedback; legacy feedback_examples are used only when those cards are empty. Preserve store and legal URLs. Empty store URLs open early access."],
         }}
     if declarations is None:
         raise ValueError(f"Studio Agent surface contract is unavailable: {surface}")
@@ -757,7 +757,7 @@ def manual_agent_editable_values(
     flattened: dict[str, Any] = {}
     _flatten_scalars(state, "", flattened)
     immutable = (
-        "content.social_proof", "content.contacts.email", "content.contacts.phone",
+        "content.contacts.email", "content.contacts.phone",
         "content.contacts.url", "content.contacts.instagram",
         "content.marketing.apple_url", "content.marketing.google_url", "content.marketing.privacy_url", "content.marketing.terms_url",
     )

@@ -1,6 +1,6 @@
 ---
 name: landing-page-composer
-description: Write bounded private PTW Landing copy from an approved Brief and approved Post. Never invent proof, contacts, capabilities, or results.
+description: Write bounded private PTW Landing copy from an approved Brief and approved Post, including editable domain-related feedback cards for marketing templates.
 ---
 
 # Landing page composer
@@ -17,12 +17,17 @@ and its practical action recognizable. Keep each field within its schema bound.
 For identity-led Briefs, connect the self-image promise to a concrete action and
 proof anchor; do not replace functional copy with aspirational language.
 
-The server owns layout, theme, controls, CTA routing, Natal identity, proof
-items, contact endpoints and store/legal URLs. Do not return fields absent from
-the schema. Social proof has a heading only; never create customer quotes,
-ratings, logos or credentials. Contact copy may describe the next step, but the
-server supplies endpoints. Post metric hypotheses are unvalidated and must not
-become Landing facts.
+The server owns layout, theme, controls, CTA routing, Natal identity, contact
+endpoints and store/legal URLs. Do not return fields absent from the schema.
+For a marketing Landing, the schema includes three editable feedback cards in
+`social_proof.items`. Write each in the Brief's domain and language, with a
+distinct natural first-person statement and a short name/location attribution.
+Keep statements within supported product behavior; avoid measured results,
+ratings, prices, guarantees and reference-site details. These are draft UI copy
+for owner review, not externally verified evidence. For a Landing without the
+marketing block, `social_proof` has a heading only and owner evidence remains
+separate. Contact copy may describe the next step, but the server supplies
+endpoints. Post metric hypotheses must not become measured Landing facts.
 
 For `project_landing`, populate `app_feature` with one Brief-grounded task,
 including a screen title, description, action and three row labels. Illustrative
@@ -38,8 +43,10 @@ describe screen interiors with consistent language and UI; the renderer supplies
 phone hardware and Natal identity.
 
 When the optional marketing block is present, fill only its schema fields:
-introduction, comparison, walkthrough, photo/benefit copy, values and CTA.
-Keep hypothetical expectations labelled as such. Unsupported claims stay empty.
+introduction, comparison, walkthrough, photo/benefit copy, values and CTA,
+alongside the three feedback cards in `social_proof`. Keep each feedback card
+specific to this product rather than the inspiration site's industry.
+Unsupported claims stay empty.
 The walkthrough image direction describes one coherent group of complete
 front-facing phones; screens remain readable and hardware stays inside margins.
 

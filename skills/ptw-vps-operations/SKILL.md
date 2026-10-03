@@ -65,7 +65,9 @@ first. When proof is absent, cards must contain factual product points or practi
 Public asset URLs belong to the active version. After publication moves, prior
 URLs may return 404. Verify preservation against the retained approved record
 and selected digests, then hash the new public image bytes against those digests.
-For a renderer-only feedback correction, keep the runtime backend out of the
+For newly generated marketing Landings, the Project composer fills editable
+feedback cards; source-site testimonials and artwork never transfer as Project
+content. For a renderer-only feedback correction, keep the runtime backend out of the
 release plan unless its behavior must change. If a publisher stops reporting
 after canaries, inspect the deployed marker, running image tags, maintenance
 lock and target checkout before any retry. Passing canaries or candidate source

@@ -204,6 +204,16 @@ class LandingAuthorityTests(unittest.TestCase):
         generated["social_proof"]["items"] = [{"statement": "Invented", "attribution": "Invented"}]
         with self.assertRaisesRegex(ValueError, "social proof"):
             normalize_composed_content(generated)
+        from validation_pipeline.landing_marketing import DEFAULT_CONTENT as MARKETING_CONTENT
+        generated["marketing"] = deepcopy(MARKETING_CONTENT)
+        generated["social_proof"]["items"] = [
+            {"statement": f"I can compare the relevant options in one place {index}.", "attribution": f"Visitor {index}"}
+            for index in range(3)
+        ]
+        self.assertEqual(normalize_composed_content(generated)["social_proof"]["items"], generated["social_proof"]["items"])
+        generated["social_proof"]["items"].pop()
+        with self.assertRaisesRegex(ValueError, "three feedback cards"):
+            normalize_composed_content(generated)
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:

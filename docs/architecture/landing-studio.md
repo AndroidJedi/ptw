@@ -28,10 +28,11 @@ operation inputs, never Landing assets or saved page state.
 
 Initial AI composition receives the approved Brief, the frozen Post version’s
 design snapshot, the live Landing catalog, and active typed Project/global
-Creative Skills. It records their exact snapshot IDs/digests. It must not invent
-social proof or contact endpoints. Evidence is optional:
-zero entries hide the entire section, while supplied entries require a heading,
-statement, and attribution. One validated email, phone, or direct Telegram bot
+Creative Skills. It records their exact snapshot IDs/digests. For marketing
+templates, composition fills three domain-related, editable feedback cards in
+`social_proof.items`; owner review can revise their statements and attributions
+in Studio. Non-marketing Landings leave that block empty unless the owner adds
+entries. The composer must not invent contact endpoints. One validated email, phone, or direct Telegram bot
 link is required
 before approval, together with both visuals, essential copy, all three features,
 and all three FAQs. A direct CTA also requires its selected endpoint. Approval
@@ -141,10 +142,10 @@ context and a validation hypothesis, not verified customer proof.
 Each image action must repeat that slot's returned
 visual direction; enhancement requires an existing selected image. The browser
 persists the returned draft through the normal configuration route before calling
-the existing generation route. Contact endpoints and the full social-proof block
-are preserved exactly, while their ordinary supporting layout/copy controls stay
-editable. Up to four normalized screenshots are temporary inputs only. The agent
-cannot save, approve, publish, add sections, invent evidence, or modify code.
+the existing generation route. Contact endpoints stay protected; feedback card
+text and attribution are ordinary editable component copy. Up to four normalized
+screenshots are temporary inputs only. The agent cannot save, approve, publish,
+add sections or modify code.
 
 Manual Agent byte budgets and correction headroom are shared with Post; see
 [Manual Agent performance contract](post-studio.md#manual-agent-performance-contract).
@@ -354,14 +355,14 @@ Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. Historical
-reference-review artwork retains its provenance, but reference quotes, names,
-portraits and ratings never become Project feedback. The same three-card section stays visible with factual domain-specific product
-points when verified proof is absent. It uses article semantics without customer
-quotes, ratings, or invented identities. Optional `content.marketing.feedback_examples` holds exactly
-three editable `topic`/`statement` pairs (120/360 characters); legacy pages derive
-cards from their own three features without changing stored state or template
-identity. Explicit hiding remains available. Verified evidence stays in the
-immutable evidence block, outside Agent edit authority.
+reference-review artwork retains its provenance; source-site quotes, names,
+portraits and ratings never become Project feedback. New marketing composition
+fills three editable `social_proof.items` with Project-domain copy and
+attributions. Studio and Agent mode can edit their bounded fields. Optional
+`content.marketing.feedback_examples` remains a legacy fallback with exactly
+three `topic`/`statement` pairs (120/360 characters); it appears only while
+`social_proof.items` is empty. Turning off the feedback section hides either
+source of cards. Existing approved versions keep their original snapshots.
 
 Store buttons use owner-supplied HTTPS `apps.apple.com` / `play.google.com` URLs.
 Empty destinations open the early-access form or hide
@@ -419,14 +420,14 @@ worker capability before accepting new image requests.
 ## Product proof and early-access inquiries
 
 Shared marketing templates preserve the feedback section when its copy needs
-domain adaptation. `reference_reviews_enabled` controls the illustrative cards,
-with its historical default/identity unchanged. When verified `social_proof.items`
-exist, the normal proof block displays those quotes without duplicate examples.
-Otherwise three cards show factual product points or practical guidance, with no
-fictional customer speech, names, portraits, ratings or past results. Optional `feedback_examples`
-persist through Save/Approve/restart; incomplete visible examples prevent approval.
-The Manual Agent may edit supplied example fields, while verified proof remains
-protected. Reference-site or cross-domain copy is never reused as evidence.
+domain adaptation. `reference_reviews_enabled` controls its visibility, with
+its historical default/identity unchanged. New Project composition creates
+three `social_proof.items` from the approved Brief. The normal shared renderer
+uses their statements and attributions; Studio edits the heading, each card and
+their layout, and Manual Agent can edit the scalar copy. Legacy
+`feedback_examples` persist through Save/Approve/restart and render only when
+the new cards are empty. Reference-site or cross-domain testimonials are never
+copied into Project copy. Approval and publication remain separate actions.
 
 An owner-directed live correction uses `scripts/update_published_landing_feedback.py`
 with a named Project/slug, current published digest, stable request UUID and a

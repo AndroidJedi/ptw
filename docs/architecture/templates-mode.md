@@ -379,8 +379,10 @@ The private editor automatically opens an older App Showcase draft as a v3
 replacement with the same copy and retained image history. Its prior page and
 approved/public snapshots remain immutable history. New choices use the latest
 registered version, so the owner does not have to select an upgrade manually.
-Preserve the three-card section when adapting domains. Verified quotes require
-exact-product evidence; absent proof uses factual product points or practical
-guidance from this product's own benefits, with editable bounded `feedback_examples`.
-Never invent customer speech, identities, ratings or past results. Explicit hiding remains
-available. Empty store targets use the shared early-access inquiry form.
+Preserve the three-card section when adapting domains. The reusable template
+stores editable feedback bindings, while the Project Landing composer fills
+three domain-related statements and attributions from the approved Brief.
+Studio edits each card like other UI components; the section can be hidden.
+Legacy `feedback_examples` remain the fallback for older drafts. Reference-site
+testimonials, portraits and ratings never transfer into Project copy. Empty
+store targets use the shared early-access inquiry form.

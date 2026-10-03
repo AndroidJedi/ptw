@@ -43,7 +43,7 @@ from .studio_manual_agent import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
-LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v7"
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v8"
 
 
 def _uuid(value: str, field: str) -> str:
@@ -187,8 +187,15 @@ def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketi
     # work and could only be accepted when the model copied blank defaults.
     content.pop("schema")
     result["properties"]["content"]["required"].remove("schema")
-    content["social_proof"]["properties"].pop("items")
-    content["social_proof"]["required"].remove("items")
+    if marketing:
+        items = content["social_proof"]["properties"]["items"]
+        items.update({"items": _json_schema({"statement": "", "attribution": ""}), "minItems": 3, "maxItems": 3})
+        for field in ("statement", "attribution"):
+            minimum, maximum = LANDING_CONTENT_LIMITS[f"social_proof.{field}"]
+            items["items"]["properties"][field].update(minLength=minimum, maxLength=maximum)
+    else:
+        content["social_proof"]["properties"].pop("items")
+        content["social_proof"]["required"].remove("items")
     for field in ("email", "phone", "url", "instagram"):
         if field in content["contacts"]["properties"]:
             content["contacts"]["properties"].pop(field)
@@ -1175,8 +1182,6 @@ class LandingService:
             from .landing_marketing import URL_FIELDS
             if any(next_content.get("marketing", {}).get(field, "") != editor_content.get("marketing", {}).get(field, "") for field in URL_FIELDS):
                 raise ValueError("Studio Agent cannot change store or legal endpoints")
-            if next_content["social_proof"] != editor_content["social_proof"]:
-                raise ValueError("Studio Agent cannot invent or change social proof")
             actions = validate_image_actions(
                 value["image_actions"], slots=image_slots,
                 screenshot_count=len(screenshots), available_slots=set(current_images),

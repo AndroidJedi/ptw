@@ -2,6 +2,20 @@
 
 Updated: 2026-10-03
 
+## Editable domain feedback for marketing Landings — implementation pending release
+
+New marketing Landing composition now requests three domain-related feedback
+cards in `content.social_proof.items` from the approved Brief. The shared
+template renders that same bounded copy in editor preview and public versions;
+Studio exposes the heading, each statement and attribution, card controls and
+an explicit visibility toggle. Manual Agent can revise those scalar fields while
+contact/store/legal endpoints stay protected. Legacy `feedback_examples` remain
+readable and render only when the new cards are empty. Existing approved versions
+are not rewritten. The current private Water draft already has three feedback
+items; this code change makes them available through the normal Studio controls.
+Targeted backend and six desktop/mobile/iPhone editor cases pass locally;
+production rollout and real generation verification remain pending.
+
 ## Water draft feedback section restored
 
 The private Water Landing `27f24647-6ef7-51f0-afd3-b2e27c64fb0d` now has a

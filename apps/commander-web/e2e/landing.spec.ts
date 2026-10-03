@@ -708,9 +708,21 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
   await page.getByLabel('Show CTA panel').uncheck()
   await expect(page.locator('.mk-section-cta, .as-banner')).toHaveCount(0)
   await page.getByLabel('Show CTA panel').check()
-  await editorSection(page, 'Evidence').click()
-  await expect(page.getByLabel('Show product highlights')).toBeChecked()
-  await page.getByLabel('Product highlight 1 · statement').fill('Порівнюйте склад води без довгого читання етикеток.')
+  await editorSection(page, 'Feedback').click()
+  await expect(page.getByLabel('Show feedback cards')).toBeChecked()
+  await page.getByLabel('Feedback heading').fill('Відгуки про нас')
+  for (const [i, name, statement] of [
+    [0, 'Олена, Київ', 'Зручно порівнювати склад води без довгого читання етикеток.'],
+    [1, 'Андрій, Львів', 'Пояснення мінералізації допомогли розібратися в цифрах.'],
+    [2, 'Марія, Дніпро', 'Можу вибрати воду за смаком, а не лише за знайомою назвою.'],
+  ] as const) {
+    await page.getByRole('button', { name: 'Add feedback card' }).click()
+    await page.getByLabel('Feedback text').nth(i).fill(statement)
+    await page.getByLabel('Name and location').nth(i).fill(name)
+  }
+  await page.getByLabel('Show feedback cards').uncheck()
+  await expect(page.locator('[data-section=social_proof]')).toHaveCount(0)
+  await page.getByLabel('Show feedback cards').check()
   await editorSection(page, 'Store buttons & footer').click()
   await page.getByLabel('Store button label', { exact: true }).fill('Спробувати Natal')
   await page.getByLabel('App Store URL', { exact: true }).fill('https://apps.apple.com/app/id123456')
@@ -722,9 +734,10 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-section-carousel button')).toHaveCount(0)
     await expect(dialog.locator('.mk-section-carousel .mk-store')).toHaveCount(2)
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
-    await expect(dialog.locator('.mk-reviews article')).toHaveCount(3)
-    await expect(dialog.locator('.mk-reviews')).toContainText('Порівнюйте склад води без довгого читання етикеток.')
-    await expect(dialog.locator('.mk-feedback-note, .mk-reviews blockquote, .mk-reviews footer')).toHaveCount(0)
+    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
+    await expect(dialog.locator('.mk-reviews')).toContainText('Зручно порівнювати склад води без довгого читання етикеток.')
+    await expect(dialog.locator('.mk-reviews')).toContainText('Олена, Київ')
+    await expect(dialog.locator('.mk-feedback-note, .mk-reviews article, .mk-reviews footer')).toHaveCount(0)
     await expect(dialog.locator('.mk-mockup img')).toHaveCount(1)
     await expect(dialog.locator('.mk-reference-note')).toHaveCount(0)
     await expect(dialog.locator('.mk-legal')).toContainText('Політика конфіденційності')

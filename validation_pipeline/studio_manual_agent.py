@@ -466,7 +466,7 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
     if declarations is not None and any(item.get("component_id") == "landing.marketing" for item in catalog.get("components", [])):
         declarations = {**declarations, "landing.marketing": {
             "purpose": "Gradients, motifs, carousel, comparison, steps, values, feedback examples, store buttons and footer.",
-            "dependencies": ["Use listed gradient presets and per-item enabled toggles. Unsupported copy stays blank for owner completion.", "walkthrough_visual contains complete phones; app_screen slots contain interiors. Match actions to the slot's visual_direction; depicted edits require image actions.", "Preserve feedback structure, verified proof and URLs. Feedback examples describe hypothetical wants without identities, ratings or past results. Empty store URLs open early access."],
+            "dependencies": ["Use listed gradient presets and per-item enabled toggles. Unsupported copy stays blank for owner completion.", "walkthrough_visual contains complete phones; app_screen slots contain interiors. Match actions to the slot's visual_direction; depicted edits require image actions.", "Preserve feedback structure, verified proof and URLs. Without verified reviews, feedback_examples are factual product points or practical guidance, never fictional customer speech, names, ratings or past results. Empty store URLs open early access."],
         }}
     if declarations is None:
         raise ValueError(f"Studio Agent surface contract is unavailable: {surface}")

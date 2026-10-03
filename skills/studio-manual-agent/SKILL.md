@@ -70,8 +70,9 @@ offset are scalar.
 
 Landing marketing has ten `gradient_id` presets, `logo_color`, motifs,
 carousel, comparison, four steps and values. Preserve URLs and feedback.
-Three `content.marketing.feedback_examples` are labelled hypothetical wants;
-never invent names, ratings or past results or alter protected `social_proof`.
+Without verified reviews, `feedback_examples` render as product points. Use
+facts or practical guidance, never fictional quotes, names, ratings or results.
+Keep verified proof in protected `social_proof`.
 `walkthrough_visual` contains phones; `app_screen_*` contains interiors.
 Depicted text needs image actions; captions are copy. Missing claims stay blank
 or can be hidden.

@@ -61,7 +61,7 @@ Project/digest, a stable UUID and three bounded example cards. Run without
 `--publish` for review, then publish under the maintenance lock through normal
 Save/Approve/Publish. Preserve old versions, any original unsaved draft and
 artwork; verify unrelated Projects. Deploy the compatible renderer/validator
-first. Example expectations must stay labelled, separate from verified quotes.
+first. When proof is absent, cards must contain factual product points or practical guidance without fictional customer speech; verified quotes stay in the evidence block.
 Public asset URLs belong to the active version. After publication moves, prior
 URLs may return 404. Verify preservation against the retained approved record
 and selected digests, then hash the new public image bytes against those digests.

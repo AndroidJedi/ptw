@@ -1,6 +1,25 @@
 # Commander current state
 
-Updated: 2026-10-02
+Updated: 2026-10-03
+
+## Water Landing feedback restoration — source release pending
+
+Water Project `01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` Landing
+`27f24647-6ef7-51f0-afd3-b2e27c64fb0d` remains an unapproved App Showcase
+v3 draft. Its three cards now contain product-specific guidance about comparing
+composition, understanding indicators, and choosing for taste. A complete
+digest-checked private JSON backup preceded the bounded Save. The remaining
+content, configuration, selected artwork, and zero-version history matched the
+backup afterward; state digest is
+`1fa738568376c4d9c75e37f52f94d2a7ab8438305475bd9f42eeaa24624f90b7`.
+
+The shared renderer source replaces the testimonial-style blockquote, sample
+labels and alpha note with three product-information articles in the existing
+card layout. Actual customer quotes still require evidence in `social_proof`.
+Owner/public unit builds, targeted desktop/360px/iPhone browser checks, local
+visual captures, Commander tests/demo and skill verification pass. Hosting and
+the updated Manual Agent prompt are not deployed yet. The published Water version
+is unchanged; no approval or publication was requested.
 
 ## Landing JSON restore and App Showcase hero — deployed
 

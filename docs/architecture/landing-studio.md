@@ -355,9 +355,9 @@ flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. Historical
 reference-review artwork retains its provenance, but reference quotes, names,
-portraits and ratings never become Project feedback. The feedback section stays
-visible with three domain-specific, labelled example expectations when verified
-proof is absent. Optional `content.marketing.feedback_examples` holds exactly
+portraits and ratings never become Project feedback. The same three-card section stays visible with factual domain-specific product
+points when verified proof is absent. It uses article semantics without customer
+quotes, ratings, or invented identities. Optional `content.marketing.feedback_examples` holds exactly
 three editable `topic`/`statement` pairs (120/360 characters); legacy pages derive
 cards from their own three features without changing stored state or template
 identity. Explicit hiding remains available. Verified evidence stays in the
@@ -422,8 +422,8 @@ Shared marketing templates preserve the feedback section when its copy needs
 domain adaptation. `reference_reviews_enabled` controls the illustrative cards,
 with its historical default/identity unchanged. When verified `social_proof.items`
 exist, the normal proof block displays those quotes without duplicate examples.
-Otherwise three cards show clearly labelled example expectations, with no invented
-customer names, portraits, ratings or past results. Optional `feedback_examples`
+Otherwise three cards show factual product points or practical guidance, with no
+fictional customer speech, names, portraits, ratings or past results. Optional `feedback_examples`
 persist through Save/Approve/restart; incomplete visible examples prevent approval.
 The Manual Agent may edit supplied example fields, while verified proof remains
 protected. Reference-site or cross-domain copy is never reused as evidence.

@@ -2,7 +2,7 @@
 
 Updated: 2026-10-03
 
-## Bokko review section visual correction — release pending
+## Bokko review section visual correction — deployed
 
 Commit `6b5a334` contained the original Bokko three-card section: large
 rounded cards, circular portraits, star ratings and quoted reviews. Later
@@ -15,6 +15,15 @@ ratings are not assigned to it. The Water draft section heading is now `Ваш
 вибір води`; the draft remains unapproved, at state digest
 `15f7516db3140aa88156933dde161369981b674caceb31512208e32ef917b8d6`.
 The earlier published Water version is unchanged.
+
+PTW `dd325ce78897dc024a8ca8e838d641d29d3e3584` was accepted under
+`water-feedback-layout-20261003-dd325ce`, with Owner and public Landing
+Hosting updated and no backend service restart. The first candidate
+`2472012` stopped at the Owner browser gate because a renamed editor checkbox
+no longer matched its existing label; its public Hosting upload had completed.
+The label was restored, and the accepted rerun passed all 159 Owner browser
+cases. The final private draft readback matched the heading, status and digest
+above.
 
 ## Water Landing feedback restoration — deployed
 

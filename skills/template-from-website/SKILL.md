@@ -18,6 +18,9 @@ browser tooling available in the environment; local Playwright is available unde
 image geometry instead of guessing from the company's industry. Scroll relevant
 sections to load lazy media and wait for image decoding before capturing them.
 Do not mistake a blank lazy-loaded mobile banner for the intended design.
+When the owner asks to restore a missing section, inspect the component and
+asset history before recreating it. Keep the recognizable card geometry and
+responsive behavior from the last working implementation while adapting copy.
 
 Capture at most two useful ordered references for the bounded creation run. A
 hero and a representative lower section usually convey more than one unreadable

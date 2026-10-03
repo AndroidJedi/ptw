@@ -2,6 +2,20 @@
 
 Updated: 2026-10-03
 
+## Bokko review section visual correction — release pending
+
+Commit `6b5a334` contained the original Bokko three-card section: large
+rounded cards, circular portraits, star ratings and quoted reviews. Later
+changes replaced that recognizable layout with short product tiles. The shared
+renderer now restores the tall three-card geometry and a circular header for
+the private Water Landing. Its factual Water copy remains in those cards; a
+verified quote in `social_proof` replaces the product copy in the same layout.
+The draft has no verified Water reviews, so unrelated Bokko portraits and
+ratings are not assigned to it. The Water draft section heading is now `Ваш
+вибір води`; the draft remains unapproved, at state digest
+`15f7516db3140aa88156933dde161369981b674caceb31512208e32ef917b8d6`.
+The earlier published Water version is unchanged.
+
 ## Water Landing feedback restoration — deployed
 
 Water Project `01a0dd88-46c1-7ec4-b69b-ee2133ca7daa` Landing

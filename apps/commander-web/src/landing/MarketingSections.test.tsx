@@ -16,12 +16,13 @@ const content = {
 const configuration = { marketing: marketingDefaults, presentation: { language: 'en' } } as LandingConfiguration
 const props = { configuration, content, imageUrls: {}, contactId: 'contacts', part: 'reviews' as const }
 
-it('keeps three domain-specific product cards visible without customer proof and follows a different product on rerender', () => {
+it('keeps three domain-specific cards in the review layout without inventing customer proof', () => {
   const { container, rerender } = render(<MarketingSections {...props} />)
-  expect(screen.getByRole('heading', { name: 'What matters' })).toBeVisible()
+  expect(screen.getByRole('heading', { name: 'About the app' })).toBeVisible()
   expect(container.querySelectorAll('.mk-reviews article')).toHaveLength(3)
+  expect(container.querySelectorAll('.mk-feedback-icon')).toHaveLength(3)
   expect(screen.getByText('Compare water composition in one place.')).toBeVisible()
-  expect(container.querySelectorAll('blockquote, .mk-stars, .mk-feedback-note, .mk-reviews footer')).toHaveLength(0)
+  expect(container.querySelectorAll('blockquote, .mk-stars, .mk-reviews footer')).toHaveLength(0)
   rerender(<MarketingSections {...props} content={{ ...content, features: content.features.map((_, i) => ({ title: `Medicine ${i}`, description: `Track medicine packages ${i}.` })) }} />)
   expect(screen.getByText('Track medicine packages 0.')).toBeVisible()
   expect(screen.queryByText('Compare water composition in one place.')).toBeNull()
@@ -34,10 +35,13 @@ it('renders supplied product copy, selects the editor section and respects an ex
   fireEvent.click(screen.getByText('Compare water composition 0.'))
   expect(onSelect).toHaveBeenCalledWith('social_proof')
   rerender(<MarketingSections {...props} configuration={{ ...configuration, marketing: { ...marketingDefaults, reference_reviews_enabled: false } }} />)
-  expect(screen.queryByRole('heading', { name: 'What matters' })).toBeNull()
+  expect(screen.queryByRole('heading', { name: 'About the app' })).toBeNull()
 })
 
-it('leaves verified proof to the existing proof renderer without adding sample feedback', () => {
+it('renders verified customer feedback in the same three-card section', () => {
   const { container } = render(<MarketingSections {...props} content={{ ...content, social_proof: { heading: 'Verified feedback', items: [{ statement: 'An owner-supplied quote.', attribution: 'Verified source' }] } }} />)
-  expect(container).toBeEmptyDOMElement()
+  expect(screen.getByRole('heading', { name: 'Verified feedback' })).toBeVisible()
+  expect(container.querySelectorAll('.mk-reviews blockquote')).toHaveLength(1)
+  expect(screen.getByText('An owner-supplied quote.')).toBeVisible()
+  expect(screen.queryByText('Compare water composition in one place.')).toBeNull()
 })

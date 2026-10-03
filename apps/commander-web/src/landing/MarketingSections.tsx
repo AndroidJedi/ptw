@@ -82,13 +82,19 @@ export function MarketingSections(props: Props) {
   if (part === 'comparison' && m.comparison_enabled) return section('comparison', <><h2 className="mk-gradient-title">{copy.comparison_heading || (uk ? 'Що змінюється з Natal' : 'What changes with Natal')}</h2><div className="mk-comparison"><div className="mk-comparison-head"><span /><strong>{uk ? 'З Natal' : 'With Natal'}</strong></div>{copy.comparison_rows.map((item, i) => item.enabled && <div className={`mk-comparison-row ${!item.text ? 'mk-missing' : ''}`} key={i}><strong>{missing(item.text, i)}</strong><span>{item.text ? <Check aria-label={uk ? 'Так' : 'Yes'} /> : '—'}</span></div>)}</div></>)
   if (part === 'walkthrough' && m.walkthrough_enabled) return section('walkthrough', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.walkthrough_heading || (uk ? 'Як це працює?' : 'How does it work?')}</h2><div className="mk-how-grid"><ol>{copy.walkthrough_steps.map((s, i) => s.enabled && <li key={i}><span>{i + 1}</span><div><h3>{missing(s.title, i)}</h3><p>{s.description}</p></div></li>)}</ol><div className="mk-mockup">{imageUrls.walkthrough_visual ? <LandingImage variants={props.imageVariants?.walkthrough_visual} sizes="(max-width: 900px) 100vw, 60vw" src={imageUrls.walkthrough_visual} alt={copy.walkthrough_heading} loading="lazy" /> : editing && <p>{uk ? 'Створіть композицію мокапів у Landing Studio → Як це працює' : 'Generate the mockup composition in Landing Studio → How it works'}</p>}</div></div><StoreButtons {...props} /></>, 'mk-gradient-panel')
   if (part === 'benefits' && m.benefits_enabled) return section('visual_break', <><h2 className="mk-gradient-title">{copy.benefits_heading}</h2><div className="mk-benefits-grid">{imageUrls.visual_break_visual && <LandingImage variants={props.imageVariants?.visual_break_visual} sizes="(max-width: 900px) 100vw, 60vw" src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${c.presentation?.visual_break_focus.x ?? 50}% ${c.presentation?.visual_break_focus.y ?? 50}%` }} />}<div><h3>{copy.benefits_supporting}</h3><article><img className="mk-icon mk-review-icon" src={review} alt="" /><h3>{copy.benefit_highlight_title}</h3><p>{copy.benefit_highlight_text}</p></article></div></div></>)
-  if (part === 'reviews' && m.reference_reviews_enabled && !v.social_proof.items.some(item => item.statement.trim() && item.attribution.trim())) return section('social_proof', <>
-    <h2 className="mk-gradient-title">{uk ? 'Що важливо' : 'What matters'}</h2>
-    <div className="mk-reviews">{feedbackExamples(v).map((item, i) => <article key={i}>
-      <header><span className="mk-feedback-icon" aria-hidden="true"><img src={comment} alt="" /></span><strong>{missing(item.topic, i)}</strong></header>
-      <p>{missing(item.statement, i)}</p>
-    </article>)}</div>
-  </>)
+  if (part === 'reviews' && m.reference_reviews_enabled) {
+    const proof = v.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
+    const fallbackHeading = /^(відгуки|reviews)$/i.test(v.social_proof.heading.trim()) ? (uk ? 'Про застосунок' : 'About the app') : v.social_proof.heading
+    const cardHeader = (title: string) => <header><span className="mk-feedback-icon" aria-hidden="true">{title.trim().charAt(0).toLocaleUpperCase()}</span><strong>{title}</strong></header>
+    return section('social_proof', <>
+      <h2 className="mk-gradient-title">{proof.length ? v.social_proof.heading : fallbackHeading}</h2>
+      <div className="mk-reviews">{proof.length ? proof.map((item, i) => <blockquote key={i}>
+        {cardHeader(item.attribution)}<p>{item.statement}</p>
+      </blockquote>) : feedbackExamples(v).map((item, i) => <article key={i}>
+        {cardHeader(missing(item.topic, i))}<p>{missing(item.statement, i)}</p>
+      </article>)}</div>
+    </>)
+  }
   if (part === 'values' && m.benefits_enabled) return section('values', <div className="mk-values">{copy.values.map((value, i) => value.enabled && <article key={i}><span className="mk-icon" style={{ maskImage: `url("${[comment, requirements, employment, support][i]}")`, WebkitMaskImage: `url("${[comment, requirements, employment, support][i]}")` }} /><h3>{missing(value.title, i)}</h3><p>{value.description}</p></article>)}</div>)
   if (part === 'cta' && m.cta_enabled) return section('cta', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.cta_heading || v.contacts.heading}</h2><p>{copy.cta_text || v.contacts.supporting_text}</p><img className="mk-line" src={line} alt="" /><StoreButtons {...props} /></>, 'mk-gradient-panel')
   if (part === 'footer' && m.footer_enabled) return <footer id={contactId} data-section="contacts" tabIndex={-1} className="mk-footer" onClickCapture={e => { if (editing) { e.preventDefault(); e.stopPropagation(); onSelect?.('contacts') } }}>

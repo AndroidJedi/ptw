@@ -153,6 +153,7 @@ test('public marketing sections use exact mockup bytes, store links without unre
   await expect(page.getByRole('link', { name: 'App Store · Explore Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
   await expect(page.locator('.mk-reference-note')).toHaveCount(0)
   await expect(page.locator('.mk-reviews article')).toHaveCount(3)
+  await expect(page.locator('.mk-feedback-icon')).toHaveCount(3)
   await expect(page.locator('.mk-feedback-note, .mk-reviews blockquote, .mk-reviews footer')).toHaveCount(0)
   await expect(page.locator('.mk-reviews')).toContainText('First')
   await expect(page.getByText('Микита, Івано-Франківськ')).toHaveCount(0)

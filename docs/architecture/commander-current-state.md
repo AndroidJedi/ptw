@@ -4,6 +4,14 @@ Updated: 2026-10-03
 
 ## Bokko review section visual correction — deployed
 
+The Water draft's three factual cards now use a white water-drop icon on the
+existing blue gradient circles. The shared renderer selects that icon from
+Water copy; other domains retain neutral monograms, and attributed customer
+quotes retain their source initials. PTW
+`68f24fbd20e5b285260bad4a85d8c8ce9d221f03` was accepted under
+`water-drop-cards-20261003-68f24fb` for both Hosting sites, without backend
+restarts or a draft content mutation. The Owner browser gate passed 159 cases.
+
 Commit `6b5a334` contained the original Bokko three-card section: large
 rounded cards, circular portraits, star ratings and quoted reviews. Later
 changes replaced that recognizable layout with short product tiles. The shared

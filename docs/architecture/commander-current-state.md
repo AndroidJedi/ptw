@@ -2,6 +2,29 @@
 
 Updated: 2026-10-03
 
+## Five editable Water reviews with Bokko portraits — deployed
+
+The private Water Landing draft now has five Water-related review cards under
+`ВІДГУКИ ПРО НАС`. All five use the owner-requested portrait images from the
+Bokko review section; the files are registered as template assets with source
+URLs and hashes. Studio exposes each portrait, attribution and statement as
+ordinary editable feedback controls, and lets the owner add cards through five.
+The shared Owner/public renderer shows those portraits in the circular card
+headers, with the water drop as fallback. New marketing Landing composition
+generates five domain-related entries; the live Water probe returned five in
+one attempt. Manual Agent may revise the cards when requested.
+
+PTW `284c344e4f15a2a07f1ad9d7e9c4d949a3b71cf4` was accepted under
+`water-bokko-avatars-20261003-284c344`. Its provider canary, 1 GB audit,
+Owner browser gate (159 cases) and Owner Hosting audit passed. Public Landing
+Hosting was then updated and audited. A full private backup is retained at
+`/root/ptw/.local/water-five-reviews-before-20261003.json` on the VPS. The
+bounded draft Save read back five cards, five portraits, zero versions and
+state digest `349c5f414e0676901db3173585271ae30d5597d38c3cbda4bfc5b0210df7c663`.
+The Water draft remains unapproved and unpublished; the review words are draft
+copy, not verified customer testimony. The release planner now includes public
+Hosting when shared Landing frontend files change.
+
 ## Editable domain feedback for marketing Landings — deployed
 
 New marketing Landing composition now requests three domain-related feedback

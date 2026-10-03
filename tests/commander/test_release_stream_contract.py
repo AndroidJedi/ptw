@@ -59,6 +59,12 @@ class ReleaseStreamContractTests(unittest.TestCase):
             [name for name, changed in gateway["build"].items() if changed],
         )
 
+        shared_landing = module.classify(["apps/commander-web/src/landing/MarketingSections.tsx"])
+        self.assertEqual(
+            {"owner-console": True, "public-landings": True},
+            shared_landing["hosting"],
+        )
+
         unknown = module.classify(["new_runtime/main.py"])
         self.assertTrue(all(unknown["build"].values()))
         self.assertTrue(all(unknown["hosting"].values()))

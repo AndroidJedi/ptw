@@ -90,6 +90,8 @@ def classify(paths: Iterable[str]) -> dict[str, object]:
             restart = {name: True for name in restart}
         if path.startswith("apps/commander-web/"):
             hosting["owner-console"] = True
+            if path.startswith("apps/commander-web/src/landing/"):
+                hosting["public-landings"] = True
             matched = True
         if path.startswith("apps/landing-web/"):
             hosting["public-landings"] = True

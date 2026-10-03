@@ -14,8 +14,10 @@ published version changed. The state digest is
 The full pre-edit JSON backup is
 `.local/landing-27f-20261003-before-real-feedback.json`. The shared renderer
 now retains the requested water drops when actual `social_proof.items` occupy
-the Bokko-style cards, instead of reverting to initials. The web release is
-pending.
+the Bokko-style cards, instead of reverting to initials. PTW
+`50df26d5c61e6678e42787252392d54ebe3e820c` was accepted under
+`water-feedback-restored-20261003-50df26d`, with both Hosting sites updated
+and no backend restart. The required Owner browser gate passed all 159 cases.
 
 ## Bokko review section visual correction — deployed
 

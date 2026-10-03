@@ -2,6 +2,22 @@
 
 Updated: 2026-10-03
 
+## Water feedback rail and visual placement — deployed
+
+The five editable Water reviews now stay in one horizontal rail. Three cards
+fit at desktop width; tablet and phone widths show fewer cards without wrapping,
+with native horizontal scrolling and accessible previous/next controls. The
+existing benefits visual, selected Water image, and exact owner copy beginning
+`Вибір води, який легше зрозуміти` now appear immediately after `Від складу до
+власного вибору` in App Showcase, before the separate app-screen section. No
+Water content or asset selection changed; the private draft remains at digest
+`349c5f414e0676901db3173585271ae30d5597d38c3cbda4bfc5b0210df7c663`.
+
+PTW `a745265c01bb14c703da647f0f5718a3f3dc733c` was accepted under
+`water-review-rail-20261003-a745265`. Both Hosting sites and live audits passed;
+the Owner browser gate passed 159 cases. No backend image was rebuilt or
+restarted, and the draft remains unapproved and unpublished.
+
 ## Five editable Water reviews with Bokko portraits — deployed
 
 The private Water Landing draft now has five Water-related review cards under

@@ -715,10 +715,13 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     [0, 'Олена, Київ', 'Зручно порівнювати склад води без довгого читання етикеток.'],
     [1, 'Андрій, Львів', 'Пояснення мінералізації допомогли розібратися в цифрах.'],
     [2, 'Марія, Дніпро', 'Можу вибрати воду за смаком, а не лише за знайомою назвою.'],
+    [3, 'Богдан, Тернопіль', 'Порівнюю мінералізацію кількох марок в одному місці.'],
+    [4, 'Катерина, Одеса', 'Тепер звертаю увагу на показники на етикетці.'],
   ] as const) {
     await page.getByRole('button', { name: 'Add feedback card' }).click()
     await page.getByLabel('Feedback text').nth(i).fill(statement)
     await page.getByLabel('Name and location').nth(i).fill(name)
+    await page.getByRole('group', { name: `Avatar for feedback card ${i + 1}` }).getByRole('button', { name: `Portrait ${i + 1}` }).click()
   }
   await page.getByLabel('Show feedback cards').uncheck()
   await expect(page.locator('[data-section=social_proof]')).toHaveCount(0)
@@ -734,7 +737,8 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-section-carousel button')).toHaveCount(0)
     await expect(dialog.locator('.mk-section-carousel .mk-store')).toHaveCount(2)
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
-    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(3)
+    await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(5)
+    await expect(dialog.locator('.mk-feedback-avatar')).toHaveCount(5)
     await expect(dialog.locator('.mk-reviews')).toContainText('Зручно порівнювати склад води без довгого читання етикеток.')
     await expect(dialog.locator('.mk-reviews')).toContainText('Олена, Київ')
     await expect(dialog.locator('.mk-feedback-note, .mk-reviews article, .mk-reviews footer')).toHaveCount(0)
@@ -747,7 +751,7 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-legal a').nth(1)).toHaveAttribute('href', 'https://natal-service.com/legal/terms?lang=uk')
     await expect(dialog.locator('.mk-legal .mk-policy-pending')).toHaveCount(0)
     await expect(dialog.getByRole('link', { name: 'App Store · Спробувати Natal' }).first()).toHaveAttribute('href', 'https://apps.apple.com/app/id123456')
-    const geometry = await dialog.locator('.lp-page').evaluate(root => ({ width: root.clientWidth, scroll: root.scrollWidth, gradient: getComputedStyle(root).getPropertyValue('--mk-start').trim(), icons: [...root.querySelectorAll('.mk-icon:not(img)')].map(el => ({ width: el.getBoundingClientRect().width, mask: getComputedStyle(el).maskImage })), reviews: [...root.querySelectorAll<HTMLElement>('.mk-reviews article')].map(el => el.clientWidth) }))
+    const geometry = await dialog.locator('.lp-page').evaluate(root => ({ width: root.clientWidth, scroll: root.scrollWidth, gradient: getComputedStyle(root).getPropertyValue('--mk-start').trim(), icons: [...root.querySelectorAll('.mk-icon:not(img)')].map(el => ({ width: el.getBoundingClientRect().width, mask: getComputedStyle(el).maskImage })), reviews: [...root.querySelectorAll<HTMLElement>('.mk-reviews blockquote')].map(el => el.clientWidth) }))
     expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)
     expect(geometry.gradient).toBe('#7562c6')
     expect(geometry.icons.every(icon => icon.width > 0 && icon.width <= 44 && icon.mask !== 'none')).toBe(true)

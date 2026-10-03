@@ -19,7 +19,7 @@ proof anchor; do not replace functional copy with aspirational language.
 
 The server owns layout, theme, controls, CTA routing, Natal identity, contact
 endpoints and store/legal URLs. Do not return fields absent from the schema.
-For a marketing Landing, the schema includes three editable feedback cards in
+For a marketing Landing, the schema includes five editable feedback cards in
 `social_proof.items`. Write each in the Brief's domain and language, with a
 distinct natural first-person statement and a short name/location attribution.
 Keep statements within supported product behavior; avoid measured results,
@@ -47,7 +47,7 @@ phone hardware and Natal identity.
 
 When the optional marketing block is present, fill only its schema fields:
 introduction, comparison, walkthrough, photo/benefit copy, values and CTA,
-alongside the three feedback cards in `social_proof`. Keep each feedback card
+alongside the five feedback cards in `social_proof`. Keep each feedback card
 specific to this product rather than the inspiration site's industry.
 Unsupported claims stay empty.
 The walkthrough image direction describes one coherent group of complete

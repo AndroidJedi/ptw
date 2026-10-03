@@ -375,6 +375,8 @@ class AppShowcaseTests(unittest.TestCase):
                         {'statement': 'I can compare the items at a glance.', 'attribution': 'Olena, Kyiv'},
                         {'statement': 'The categories make the list easier to use.', 'attribution': 'Andrii, Lviv'},
                         {'statement': 'I like having the details in one place.', 'attribution': 'Mariia, Dnipro'},
+                        {'statement': 'I can compare another option at home.', 'attribution': 'Bohdan, Ternopil'},
+                        {'statement': 'The labels are easier to understand.', 'attribution': 'Kateryna, Odesa'},
                     ],
                 }
                 content['contacts']['email'] = ''
@@ -386,7 +388,7 @@ class AppShowcaseTests(unittest.TestCase):
         self.assertEqual(result['status'], 'draft', result.get('generation'))
         detail = active.detail(authority.page['project_id'], authority.page['landing_id'])
         self.assertEqual(detail['content']['hero']['bullets'], ['Find your things', 'Record the details', 'Browse by category'])
-        self.assertEqual(len(detail['content']['social_proof']['items']), 3)
+        self.assertEqual(len(detail['content']['social_proof']['items']), 5)
         self.assertEqual(detail['content']['social_proof']['items'][0]['attribution'], 'Olena, Kyiv')
         self.assertEqual(detail['configuration']['showcase']['hero_body_mode'], 'bullets')
         self.assertEqual(provider.calls[0]['input_payload']['landing_template']['template_version'], 3)

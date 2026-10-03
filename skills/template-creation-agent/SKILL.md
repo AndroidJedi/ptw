@@ -63,7 +63,7 @@ App Showcase shares sections/mockups. Retain source digests and hardware-free
 screens; never reuse reference proof. V3 has eyebrow and text/three-bullet
 controls; older versions stay exact. New controls need reviewed source. Inspect
 saved phase/invocations on failure; provider errors are not capability gaps.
-Keep three editable feedback bindings. The Project Landing composer fills them
+Keep five editable feedback bindings. The Project Landing composer fills them
 from the Brief; Studio edits each card. Never bake Project copy or
 reference testimonials into the reusable template.
 Empty store targets open the shared early-access form, not a fake download.

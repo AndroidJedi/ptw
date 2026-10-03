@@ -18,7 +18,7 @@ from .phone_hero_styles import (
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v8"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v9"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
@@ -361,9 +361,9 @@ _SURFACE_COMPONENT_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
         "project_landing.social_proof": {
             "name": "Feedback cards",
             "purpose": "Editable feedback section copy and presentation.",
-            "visible_result": "Changes the heading, each card's statement and attribution, and the card or quote presentation.",
+            "visible_result": "Changes the heading, each card's statement, attribution and selected portrait, and the card or quote presentation.",
             "dependencies": "Keep feedback relevant to this Project and preserve the existing card count unless the owner explicitly changes it in Studio.",
-            "controllers": [{"name": "Feedback cards", "allowed_values": "heading; bounded statement and attribution for each card; cards or quote layout."}],
+            "controllers": [{"name": "Feedback cards", "allowed_values": "heading; up to five bounded statements and attributions; optional registered portrait ID for each card; cards or quote layout."}],
         },
         "project_landing.visual_break": {
             "name": "Visual break",

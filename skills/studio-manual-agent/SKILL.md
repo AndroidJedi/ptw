@@ -70,8 +70,8 @@ offset are scalar.
 
 Landing marketing has ten `gradient_id` presets, `logo_color`, motifs,
 carousel, comparison, steps and values. Visible feedback uses
-`content.social_proof.items`: edit statements and attributions within the
-Project domain. Preserve item count and URLs. Legacy
+`content.social_proof.items`: edit Project copy and registered portraits.
+Preserve item count and URLs. Legacy
 `feedback_examples` appear only when those cards are empty. Avoid ratings,
 measured results and unsupported behavior.
 `walkthrough_visual` contains phones; `app_screen_*` contains interiors.

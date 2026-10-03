@@ -1,6 +1,6 @@
 import natalContacts from '../../../../validation_pipeline/studio_assets/natal-contacts.json'
 import { MarketingInspector } from './MarketingInspector'
-import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
+import { Droplet, ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
 import { EditableColorField } from '../components/EditableColorField'
 import { ImageReferenceInput } from '../components/ImageReferenceInput'
 import { VisualModeSelect } from '../components/VisualModeSelect'
@@ -8,6 +8,7 @@ import { useId, type CSSProperties } from 'react'
 import type { LandingVisualSlot, LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
 import { PhoneHeroDirectionPicker, styles as imageStyles, backgrounds as imageBackgrounds } from '../components/studio/PhoneHeroDirectionPicker'
 import { phoneDefaults, resolvedAppFeature, appFeatureLimits, defaults, componentDefaults, imageDirectionDefaults, type Issue, type Section } from './model'
+import { feedbackAvatars } from './feedbackAvatars'
 
 type Props = {
   section: Section; configuration: LandingConfiguration; content: LandingContent; detail: LandingDetail
@@ -33,6 +34,7 @@ export function LandingInspector({ section, configuration: c, content: v, detail
   const select = (label: string, value: string, options: Array<[string, string]>, onChange: (value: string) => void) => <label className="landing-field"><span>{label}</span><select aria-label={label} value={value} onChange={event => onChange(event.target.value)}>{options.map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label>
   const range = (label: string, value: number, min: number, max: number, step: number, onChange: (value: number) => void) => <label className="landing-field"><span>{label}<small aria-hidden="true">{value}</small></span><input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={event => onChange(Number(event.target.value))} /></label>
   const layout = (section: 'features' | 'social_proof' | 'faq', field: 'layout' | 'style', value: string) => onConfiguration({ ...c, [section]: { [field]: value } } as LandingConfiguration)
+  const setFeedbackItem = (index: number, patch: Partial<LandingContent['social_proof']['items'][number]>) => onContent({ ...v, social_proof: { ...v.social_proof, items: v.social_proof.items.map((item, i) => i === index ? { ...item, ...patch } : item) } })
   const alignment = (key: 'hero' | 'contacts') => select(tr('Text alignment', 'Вирівнювання тексту'), c[key].alignment, [['left', tr('Left', 'Ліворуч')], ['center', tr('Centered', 'По центру')]], value => onConfiguration({ ...c, [key]: { ...c[key], alignment: value } } as LandingConfiguration))
   const componentSelect = (key: keyof LandingComponents, label: string, options: Array<[string, string]>) => select(label, components[key], options, value => setComponent(key, value as LandingComponents[typeof key]))
   const buttonControls = () => <div className="landing-repeater">
@@ -145,8 +147,17 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {cardControls()}
       {field(c.marketing?.reference_reviews_enabled ? tr('Feedback heading', 'Заголовок відгуків') : tr('Evidence heading', 'Заголовок доказів'), v.social_proof.heading, 120, value => onContent({ ...v, social_proof: { ...v.social_proof, heading: value } }), 'social_proof.heading')}
       {select(tr('Feedback layout', 'Вигляд відгуків'), c.social_proof.layout, [['cards', tr('Cards', 'Картки')], ['quote', tr('Wide quotes', 'Широкі цитати')]], value => layout('social_proof', 'layout', value))}
-      {v.social_proof.items.map((item, index) => <div className="landing-repeater" key={index}><h3>{tr('Feedback card', 'Картка відгуку')} {index + 1}</h3>{field(tr('Feedback text', 'Текст відгуку'), item.statement, 360, value => onContent({ ...v, social_proof: { ...v.social_proof, items: v.social_proof.items.map((f, i) => i === index ? { ...f, statement: value } : f) } }), `social_proof.${index}.statement`, true)}{field(tr('Name and location', 'Ім’я та місто'), item.attribution, 120, value => onContent({ ...v, social_proof: { ...v.social_proof, items: v.social_proof.items.map((f, i) => i === index ? { ...f, attribution: value } : f) } }), `social_proof.${index}.attribution`)}<button className="secondary" onClick={() => onContent({ ...v, social_proof: { ...v.social_proof, items: v.social_proof.items.filter((_, i) => i !== index) } })}><Trash2 />{tr('Remove card', 'Видалити картку')}</button></div>)}
-      {v.social_proof.items.length < 3 && <button className="secondary" onClick={() => onContent({ ...v, social_proof: { ...v.social_proof, items: [...v.social_proof.items, { statement: '', attribution: '' }] } })}>{tr('Add feedback card', 'Додати картку відгуку')}</button>}
+      {v.social_proof.items.map((item, index) => <div className="landing-repeater" key={index}>
+        <h3>{tr('Feedback card', 'Картка відгуку')} {index + 1}</h3>
+        {field(tr('Feedback text', 'Текст відгуку'), item.statement, 360, value => setFeedbackItem(index, { statement: value }), `social_proof.${index}.statement`, true)}
+        {field(tr('Name and location', 'Ім’я та місто'), item.attribution, 120, value => setFeedbackItem(index, { attribution: value }), `social_proof.${index}.attribution`)}
+        {c.marketing && <><span>{tr('Avatar', 'Аватар')}</span><div className="landing-avatar-options" role="group" aria-label={`${tr('Avatar for feedback card', 'Аватар для картки відгуку')} ${index + 1}`}>
+          <button type="button" aria-label={tr('Water drop or initial', 'Крапля води або ініціал')} aria-pressed={!item.avatar_asset_id} onClick={() => setFeedbackItem(index, { avatar_asset_id: undefined })}><Droplet aria-hidden="true" /></button>
+          {feedbackAvatars.map((avatar, avatarIndex) => <button type="button" key={avatar.id} aria-label={`${tr('Portrait', 'Портрет')} ${avatarIndex + 1}`} aria-pressed={item.avatar_asset_id === avatar.id} onClick={() => setFeedbackItem(index, { avatar_asset_id: avatar.id })}><img src={avatar.src} alt="" /></button>)}
+        </div></>}
+        <button className="secondary" onClick={() => onContent({ ...v, social_proof: { ...v.social_proof, items: v.social_proof.items.filter((_, i) => i !== index) } })}><Trash2 />{tr('Remove card', 'Видалити картку')}</button>
+      </div>)}
+      {v.social_proof.items.length < 5 && <button className="secondary" onClick={() => onContent({ ...v, social_proof: { ...v.social_proof, items: [...v.social_proof.items, { statement: '', attribution: '' }] } })}>{tr('Add feedback card', 'Додати картку відгуку')}</button>}
     </>}
     {section === 'visual_break' && <>
       {select(tr('Image height', 'Висота зображення'), c.visual_break.height, [['small', tr('Shallow', 'Низьке')], ['medium', tr('Balanced', 'Збалансоване')], ['large', tr('Tall', 'Високе')]], value => onConfiguration({ ...c, visual_break: { height: value as LandingConfiguration['visual_break']['height'] } }))}

@@ -208,7 +208,7 @@ class LandingAuthorityTests(unittest.TestCase):
         generated["marketing"] = deepcopy(MARKETING_CONTENT)
         generated["social_proof"]["items"] = [
             {"statement": f"I can compare the relevant options in one place {index}.", "attribution": f"Visitor {index}"}
-            for index in range(3)
+            for index in range(5)
         ]
         self.assertEqual(normalize_composed_content(generated)["social_proof"]["items"], generated["social_proof"]["items"])
         generated["social_proof"]["heading"] = "Чернетки відгуків для погодження"
@@ -219,8 +219,27 @@ class LandingAuthorityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "draft or approval"):
             normalize_composed_content(generated)
         generated["social_proof"]["items"].pop()
-        with self.assertRaisesRegex(ValueError, "three feedback cards"):
+        with self.assertRaisesRegex(ValueError, "five feedback cards"):
             normalize_composed_content(generated)
+        normal = complete_content()
+        normal["social_proof"]["items"] = [{"statement": "Water is easy to compare.", "attribution": "Olena, Kyiv", "avatar_asset_id": "bokko_review_portrait_1"}]
+        self.assertEqual(normalize_content(normal)["social_proof"]["items"], normal["social_proof"]["items"])
+        normal["social_proof"]["items"][0]["avatar_asset_id"] = "unregistered_portrait"
+        with self.assertRaisesRegex(ValueError, "avatar"):
+            normalize_content(normal)
+        from validation_pipeline.landing_pages import validate_landing_composition
+        composed = complete_content()
+        composed["marketing"] = deepcopy(MARKETING_CONTENT)
+        composed["contacts"]["email"] = ""
+        composed["social_proof"]["items"] = [
+            {"statement": f"I compare water labels {index}.", "attribution": f"Visitor {index}"}
+            for index in range(5)
+        ]
+        defaults = deepcopy(composed)
+        defaults["social_proof"]["items"][0]["avatar_asset_id"] = "bokko_review_portrait_1"
+        retained = validate_landing_composition({"content": composed}, defaults=defaults)["content"]
+        self.assertEqual(retained["social_proof"]["items"][0]["avatar_asset_id"], "bokko_review_portrait_1")
+        self.assertNotIn("avatar_asset_id", composed["social_proof"]["items"][0])
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:

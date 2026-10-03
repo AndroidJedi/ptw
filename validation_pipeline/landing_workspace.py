@@ -23,6 +23,7 @@ from .landing_design import (DEFAULT_APP_FEATURE, APP_FEATURE_LIMITS, DEFAULT_PH
 
 
 LANDING_TEMPLATE_ID = "project_landing"
+FEEDBACK_AVATAR_IDS = tuple(f"bokko_review_portrait_{index}" for index in range(1, 6))
 LANDING_TEMPLATE_VERSION = 5
 LANDING_SCHEMA = "ptw.landing.workspace.v1"
 LANDING_CONFIGURATION_SCHEMA = "ptw.landing.configuration.v1"
@@ -301,8 +302,8 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     proof_items = proof["items"]
     if not isinstance(features, list) or len(features) != 3 or not isinstance(faq, list) or len(faq) != 3:
         raise ValueError("Landing requires exactly three features and three FAQs")
-    if not isinstance(proof_items, list) or len(proof_items) > 3:
-        raise ValueError("Landing social proof supports zero to three owner entries")
+    if not isinstance(proof_items, list) or len(proof_items) > 5:
+        raise ValueError("Landing social proof supports zero to five owner entries")
 
     def bounded(item: Any, path: str, field: str) -> str:
         minimum, maximum = LANDING_CONTENT_LIMITS[path]
@@ -338,15 +339,26 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
         }
         for item in features
     ]
+    def normalize_proof_item(item: Any) -> dict[str, str]:
+        if not isinstance(item, Mapping) or set(item) not in (
+            {"statement", "attribution"}, {"statement", "attribution", "avatar_asset_id"},
+        ):
+            raise ValueError("Landing social proof item fields are invalid")
+        normalized = {
+            "statement": bounded(item["statement"], "social_proof.statement", "social proof statement"),
+            "attribution": bounded(item["attribution"], "social_proof.attribution", "social proof attribution"),
+        }
+        if "avatar_asset_id" in item:
+            avatar = item["avatar_asset_id"]
+            if avatar not in ("", *FEEDBACK_AVATAR_IDS):
+                raise ValueError("Landing feedback avatar is invalid")
+            if avatar:
+                normalized["avatar_asset_id"] = avatar
+        return normalized
+
     result["social_proof"] = {
         "heading": bounded(proof["heading"], "social_proof.heading", "social proof heading"),
-        "items": [
-            {
-                "statement": bounded(_object(item, {"statement", "attribution"}, "social proof item")["statement"], "social_proof.statement", "social proof statement"),
-                "attribution": bounded(_object(item, {"statement", "attribution"}, "social proof item")["attribution"], "social_proof.attribution", "social proof attribution"),
-            }
-            for item in proof_items
-        ],
+        "items": [normalize_proof_item(item) for item in proof_items],
     }
     if "marketing" in root:
         from .landing_marketing import normalize_content as normalize_marketing
@@ -391,8 +403,8 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("Landing AI must not invent store or legal URLs")
     if result["social_proof"]["items"] and "marketing" not in result:
         raise ValueError("Landing AI must not invent social proof")
-    if "marketing" in result and len(result["social_proof"]["items"]) != 3:
-        raise ValueError("Landing marketing composition requires three feedback cards")
+    if "marketing" in result and len(result["social_proof"]["items"]) != 5:
+        raise ValueError("Landing marketing composition requires five feedback cards")
     if "marketing" in result:
         feedback_copy = [result["social_proof"]["heading"]]
         feedback_copy.extend(

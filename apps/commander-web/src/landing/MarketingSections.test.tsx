@@ -49,3 +49,15 @@ it('renders verified customer feedback in the same three-card section', () => {
   expect(screen.getByText('An owner-supplied quote.')).toBeVisible()
   expect(screen.queryByText('Compare water composition in one place.')).toBeNull()
 })
+
+it('renders five editable feedback cards with their selected source portraits', () => {
+  const items = Array.from({ length: 5 }, (_, index) => ({
+    statement: `Water comparison ${index + 1}`,
+    attribution: `Visitor ${index + 1}`,
+    avatar_asset_id: `bokko_review_portrait_${index + 1}`,
+  }))
+  const { container } = render(<MarketingSections {...props} content={{ ...content, social_proof: { heading: 'Water feedback', items } }} />)
+  expect(container.querySelectorAll('.mk-reviews blockquote')).toHaveLength(5)
+  expect(container.querySelectorAll('.mk-feedback-avatar')).toHaveLength(5)
+  expect(container.querySelectorAll('.mk-feedback-icon')).toHaveLength(0)
+})

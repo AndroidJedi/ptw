@@ -29,7 +29,7 @@ operation inputs, never Landing assets or saved page state.
 Initial AI composition receives the approved Brief, the frozen Post version’s
 design snapshot, the live Landing catalog, and active typed Project/global
 Creative Skills. It records their exact snapshot IDs/digests. For marketing
-templates, composition fills three domain-related, editable feedback cards in
+templates, composition fills five domain-related, editable feedback cards in
 `social_proof.items`; owner review can revise their statements and attributions
 in Studio. Non-marketing Landings leave that block empty unless the owner adds
 entries. The composer must not invent contact endpoints. One validated email, phone, or direct Telegram bot
@@ -355,10 +355,11 @@ Comparison rows, steps and values retain fixed item counts and per-item enabled
 flags. Missing Brief support leaves empty text. Editor and private fullscreen
 show manual-completion hints; public rendering never shows Studio instructions.
 Approval requires completing or hiding visible unfinished items. Historical
-reference-review artwork retains its provenance; source-site quotes, names,
-portraits and ratings never become Project feedback. New marketing composition
-fills three editable `social_proof.items` with Project-domain copy and
-attributions. Studio and Agent mode can edit their bounded fields. Optional
+reference-review artwork retains its provenance. New marketing composition
+fills five editable `social_proof.items` with Project-domain copy and
+attributions. Studio and Agent mode can edit their bounded fields. An explicit
+owner request may attach one of five digest-pinned Bokko portrait assets to a
+private Water card; this does not verify the quote or attribution. Optional
 `content.marketing.feedback_examples` remains a legacy fallback with exactly
 three `topic`/`statement` pairs (120/360 characters); it appears only while
 `social_proof.items` is empty. Turning off the feedback section hides either
@@ -422,9 +423,9 @@ worker capability before accepting new image requests.
 Shared marketing templates preserve the feedback section when its copy needs
 domain adaptation. `reference_reviews_enabled` controls its visibility, with
 its historical default/identity unchanged. New Project composition creates
-three `social_proof.items` from the approved Brief. The normal shared renderer
-uses their statements and attributions; Studio edits the heading, each card and
-their layout, and Manual Agent can edit the scalar copy. Legacy
+five `social_proof.items` from the approved Brief. The normal shared renderer
+uses their statements and attributions; Studio edits the heading, each card,
+optional portrait and layout, and Manual Agent can edit the bounded values. Legacy
 `feedback_examples` persist through Save/Approve/restart and render only when
 the new cards are empty. Reference-site or cross-domain testimonials are never
 copied into Project copy. Approval and publication remain separate actions.

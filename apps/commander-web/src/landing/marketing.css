@@ -50,6 +50,7 @@
 .mk-feedback-icon { display:grid; place-items:center; width:66px; height:66px; border-radius:50%; background:color-mix(in srgb,var(--mk-end) 14%,white); color:var(--mk-start); flex:0 0 66px; font-size:27px; font-weight:700; }
 .mk-feedback-icon-water { background:var(--mk-gradient); color:#fff; }
 .lp-page .mk-feedback-icon-water svg { width:32px; height:32px; fill:currentColor; stroke-width:1.5; }
+.lp-page .mk-feedback-avatar { display:block; width:66px; height:66px; flex:0 0 66px; border-radius:50%; object-fit:cover; object-position:center 25%; }
 .mk-values { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:26px; text-align:center; }
 .mk-values .mk-icon { margin:auto; }.lp-page .mk-values h3 { font-size:21px; margin:20px 0 14px; }.lp-page .mk-values p { font-size:16px; }
 .mk-section-cta { text-align:center; padding:60px 45px; }.lp-page .mk-section-cta h2 { max-width:960px; margin:0 auto 16px; }.lp-page .mk-section-cta p { max-width:750px; margin:0 auto; }
@@ -63,7 +64,7 @@
 .mk-footer .mk-legal a { text-decoration:underline; text-underline-offset:3px; }
 .mk-footer .mk-policy-pending { cursor:default; }
 .as-page:has(.mk-section) .as-hero-wrap { background:var(--mk-gradient); }.as-page:has(.mk-section) .as-hero { position:relative; }.as-page:has(.mk-section) .as-nav { position:relative; }
-@container landing (max-width:900px) { .mk-notch-card { flex-basis:52%; }.mk-how-grid { grid-template-columns:1fr; }.mk-mockup { max-width:650px; margin:auto; }.mk-reviews { gap:16px; }.mk-reviews :is(article,blockquote) { padding:22px; }.mk-reviews strong { font-size:18px; }.lp-page .mk-reviews p { font-size:16px; }.mk-feedback-icon { width:52px; height:52px; flex-basis:52px; font-size:22px; }.mk-footer { grid-template-columns:1fr 1fr; }.mk-values { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container landing (max-width:900px) { .mk-notch-card { flex-basis:52%; }.mk-how-grid { grid-template-columns:1fr; }.mk-mockup { max-width:650px; margin:auto; }.mk-reviews { gap:16px; }.mk-reviews :is(article,blockquote) { padding:22px; }.mk-reviews strong { font-size:18px; }.lp-page .mk-reviews p { font-size:16px; }.mk-feedback-icon,.lp-page .mk-feedback-avatar { width:52px; height:52px; flex-basis:52px; font-size:22px; }.mk-footer { grid-template-columns:1fr 1fr; }.mk-values { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @container landing (max-width:600px) {
  .lp-page .mk-section h2 { font-size:26px; margin-bottom:28px; }.mk-section { margin-top:56px; }.lp-page .mk-intro { font-size:20px; margin-bottom:26px; }
  .mk-notch-card { flex-basis:88%; min-width:240px; padding:30px 24px; }.lp-page .mk-notch-card h3 { font-size:23px; }.mk-stores { flex-direction:column; align-items:center; gap:14px; }.lp-page .mk-store { font-size:15px; padding:14px 23px; min-width:230px; }

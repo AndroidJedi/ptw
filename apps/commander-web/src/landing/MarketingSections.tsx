@@ -10,6 +10,7 @@ import type { LandingPageProps } from './LandingPage'
 import type { Section } from './model'
 import { contactHref } from './model'
 import { feedbackExamples, marketingContentDefaults } from './marketing'
+import { feedbackAvatarUrl } from './feedbackAvatars'
 import logo from '../../../../natal/assets/logo-natal.png'
 import symbol from '../../../../validation_pipeline/studio_assets/app-showcase/natal-symbol.png'
 import apple from '../../../../validation_pipeline/studio_assets/app-showcase/apple.svg'
@@ -86,11 +87,14 @@ export function MarketingSections(props: Props) {
     const proof = v.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
     const fallbackHeading = /^(відгуки|reviews)$/i.test(v.social_proof.heading.trim()) ? (uk ? 'Про застосунок' : 'About the app') : v.social_proof.heading
     const waterDomain = /(?:вода|води|воду|водою|water)/i.test(`${v.hero?.title || ''} ${v.social_proof.heading}`)
-    const cardHeader = (title: string, waterIcon = false) => <header><span className={`mk-feedback-icon${waterIcon ? ' mk-feedback-icon-water' : ''}`} aria-hidden="true">{waterIcon ? <Droplet /> : title.trim().charAt(0).toLocaleUpperCase()}</span><strong>{title}</strong></header>
+    const cardHeader = (title: string, waterIcon = false, avatarId?: string) => {
+      const avatar = feedbackAvatarUrl(avatarId)
+      return <header>{avatar ? <img className="mk-feedback-avatar" src={avatar} alt="" loading="lazy" /> : <span className={`mk-feedback-icon${waterIcon ? ' mk-feedback-icon-water' : ''}`} aria-hidden="true">{waterIcon ? <Droplet /> : title.trim().charAt(0).toLocaleUpperCase()}</span>}<strong>{title}</strong></header>
+    }
     return section('social_proof', <>
       <h2 className="mk-gradient-title">{proof.length ? v.social_proof.heading : fallbackHeading}</h2>
       <div className="mk-reviews">{proof.length ? proof.map((item, i) => <blockquote key={i}>
-        {cardHeader(item.attribution, waterDomain)}<p>{item.statement}</p>
+        {cardHeader(item.attribution, waterDomain, item.avatar_asset_id)}<p>{item.statement}</p>
       </blockquote>) : feedbackExamples(v).map((item, i) => <article key={i}>
         {cardHeader(missing(item.topic, i), waterDomain)}<p>{missing(item.statement, i)}</p>
       </article>)}</div>

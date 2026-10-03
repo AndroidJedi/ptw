@@ -43,7 +43,7 @@ from .studio_manual_agent import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
-LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v9"
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v10"
 
 
 def _uuid(value: str, field: str) -> str:
@@ -189,7 +189,7 @@ def landing_generation_schema(template_id: str = LANDING_TEMPLATE_ID, *, marketi
     result["properties"]["content"]["required"].remove("schema")
     if marketing:
         items = content["social_proof"]["properties"]["items"]
-        items.update({"items": _json_schema({"statement": "", "attribution": ""}), "minItems": 3, "maxItems": 3})
+        items.update({"items": _json_schema({"statement": "", "attribution": ""}), "minItems": 5, "maxItems": 5})
         for field in ("statement", "attribution"):
             minimum, maximum = LANDING_CONTENT_LIMITS[f"social_proof.{field}"]
             items["items"]["properties"][field].update(minLength=minimum, maxLength=maximum)
@@ -216,6 +216,17 @@ def validate_landing_composition(value: Mapping[str, Any], *, defaults: Mapping[
             content[key] = {**content[key], **section}
         else:
             content[key] = section
+    if "marketing" in content:
+        previous_items = (defaults or {}).get("social_proof", {}).get("items", [])
+        next_items = content.get("social_proof", {}).get("items")
+        if isinstance(previous_items, list) and isinstance(next_items, list):
+            next_items = deepcopy(next_items)
+            content["social_proof"]["items"] = next_items
+            for index, item in enumerate(next_items):
+                if (index < len(previous_items) and isinstance(previous_items[index], Mapping)
+                        and isinstance(item, dict) and previous_items[index].get("avatar_asset_id")
+                        and "avatar_asset_id" not in item):
+                    next_items[index] = {**item, "avatar_asset_id": previous_items[index]["avatar_asset_id"]}
     return {"content": normalize_composed_content(content)}
 
 
@@ -1207,7 +1218,7 @@ class LandingService:
                 mode="studio_manual_edit",
                 system_prompt=(
                     self.manual_agent_skill
-                    + "\n\nThe output schema accepts scalar patch operations only. Omitted paths remain unchanged; preserve contact endpoints and social proof exactly. "
+                    + "\n\nThe output schema accepts scalar patch operations only. Omitted paths remain unchanged; preserve contact endpoints. Change feedback copy or registered portraits only when the owner requests it. "
                     "Decompose every clause, obey request_constraints as end-state invariants, resolve cross-control dependencies, "
                     "and verify every requested result against current_editable_values."
                 ),

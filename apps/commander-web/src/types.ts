@@ -728,7 +728,7 @@ export interface LandingContent {
   schema: 'ptw.landing.content.v1'
   hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string; eyebrow?: string; bullets?: string[] }
   features: Array<{ title: string; description: string }>
-  social_proof: { heading: string; items: Array<{ statement: string; attribution: string }> }
+  social_proof: { heading: string; items: Array<{ statement: string; attribution: string; avatar_asset_id?: string }> }
   visual_break: { visual_direction: string }
   contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string; instagram?: string }
   faq: Array<{ question: string; answer: string }>

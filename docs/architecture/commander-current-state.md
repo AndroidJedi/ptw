@@ -2,6 +2,21 @@
 
 Updated: 2026-10-03
 
+## Water draft feedback section restored
+
+The private Water Landing `27f24647-6ef7-51f0-afd3-b2e27c64fb0d` now has a
+visible `ВІДГУКИ ПРО НАС` section. Its three review cards have Water-specific
+first-person draft copy and attribution, replacing the prior factual guidance
+cards. The section remains a private, unapproved mockup; those words are
+owner-directed draft copy, not independently verified customer evidence. No
+published version changed. The state digest is
+`299ac2ce622daa214bc78839f81e25655dbdb73d173b15148ab8fd7e8da63968`.
+The full pre-edit JSON backup is
+`.local/landing-27f-20261003-before-real-feedback.json`. The shared renderer
+now retains the requested water drops when actual `social_proof.items` occupy
+the Bokko-style cards, instead of reverting to initials. The web release is
+pending.
+
 ## Bokko review section visual correction — deployed
 
 The Water draft's three factual cards now use a white water-drop icon on the

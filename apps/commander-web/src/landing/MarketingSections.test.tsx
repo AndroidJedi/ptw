@@ -45,6 +45,7 @@ it('renders verified customer feedback in the same three-card section', () => {
   const { container } = render(<MarketingSections {...props} content={{ ...content, social_proof: { heading: 'Verified feedback', items: [{ statement: 'An owner-supplied quote.', attribution: 'Verified source' }] } }} />)
   expect(screen.getByRole('heading', { name: 'Verified feedback' })).toBeVisible()
   expect(container.querySelectorAll('.mk-reviews blockquote')).toHaveLength(1)
+  expect(container.querySelectorAll('.mk-feedback-icon-water svg')).toHaveLength(1)
   expect(screen.getByText('An owner-supplied quote.')).toBeVisible()
   expect(screen.queryByText('Compare water composition in one place.')).toBeNull()
 })

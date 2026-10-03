@@ -90,7 +90,7 @@ export function MarketingSections(props: Props) {
     return section('social_proof', <>
       <h2 className="mk-gradient-title">{proof.length ? v.social_proof.heading : fallbackHeading}</h2>
       <div className="mk-reviews">{proof.length ? proof.map((item, i) => <blockquote key={i}>
-        {cardHeader(item.attribution)}<p>{item.statement}</p>
+        {cardHeader(item.attribution, waterDomain)}<p>{item.statement}</p>
       </blockquote>) : feedbackExamples(v).map((item, i) => <article key={i}>
         {cardHeader(missing(item.topic, i), waterDomain)}<p>{missing(item.statement, i)}</p>
       </article>)}</div>

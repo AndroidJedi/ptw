@@ -145,7 +145,7 @@ test('public marketing sections use exact mockup bytes, store links without unre
     canonical_url: 'https://natal-service.com/marketing', project_name: 'Marketing', version_sha256: digest,
     published_at: '2026-09-24T00:00:00Z',
     configuration: { ...configuration, marketing: { ...defaults.configuration, gradient_id: 'aurora' } },
-    content: { ...content, contacts: { ...content.contacts, email: 'welcome@natal-service.com', phone: '+380 93 725 64 69', url: '', instagram: '' }, marketing },
+    content: { ...content, hero: { ...content.hero, title: 'Choose water' }, contacts: { ...content.contacts, email: 'welcome@natal-service.com', phone: '+380 93 725 64 69', url: '', instagram: '' }, marketing },
     assets: Object.fromEntries(['hero_visual', 'visual_break_visual', 'walkthrough_visual'].map(slot => [slot, `/api/v1/public/landings/marketing/versions/${digest}/assets/${slot}/${digest}.png`])),
   } }))
   await page.goto('/marketing')
@@ -154,6 +154,7 @@ test('public marketing sections use exact mockup bytes, store links without unre
   await expect(page.locator('.mk-reference-note')).toHaveCount(0)
   await expect(page.locator('.mk-reviews article')).toHaveCount(3)
   await expect(page.locator('.mk-feedback-icon')).toHaveCount(3)
+  await expect(page.locator('.mk-feedback-icon-water svg')).toHaveCount(3)
   await expect(page.locator('.mk-feedback-note, .mk-reviews blockquote, .mk-reviews footer')).toHaveCount(0)
   await expect(page.locator('.mk-reviews')).toContainText('First')
   await expect(page.getByText('Микита, Івано-Франківськ')).toHaveCount(0)

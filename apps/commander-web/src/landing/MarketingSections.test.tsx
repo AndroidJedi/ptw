@@ -5,6 +5,7 @@ import { MarketingSections } from './MarketingSections'
 import { marketingDefaults, marketingContentDefaults } from './marketing'
 
 const content = {
+  hero: { title: 'Choose water' },
   features: [
     { title: 'Compare water', description: 'Compare water composition in one place.' },
     { title: 'Understand minerals', description: 'Plain explanations of mineralization.' },
@@ -21,11 +22,13 @@ it('keeps three domain-specific cards in the review layout without inventing cus
   expect(screen.getByRole('heading', { name: 'About the app' })).toBeVisible()
   expect(container.querySelectorAll('.mk-reviews article')).toHaveLength(3)
   expect(container.querySelectorAll('.mk-feedback-icon')).toHaveLength(3)
+  expect(container.querySelectorAll('.mk-feedback-icon-water svg')).toHaveLength(3)
   expect(screen.getByText('Compare water composition in one place.')).toBeVisible()
   expect(container.querySelectorAll('blockquote, .mk-stars, .mk-reviews footer')).toHaveLength(0)
-  rerender(<MarketingSections {...props} content={{ ...content, features: content.features.map((_, i) => ({ title: `Medicine ${i}`, description: `Track medicine packages ${i}.` })) }} />)
+  rerender(<MarketingSections {...props} content={{ ...content, hero: { ...content.hero, title: 'Track medicine' }, social_proof: { ...content.social_proof, heading: 'Reviews' }, features: content.features.map((_, i) => ({ title: `Medicine ${i}`, description: `Track medicine packages ${i}.` })) }} />)
   expect(screen.getByText('Track medicine packages 0.')).toBeVisible()
   expect(screen.queryByText('Compare water composition in one place.')).toBeNull()
+  expect(container.querySelectorAll('.mk-feedback-icon-water')).toHaveLength(0)
 })
 
 it('renders supplied product copy, selects the editor section and respects an explicit hide', () => {

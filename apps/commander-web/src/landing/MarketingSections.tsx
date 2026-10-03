@@ -5,7 +5,7 @@ import telegramIcon from '../../../../validation_pipeline/studio_assets/app-show
 import instagramIcon from '../../../../validation_pipeline/studio_assets/app-showcase/instagram.svg'
 import threadsIcon from '../../../../validation_pipeline/studio_assets/app-showcase/threads-icon.svg'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowUpRight, Check } from 'lucide-react'
+import { ArrowUpRight, Check, Droplet } from 'lucide-react'
 import type { LandingPageProps } from './LandingPage'
 import type { Section } from './model'
 import { contactHref } from './model'
@@ -85,13 +85,14 @@ export function MarketingSections(props: Props) {
   if (part === 'reviews' && m.reference_reviews_enabled) {
     const proof = v.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
     const fallbackHeading = /^(відгуки|reviews)$/i.test(v.social_proof.heading.trim()) ? (uk ? 'Про застосунок' : 'About the app') : v.social_proof.heading
-    const cardHeader = (title: string) => <header><span className="mk-feedback-icon" aria-hidden="true">{title.trim().charAt(0).toLocaleUpperCase()}</span><strong>{title}</strong></header>
+    const waterDomain = /(?:вода|води|воду|водою|water)/i.test(`${v.hero?.title || ''} ${v.social_proof.heading}`)
+    const cardHeader = (title: string, waterIcon = false) => <header><span className={`mk-feedback-icon${waterIcon ? ' mk-feedback-icon-water' : ''}`} aria-hidden="true">{waterIcon ? <Droplet /> : title.trim().charAt(0).toLocaleUpperCase()}</span><strong>{title}</strong></header>
     return section('social_proof', <>
       <h2 className="mk-gradient-title">{proof.length ? v.social_proof.heading : fallbackHeading}</h2>
       <div className="mk-reviews">{proof.length ? proof.map((item, i) => <blockquote key={i}>
         {cardHeader(item.attribution)}<p>{item.statement}</p>
       </blockquote>) : feedbackExamples(v).map((item, i) => <article key={i}>
-        {cardHeader(missing(item.topic, i))}<p>{missing(item.statement, i)}</p>
+        {cardHeader(missing(item.topic, i), waterDomain)}<p>{missing(item.statement, i)}</p>
       </article>)}</div>
     </>)
   }

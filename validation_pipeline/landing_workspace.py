@@ -393,6 +393,19 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Landing AI must not invent social proof")
     if "marketing" in result and len(result["social_proof"]["items"]) != 3:
         raise ValueError("Landing marketing composition requires three feedback cards")
+    if "marketing" in result:
+        feedback_copy = [result["social_proof"]["heading"]]
+        feedback_copy.extend(
+            field
+            for item in result["social_proof"]["items"]
+            for field in (item["statement"], item["attribution"])
+        )
+        if any(re.search(
+            r"(?i)\b(?:draft|sample|example|placeholder|mockup|fictional|fictitious|invented|approval)\b|"
+            r"чернет|чернов|погоджен|зразк|вигадан",
+            field,
+        ) for field in feedback_copy):
+            raise ValueError("Landing feedback must not expose draft or approval labels")
     if any(result["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
         raise ValueError("Landing AI must not invent contact endpoints")
     required = [

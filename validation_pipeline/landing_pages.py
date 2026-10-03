@@ -43,7 +43,7 @@ from .studio_manual_agent import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
-LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v8"
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v9"
 
 
 def _uuid(value: str, field: str) -> str:

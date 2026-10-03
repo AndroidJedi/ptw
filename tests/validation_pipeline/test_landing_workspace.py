@@ -211,6 +211,13 @@ class LandingAuthorityTests(unittest.TestCase):
             for index in range(3)
         ]
         self.assertEqual(normalize_composed_content(generated)["social_proof"]["items"], generated["social_proof"]["items"])
+        generated["social_proof"]["heading"] = "Чернетки відгуків для погодження"
+        with self.assertRaisesRegex(ValueError, "draft or approval"):
+            normalize_composed_content(generated)
+        generated["social_proof"]["heading"] = "Відгуки про нас"
+        generated["social_proof"]["items"][0]["statement"] = "Sample feedback about water"
+        with self.assertRaisesRegex(ValueError, "draft or approval"):
+            normalize_composed_content(generated)
         generated["social_proof"]["items"].pop()
         with self.assertRaisesRegex(ValueError, "three feedback cards"):
             normalize_composed_content(generated)

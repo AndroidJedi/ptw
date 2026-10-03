@@ -24,7 +24,10 @@ For a marketing Landing, the schema includes three editable feedback cards in
 distinct natural first-person statement and a short name/location attribution.
 Keep statements within supported product behavior; avoid measured results,
 ratings, prices, guarantees and reference-site details. These are draft UI copy
-for owner review, not externally verified evidence. For a Landing without the
+for owner review, not externally verified evidence. Use a normal customer-facing
+heading and natural card copy. Never put internal words such as draft, example,
+sample, fictional or awaiting approval in any visible field. The server tracks
+review status separately. For a Landing without the
 marketing block, `social_proof` has a heading only and owner evidence remains
 separate. Contact copy may describe the next step, but the server supplies
 endpoints. Post metric hypotheses must not become measured Landing facts.

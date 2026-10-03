@@ -5,7 +5,7 @@ import telegramIcon from '../../../../validation_pipeline/studio_assets/app-show
 import instagramIcon from '../../../../validation_pipeline/studio_assets/app-showcase/instagram.svg'
 import threadsIcon from '../../../../validation_pipeline/studio_assets/app-showcase/threads-icon.svg'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowUpRight, Check, Droplet } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Droplet } from 'lucide-react'
 import type { LandingPageProps } from './LandingPage'
 import type { Section } from './model'
 import { contactHref } from './model'
@@ -54,6 +54,7 @@ export function MarketingSections(props: Props) {
   const { configuration: c, content: v, imageUrls, editing, showDraftHints, onSelect, selected, part, contactId } = props
   const m = c.marketing, copy = v.marketing || marketingContentDefaults, uk = c.presentation?.language !== 'en'
   const rail = useRef<HTMLDivElement>(null)
+  const reviewsRail = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   useEffect(() => {
@@ -78,7 +79,7 @@ export function MarketingSections(props: Props) {
   }, [part, m?.carousel_enabled, m?.carousel_autoplay, m?.carousel_speed, hovered, focused, editing])
   if (!m) return null
   const missing = (value: string, index?: number) => value || ((editing || showDraftHints) ? `${uk ? 'Заповніть вручну в Landing Studio' : 'Complete manually in Landing Studio'}${index === undefined ? '' : ` · ${index + 1}`}` : '—')
-  const section = (key: Section, body: ReactNode, className = '') => <section data-section={key} className={`mk-section mk-section-${part} ${className} ${editing && selected === key ? 'as-selected' : ''}`} onClickCapture={event => { if (editing) { event.preventDefault(); event.stopPropagation(); onSelect?.(key) } }}>{body}</section>
+  const section = (key: Section, body: ReactNode, className = '') => <section data-section={key} className={`mk-section mk-section-${part} ${className} ${editing && selected === key ? 'as-selected' : ''}`} onClickCapture={event => { if (editing && !(event.target as HTMLElement).closest('[data-scroll-control]')) { event.preventDefault(); event.stopPropagation(); onSelect?.(key) } }}>{body}</section>
   if (part === 'carousel' && m.carousel_enabled) return section('features', <><p className="mk-intro">{copy.introduction || v.hero.supporting_text}</p><div className="mk-rail" ref={rail} tabIndex={0} aria-label={uk ? 'Можливості застосунку' : 'App benefits'} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>{v.features.map((f, i) => <article className="mk-notch-card" key={i}><span className="mk-card-arrow"><ArrowUpRight /></span><span className="mk-icon" style={{ maskImage: `url("${[office, user, safe][i]}")`, WebkitMaskImage: `url("${[office, user, safe][i]}")` }} /><h3>{f.title}</h3><p>{f.description}</p></article>)}</div><StoreButtons {...props} /></>)
   if (part === 'comparison' && m.comparison_enabled) return section('comparison', <><h2 className="mk-gradient-title">{copy.comparison_heading || (uk ? 'Що змінюється з Natal' : 'What changes with Natal')}</h2><div className="mk-comparison"><div className="mk-comparison-head"><span /><strong>{uk ? 'З Natal' : 'With Natal'}</strong></div>{copy.comparison_rows.map((item, i) => item.enabled && <div className={`mk-comparison-row ${!item.text ? 'mk-missing' : ''}`} key={i}><strong>{missing(item.text, i)}</strong><span>{item.text ? <Check aria-label={uk ? 'Так' : 'Yes'} /> : '—'}</span></div>)}</div></>)
   if (part === 'walkthrough' && m.walkthrough_enabled) return section('walkthrough', <><NatalMotifs enabled={m.motifs_enabled} /><h2>{copy.walkthrough_heading || (uk ? 'Як це працює?' : 'How does it work?')}</h2><div className="mk-how-grid"><ol>{copy.walkthrough_steps.map((s, i) => s.enabled && <li key={i}><span>{i + 1}</span><div><h3>{missing(s.title, i)}</h3><p>{s.description}</p></div></li>)}</ol><div className="mk-mockup">{imageUrls.walkthrough_visual ? <LandingImage variants={props.imageVariants?.walkthrough_visual} sizes="(max-width: 900px) 100vw, 60vw" src={imageUrls.walkthrough_visual} alt={copy.walkthrough_heading} loading="lazy" /> : editing && <p>{uk ? 'Створіть композицію мокапів у Landing Studio → Як це працює' : 'Generate the mockup composition in Landing Studio → How it works'}</p>}</div></div><StoreButtons {...props} /></>, 'mk-gradient-panel')
@@ -91,13 +92,24 @@ export function MarketingSections(props: Props) {
       const avatar = feedbackAvatarUrl(avatarId)
       return <header>{avatar ? <img className="mk-feedback-avatar" src={avatar} alt="" loading="lazy" /> : <span className={`mk-feedback-icon${waterIcon ? ' mk-feedback-icon-water' : ''}`} aria-hidden="true">{waterIcon ? <Droplet /> : title.trim().charAt(0).toLocaleUpperCase()}</span>}<strong>{title}</strong></header>
     }
+    const scrollReviews = (direction: -1 | 1) => {
+      const element = reviewsRail.current
+      if (!element) return
+      const cardWidth = (element.firstElementChild as HTMLElement | null)?.offsetWidth || 0
+      const gap = Number.parseFloat(window.getComputedStyle(element).columnGap) || 0
+      element.scrollBy({ left: direction * (cardWidth + gap), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    }
     return section('social_proof', <>
       <h2 className="mk-gradient-title">{proof.length ? v.social_proof.heading : fallbackHeading}</h2>
-      <div className="mk-reviews">{proof.length ? proof.map((item, i) => <blockquote key={i}>
+      <div className="mk-reviews" ref={reviewsRail} role="region" tabIndex={0} aria-label={uk ? 'Відгуки, горизонтальна прокрутка' : 'Reviews, horizontal scroll'}>{proof.length ? proof.map((item, i) => <blockquote key={i}>
         {cardHeader(item.attribution, waterDomain, item.avatar_asset_id)}<p>{item.statement}</p>
       </blockquote>) : feedbackExamples(v).map((item, i) => <article key={i}>
         {cardHeader(missing(item.topic, i), waterDomain)}<p>{missing(item.statement, i)}</p>
       </article>)}</div>
+      {(proof.length || feedbackExamples(v).length) > 3 && <div className="mk-review-controls">
+        <button type="button" data-scroll-control aria-label={uk ? 'Попередні відгуки' : 'Previous reviews'} onClick={() => scrollReviews(-1)}><ChevronLeft aria-hidden="true" /></button>
+        <button type="button" data-scroll-control aria-label={uk ? 'Наступні відгуки' : 'Next reviews'} onClick={() => scrollReviews(1)}><ChevronRight aria-hidden="true" /></button>
+      </div>}
     </>)
   }
   if (part === 'values' && m.benefits_enabled) return section('values', <div className="mk-values">{copy.values.map((value, i) => value.enabled && <article key={i}><span className="mk-icon" style={{ maskImage: `url("${[comment, requirements, employment, support][i]}")`, WebkitMaskImage: `url("${[comment, requirements, employment, support][i]}")` }} /><h3>{missing(value.title, i)}</h3><p>{value.description}</p></article>)}</div>)

@@ -42,8 +42,13 @@
 .lp-page .mk-benefits-grid article p { clear:both; margin:0; }
 .mk-section-reviews { padding:8px 0 24px; }
 .lp-page .mk-section-reviews h2 { font-size:calc(42px * var(--lp-scale)); margin-bottom:44px; }
-.mk-reviews { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.mk-reviews { display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 48px)/3); gap:24px; overflow-x:auto; overscroll-behavior-inline:contain; scroll-snap-type:x mandatory; scrollbar-width:thin; padding:6px 4px 22px; }
 .mk-reviews :is(article,blockquote) { min-width:0; min-height:330px; margin:0; padding:30px; background:#fff; border-radius:38px; box-shadow:0 8px 38px #263c6012; }
+.mk-reviews > :is(article,blockquote) { scroll-snap-align:start; }
+.mk-review-controls { display:flex; justify-content:flex-end; gap:12px; margin-top:12px; }
+.mk-review-controls button { display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:var(--mk-gradient); color:#fff; cursor:pointer; }
+.mk-review-controls button:focus-visible { outline:3px solid var(--mk-start); outline-offset:3px; }
+.lp-page .mk-review-controls svg { width:22px; height:22px; }
 .mk-reviews header { display:flex; gap:16px; align-items:center; min-height:66px; margin-bottom:22px; }
 .mk-reviews strong { font-size:21px; line-height:1.25; }
 .lp-page .mk-reviews p { font-size:18px; margin:0; line-height:1.55; }
@@ -64,16 +69,16 @@
 .mk-footer .mk-legal a { text-decoration:underline; text-underline-offset:3px; }
 .mk-footer .mk-policy-pending { cursor:default; }
 .as-page:has(.mk-section) .as-hero-wrap { background:var(--mk-gradient); }.as-page:has(.mk-section) .as-hero { position:relative; }.as-page:has(.mk-section) .as-nav { position:relative; }
-@container landing (max-width:900px) { .mk-notch-card { flex-basis:52%; }.mk-how-grid { grid-template-columns:1fr; }.mk-mockup { max-width:650px; margin:auto; }.mk-reviews { gap:16px; }.mk-reviews :is(article,blockquote) { padding:22px; }.mk-reviews strong { font-size:18px; }.lp-page .mk-reviews p { font-size:16px; }.mk-feedback-icon,.lp-page .mk-feedback-avatar { width:52px; height:52px; flex-basis:52px; font-size:22px; }.mk-footer { grid-template-columns:1fr 1fr; }.mk-values { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container landing (max-width:900px) { .mk-notch-card { flex-basis:52%; }.mk-how-grid { grid-template-columns:1fr; }.mk-mockup { max-width:650px; margin:auto; }.mk-reviews { grid-auto-columns:calc((100% - 16px)/2); gap:16px; }.mk-reviews :is(article,blockquote) { padding:22px; }.mk-reviews strong { font-size:18px; }.lp-page .mk-reviews p { font-size:16px; }.mk-feedback-icon,.lp-page .mk-feedback-avatar { width:52px; height:52px; flex-basis:52px; font-size:22px; }.mk-footer { grid-template-columns:1fr 1fr; }.mk-values { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @container landing (max-width:600px) {
  .lp-page .mk-section h2 { font-size:26px; margin-bottom:28px; }.mk-section { margin-top:56px; }.lp-page .mk-intro { font-size:20px; margin-bottom:26px; }
  .mk-notch-card { flex-basis:88%; min-width:240px; padding:30px 24px; }.lp-page .mk-notch-card h3 { font-size:23px; }.mk-stores { flex-direction:column; align-items:center; gap:14px; }.lp-page .mk-store { font-size:15px; padding:14px 23px; min-width:230px; }
  .mk-comparison { padding:24px 18px; border-radius:24px; }.mk-comparison-row,.mk-comparison-head { grid-template-columns:1fr 70px; gap:14px; font-size:16px; }.mk-comparison-head { font-size:18px; }
  .mk-gradient-panel { border-radius:30px; padding:30px 22px; }.mk-how-grid { gap:30px; }.mk-how-grid li { gap:12px; }.mk-how-grid li > span { width:32px; height:32px; }.lp-page .mk-how-grid h3 { font-size:23px; }
- .mk-benefits-grid,.mk-reviews,.mk-footer { grid-template-columns:1fr; gap:24px; }.lp-page .mk-benefits-grid > img { height:220px; }.mk-values { grid-template-columns:1fr; gap:32px; }.mk-reviews :is(article,blockquote) { min-height:220px; padding:26px; }.mk-footer { margin-top:50px; }.mk-footer .mk-stores { align-items:flex-start; }
+ .mk-benefits-grid,.mk-footer { grid-template-columns:1fr; gap:24px; }.lp-page .mk-benefits-grid > img { height:220px; }.mk-values { grid-template-columns:1fr; gap:32px; }.mk-reviews { grid-auto-columns:88%; gap:16px; }.mk-reviews :is(article,blockquote) { min-height:220px; padding:26px; }.mk-footer { margin-top:50px; }.mk-footer .mk-stores { align-items:flex-start; }
  .mk-motifs > span { width:62px; height:62px; }.lp-page .mk-logo { width:115px; height:46px; }
 }
-@media(prefers-reduced-motion:reduce) { .mk-rail { scroll-behavior:auto; } }
+@media(prefers-reduced-motion:reduce) { .mk-rail,.mk-reviews { scroll-behavior:auto; } }
 
 .as-page:has(.mk-section) .as-walkthrough { background:var(--mk-gradient); }
 /* Keep the single inherited logo color legible on both template surfaces. */

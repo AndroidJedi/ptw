@@ -704,6 +704,11 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
   const generated = page.waitForRequest(r => r.url().endsWith('/operations') && r.method() === 'POST')
   await page.getByRole('button', { name: 'Generate', exact: true }).click()
   expect((await generated).postDataJSON().request.visual_direction).toContain('phone mockups')
+  await editorSection(page, 'Visual story').click()
+  await page.getByLabel('Benefits heading').fill('Вибір води, який легше зрозуміти')
+  await page.getByLabel('Benefits introduction').fill('Зіставляйте склад і враховуйте те, що подобається саме вам.')
+  await page.getByLabel('Highlight title').fill('Менше часу на етикетки')
+  await page.getByLabel('Highlight description').fill('Склад, зрозумілі пояснення й ваші вподобання зібрані в застосунку Natal, щоб спростити щоденний вибір води.')
   await editorSection(page, 'CTA panel').click()
   await page.getByLabel('Show CTA panel').uncheck()
   await expect(page.locator('.mk-section-cta, .as-banner')).toHaveCount(0)
@@ -739,6 +744,27 @@ for (const showcase of [false, true]) test(`Marketing sections work in ${showcas
     await expect(dialog.locator('.mk-comparison-row')).toHaveCount(4)
     await expect(dialog.locator('.mk-reviews blockquote')).toHaveCount(5)
     await expect(dialog.locator('.mk-feedback-avatar')).toHaveCount(5)
+    const reviewRail = dialog.locator('.mk-reviews')
+    await expect(reviewRail).toBeVisible()
+    await expect(reviewRail).toHaveAttribute('role', 'region')
+    const reviewLayout = await reviewRail.evaluate(element => {
+      const cards = [...element.querySelectorAll('blockquote')]
+      return { widths: cards.map(card => (card as HTMLElement).offsetWidth), tops: cards.map(card => card.getBoundingClientRect().top), scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }
+    })
+    expect(new Set(reviewLayout.tops).size).toBe(1)
+    expect(reviewLayout.scrollWidth).toBeGreaterThan(reviewLayout.clientWidth)
+    if (width === 1280) expect(reviewLayout.widths[0] * 3).toBeGreaterThan(reviewLayout.clientWidth * .85)
+    if (width === 1280) {
+      const before = await reviewRail.evaluate(element => element.scrollLeft)
+      await dialog.getByRole('button', { name: 'Наступні відгуки' }).click()
+      await expect.poll(() => reviewRail.evaluate(element => element.scrollLeft)).toBeGreaterThan(before)
+    }
+    if (width === 1280 && showcase) {
+      const sections = await dialog.locator('.mk-section-walkthrough, .mk-section-benefits, .as-walkthrough').evaluateAll(elements => elements.map(element => element.className))
+      expect(sections).toEqual([expect.stringContaining('mk-section-walkthrough'), expect.stringContaining('mk-section-benefits'), expect.stringContaining('as-walkthrough')])
+      await expect(dialog.locator('.mk-section-benefits')).toContainText('Вибір води, який легше зрозуміти')
+      await expect(dialog.locator('.mk-section-benefits')).toContainText('Менше часу на етикетки')
+    }
     await expect(dialog.locator('.mk-reviews')).toContainText('Зручно порівнювати склад води без довгого читання етикеток.')
     await expect(dialog.locator('.mk-reviews')).toContainText('Олена, Київ')
     await expect(dialog.locator('.mk-feedback-note, .mk-reviews article, .mk-reviews footer')).toHaveCount(0)

@@ -2,7 +2,7 @@
 
 Updated: 2026-10-03
 
-## Editable domain feedback for marketing Landings — implementation pending release
+## Editable domain feedback for marketing Landings — deployed
 
 New marketing Landing composition now requests three domain-related feedback
 cards in `content.social_proof.items` from the approved Brief. The shared
@@ -13,8 +13,17 @@ contact/store/legal endpoints stay protected. Legacy `feedback_examples` remain
 readable and render only when the new cards are empty. Existing approved versions
 are not rewritten. The current private Water draft already has three feedback
 items; this code change makes them available through the normal Studio controls.
-Targeted backend and six desktop/mobile/iPhone editor cases pass locally;
-production rollout and real generation verification remain pending.
+The Owner Console is live with this editor from release
+`editable-domain-feedback-retry-20261003-a049c30`; its 159 browser cases and
+Owner Console audit passed. The Validation service is live at
+`f3dc28c246132832aa11e074aed45c28058d10bf` under
+`feedback-visible-copy-20261003-f3dc28c`. The first live Water-domain
+generation probe returned three editable entries but an internal draft label
+in its heading. The follow-up instruction and composition validator reject
+draft, sample and approval labels in visible feedback. A fresh live provider
+probe returned `Про вибір води` and three Water-related statements in one
+attempt. Both scoped release canaries and 1 GB audits passed. The existing
+private Water draft remains unapproved and no published Water version changed.
 
 ## Water draft feedback section restored
 

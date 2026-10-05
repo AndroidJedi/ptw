@@ -67,6 +67,19 @@ it('labels unavailable analytics and runs learning only from the explicit button
   ))
 })
 
+it('requests the owner calendar day for Today', async () => {
+  const get = vi.fn(async () => fixture())
+  const api = { get, post: vi.fn() } as unknown as ApiClient
+  render(<AnalyticsView api={api} language="en" projectId={projectId} />)
+
+  fireEvent.change(screen.getByLabelText('Analytics window'), { target: { value: '1' } })
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  await waitFor(() => expect(get).toHaveBeenCalledWith(
+    `/api/v1/analytics/${projectId}/workspace?window=1&time_zone=${encodeURIComponent(timeZone)}`,
+  ))
+  expect(screen.getByText(/Landing events since midnight/)).toBeVisible()
+})
+
 it('supports per-rule review edits and requires Activate selected', async () => {
   const get = vi.fn(async () => fixture(true))
   const post = vi.fn(async () => ({}))

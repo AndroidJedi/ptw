@@ -46,9 +46,9 @@ def creative_analytics_owner_router(
         return None if scope == "global" else scope
 
     @router.get("/{scope}/workspace")
-    def workspace(scope: str, window: int = Query(default=30)) -> dict[str, Any]:
+    def workspace(scope: str, window: int = Query(default=30), time_zone: str = Query(default="UTC")) -> dict[str, Any]:
         try:
-            return service.workspace(project_id=project_scope(scope), window=window)
+            return service.workspace(project_id=project_scope(scope), window=window, time_zone=time_zone)
         except (KeyError, ValueError, RuntimeError) as error:
             raise _fail(error) from error
 

@@ -144,6 +144,25 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertEqual({'POST'}, public_methods.pop('/api/v1/public/landings/{slug}/inquiries'))
         self.assertTrue(all(methods == {"GET", "HEAD"} for methods in public_methods.values()))
 
+    def test_analytics_today_forwards_owner_time_zone(self) -> None:
+        class Verifier:
+            def verify(self, token: str, app_check_token: str) -> OwnerIdentity:
+                self_outer.assertEqual(("owner-token", "app-token"), (token, app_check_token))
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        self_outer = self
+        upstream = AsyncMock(return_value=httpx.Response(200, json={"window_days": 1}))
+        headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
+        with patch("httpx.AsyncClient.request", upstream), TestClient(create_app(self.settings, verifier=Verifier())) as client:
+            self.assertEqual(401, client.get("/api/v1/analytics/global/workspace?window=1").status_code)
+            response = client.get("/api/v1/analytics/global/workspace", params={"window": 1, "time_zone": "Europe/Kyiv"}, headers=headers)
+        self.assertEqual(200, response.status_code)
+        upstream.assert_awaited_once_with(
+            "GET", "http://validation/internal/v1/analytics/global/workspace",
+            headers={"X-PTW-Owner-Gateway-Token": "bridge", "X-PTW-Actor": "owner-web"}, json=None,
+            params={"window": 1, "time_zone": "Europe/Kyiv"},
+        )
+
     def test_route_table_includes_project_studio_publishing_and_analytics(self) -> None:
         class Verifier:
             def verify(self, _token: str, _app_check: str):  # pragma: no cover

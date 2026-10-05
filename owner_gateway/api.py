@@ -859,12 +859,12 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/analytics/{scope}/workspace")
     async def analytics_workspace(
-        scope: str, window: int = Query(default=30),
+        scope: str, window: int = Query(default=30), time_zone: str = Query(default="UTC"),
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "GET", f"/internal/v1/analytics/{scope}/workspace",
-            params={"window": window}, timeout=60,
+            params={"window": window, "time_zone": time_zone}, timeout=60,
         )).json()
 
     @app.post("/api/v1/analytics/{scope}/refresh")

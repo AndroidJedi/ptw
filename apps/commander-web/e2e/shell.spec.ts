@@ -136,7 +136,7 @@ function analyticsWorkspace(scope: 'project' | 'global', windowDays: number) {
       tiktok: { available: false, explanation: 'Public-photo canary is not yet audited.' },
       meta: { available: true }, landing: { available: true },
     },
-    organic: selected ? [{
+    organic: selected && windowDays !== 1 ? [{
       provider: 'instagram', publication_id: '018f07ea-7f20-7000-8000-000000000020',
       project_id: projectId, published_at: '2026-08-26T08:00:00Z', age_hours: 96,
       metrics: { views: 100, likes: 5, comments: 2, shares: 1, saves: 1 },
@@ -145,11 +145,13 @@ function analyticsWorkspace(scope: 'project' | 'global', windowDays: number) {
       insight: { capture_kind: 'milestone', created_at: '2026-08-30T08:00:00Z' },
     }] : [],
     paid: [],
-    landing_funnel: selected
+    landing_funnel: selected && windowDays === 1
+      ? { landing_view: 2, primary_cta_click: 1, contact_click: 0, primary_cta_rate: 0.5, outbound_contact_rate: 0, surfaces: { page: 2, hero: 1 }, conversion_label: 'Outbound contact click · conversion proxy' }
+      : selected
       ? { landing_view: 10, primary_cta_click: 3, contact_click: 2, primary_cta_rate: 0.3, outbound_contact_rate: 0.2, surfaces: { page: 10, hero: 3, telegram: 2 }, conversion_label: 'Outbound contact click · conversion proxy' }
       : { landing_view: 0, primary_cta_click: 0, contact_click: 0, primary_cta_rate: null, outbound_contact_rate: null, surfaces: {}, conversion_label: 'Outbound contact click · conversion proxy' },
     skills: { snapshot: null, rules: [] }, learning_runs: [], learning_curve: [],
-    freshness: { instagram: selected ? '2026-08-30T08:00:00Z' : null, tiktok: null },
+    freshness: { instagram: selected && windowDays !== 1 ? '2026-08-30T08:00:00Z' : null, tiktok: null },
     metric_definitions: selected ? { outbound_contact_rate: { numerator: 'attributed contact_click', denominator: 'provider reach/views', source: 'PTW Landing + provider snapshot', limitation: 'conversion proxy; not a lead or sale' } } : {},
   }
 }
@@ -427,6 +429,12 @@ test('shows Project and All Projects analytics without automatic activation', as
   await expect(page.getByText('2.0%')).toBeVisible()
   await expect(page.getByText('Public-photo canary is not yet audited.')).toBeVisible()
   await expect(page.getByText('No active snapshot yet.')).toBeVisible()
+  await page.getByRole('combobox', { name: 'Analytics window' }).selectOption('1')
+  await expect(page.getByText(/Landing events since midnight/)).toBeVisible()
+  await expect(page.getByText('Posts published today', { exact: true })).toBeVisible()
+  await expect(page.locator('.analytics-metrics .analytics-metric').first()).toContainText('2')
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('analytics')
+  await page.screenshot({ path: `.local/analytics-today-${test.info().project.name}.png`, fullPage: true })
   await page.getByRole('button', { name: 'All Projects' }).click()
   await expect(page.getByText('No provider snapshots in this window.')).toBeVisible()
   await expect(page.getByText('GLOBAL SPIRIT')).toBeVisible()

@@ -1,6 +1,19 @@
 # Commander current state
 
-Updated: 2026-10-03
+Updated: 2026-10-05
+
+## Analytics Today window — local implementation
+
+The Owner Analytics period menu now offers Today alongside 7, 30, 90 days and
+all time. The browser sends its IANA time zone. Validation calculates local
+midnight boundaries and counts retained raw Landing events inside that exact
+UTC interval, including days crossing UTC midnight and daylight saving changes.
+The Today post count names posts published today; Instagram snapshots remain
+cumulative and the UI says so. Other windows retain their existing rollup path.
+Verification passed: 516 Validation tests in the current image, 22 Owner
+Gateway tests, focused Owner UI unit checks, the Owner build, Analytics browser
+flows on desktop/360px/iPhone WebKit, the Commander host suite and demo, skill
+verification, and whitespace checks. This source change has not been deployed.
 
 ## Water feedback rail and visual placement — deployed
 

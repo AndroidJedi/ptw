@@ -723,6 +723,7 @@ button svg { width: 17px; height: 17px; }
 .analytics-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
 .analytics-header h1 { margin: 4px 0; }
 .analytics-header p { max-width: 680px; margin: 0; color: var(--soft); }
+.analytics-period-note { margin: 0; color: var(--soft); font-size: 12px; }
 .analytics-header small, .analytics-section header small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .14em; }
 .analytics-controls, .analytics-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .analytics-controls .segmented { padding: 3px; display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; border: 1px solid var(--line); border-radius: 10px; background: #0d0d0d; }

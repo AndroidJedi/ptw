@@ -157,7 +157,10 @@ export interface AnalyticsWorkspace {
   schema: 'ptw.analytics.workspace.v1'
   scope: 'project' | 'global'
   project_id: string | null
-  window_days: 0 | 7 | 30 | 90
+  window_days: 0 | 1 | 7 | 30 | 90
+  time_zone?: string | null
+  period_start?: string | null
+  period_end?: string | null
   readiness: Record<string, { available?: boolean | null; configured?: boolean; explanation?: string }>
   organic: AnalyticsOrganicRow[]
   paid: Array<{ project_id: string; deployment_id: string; destination_type?: string; status: string; latest_insight?: MetaAdsInsightSnapshot | null }>

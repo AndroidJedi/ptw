@@ -82,6 +82,13 @@ Post, or Landing learning entities or cross their lesson namespaces.
 
 ## Established chat diagnostics
 
+- An Analytics Today window means the owner's local calendar day. Pass the
+  browser's IANA time zone through Gateway to Validation and count retained raw
+  Landing events within its UTC midnight boundaries; UTC daily rollups cannot
+  isolate a day that crosses UTC midnight. Label cumulative provider insights
+  separately from today's first-party event counts. Cover daylight saving
+  boundaries and the Owner period control when changing this path.
+
 - Commander has its own navigation destination and no Project selector. Settings
   retains authorization and language. Use a timeline, history drawer and sticky
   composer, with Plan/Build, runtime model/effort choices, Reply, Send and Stop.

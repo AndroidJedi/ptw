@@ -15,6 +15,7 @@ import threading
 from typing import Any, Iterator, Mapping, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from commander.ids import new_uuid7
 
@@ -27,7 +28,7 @@ from .studio_phone_metrics import (
 )
 
 
-WINDOWS = {7, 30, 90, 0}
+WINDOWS = {1, 7, 30, 90, 0}
 MILESTONE_HOURS = (24, 72, 168, 336, 720)
 EVENT_TYPES = {"landing_view", "primary_cta_click", "contact_click"}
 EVENT_SURFACES = {"page", "hero", "phone", "telegram", "instagram", "email"}
@@ -57,6 +58,20 @@ def _uuid(value: Any, field: str) -> str:
 def _timestamp(value: Any) -> datetime:
     result = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     return result if result.tzinfo else result.replace(tzinfo=timezone.utc)
+
+
+def today_bounds(time_zone: str, now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Return the owner's current calendar day as a half-open UTC interval."""
+    if len(time_zone) > 64 or not re.fullmatch(r"[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*", time_zone):
+        raise ValueError("analytics time zone is invalid")
+    try:
+        zone = ZoneInfo(time_zone)
+    except ZoneInfoNotFoundError as error:
+        raise ValueError("analytics time zone is unknown") from error
+    day = (now or datetime.now(timezone.utc)).astimezone(zone).date()
+    start = datetime.combine(day, datetime.min.time(), zone)
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time(), zone)
+    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
 
 
 def due_milestone(age_hours: int) -> int | None:
@@ -523,6 +538,20 @@ class LocalCreativeAnalyticsAuthority:
                 latest[key] = item
         return list(latest.values())
 
+    def list_event_counts(self, project_ids: Sequence[str], start: datetime, end: datetime) -> list[dict[str, Any]]:
+        selected = set(project_ids)
+        counts: dict[tuple[str, str, str | None], int] = {}
+        for item in self.store.list("landing_analytics_events"):
+            if item["project_id"] not in selected or not start <= _timestamp(item["created_at"]) < end:
+                continue
+            key = (item["event_type"], item["surface"], item.get("attribution_source_id"))
+            counts[key] = counts.get(key, 0) + 1
+        return [
+            {"event_type": event, "surface": surface, "attribution_source_id": attribution,
+             "cumulative_count": count}
+            for (event, surface, attribution), count in counts.items()
+        ]
+
     def descriptor(self, artifact_sha256: str) -> dict[str, Any] | None:
         return next((item for item in self.store.list("creative_visual_descriptors") if item["artifact_sha256"] == artifact_sha256), None)
 
@@ -732,6 +761,24 @@ class DatabaseCreativeAnalyticsAuthority:
         with self.connection() as connection:
             rows = connection.execute(query, params).fetchall()
         return [{"rollup_id": str(row[0]), "project_id": str(row[1]), "landing_publication_event_id": str(row[2]), "landing_version_id": str(row[3]), "landing_version_sha256": row[4], "day": row[5].isoformat(), "event_type": row[6], "surface": row[7], "target": row[8], "attribution_source_id": None if row[9] is None else str(row[9]), "cumulative_count": int(row[10]), "source_event_id": str(row[11]), "created_at": row[12].isoformat()} for row in rows]
+
+    def list_event_counts(self, project_ids: Sequence[str], start: datetime, end: datetime) -> list[dict[str, Any]]:
+        if not project_ids:
+            return []
+        with self.connection() as connection:
+            rows = connection.execute(
+                """SELECT event_type,surface,attribution_source_id,count(*)
+                   FROM landing_analytics_events
+                   WHERE project_id=ANY(%s) AND created_at >= %s AND created_at < %s
+                   GROUP BY event_type,surface,attribution_source_id""",
+                ([UUID(item) for item in project_ids], start, end),
+            ).fetchall()
+        return [
+            {"event_type": row[0], "surface": row[1],
+             "attribution_source_id": None if row[2] is None else str(row[2]),
+             "cumulative_count": int(row[3])}
+            for row in rows
+        ]
 
     def descriptor(self, artifact_sha256: str) -> dict[str, Any] | None:
         with self.connection() as connection:
@@ -1230,12 +1277,13 @@ class CreativeAnalyticsService:
         global_skill = self.authority.latest_skill("global", None)
         return {"project": project, "global": global_skill, "precedence": ["catalog_brand_and_brief", "explicit_owner_direction", "project_rules", "global_spirit", "template_defaults"]}
 
-    def workspace(self, *, project_id: str | None, window: int) -> dict[str, Any]:
+    def workspace(self, *, project_id: str | None, window: int, time_zone: str = "UTC") -> dict[str, Any]:
         if window not in WINDOWS:
-            raise ValueError("analytics window must be 7, 30, 90, or 0 for all time")
+            raise ValueError("analytics window must be 1 for today, 7, 30, 90, or 0 for all time")
         project_ids = self._project_ids(project_id)
-        cutoff = None if window == 0 else datetime.now(timezone.utc) - timedelta(days=window)
-        rollups = self.authority.list_rollups(project_ids, cutoff)
+        period_start, period_end = today_bounds(time_zone) if window == 1 else (None, None)
+        cutoff = period_start if window == 1 else None if window == 0 else datetime.now(timezone.utc) - timedelta(days=window)
+        rollups = self.authority.list_event_counts(project_ids, period_start, period_end) if window == 1 else self.authority.list_rollups(project_ids, cutoff)
         organic = self._organic_rows(project_ids, cutoff, rollups)
         scope, scoped_project = ("global", None) if project_id is None else ("project", project_ids[0])
         skill = self.authority.latest_skill(scope, scoped_project)
@@ -1267,7 +1315,7 @@ class CreativeAnalyticsService:
             "paid_snapshot": {"numerator": "owner-confirmed Meta Ads Manager CSV result", "denominator": "the matching imported delivery total", "source": "latest immutable reviewed CSV import", "limitation": "Meta controls delivery and reporting definitions; PTW does not call the Ads API"},
             "learning_curve_cohort": {"numerator": "views and attributed contact clicks for generations using the same skill snapshot IDs", "denominator": "items in that cohort", "source": "generation provenance, provider snapshots, and PTW rollups", "limitation": "observational cohort; not causal proof"},
         }
-        return {"schema": "ptw.analytics.workspace.v1", "scope": scope, "project_id": scoped_project, "project_ids": project_ids, "window_days": window, "readiness": self._analytics_readiness(), "organic": organic, "paid": self._paid_rows(project_ids), "landing_funnel": self._funnel(rollups), "skills": {"snapshot": skill, "rules": [] if skill is None else skill["rules"]}, "learning_runs": runs, "learning_curve": list(learning_curve.values()), "freshness": {"instagram": max((item["insight"]["created_at"] for item in organic if item["provider"] == "instagram" and item["insight"]), default=None)}, "metric_definitions": metric_definitions}
+        return {"schema": "ptw.analytics.workspace.v1", "scope": scope, "project_id": scoped_project, "project_ids": project_ids, "window_days": window, "time_zone": time_zone if window == 1 else None, "period_start": period_start.isoformat() if period_start else None, "period_end": period_end.isoformat() if period_end else None, "readiness": self._analytics_readiness(), "organic": organic, "paid": self._paid_rows(project_ids), "landing_funnel": self._funnel(rollups), "skills": {"snapshot": skill, "rules": [] if skill is None else skill["rules"]}, "learning_runs": runs, "learning_curve": list(learning_curve.values()), "freshness": {"instagram": max((item["insight"]["created_at"] for item in organic if item["provider"] == "instagram" and item["insight"]), default=None)}, "metric_definitions": metric_definitions}
 
     def _dataset(self, *, project_id: str | None, surface: str) -> dict[str, Any]:
         workspace = self.workspace(project_id=project_id, window=0)

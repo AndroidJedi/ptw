@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 import json
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from validation_pipeline.creative_analytics import (
     CreativeAnalyticsService, LocalCreativeAnalyticsAuthority, _rules_conflict,
     comparison_age_band, due_milestone, learning_output_schema, normalize_rule,
     safe_landing_learning_content,
+    today_bounds,
 )
 from validation_pipeline.local_brief_store import LocalBriefStore
 
@@ -109,6 +111,33 @@ class CreativeAnalyticsTests(unittest.TestCase):
             {"landing_view": 1, "primary_cta_click": 1},
             {item["event_type"]: item["cumulative_count"] for item in self.authority.list_rollups([self.project_id], None)},
         )
+
+    def test_today_uses_owner_calendar_day_and_raw_event_times(self) -> None:
+        start, end = today_bounds("Europe/Kyiv")
+        self.assertLess(start, datetime.now(timezone.utc))
+        self.assertGreater(end, datetime.now(timezone.utc))
+        self.service.record_landing_event(self.event())
+        old_id = str(uuid4())
+        self.store.append("landing_analytics_events", old_id, {
+            "event_id": old_id, "project_id": self.project_id,
+            "event_type": "contact_click", "surface": "telegram",
+            "attribution_source_id": None,
+            "created_at": (start - timedelta(seconds=1)).isoformat(),
+        })
+        today = self.service.workspace(project_id=self.project_id, window=1, time_zone="Europe/Kyiv")
+        self.assertEqual(1, today["landing_funnel"]["landing_view"])
+        self.assertEqual(0, today["landing_funnel"]["contact_click"])
+        self.assertEqual(start.isoformat(), today["period_start"])
+        self.assertEqual(end.isoformat(), today["period_end"])
+        self.assertEqual("Europe/Kyiv", today["time_zone"])
+        with self.assertRaisesRegex(ValueError, "time zone"):
+            self.service.workspace(project_id=self.project_id, window=1, time_zone="Invalid/Place")
+
+    def test_today_bounds_follow_daylight_saving_changes(self) -> None:
+        start, end = today_bounds("Europe/Kyiv", datetime(2026, 3, 29, 12, tzinfo=timezone.utc))
+        self.assertEqual(datetime(2026, 3, 28, 22, tzinfo=timezone.utc), start)
+        self.assertEqual(datetime(2026, 3, 29, 21, tzinfo=timezone.utc), end)
+        self.assertEqual(timedelta(hours=23), end - start)
 
     def test_learning_with_no_comparable_items_is_frozen_as_insufficient(self) -> None:
         request_id = str(uuid4())

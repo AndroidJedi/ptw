@@ -8,9 +8,15 @@ change an ad, spend money, or activate a performance-generated rule.
 ## Scope and owner workflow
 
 The Analytics destination supports one selected Project or **All Projects**, with
-7, 30, 90, and all-time windows. It shows provider readiness and freshness,
-organic and paid results, the Landing funnel, a post leaderboard, the learning
-curve grouped by the exact Creative Skill snapshot IDs used at generation, and
+Today, 7, 30, 90, and all-time windows. Today uses the owner's browser IANA time
+zone and the current local calendar day, starting at midnight. Its Landing
+funnel counts exact retained raw event times; UTC daily rollups cannot resolve a
+local day crossing UTC midnight. The Today post count includes posts published
+today. Their available Instagram insight snapshots remain cumulative provider
+figures and are labelled as such, rather than presented as daily views. The
+workspace shows provider readiness and freshness, organic and paid results,
+the Landing funnel, a post leaderboard, the learning curve grouped by the exact
+Creative Skill snapshot IDs used at generation, and
 the complete active/tombstoned rule history in the latest snapshot.
 
 **Run learning** is the only performance-learning trigger. It freezes the
@@ -220,7 +226,9 @@ or be deleted.
 
 Owner routes are under `/api/v1/analytics/{project_uuid|global}`:
 
-- `GET /workspace?window=7|30|90|0`;
+- `GET /workspace?window=1|7|30|90|0&time_zone=Europe/Kyiv`; `1` means
+  Today in the supplied IANA time zone (UTC by default). The response includes
+  the exact UTC start/end and time zone for Today;
 - `POST /refresh` with `provider=all|instagram` and a labelled
   `backfill` boolean;
 - `POST /learning-runs` for `post|landing`;

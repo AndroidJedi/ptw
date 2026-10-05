@@ -2,7 +2,7 @@
 
 Updated: 2026-10-05
 
-## Analytics Today window — local implementation
+## Analytics Today window — deployed
 
 The Owner Analytics period menu now offers Today alongside 7, 30, 90 days and
 all time. The browser sends its IANA time zone. Validation calculates local
@@ -10,10 +10,18 @@ midnight boundaries and counts retained raw Landing events inside that exact
 UTC interval, including days crossing UTC midnight and daylight saving changes.
 The Today post count names posts published today; Instagram snapshots remain
 cumulative and the UI says so. Other windows retain their existing rollup path.
-Verification passed: 516 Validation tests in the current image, 22 Owner
-Gateway tests, focused Owner UI unit checks, the Owner build, Analytics browser
-flows on desktop/360px/iPhone WebKit, the Commander host suite and demo, skill
-verification, and whitespace checks. This source change has not been deployed.
+PTW `9a04f698dcbb07ad9564082fd06e188e5043d41f` was accepted under
+`analytics-today-20261005-9a04f69`. Validation and Owner Gateway were rebuilt
+and restarted; Owner Console Hosting version `40010f907ff8a898` was published.
+There was no migration or public Landing Hosting change. The preserving release
+passed fresh bridge and Pexels canaries, authority preservation, dependency and
+1 GB audits, 158 Owner unit tests, 159 desktop/360px/iPhone WebKit browser cases,
+and the live Hosting/auth/CORS audit. Local verification also passed 516
+Validation tests, 22 Gateway tests, the Commander suite/demo, skill checks and
+whitespace checks. The live read-only Analytics workspace returned HTTP 200 for
+`window=1&time_zone=Europe/Kyiv` with the correct local-midnight UTC boundaries;
+the served Owner bundle includes Today and its time-zone query. Both selected
+services are healthy and the deployed marker matches the accepted commit.
 
 ## Water feedback rail and visual placement — deployed
 

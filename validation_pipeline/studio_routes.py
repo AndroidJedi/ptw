@@ -299,11 +299,18 @@ def studio_creative_router(
         if set(request) not in ({"state_sha256"}, {"state_sha256", "configuration", "content"}):
             raise HTTPException(status_code=400, detail="Studio preview fields are invalid")
         try:
-            service.detail(project_id, creative_id)
-            rendered = service._workspace(creative_id).render_preview(
-                state_sha256=str(request["state_sha256"]),
-                configuration=request.get("configuration"), content=request.get("content"),
-            )
+            detail = service.detail(project_id, creative_id)
+            if detail.get("legacy_read_only"):
+                if set(request) != {"state_sha256"}:
+                    raise ValueError("Retained Post preview does not accept editor changes")
+                rendered = service.legacy_preview(
+                    project_id, creative_id, state_sha256=str(request["state_sha256"]),
+                )
+            else:
+                rendered = service._workspace(creative_id).render_preview(
+                    state_sha256=str(request["state_sha256"]),
+                    configuration=request.get("configuration"), content=request.get("content"),
+                )
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
         return Response(

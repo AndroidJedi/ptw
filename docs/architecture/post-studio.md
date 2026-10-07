@@ -98,6 +98,17 @@ and accepted authored designs. Existing Posts may also select an
 accepted authored Post definition through the exact versioned registry.
 Unsupported IDs fail at that boundary; retired renderers remain unsupported.
 
+Historical `universal_ad` v13 drafts remain outside the active registry. Their
+Project-scoped GET now returns a read-only review document, and the existing
+private preview route reconstructs an image from digest-checked stored files
+using the retained Universal renderer. No legacy Save, Approve, generation, or
+new-template selection is enabled. This review is a reconstruction of draft
+settings, not an immutable approved Post render.
+When that retained draft is the latest sibling for its approved Brief, the
+owner may explicitly create one new Post from a current accepted template.
+The old row and lineage remain unchanged; the ordinary rule requiring approval
+applies again to the new sibling.
+
 The Landing registry is independent. The Template Creation Agent
 may receive one versioned Post-template reference
 `{template_id, template_version, template_sha256}`. Resolution exposes only the

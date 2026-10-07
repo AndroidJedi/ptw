@@ -29,6 +29,30 @@ function GenerationPreview({ api, basePath, stateSha256, language }: { api: ApiC
   return url ? <div className="panel daddy-preview"><p role="status">{language === 'uk' ? 'Незавершене прев’ю — потрібні зображення ще не готові.' : 'Incomplete preview — required images are not ready yet.'}</p><img src={url} alt={language === 'uk' ? 'Незавершене прев’ю допису' : 'Incomplete Post preview'} /></div> : null
 }
 
+function LegacyPostReview({ api, basePath, stateSha256, sampleContent, language }: { api: ApiClient; basePath: string; stateSha256: string; sampleContent?: boolean; language: Language }) {
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    setUrl(''); setError('')
+    void api.postMedia(`${basePath}/preview`, { state_sha256: stateSha256 }, 'image/png', { deadlineMs: 90_000 }).then(blob => {
+      if (!cancelled) setUrl(URL.createObjectURL(blob))
+    }).catch(cause => { if (!cancelled) setError((cause as Error).message) })
+    return () => { cancelled = true }
+  }, [api, basePath, stateSha256])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  const tr = (en: string, uk: string) => translate(language, en, uk)
+  return <section className="panel daddy-preview" aria-label={tr('Retained Post review', 'Перегляд збереженого допису')}>
+    <h2>{tr('Retained Universal Post', 'Збережений допис Universal')}</h2>
+    {sampleContent && <p role="alert">{tr('This draft still contains the retired template’s sample copy. Create a current Post from this Project Brief for relevant content.', 'Ця чернетка досі містить зразковий текст старого шаблону. Створіть актуальний допис із брифу цього проєкту, щоб отримати відповідний зміст.')}</p>}
+    <p>{tr('This draft uses a retired layout. The preview is rebuilt from its saved text and settings. The original record is unchanged.', 'Ця чернетка використовує знятий із використання макет. Прев’ю відтворено зі збережених тексту та налаштувань. Початковий запис не змінено.')}</p>
+    {error && <p role="alert">{error}</p>}
+    {!url && !error && <p role="status">{tr('Preparing preview…', 'Готуємо прев’ю…')}</p>}
+    {url && <img src={url} alt={tr('Retained Post preview', 'Прев’ю збереженого допису')} />}
+    <p>{tr('This retired draft is available for review only. Create a new Post from a current template to edit or approve it.', 'Цю застарілу чернетку можна лише переглянути. Для редагування або схвалення створіть новий допис із чинного шаблону.')}</p>
+  </section>
+}
+
 export function StudioView({
   api, language, projectId = null, creativeId = null, onCreative = () => {}, tuneMode = false,
 }: {
@@ -200,11 +224,26 @@ export function StudioView({
   }
 
   const creativePicker = creatives && creatives.length > 0 && <section className="post-contextbar" aria-label={tr('Project creatives', 'Креативи проєкту')}>
-    <label>{tr('Post', 'Допис')} <select aria-label={tr('Select Post', 'Обрати допис')} value={detail?.creative_id || creativeId || ''} onChange={event => onCreative(event.target.value)}>{creatives.map(item => <option key={item.creative_id} value={item.creative_id}>#{item.ordinal} · {item.status === 'draft' ? tr('Draft', 'Чернетка') : item.status}</option>)}</select></label>
+    <label>{tr('Post', 'Допис')} <select aria-label={tr('Select Post', 'Обрати допис')} value={detail?.creative_id || creativeId || ''} onChange={event => onCreative(event.target.value)}>{creatives.map(item => <option key={item.creative_id} value={item.creative_id}>#{item.ordinal} · {item.status === 'draft' ? tr('Draft', 'Чернетка') : item.status} · {item.template_id === 'universal_ad' ? tr('Legacy Universal', 'Застарілий Universal') : item.template_id === 'phone_metrics' ? 'Phone Metrics' : item.template_id === 'daddy' ? 'Daddy' : item.template_id}</option>)}</select></label>
     {detail && <MarketingApproachBadge value={detail.marketing_approach} language={language} />}
-    {detail?.source_brief_id && detail.approved_version_count > 0 && <details className="post-more"><summary>{tr('More actions', 'Інші дії')}</summary><button className="secondary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></details>}
+    {detail?.legacy_read_only && <button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Create current Post from Brief', 'Створити актуальний допис із брифу')}</button>}
+    {detail?.source_brief_id && detail.approved_version_count > 0 && !detail.legacy_read_only && <details className="post-more"><summary>{tr('More actions', 'Інші дії')}</summary><button className="secondary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></details>}
     {tuneMode && <button className="ghost studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
   </section>
+
+  const variantDialog = variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose the creative template', 'Оберіть шаблон креативу')}>
+    <header><div><small>{tr('NEW CREATIVE', 'НОВИЙ КРЕАТИВ')}</small><h2>{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>
+    {variantError && <p role="alert">{variantError}</p>}
+    {!variantTemplates && !variantError && <p role="status">{tr('Loading templates…', 'Завантаження шаблонів…')}</p>}
+    <div className="post-template-choices">{variantTemplates?.map((choice) => <article key={`${choice.template_id}:${choice.template_version}`} className={variantTemplate?.template_sha256 === choice.template_sha256 ? 'is-selected' : ''}>
+      <TemplateImage api={api} preview={choice.previews?.desktop} label={choice.name} language={language} />
+      <button type="button" className="secondary" aria-pressed={variantTemplate?.template_sha256 === choice.template_sha256} disabled={busy} onClick={() => setVariantTemplate(choice)}>{choice.name} · v{choice.template_version}</button>
+      <small>{choice.description}</small>
+    </article>)}</div>
+    {variantTemplates?.length === 0 && <p>{tr('No accepted Post templates are available.', 'Немає доступних прийнятих шаблонів дописів.')}</p>}
+    {variantTemplate && <PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" />}
+    <button className="primary large" disabled={busy || !variantTemplate || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button>
+  </section></div>
 
   if (!projectId) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('Every Studio creative belongs to one Project.', 'Кожен креатив Studio належить одному проєкту.')}</p></Empty>
   if (creatives === null) return error
@@ -235,6 +274,12 @@ export function StudioView({
   if (!detail) return error
     ? <ErrorState message={error} retry={() => void load()} language={language} />
     : <Loading language={language} />
+
+  if (detail.legacy_read_only) return <div className="studio-page">
+    {creativePicker}
+    <LegacyPostReview key={basePath} api={api} basePath={basePath} stateSha256={detail.state_sha256} sampleContent={detail.legacy_sample_content} language={language} />
+    {variantDialog}
+  </div>
 
   if (['queued', 'composing', 'generating_image'].includes(detail.status)) {
     const phase = detail.generation?.daddy?.phase || ''
@@ -295,19 +340,7 @@ export function StudioView({
       onCheckpoint={(result) => setDetail(result.creative)}
     />}
     <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id} versions={detail.versions} />
-    {variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose the creative template', 'Оберіть шаблон креативу')}>
-      <header><div><small>{tr('NEW CREATIVE', 'НОВИЙ КРЕАТИВ')}</small><h2>{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header>
-      {variantError && <p role="alert">{variantError}</p>}
-      {!variantTemplates && !variantError && <p role="status">{tr('Loading templates…', 'Завантаження шаблонів…')}</p>}
-      <div className="post-template-choices">{variantTemplates?.map((choice) => <article key={`${choice.template_id}:${choice.template_version}`} className={variantTemplate?.template_sha256 === choice.template_sha256 ? 'is-selected' : ''}>
-        <TemplateImage api={api} preview={choice.previews?.desktop} label={choice.name} language={language} />
-        <button type="button" className="secondary" aria-pressed={variantTemplate?.template_sha256 === choice.template_sha256} disabled={busy} onClick={() => setVariantTemplate(choice)}>{choice.name} · v{choice.template_version}</button>
-        <small>{choice.description}</small>
-      </article>)}</div>
-      {variantTemplates?.length === 0 && <p>{tr('No accepted Post templates are available.', 'Немає доступних прийнятих шаблонів дописів.')}</p>}
-      {variantTemplate && <PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" />}
-      <button className="primary large" disabled={busy || !variantTemplate || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button>
-    </section></div>}
+    {variantDialog}
     {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl="" onClose={() => setTuneOpen(false)} />}
   </>
 }

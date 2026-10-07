@@ -10,6 +10,25 @@ Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gate
 A healthy Gateway alone does not prove Brief, creative, image, or learning
 readiness.
 
+When a Project Post GET returns `Post template is not registered`, compare the
+exact creative's PostgreSQL template ID/version and `template.json` with the
+active Post registry before treating it as invalid owner input. Historical
+`universal_ad` v13 drafts may predate its retirement. Check project ownership,
+stored file digests, approved version and checkpoint counts, and a known-good
+current Post in the same Project. Keep the legacy row and graph untouched.
+Its read-only review route reconstructs a private preview from the saved files;
+it must not place Universal in creation choices or expose Save/Approve. Verify
+the affected GET and preview through Validation and Gateway after release, plus
+the current Post path and restart persistence. Label the preview as a
+reconstruction when no immutable approved PNG exists.
+If its saved configuration and copy exactly match the retired template defaults,
+tell the owner it is sample copy, even when its composition run says completed.
+An explicit new Post from that approved Brief may bypass the prior-version gate
+once when the latest sibling is retired Universal; the next current sibling
+again requires approval. Verify the exception in a disposable PostgreSQL path,
+including unchanged legacy row, one Project `contains` and Brief
+`derived_from` lineage, and rejection of a second unapproved current sibling.
+
 For an App Showcase eyebrow visible in Preview but absent from the editor,
 compare the page's exact template version with the current catalog. Historical
 v1/v2 snapshots can render fallback copy while their editor lacks v3 controls.

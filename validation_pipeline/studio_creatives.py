@@ -489,7 +489,7 @@ class LocalStudioAuthority:
             raise ValueError("create the first creative through Brief approval")
         if require_approved_previous:
             latest = max(siblings, key=lambda item: int(item["ordinal"]))
-            if int(latest.get("approved_version_count", 0)) < 1:
+            if int(latest.get("approved_version_count", 0)) < 1 and latest["template_id"] != "universal_ad":
                 raise ValueError("approve the current creative before creating another from this Brief")
         creative_id = new_uuid7()
         now = utc_now()
@@ -1106,11 +1106,38 @@ class StudioCreativeService:
         creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))
         if creative["project_id"] != _uuid(project_id, "project_id"):
             raise KeyError("Studio creative was not found in this Project")
+        if creative["template_id"] == "universal_ad":
+            from .legacy_post import detail as legacy_detail, verify_state
+
+            stored = self.authority.repository.load_creative(creative_id)
+            if stored is None:
+                raise ValueError("Retained Post files are unavailable")
+            expected_state, files = stored
+            if expected_state != creative["state_sha256"]:
+                raise RuntimeError("Retained Post state digest does not match its workspace")
+            verify_state(files, expected_state)
+            return {**self.summary(creative_id), **legacy_detail(files, state_sha256=expected_state)}
         detail = self._workspace(creative_id).detail()
         # The renderer view may normalize an older persisted configuration.
         # Its hashes describe the fields sent to the editor; stored metadata
         # must not replace them with the pre-normalization snapshot hashes.
         return {**self.summary(creative_id), **detail}
+
+    def legacy_preview(self, project_id: str, creative_id: str, *, state_sha256: str) -> dict[str, Any]:
+        creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))
+        if creative["project_id"] != _uuid(project_id, "project_id"):
+            raise KeyError("Studio creative was not found in this Project")
+        if creative["template_id"] != "universal_ad":
+            raise ValueError("This Post is not a retained Universal draft")
+        stored = self.authority.repository.load_creative(creative_id)
+        if stored is None or stored[0] != creative["state_sha256"]:
+            raise RuntimeError("Retained Post state digest does not match its workspace")
+        if state_sha256 != stored[0]:
+            raise RuntimeError("Studio creative changed; reload before previewing")
+        from .legacy_post import preview as legacy_preview, verify_state
+
+        verify_state(stored[1], stored[0])
+        return legacy_preview(stored[1])
 
     def authorized_workspace(self, project_id: str, creative_id: str):
         creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))

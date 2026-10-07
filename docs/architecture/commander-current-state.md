@@ -1,6 +1,35 @@
 # Commander current state
 
-Updated: 2026-10-05
+Updated: 2026-10-07
+
+## Retained Universal Post review — local candidate
+
+Production creative `01a0b82c-d32b-7767-abb7-959cdc7104ea` in Project
+`01a0a9e2-12bb-73b6-9f4b-5e3318d5bc30` returns HTTP 400 on detail because
+its saved `universal_ad` v13 selection predates that template's retirement.
+The draft has one retained `phone_screen` asset row, no approved version or
+checkpoint, and its three authoritative workspace files remain digest checked.
+Its saved configuration and copy exactly match the retired Universal sample,
+which contains investment copy unrelated to this horoscope Project, despite
+a completed composition run.
+The same Project's Phone Metrics draft `01a0aa55-3a9c-7e32-b2e0-d6af7a9aa61d`
+returns HTTP 200. No production authority was changed during diagnosis.
+
+The local candidate adds a read-only Universal review and private reconstructed
+preview while keeping the template out of the active registry. It labels the
+historical draft in the Post picker, identifies the sample copy, and blocks
+editing or approval through that view. The owner may create one current-template
+Post from the same approved Brief while the Universal draft remains preserved;
+normal approval gating resumes for the next sibling. A private reconstruction
+from the exact saved configuration and content rendered locally, and disposable
+PostgreSQL verified the new reservation/lineage rule. Backend, Owner browser,
+skill, and release verification remain required before any preserving deployment;
+this candidate is not live. Local verification passed 521 Validation tests,
+the disposable PostgreSQL recovery probe, 159 Owner unit tests/build, 159
+desktop/360px/iPhone WebKit browser cases, 54 Commander tests (seven dependency
+skips outside the image), the Commander demo, skill verification, and whitespace
+checks. Live preserving release canaries and exact Gateway/Validation reads
+remain pending deployment.
 
 ## Analytics Today window — deployed
 

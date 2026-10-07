@@ -512,6 +512,8 @@ export interface StudioCheckpointResponse<T> {
 
 export interface StudioPhoneMetricsDetail {
   marketing_approach?: MarketingApproach
+  legacy_read_only?: boolean
+  legacy_sample_content?: boolean
   template_reference?: { surface: 'post'; template_id: string; template_version: number; template_sha256: string }
   template_name?: string
   editor_key?: string

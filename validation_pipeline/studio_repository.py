@@ -564,7 +564,10 @@ class DatabaseStudioAuthority:
                         WHERE version.workspace_id=%s LIMIT 1""",
                     (siblings[-1][0],),
                 ).fetchone()
-                if approved is None:
+                # A retired Universal draft cannot be approved by the current
+                # editor. Permit one new active-template sibling while retaining
+                # the historical row and its graph lineage unchanged.
+                if approved is None and siblings[-1][2] != "universal_ad":
                     raise ValueError("approve the current creative before creating another from this Brief")
             ordinal = len(siblings) + 1
             creative_id = UUID(new_uuid7())

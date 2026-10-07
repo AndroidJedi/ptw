@@ -142,6 +142,42 @@ describe('Post Studio shell', () => {
     expect(await screen.findByRole('region', { name: 'Phone Metrics editor' })).toHaveTextContent('phone_metrics')
   })
 
+  it('reviews a retained Universal draft without opening an active editor', async () => {
+    const selected = {
+      ...detail, template_id: 'universal_ad', editor_key: 'post.legacy.readonly',
+      legacy_read_only: true, legacy_sample_content: true,
+    } as StudioPhoneMetricsDetail
+    const items = [{
+      creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
+      ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad',
+      template_version: 13, template_sha256: 'b'.repeat(64), status: 'draft',
+      state_sha256: 'a'.repeat(64), approved_version_count: 0,
+      generation: detail.generation, created_at: '2026-09-19T00:00:00Z',
+      updated_at: '2026-09-19T00:00:00Z',
+    }]
+    const { api, post } = apiFor({ items, selected })
+    vi.mocked(api.postMedia).mockReturnValue(new Promise(() => {}))
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    expect(await screen.findByRole('heading', { name: 'Retained Universal Post' })).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Phone Metrics editor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Legacy Universal/ })).toBeInTheDocument()
+    expect(screen.getByText(/still contains the retired template’s sample copy/)).toBeVisible()
+    await waitFor(() => expect(api.postMedia).toHaveBeenCalledWith(
+      `${basePath}/preview`, { state_sha256: 'a'.repeat(64) }, 'image/png',
+      { deadlineMs: 90_000 },
+    ))
+    fireEvent.click(screen.getByRole('button', { name: 'Create current Post from Brief' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the creative template' })
+    fireEvent.click(await screen.findByRole('button', { name: /Phone & metrics/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Cinematic/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /Keep a scene background/i }))
+    fireEvent.click(dialog.querySelector('button.primary')!)
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `/api/v1/studio/projects/${projectId}/creatives`,
+      expect.objectContaining({ source_brief_id: briefId, template_id: 'phone_metrics' }),
+    ))
+  })
+
   it('shows creation progress for a composing Post', async () => {
     const composing = { ...detail, status: 'composing', generation: { stage: 'composing' } } as StudioPhoneMetricsDetail
     const { api } = apiFor({ selected: composing })

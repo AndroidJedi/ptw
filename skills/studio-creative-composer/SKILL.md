@@ -49,6 +49,11 @@ failure.
   the selected catalog's field ID and role. Make its first headline and support
   express the approved Brief; do not retain neutral preview placeholder copy.
   Supply a Brief-grounded visual direction for its registered artwork slot.
+  Its base content still follows Phone Metrics limits: `offer` 1–32 characters,
+  `hero_title` 1–140, `supporting_text` 1–220, `cta` 0–60, each stat value 1–24
+  and label 1–38, phone hero title 0–72, and each phone button 1–48. Each
+  `template_text` value is at most 500 characters. Shorten copy naturally before
+  submitting the complete object.
 - Preserve the supplied locked Natal symbol/name colors exactly. They are the
   Project brand default, not Brief-derived copy or a Creative Skill preference;
   never infer, revise, or learn them.

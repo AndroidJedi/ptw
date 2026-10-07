@@ -196,6 +196,13 @@ generation-specific compact catalog, the canonical composer skill, and a bounded
 surface-filtered view of accepted Creative Skills. Template normalizers and the
 strict output schema remain the complete mutation authority. Invalid output
 leaves an explicit retryable creative.
+Accepted authored layouts bind the same Phone Metrics base content. Their
+generation schema therefore carries the base copy and configuration bounds,
+including the 32-character offer limit, as well as a 500-character bound for
+each authored text field. The numeric metric-basis contract remains exclusive to
+the built-in Phone Metrics template. Composer v9 changes the bridge request
+identity so an owner Retry after this schema correction gets a fresh response;
+the failed workspace and its generation-run history remain intact.
 
 A replacement Brief receives a new creative. Another composed creative from the
 same Brief requires the latest sibling to have an approved version. The owner

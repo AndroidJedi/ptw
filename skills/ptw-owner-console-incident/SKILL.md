@@ -29,6 +29,16 @@ again requires approval. Verify the exception in a disposable PostgreSQL path,
 including unchanged legacy row, one Project `contains` and Brief
 `derived_from` lineage, and rejection of a second unapproved current sibling.
 
+If a current authored Post fails composition with `phone metrics offer must
+contain 1-32 characters`, inspect the exact workspace generation and append-only
+composition runs first. Authored layouts still bind Phone Metrics base content,
+so their structured output schema must carry those same text and configuration
+limits as the built-in template, plus a 500-character limit for each authored
+text field. Keep the domain validator; do not truncate generated copy or change
+the persisted failed row. A new composer prompt version gives an explicit Retry
+a fresh bridge identity after the schema correction. Verify the targeted Retry
+and draft/preview read, and compare unrelated Project fingerprints after release.
+
 For an App Showcase eyebrow visible in Preview but absent from the editor,
 compare the page's exact template version with the current catalog. Historical
 v1/v2 snapshots can render fallback copy while their editor lacks v3 controls.

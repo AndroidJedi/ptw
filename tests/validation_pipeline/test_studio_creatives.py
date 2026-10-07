@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from io import BytesIO
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -325,6 +326,25 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(accepted, before["template_reference"])
         self.assertEqual("queued", before["status"])
         self.assertEqual("post.declarative.react", before["editor_key"])
+        schema = creative_generation_schema(before)
+        copy_fields = schema["properties"]["content"]["properties"]
+        self.assertEqual(
+            {"minLength": 1, "maxLength": 32},
+            {key: copy_fields["offer"][key] for key in ("minLength", "maxLength")},
+        )
+        self.assertEqual(220, copy_fields["supporting_text"]["maxLength"])
+        self.assertTrue(all(
+            field["maxLength"] == 500
+            for field in copy_fields["template_text"]["properties"].values()
+        ))
+        self.assertNotIn("metric_basis", schema["properties"])
+        self.assertEqual(
+            [before["configuration"]["logo"]["symbol_color"]],
+            schema["properties"]["configuration"]["properties"]["logo"]["properties"]["symbol_color"]["enum"],
+        )
+        self.assertLessEqual(
+            len(json.dumps(schema, ensure_ascii=False).encode()), 12 * 1024,
+        )
         duplicate, created = self.service.reserve_from_brief(
             brief_id=brief_id, template_id=accepted["template_id"],
             template_reference=accepted, creative_direction=PHONE_DIRECTION,
@@ -658,10 +678,10 @@ class StudioCreativeServiceTests(unittest.TestCase):
             if call["mode"] == "studio_creative_generation"
         )
         self.assertTrue(generation_call["idempotency_key"].endswith(
-            ":studio-creative-composer-v8"
+            ":studio-creative-composer-v9"
         ))
         self.assertEqual(
-            "studio-creative-composer-v8", generation_call["prompt_version"],
+            "studio-creative-composer-v9", generation_call["prompt_version"],
         )
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])

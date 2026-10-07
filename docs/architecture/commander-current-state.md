@@ -2,6 +2,21 @@
 
 Updated: 2026-10-07
 
+## Authored Post generation limit — local candidate
+
+Production creative `01a11032-7e44-7763-b50b-dd7d3594d7e7` is a failed
+ordinal-1 draft using accepted Post design `design_ee8759d1b6034ee2bffe` v5.
+Its initial composition and one explicit Retry both recorded `ValueError: phone
+metrics offer must contain 1-32 characters`; it has no approved version. The
+accepted layout uses Phone Metrics base copy, but the authored generation schema
+omitted its text bounds. The local candidate supplies those bounds and the shared
+configuration constraints to the provider, adds a 500-character bound to each
+authored text field, and advances the composer prompt version to v9 for a fresh
+explicit Retry. The original failed workspace and append-only run history are
+preserved. All 521 Validation tests and canonical skill verification pass.
+Production Retry, draft preview and unchanged-Project verification await the
+preserving release.
+
 ## Retained Universal Post review — local candidate
 
 Production creative `01a0b82c-d32b-7767-abb7-959cdc7104ea` in Project

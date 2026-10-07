@@ -61,7 +61,7 @@ TEMPLATE_IDS = frozenset(POST_TEMPLATE_REGISTRY.ids)
 ACTIVE_TEMPLATE_IDS = TEMPLATE_IDS
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
-STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v8"
+STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v9"
 
 
 def post_composition_payload(
@@ -189,7 +189,11 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         "configuration": _json_schema(detail["configuration"]),
         "content": _json_schema(detail["content"]),
     }
-    if detail.get("template_id") == PHONE_METRICS_TEMPLATE_ID:
+    phone_based = (
+        detail.get("template_id") == PHONE_METRICS_TEMPLATE_ID
+        or "phone_screen" in (detail.get("catalog", {}).get("asset_slots") or {})
+    )
+    if phone_based:
         configuration = properties["configuration"]["properties"]
         configuration["schema"]["enum"] = [detail["configuration"]["schema"]]
         if "visual_mode" in configuration:
@@ -248,13 +252,12 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         })
         content["phone_buttons"]["items"].update({"minLength": 1, "maxLength": 48})
         properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
-        properties["metric_basis"] = metric_basis_schema()
-        content["stats"]["items"]["properties"]["value"]["pattern"] = METRIC_NUMERAL_PATTERN
-    elif "phone_screen" in (detail.get("catalog", {}).get("asset_slots") or {}):
-        properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
-        for field in ("symbol_color", "name_color"):
-            selected = detail["configuration"]["logo"][field]
-            properties["configuration"]["properties"]["logo"]["properties"][field]["enum"] = [selected]
+        if detail.get("template_id") == PHONE_METRICS_TEMPLATE_ID:
+            properties["metric_basis"] = metric_basis_schema()
+            content["stats"]["items"]["properties"]["value"]["pattern"] = METRIC_NUMERAL_PATTERN
+        elif "template_text" in content:
+            for field in content["template_text"]["properties"].values():
+                field.update({"minLength": 0, "maxLength": 500})
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,

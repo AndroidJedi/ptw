@@ -28,7 +28,7 @@ cat > /etc/systemd/system/ptw-runtime-exec-guard.timer <<'EOF'
 Description=Bound PTW health-probe runtime metadata
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*-*-* *:11:00
 Persistent=true
 
 [Install]

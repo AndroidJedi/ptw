@@ -66,7 +66,7 @@ def old_record(path: Path, *, fifo: bool, opened: set, now: float):
 
 def reclaim_container(container: str, task_root: Path, pipe_root: Path, *,
                       active: set[str], opened: set, now: float,
-                      pid_alive, clean: bool) -> dict[str, int]:
+                      pid_alive, clean: bool, retire_exec=None) -> dict[str, int]:
     """Directories come from the explicit Docker name allowlist, never a glob."""
     result = {'eligible_execs': 0, 'removed_files': 0, 'skipped_records': 0}
     if not IDENTIFIER.fullmatch(container):
@@ -110,14 +110,42 @@ def reclaim_container(container: str, task_root: Path, pipe_root: Path, *,
                 raise ValueError('runtime group changed')
             result['eligible_execs'] += 1
             if clean:
+                # Retire the stopped shim process through containerd first.
+                # Unlinking its files alone leaves the in-memory exec record.
+                if retire_exec is None or not retire_exec(container, exec_id):
+                    raise ValueError('stopped runtime process could not be retired')
                 for path, info in candidates:
-                    if pid_alive(pid) or identity(path.lstat()) != identity(info):
+                    if pid_alive(pid):
+                        raise ValueError('PID became live during cleanup')
+                    try:
+                        current = path.lstat()
+                    except FileNotFoundError:
+                        # Normal containerd deletion removes its PID record.
+                        result['removed_files'] += 1
+                        continue
+                    if identity(current) != identity(info):
                         raise ValueError('runtime group changed during cleanup')
                     path.unlink()
                     result['removed_files'] += 1
         except (OSError, ValueError, UnicodeError):
             result['skipped_records'] += 1
     return result
+
+
+def retire_stopped_exec(container: str, exec_id: str) -> bool:
+    # Without --force, ctr uses Process.Delete without WithProcessKill. It
+    # refuses live processes. Successful deletion returns the old process's
+    # exit code (often 137 for a timed-out health probe), with empty stderr.
+    try:
+        result = subprocess.run(
+            ['ctr', '--namespace', 'moby', 'tasks', 'delete', '--exec-id', exec_id, container],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE, timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return ((0 <= result.returncode <= 255 and not result.stderr.strip())
+            or b'not found' in result.stderr.lower())
 
 
 def main() -> None:
@@ -154,7 +182,7 @@ def main() -> None:
             values = reclaim_container(
                 item['Id'], TASK_ROOT, PIPE_ROOT, active=active, opened=opened,
                 now=time.time(), pid_alive=lambda pid: Path('/proc', str(pid)).exists(),
-                clean=args.mode == 'clean',
+                clean=args.mode == 'clean', retire_exec=retire_stopped_exec,
             )
             for key, value in values.items():
                 totals[key] += value

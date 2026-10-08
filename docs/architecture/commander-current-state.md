@@ -17,7 +17,7 @@ resident memory after rendering. The 526-case Validation suite and separate
 built-image Linux memory probe pass, as do 38 built-image authoring tests.
 Production acceptance and the warm resource audit remain pending; the two functional Post recoveries below are already live.
 
-## Runtime exec metadata guard — verified candidate
+## Runtime exec metadata recovery — in progress
 
 Two cutout-memory rollouts passed fresh canaries but were rejected by a transient
 Codex Auth health timeout and then the 250 MiB reserve gate (222 MiB available).
@@ -25,11 +25,13 @@ Both restored the accepted Post image/marker; accepted source and skill mounts
 were restored separately. Inspection found roughly 49,000 Docker/containerd
 runtime entries in `/run`, including about 16,000 old exec PID records and twice
 as many closed FIFOs. Only a small live subset has open descriptors. The bounded
-runtime guard dry run identified 13,434 expired, closed exec groups without
-removing anything. Its eight safety regressions and 62 Commander cases pass
-(seven dependency skips outside the image), with the Commander demo and skill
-verification. Production guard installation and a new preserving memory rollout
-remain pending. No container, process, data directory or Project was removed.
+runtime guard removed 40,302 expired PID/FIFO files from 13,434 stopped exec
+groups and an hourly timer is enabled. Further inspection confirmed that native
+containerd process records also require retirement: file-only cleanup does not
+release their shim state. The guard now uses non-forced native deletion before
+file cleanup, with ten safety regressions. A controlled restart of affected
+application containers will clear the already accumulated records. The memory
+rollout and final warm audit remain pending. No Project data was removed.
 
 ## Post view and creation incidents — deployed and reconciled
 

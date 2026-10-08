@@ -79,8 +79,14 @@ closed stdout/stderr FIFOs consistent with
 The new runtime guard protects live/reused PIDs, active Docker exec IDs, open
 handles, recent or redirected files and changed identities. Its production dry
 run identified 13,434 groups eligible for cleanup, without removing anything.
-Eight focused safety tests, the Commander suite/demo and skill verification pass.
-The hourly guard's production installation and the new memory rollout are pending.
+The first installed guard removed 40,302 expired files from those 13,434 groups,
+with no eligible old groups left, and enabled an hourly timer. A subsequent
+non-forced containerd deletion of an old stopped exec succeeded with exit 137
+and removed its PID record, demonstrating that the shim also retained process
+state. The guard now retires stopped execs through that native API before file
+cleanup. Ten safety regressions cover failed retirement and native PID removal
+in addition to live/open/recent/path/race protections. The accumulated in-memory
+records require controlled application restarts; final memory rollout is pending.
 
 ## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
 

@@ -34,11 +34,12 @@ class RuntimeExecGuardTests(unittest.TestCase):
         for path in [self.record, *self.streams]:
             os.utime(path, (self.now - 2 * guard.MIN_AGE,) * 2)
 
-    def run_guard(self, *, clean=True, active=None, opened=None, alive=None):
+    def run_guard(self, *, clean=True, active=None, opened=None, alive=None, retire=None):
         return guard.reclaim_container(
             self.container, self.tasks, self.pipes, active=active or set(),
             opened=opened or set(), now=self.now,
             pid_alive=alive or (lambda _pid: False), clean=clean,
+            retire_exec=retire or (lambda _container, _exec: True),
         )
 
     def assert_preserved(self):
@@ -104,3 +105,16 @@ class RuntimeExecGuardTests(unittest.TestCase):
         states = iter((False, True))
         self.assertEqual(self.run_guard(alive=lambda _pid: next(states))['removed_files'], 0)
         self.assert_preserved()
+
+    def test_failed_runtime_retirement_preserves_group(self):
+        self.assertEqual(self.run_guard(retire=lambda _c, _e: False)['removed_files'], 0)
+        self.assert_preserved()
+
+    def test_native_cleanup_can_remove_pid_before_fifo_cleanup(self):
+        def retire(container, exec_id):
+            self.assertEqual((container, exec_id), (self.container, self.exec_id))
+            self.record.unlink()
+            return True
+        self.assertEqual(self.run_guard(retire=retire)['removed_files'], 3)
+        self.assertFalse(self.record.exists())
+        self.assertTrue(all(not path.exists() for path in self.streams))

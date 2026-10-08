@@ -85,8 +85,12 @@ non-forced containerd deletion of an old stopped exec succeeded with exit 137
 and removed its PID record, demonstrating that the shim also retained process
 state. The guard now retires stopped execs through that native API before file
 cleanup. Ten safety regressions cover failed retirement and native PID removal
-in addition to live/open/recent/path/race protections. The accumulated in-memory
-records require controlled application restarts; final memory rollout is pending.
+in addition to live/open/recent/path/race protections. Seven affected application containers were restarted under both locks after
+checking active bridge work, Commander turns/questions/handoffs and releases.
+Every PostgreSQL row, Commander SQLite row, hosted working-tree change and image
+identity compared unchanged; all seven services regained health. Retention is
+bounded to one hour with an hourly timer, while live PID/exec/handle protections
+remain mandatory. The final cutout-memory rollout is pending.
 
 ## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
 

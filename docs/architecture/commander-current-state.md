@@ -29,8 +29,11 @@ runtime guard removed 40,302 expired PID/FIFO files from 13,434 stopped exec
 groups and an hourly timer is enabled. Further inspection confirmed that native
 containerd process records also require retirement: file-only cleanup does not
 release their shim state. The guard now uses non-forced native deletion before
-file cleanup, with ten safety regressions. A controlled restart of affected
-application containers will clear the already accumulated records. The memory
+file cleanup, with ten safety regressions. Seven affected application containers were then restarted on their existing
+images after empty bridge/Commander/release checks. Exact PostgreSQL and
+Commander SQLite fingerprints, hosted owner changes and image identities matched
+afterward. All services are healthy. The guard retires expired closed execs after
+one hour, with an hourly timer offset from storage maintenance. The memory
 rollout and final warm audit remain pending. No Project data was removed.
 
 ## Post view and creation incidents — deployed and reconciled

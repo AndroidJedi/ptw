@@ -16,7 +16,7 @@ import time
 
 TASK_ROOT = Path('/run/containerd/io.containerd.runtime.v2.task/moby')
 PIPE_ROOT = Path('/run/docker/containerd')
-MIN_AGE = 86400
+MIN_AGE = 3600
 IDENTIFIER = re.compile(r'[0-9a-f]{64}')
 CONTAINERS = frozenset({
     'ptw-validation-validation-api-1', 'ptw-owner-gateway-1',

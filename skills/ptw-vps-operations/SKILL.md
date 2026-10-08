@@ -26,7 +26,7 @@ old PID files and closed FIFOs, matching
 [Moby issue 48908](https://github.com/moby/moby/issues/48908). Do not infer low
 memory from application RSS alone or erase runtime directories wholesale.
 Use the tracked `ptw_runtime_exec_guard.py check` to inventory only the exact PTW
-container allowlist. Its clean mode requires records at least one day old,
+container allowlist. Its clean mode requires records at least one hour old,
 a non-live/non-reused PID, no active Docker exec ID, no open descriptor, unchanged
 file identity and real root-owned PID/FIFO types. Retire the stopped exec through
 containerd without `--force` before removing its files; file-only cleanup leaves

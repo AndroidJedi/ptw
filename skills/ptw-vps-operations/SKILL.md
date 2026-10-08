@@ -17,6 +17,9 @@ pattern retention while keeping the pinned model and rendered pixels unchanged.
 Require the Linux retained-memory regression, exact PNG digest comparison, and
 the warm production resource audit. Do not lower the reserve, drop caches to
 pass, remove unrelated services, or regenerate approved/source assets.
+Record a low-overhead idle sample after verification processes exit as well.
+If memory fluctuates near the reserve, report that capacity limit alongside the
+passing audit; one passing sample does not establish sustained spare capacity.
 
 ## Orphan exec metadata in host runtime memory
 

@@ -2,7 +2,7 @@
 
 Updated: 2026-10-08
 
-## Warm cutout preview memory — local candidate
+## Warm cutout preview memory — deployed and verified
 
 The Post recovery passed live generation, Gateway previews and restart checks,
 but a final resource audit after the real authored preview found less than the
@@ -11,13 +11,25 @@ storage passed at 3.43 GiB free. The cutout renderer's cached ONNX CPU arena
 retained about 433 MiB in a fresh Linux process after inference. Disabling CPU
 arena and memory-pattern retention reduced that to about 222 MiB with an
 identical PNG digest. The exact recovered owner image also matched byte for byte,
-with process RSS reduced from about 394 MiB to 145 MiB. The candidate retains
-the pinned model/session and adds a Linux subprocess regression requiring less than 256 MiB of incremental
-resident memory after rendering. The 526-case Validation suite and separate
+with process RSS reduced from about 394 MiB to 145 MiB. The deployed fix retains
+the pinned model/session and adds a Linux subprocess regression requiring less
+than 256 MiB of incremental resident memory after rendering. The 526-case
+Validation suite and separate
 built-image Linux memory probe pass, as do 38 built-image authoring tests.
-Production acceptance and the warm resource audit remain pending; the two functional Post recoveries below are already live.
+PTW `6c55675ab3d720c56fffb340fd5696a9efdd5147` was accepted as
+`post-runtime-20261008-6c55675`, restarting only Validation. Hosting remains at
+`cd9935335090b730`. Fresh structured/media/Pexels canaries, exact authority
+preservation, dependency/resource audits and public Hosting/auth/CORS checks
+passed. All eight approved PNGs across seven active Projects matched PostgreSQL.
+Both incident Gateway details/previews returned 200 on the final image with
+unchanged PNG digests; all four target generation records remained identical,
+with zero active creatives. The subsequent warm resource audit passed. All
+twelve containers are healthy, storage has 3.33 GiB free, and both cleanup timers
+are active. The 1 GiB host still has limited spare memory: low-overhead follow-up
+samples were about 248–266 MiB available. This verifies recovery and current
+operation, not sustained capacity under arbitrary concurrent load.
 
-## Runtime exec metadata recovery — in progress
+## Runtime exec metadata recovery — installed and verified
 
 Two cutout-memory rollouts passed fresh canaries but were rejected by a transient
 Codex Auth health timeout and then the 250 MiB reserve gate (222 MiB available).
@@ -33,8 +45,10 @@ file cleanup, with ten safety regressions. Seven affected application containers
 images after empty bridge/Commander/release checks. Exact PostgreSQL and
 Commander SQLite fingerprints, hosted owner changes and image identities matched
 afterward. All services are healthy. The guard retires expired closed execs after
-one hour, with an hourly timer offset from storage maintenance. The memory
-rollout and final warm audit remain pending. No Project data was removed.
+one hour, with an hourly timer offset from storage maintenance. The final memory
+rollout and warm audit passed. The installed runtime guard and reboot tmpfiles
+rule match their accepted source, and the deployment maintenance lock is released.
+No Project data was removed.
 
 ## Post view and creation incidents — deployed and reconciled
 

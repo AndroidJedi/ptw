@@ -65,7 +65,8 @@ The cached ONNX CPU arena retained about 433 MiB in a fresh Linux cutout probe;
 disabling CPU arena and memory-pattern retention reduced it to about 222 MiB,
 with identical output bytes. The owner's exact raw image reduced process RSS
 from about 394 MiB to 145 MiB with the same cutout digest. A focused memory
-regression and preserving runtime follow-up are being verified before declaring the warm resource gate complete.
+regression passed in the Linux image; the preserving runtime follow-up and warm
+resource gate subsequently passed as recorded below.
 
 The first memory follow-up passed all canaries but failed a Codex Auth Docker
 health check after three-second exec timeouts; the actual health endpoint later
@@ -90,7 +91,33 @@ checking active bridge work, Commander turns/questions/handoffs and releases.
 Every PostgreSQL row, Commander SQLite row, hosted working-tree change and image
 identity compared unchanged; all seven services regained health. Retention is
 bounded to one hour with an hourly timer, while live PID/exec/handle protections
-remain mandatory. The final cutout-memory rollout is pending.
+remain mandatory.
+
+The final follow-up `post-runtime-20261008-6c55675` was accepted at
+`6c55675ab3d720c56fffb340fd5696a9efdd5147`, with only Validation restarted
+and Hosting unchanged. Fresh canaries completed through bridge jobs 1682–1695;
+Pexels, exact authority comparison, dependency/resource checks and the public
+Hosting/auth/CORS audit passed. The approved-source audit verified seven active
+Projects and all eight immutable PNGs. Both incident Gateway details/previews
+returned 200 after cutover and retained their earlier exact PNG digests. Missing
+auth remained 401 and wrong-Project access 404. All four target generation-run
+hashes matched, with zero active creatives. This final container recreation also
+preserved the earlier successful explicit-restart result.
+
+The resource audit after warming the actual recovered owner's preview passed.
+All twelve containers were healthy, storage guard reported 3.33 GiB free, both
+storage/runtime timers were active, the installed guard and reboot lock rule
+matched accepted source, and the maintenance lock was released. Capacity remains
+limited on the 1 GiB host: low-overhead idle samples varied from about 248 to
+266 MiB available, and the separate instrumentation process briefly observed
+about 214 MiB. A passing release/warm audit is not a guarantee of sustained
+headroom under concurrent work. No threshold was lowered and no cache was dropped.
+Final local checks passed the 526-case Validation suite, Linux retained-memory
+regression, 38 built-image authoring tests, ten runtime-guard safety tests,
+Commander suite/demo, skill verification and whitespace checks. The original
+Post recovery also passed the 159-case browser gate. Both reported failures are
+resolved; the recovered creative remains private and unapproved, and the retired
+Post retains its explicit sample-content/read-only limitation.
 
 ## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
 

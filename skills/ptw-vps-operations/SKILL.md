@@ -5,6 +5,19 @@ description: Safely inspect, deploy, reset, verify, and troubleshoot PTW product
 
 # PTW VPS Operations
 
+## Memory after an authored Post preview
+
+Run the 1 GiB resource audit after warming the owner's actual authored Post
+preview as well as after provider canaries. A cached cutout ONNX session can
+retain hundreds of MiB of CPU scratch buffers after inference, leaving healthy
+containers below the required memory reserve. Compare Validation's anonymous
+memory and swap with a fresh-process opaque-image cutout probe; host RSS alone
+can hide the allocation in swap. Disable the session's CPU arena and memory
+pattern retention while keeping the pinned model and rendered pixels unchanged.
+Require the Linux retained-memory regression, exact PNG digest comparison, and
+the warm production resource audit. Do not lower the reserve, drop caches to
+pass, remove unrelated services, or regenerate approved/source assets.
+
 ## Image-worker temporary storage
 
 The companion worker's private `/tmp` is a Compose tmpfs, independent of the

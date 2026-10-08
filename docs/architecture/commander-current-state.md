@@ -2,65 +2,71 @@
 
 Updated: 2026-10-08
 
-## Runtime writes honor deployment maintenance — local candidate
+## Warm cutout preview memory — local candidate
 
-The combined Post release passed its real structured/media and Pexels canaries,
-but the exact authority comparison rejected new public Landing events and a
-scheduled 72-hour Instagram insight. All prior rows remained intact. A retry
-received another public event and was stopped through normal rollback. The
-accepted Validation image and revision marker remain unchanged.
-The candidate mounts the host maintenance lock read-only into Validation.
-HTTP writes and scheduled Analytics hold shared locks; the exclusive release
-lock temporarily rejects new writes with 503/Retry-After and defers Analytics.
-Reads and authenticated emergency stop remain available, and readiness rejects
-a missing configured mount. A tracked tmpfiles rule recreates the host lock
-before Docker starts after reboot. This preserves the existing exact snapshot
-gate. All 525 Validation tests and skill verification pass; the preserving
-rollout is pending.
+The Post recovery passed live generation, Gateway previews and restart checks,
+but a final resource audit after the real authored preview found less than the
+250 MiB memory reserve. All containers stayed healthy with no OOM evidence;
+storage passed at 3.43 GiB free. The cutout renderer's cached ONNX CPU arena
+retained about 443 MiB in a fresh Linux process after inference. Disabling CPU
+arena and memory-pattern retention reduced that to about 227 MiB with an
+identical PNG digest. The exact recovered owner image also matched byte for byte,
+with process RSS reduced from about 394 MiB to 145 MiB. The candidate retains the pinned model/session and adds
+a Linux subprocess regression requiring less than 256 MiB of incremental
+resident memory after rendering. All 526 Validation tests pass (the Linux memory probe runs separately in the
+built image and passes there). Production acceptance and the warm resource
+audit remain pending; the two functional Post recoveries below are already live.
 
-## Authored Post generation limit — local candidate
+## Post view and creation incidents — deployed and reconciled
 
-Production creative `01a11032-7e44-7763-b50b-dd7d3594d7e7` is a failed
-ordinal-1 draft using accepted Post design `design_ee8759d1b6034ee2bffe` v5.
-Its initial composition and one explicit Retry both recorded `ValueError: phone
-metrics offer must contain 1-32 characters`; it has no approved version. The
-accepted layout uses Phone Metrics base copy, but the authored generation schema
-omitted its text bounds. The local candidate supplies those bounds and the shared
-configuration constraints to the provider, adds a 500-character bound to each
-authored text field, and advances the composer prompt version to v9 for a fresh
-explicit Retry. The original failed workspace and append-only run history are
-preserved. All 521 Validation tests and canonical skill verification pass.
-Production Retry, draft preview and unchanged-Project verification await the
-preserving release.
+PTW `59ee6c1ed763e610a7baced8f4ea4c445b93a078` was accepted as
+`post-incidents-20261008-59ee6c1`; Validation was rebuilt and Owner Console
+Hosting version `cd9935335090b730` was published. No migration or public
+Landing Hosting change was needed.
 
-## Retained Universal Post review — local candidate
+Creative `01a0b82c-d32b-7767-abb7-959cdc7104ea` in Project
+`01a0a9e2-12bb-73b6-9f4b-5e3318d5bc30` now returns HTTP 200 through the
+Gateway with a private, digest-checked read-only preview. Its retired
+`universal_ad` v13 template stays out of the active registry. The retained copy
+is the old investment sample, unrelated to the horoscope Brief; the UI identifies
+that limitation and offers a current-template replacement from the same approved
+Brief. No replacement was created during recovery. The existing Phone Metrics
+sibling `01a0aa55-3a9c-7e32-b2e0-d6af7a9aa61d` remains unchanged.
 
-Production creative `01a0b82c-d32b-7767-abb7-959cdc7104ea` in Project
-`01a0a9e2-12bb-73b6-9f4b-5e3318d5bc30` returns HTTP 400 on detail because
-its saved `universal_ad` v13 selection predates that template's retirement.
-The draft has one retained `phone_screen` asset row, no approved version or
-checkpoint, and its three authoritative workspace files remain digest checked.
-Its saved configuration and copy exactly match the retired Universal sample,
-which contains investment copy unrelated to this horoscope Project, despite
-a completed composition run.
-The same Project's Phone Metrics draft `01a0aa55-3a9c-7e32-b2e0-d6af7a9aa61d`
-returns HTTP 200. No production authority was changed during diagnosis.
+Creative `01a11032-7e44-7763-b50b-dd7d3594d7e7` in Project
+`01a1102f-a47f-7d2a-9aed-f229c52adc7f` recovered through one explicit Retry
+with request `77a62b36-fc15-46f7-a1a4-27fb2863fadb`. Authored Post generation
+now receives the shared Phone Metrics text/configuration limits; composer v9
+produced valid reading-club copy on its first attempt (bridge job 1652), followed
+by its completed image (1653). The original creative is an unapproved draft at
+state `3d313364b08ea96a4bb994dada83499944dbd1af8c8e7ba1746ffbdc86cf16b7`.
+Both original failures remain intact; exactly two completed runs were appended.
+Twenty-one unrelated authority tables compare unchanged. Both PNGs were inspected,
+and Gateway detail/preview responses and PNG digests survived a Validation restart
+without duplicate jobs. Unauthenticated requests return 401; wrong-Project reads
+return 404. The routing probe uses an isolated test identity against live
+Validation; it does not claim an interactive owner Firebase sign-in.
 
-The local candidate adds a read-only Universal review and private reconstructed
-preview while keeping the template out of the active registry. It labels the
-historical draft in the Post picker, identifies the sample copy, and blocks
-editing or approval through that view. The owner may create one current-template
-Post from the same approved Brief while the Universal draft remains preserved;
-normal approval gating resumes for the next sibling. A private reconstruction
-from the exact saved configuration and content rendered locally, and disposable
-PostgreSQL verified the new reservation/lineage rule. Backend, Owner browser,
-skill, and release verification remain required before any preserving deployment;
-this candidate is not live. Local verification passed 521 Validation tests,
-the disposable PostgreSQL recovery probe, 159 Owner unit tests/build, 159
-desktop/360px/iPhone WebKit browser cases, 54 Commander tests (seven dependency
-skips outside the image), the Commander demo, skill verification, and whitespace
-checks. Live preserving release canaries and exact Gateway/Validation reads
-remain pending deployment.
+Verification passed 525 Validation tests, 14 built-image API/maintenance tests,
+the disposable PostgreSQL legacy replacement probe, 159 Owner unit tests/build,
+159 desktop/360px/iPhone WebKit browser cases, ten deterministic Studio visual
+variants, Commander tests/demo, skill and whitespace checks. The release passed
+fresh structured/media/Pexels canaries, exact authority preservation, dependency
+and 1 GB audits, and live Hosting/auth/CORS checks. The served App bundle matches
+the tested build.
+
+## Runtime writes honor deployment maintenance — deployed
+
+Two earlier attempts were safely rolled back after legitimate public Landing
+and scheduled Analytics writes changed the exact release snapshot. Validation
+now holds the shared host maintenance lock for HTTP writes and scheduled
+Analytics. An exclusive release lock returns 503/Retry-After for new writes and
+defers Analytics; reads and authenticated emergency stop remain available.
+Readiness rejects a missing configured mount. The tracked tmpfiles rule is
+installed on the VPS and recreates the lock before Docker starts after reboot.
+The existing exact snapshot gate remains intact. See the
+[incident record](../operations/incident-log.md#2026-10-08--retired-post-read-and-authored-post-generation-recovered)
+for diagnosis and recovery evidence.
 
 ## Analytics Today window — deployed
 

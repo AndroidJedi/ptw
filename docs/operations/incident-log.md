@@ -1,5 +1,72 @@
 # PTW incident log
 
+## 2026-10-08 — Retired Post read and authored Post generation recovered
+
+Two independent production failures were reconciled under preserving release
+`post-incidents-20261008-59ee6c1` at PTW
+`59ee6c1ed763e610a7baced8f4ea4c445b93a078`, with Owner Hosting version
+`cd9935335090b730`.
+
+- Creative `01a0b82c-d32b-7767-abb7-959cdc7104ea`, Project
+  `01a0a9e2-12bb-73b6-9f4b-5e3318d5bc30`, selected retired `universal_ad`
+  v13 and failed detail with `Post template is not registered`. Its three saved
+  workspace files were valid, but retained the old investment sample rather
+  than horoscope copy. The new digest-checked archived view returns HTTP 200
+  and a private reconstructed PNG, labels that sample, and blocks edit/approval.
+  An explicit owner replacement may use the same approved Brief with a current
+  template. The old row, orphan asset record, and existing Phone Metrics sibling
+  were preserved; recovery did not create a replacement.
+- Creative `01a11032-7e44-7763-b50b-dd7d3594d7e7`, Project
+  `01a1102f-a47f-7d2a-9aed-f229c52adc7f`, failed initial composition and Retry
+  with `phone metrics offer must contain 1-32 characters`. Accepted authored
+  design `design_ee8759d1b6034ee2bffe` v5 reused the base content validator,
+  while its provider schema omitted those limits. Shared bounds now reach every
+  authored Phone Metrics composition, authored text fields are bounded to 500
+  characters, and prompt version v9 gives an explicit Retry a fresh fingerprint.
+  Retry `77a62b36-fc15-46f7-a1a4-27fb2863fadb` completed composition/image jobs
+  1652/1653. The same creative is a draft with zero approved versions/checkpoints.
+  Its image SHA-256 is
+  `f675910a9cc25bbcdd17cb8d804b3920fdcc004efff8e056ec589b364d72f4a8`.
+
+Earlier rollout attempts passed provider canaries but encountered unrelated
+public Landing events and one scheduled 72-hour Instagram insight during strict
+snapshot comparison. Hash-only investigation found all original rows unchanged.
+Normal rollback restored the previous image/marker; accepted source and mounted
+skills were restored separately while retaining dirty hosted Commander work.
+The final release adds shared Validation write locks against the exclusive host
+maintenance lock, including background request work and scheduled Analytics.
+No snapshot exception was introduced. Missing configured mounts fail readiness;
+the installed tmpfiles rule restores the lock after reboot. A cancelled attempt
+also left an inherited-lock heartbeat; it was removed only after verifying its
+exact command, orphan parent, completed rollback, and unchanged accepted marker.
+
+After release, 21 unrelated authority tables compared unchanged and both old
+failed-run hashes matched exactly; only two completed target runs were appended.
+Native PNGs were inspected. Both deployed Gateway route families returned detail
+and preview HTTP 200 with matching digest headers, rejected missing auth with
+401 and cross-Project access with 404. This routing probe used an isolated test
+identity; public Hosting/auth/CORS checks independently tested the deployed
+boundary. After restarting only Validation under both maintenance locks, both
+preview hashes and all four generation records remained identical, with no
+active/duplicate jobs. The recovered creative stays private and unapproved.
+
+The release passed fresh provider/media/Pexels canaries, exact preservation,
+resource/dependency checks, 159 Owner unit tests, 159 desktop/360px/iPhone WebKit
+browser cases, and live Hosting audit. Local verification passed 525 Validation
+tests, 14 built-image API/maintenance tests, the disposable legacy reservation
+probe, ten Studio visual variants, Commander tests/demo and skill verification.
+Reusable diagnosis and guardrails are recorded in the Owner Console incident,
+VPS operations, and Studio composer skills.
+
+A final warm resource check exposed a separate retained-memory issue: after the
+real authored cutout preview, available memory stayed around 187–221 MiB despite
+healthy containers and no OOM events. Storage guard passed at 3.43 GiB free.
+The cached ONNX CPU arena retained about 443 MiB in a fresh Linux cutout probe;
+disabling CPU arena and memory-pattern retention reduced it to about 227 MiB,
+with identical output bytes. The owner's exact raw image reduced process RSS
+from about 394 MiB to 145 MiB with the same cutout digest. A focused memory regression and preserving runtime
+follow-up are being verified before declaring the warm resource gate complete.
+
 ## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
 
 The Water draft's three bounded product cards were saved under the normal

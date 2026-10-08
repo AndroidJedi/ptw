@@ -25,6 +25,10 @@ def _session():
         raise RuntimeError("Template cutout model digest mismatch")
     options = ort.SessionOptions()
     options.intra_op_num_threads = 2
+    # Keep the small model cached without retaining hundreds of MiB of
+    # inference scratch buffers between Post previews on the 1 GiB VPS.
+    options.enable_cpu_mem_arena = False
+    options.enable_mem_pattern = False
     return ort.InferenceSession(str(MODEL_PATH), sess_options=options, providers=["CPUExecutionProvider"])
 
 

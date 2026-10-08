@@ -85,6 +85,29 @@ into a complete compatible release, read
 
 ## Start safely
 
+Validation shares the host `/run/lock/ptw-maintenance.lock` through a read-only
+file mount. Keep that nonsecret lock readable by the unprivileged runtime;
+readiness must reject a missing or unreadable configured mount.
+Install the tracked `scripts/ptw-maintenance-tmpfiles.conf` as root-owned
+`/etc/tmpfiles.d/ptw-maintenance.conf` and run `systemd-tmpfiles --create` on it
+before enabling the mount. The boot rule recreates `/run`'s ephemeral lock
+before Docker starts; never replace the lock inode while a release holds it.
+Runtime HTTP writes hold a shared lock through request/background completion, and scheduled
+Analytics holds it through its cycle. A release holds the exclusive lock:
+writes return 503 with Retry-After, Analytics skips that cycle, and reads plus
+authenticated emergency stop remain available. Public beacons rejected during
+maintenance are not confirmed receipts. Do not disable the exact authority
+snapshot comparison or delete live analytics to make a release pass.
+
+If a long rollout rejects its authority snapshot, retain the hash-only before/
+after diff before cleanup removes it. Separate changed/removed old rows from
+new Landing events, rollups, insight snapshots and their graph rows. A 15-minute
+Analytics milestone capture can otherwise race real media canaries. Restore
+accepted source/skills and services after rejection, preserving any dirty hosted
+checkout. A cancelled canary's orphan progress heartbeat may retain inherited
+maintenance descriptors; verify rollback and the exact orphan parent/command
+before terminating it. Never kill an active release or unrelated worker by name.
+
 After long structured/media release canaries, the companion worker's 5-second
 PostgreSQL health probe can time out briefly even though the jobs completed and
 the worker later recovers. Inspect the bounded health-check exit/timing, worker

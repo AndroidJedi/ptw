@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 
 from .config import Settings
+from .maintenance import MaintenanceWriteGuard, analytics_cycle, verify_maintenance_signal
 from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import StructuredBridge
 from .repository import ValidationRepository
@@ -201,7 +202,7 @@ def create_app(
             while True:
                 await asyncio.sleep(900)
                 try:
-                    await asyncio.to_thread(analytics.maintain)
+                    await asyncio.to_thread(analytics_cycle, analytics)
                 except Exception:
                     logger.exception("Analytics maintenance cycle failed")
         task = asyncio.create_task(maintain_analytics())
@@ -220,6 +221,7 @@ def create_app(
         title="PTW Validation API", version="1.0.0", docs_url=None, redoc_url=None,
         lifespan=lifespan,
     )
+    app.add_middleware(MaintenanceWriteGuard)
 
     def authorize(x_ptw_owner_gateway_token: str = Header(default="")) -> None:
         if not settings.owner_gateway_token or x_ptw_owner_gateway_token != settings.owner_gateway_token:
@@ -303,6 +305,7 @@ def create_app(
     def ready() -> dict[str, Any]:
         active = require_brief_runner()
         try:
+            verify_maintenance_signal()
             with repository.connection() as connection:
                 connection.execute("SELECT 1").fetchone()
             return active.verify_ready()

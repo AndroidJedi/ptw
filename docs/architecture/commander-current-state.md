@@ -1,6 +1,22 @@
 # Commander current state
 
-Updated: 2026-10-07
+Updated: 2026-10-08
+
+## Runtime writes honor deployment maintenance — local candidate
+
+The combined Post release passed its real structured/media and Pexels canaries,
+but the exact authority comparison rejected new public Landing events and a
+scheduled 72-hour Instagram insight. All prior rows remained intact. A retry
+received another public event and was stopped through normal rollback. The
+accepted Validation image and revision marker remain unchanged.
+The candidate mounts the host maintenance lock read-only into Validation.
+HTTP writes and scheduled Analytics hold shared locks; the exclusive release
+lock temporarily rejects new writes with 503/Retry-After and defers Analytics.
+Reads and authenticated emergency stop remain available, and readiness rejects
+a missing configured mount. A tracked tmpfiles rule recreates the host lock
+before Docker starts after reboot. This preserves the existing exact snapshot
+gate. All 525 Validation tests and skill verification pass; the preserving
+rollout is pending.
 
 ## Authored Post generation limit — local candidate
 

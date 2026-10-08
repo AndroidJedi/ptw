@@ -120,6 +120,19 @@ without spending up to 300 seconds on an unchanged Codex execution. A failure
 before cutover leaves every running container untouched; rollback begins only
 after a selected service replacement starts.
 
+Validation mounts the same host maintenance-lock file read-only. Install the
+tracked `scripts/ptw-maintenance-tmpfiles.conf` at
+`/etc/tmpfiles.d/ptw-maintenance.conf` so `/run`'s lock is recreated before Docker
+starts after reboot. The bind refuses to create a directory for a missing file.
+HTTP writers and scheduled Analytics acquire a shared lock for their whole operation. The
+exclusive deployment lock therefore refuses active writers and temporarily
+returns HTTP 503 with `Retry-After: 30` for new writes; scheduled Analytics skips
+its cycle. Reads and authenticated emergency stop stay available. This keeps
+public analytics and the 15-minute maintenance task from changing the authority
+during long real-provider canaries. Readiness checks the configured mount, and
+writes resume when the release or rollback releases its lock. A public beacon
+rejected during maintenance is not an accepted event.
+
 Firebase Hosting uses the named `owner-console` and `public-landings` targets.
 The public target is `natal-landings-86123`; `/` is the English Natal umbrella
 and `/ai|la|wa/<slug>` are SPA deep links using the exact private renderer in

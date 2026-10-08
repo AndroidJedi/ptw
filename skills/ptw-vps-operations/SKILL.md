@@ -18,6 +18,25 @@ Require the Linux retained-memory regression, exact PNG digest comparison, and
 the warm production resource audit. Do not lower the reserve, drop caches to
 pass, remove unrelated services, or regenerate approved/source assets.
 
+## Orphan exec metadata in host runtime memory
+
+If healthy containers miss the idle memory reserve, compare `/run` inode counts
+and `shmem_inode_cache` with live Docker exec IDs. Health-probe timeouts can leave
+old PID files and closed FIFOs, matching
+[Moby issue 48908](https://github.com/moby/moby/issues/48908). Do not infer low
+memory from application RSS alone or erase runtime directories wholesale.
+Use the tracked `ptw_runtime_exec_guard.py check` to inventory only the exact PTW
+container allowlist. Its clean mode requires records at least one day old,
+a non-live/non-reused PID, no active Docker exec ID, no open descriptor, unchanged
+file identity and real root-owned PID/FIFO types. It never kills processes or
+removes directories. The hourly installed guard takes the maintenance lock and
+defers when PTW work is active; retain its live-PID/open-handle/age/path/race tests.
+After installation, verify eligible/removed counts, container and bridge health,
+unchanged Project authority, and the normal memory/storage audits. Keep engine
+upgrades separate from this bounded recovery. A transient health timeout alone
+is not a credential failure: preserve auth, restore accepted source/skills after
+rejection, and confirm actual health recovery before a fresh release attempt.
+
 ## Image-worker temporary storage
 
 The companion worker's private `/tmp` is a Compose tmpfs, independent of the

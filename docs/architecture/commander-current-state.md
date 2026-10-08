@@ -8,14 +8,28 @@ The Post recovery passed live generation, Gateway previews and restart checks,
 but a final resource audit after the real authored preview found less than the
 250 MiB memory reserve. All containers stayed healthy with no OOM evidence;
 storage passed at 3.43 GiB free. The cutout renderer's cached ONNX CPU arena
-retained about 443 MiB in a fresh Linux process after inference. Disabling CPU
-arena and memory-pattern retention reduced that to about 227 MiB with an
+retained about 433 MiB in a fresh Linux process after inference. Disabling CPU
+arena and memory-pattern retention reduced that to about 222 MiB with an
 identical PNG digest. The exact recovered owner image also matched byte for byte,
-with process RSS reduced from about 394 MiB to 145 MiB. The candidate retains the pinned model/session and adds
-a Linux subprocess regression requiring less than 256 MiB of incremental
-resident memory after rendering. All 526 Validation tests pass (the Linux memory probe runs separately in the
-built image and passes there). Production acceptance and the warm resource
-audit remain pending; the two functional Post recoveries below are already live.
+with process RSS reduced from about 394 MiB to 145 MiB. The candidate retains
+the pinned model/session and adds a Linux subprocess regression requiring less than 256 MiB of incremental
+resident memory after rendering. The 526-case Validation suite and separate
+built-image Linux memory probe pass, as do 38 built-image authoring tests.
+Production acceptance and the warm resource audit remain pending; the two functional Post recoveries below are already live.
+
+## Runtime exec metadata guard — verified candidate
+
+Two cutout-memory rollouts passed fresh canaries but were rejected by a transient
+Codex Auth health timeout and then the 250 MiB reserve gate (222 MiB available).
+Both restored the accepted Post image/marker; accepted source and skill mounts
+were restored separately. Inspection found roughly 49,000 Docker/containerd
+runtime entries in `/run`, including about 16,000 old exec PID records and twice
+as many closed FIFOs. Only a small live subset has open descriptors. The bounded
+runtime guard dry run identified 13,434 expired, closed exec groups without
+removing anything. Its eight safety regressions and 62 Commander cases pass
+(seven dependency skips outside the image), with the Commander demo and skill
+verification. Production guard installation and a new preserving memory rollout
+remain pending. No container, process, data directory or Project was removed.
 
 ## Post view and creation incidents — deployed and reconciled
 

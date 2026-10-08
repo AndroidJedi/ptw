@@ -61,11 +61,26 @@ VPS operations, and Studio composer skills.
 A final warm resource check exposed a separate retained-memory issue: after the
 real authored cutout preview, available memory stayed around 187–221 MiB despite
 healthy containers and no OOM events. Storage guard passed at 3.43 GiB free.
-The cached ONNX CPU arena retained about 443 MiB in a fresh Linux cutout probe;
-disabling CPU arena and memory-pattern retention reduced it to about 227 MiB,
+The cached ONNX CPU arena retained about 433 MiB in a fresh Linux cutout probe;
+disabling CPU arena and memory-pattern retention reduced it to about 222 MiB,
 with identical output bytes. The owner's exact raw image reduced process RSS
-from about 394 MiB to 145 MiB with the same cutout digest. A focused memory regression and preserving runtime
-follow-up are being verified before declaring the warm resource gate complete.
+from about 394 MiB to 145 MiB with the same cutout digest. A focused memory
+regression and preserving runtime follow-up are being verified before declaring the warm resource gate complete.
+
+The first memory follow-up passed all canaries but failed a Codex Auth Docker
+health check after three-second exec timeouts; the actual health endpoint later
+returned 200 in three consecutive checks without credential changes. One fresh
+attempt passed dependency checks but failed the resource audit at 222 MiB
+available. Both attempts restored the accepted Post image and source/skills.
+Investigation then found about 49,000 entries in `/run/docker/containerd` and
+`/run/containerd/io.containerd.runtime.v2.task/moby`: old exec PID records and
+closed stdout/stderr FIFOs consistent with
+[Moby's confirmed timeout-cleanup issue](https://github.com/moby/moby/issues/48908).
+The new runtime guard protects live/reused PIDs, active Docker exec IDs, open
+handles, recent or redirected files and changed identities. Its production dry
+run identified 13,434 groups eligible for cleanup, without removing anything.
+Eight focused safety tests, the Commander suite/demo and skill verification pass.
+The hourly guard's production installation and the new memory rollout are pending.
 
 ## 2026-10-03 — Water feedback renderer rollout did not reach acceptance
 

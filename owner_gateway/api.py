@@ -138,6 +138,35 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
         return payload
 
+    async def commander_bot_bridge(
+        method: str, path: str, *, body: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not settings.commander_bot_service_url:
+            raise HTTPException(status_code=503, detail="Commander Bot service is unavailable")
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.request(
+                    method,
+                    f"{settings.commander_bot_service_url}/internal/v1/agent-bot{path}",
+                    headers={"X-PTW-Owner-Gateway-Token": settings.validation_service_token},
+                    json=None if body is None else dict(body),
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Commander Bot service is unavailable") from error
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            raise HTTPException(response.status_code, detail or "Commander Bot request failed")
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise HTTPException(status_code=503, detail="Commander Bot service is unavailable") from error
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=503, detail="Commander Bot service is unavailable")
+        return payload
+
     async def commander_attachment_bridge(path: str) -> tuple[bytes, str]:
         if not settings.commander_service_url:
             raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
@@ -220,6 +249,48 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         response.headers["Cache-Control"] = "private, no-store"
         return await commander_bridge("GET", "")
+
+    @app.get("/api/v1/agent-bot")
+    async def agent_bot_status(response: Response, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("GET", "")
+
+    @app.post("/api/v1/agent-bot/conversations", status_code=201)
+    async def create_agent_bot_conversation(
+        request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("POST", "/conversations", body=request)
+
+    @app.get("/api/v1/agent-bot/conversations/{conversation_id}")
+    async def agent_bot_conversation(
+        conversation_id: UUID, response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("GET", f"/conversations/{conversation_id}")
+
+    @app.post("/api/v1/agent-bot/conversations/{conversation_id}/messages", status_code=202)
+    async def send_agent_bot_message(
+        conversation_id: UUID, request: Mapping[str, Any], response: Response,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("POST", f"/conversations/{conversation_id}/messages", body=request)
+
+    @app.post("/api/v1/agent-bot/conversations/{conversation_id}/actions/{action_id}")
+    async def decide_agent_bot_action(
+        conversation_id: UUID, action_id: UUID, request: Mapping[str, Any], response: Response,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("POST", f"/conversations/{conversation_id}/actions/{action_id}", body=request)
+
+    @app.post("/api/v1/agent-bot/conversations/{conversation_id}/tasks/{task_id}/stop", status_code=202)
+    async def stop_agent_bot_task(
+        conversation_id: UUID, task_id: UUID, response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bot_bridge("POST", f"/conversations/{conversation_id}/tasks/{task_id}/stop", body={})
 
     @app.post("/api/v1/settings/commander/chats", status_code=201)
     async def create_commander_chat(

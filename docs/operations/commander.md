@@ -51,6 +51,14 @@ publish already-built bytes without building application images there. A failed
 workflow remains visible in its Commander conversation. A successful rollout
 with failed source promotion is reported as bookkeeping repair, not rollback.
 
+Commander displays the host's authoritative live revision and observation time
+separately from each conversation's release history. Pending changes remain
+visible even beside an older successful release. Queued, running and completed
+states have distinct labels; unavailable marker reads are explicitly unverified.
+A successful workflow without its exact candidate in the deployed marker cannot
+be reported as a completed deployment. This does not grant the coding worker
+production access or turn its final response into live-release evidence.
+
 Commander uses supervised Codex app-server, pinned in production to the tested
 standalone 0.147.0 runtime. Runtime `model/list` and `collaborationMode/list`
 determine available selections. Plan runs in `commander-plan` with a read-only

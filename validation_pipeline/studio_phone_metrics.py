@@ -270,7 +270,11 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
     fields = set(DEFAULT_PHONE_CONFIG)
     if isinstance(value, Mapping) and "visual_mode" in value:
         fields.add("visual_mode")
+    if isinstance(value, Mapping) and "preserve_image_background" in value:
+        fields.add("preserve_image_background")
     root = _object(value, fields, "Studio phone metrics configuration")
+    if "preserve_image_background" in root and not isinstance(root["preserve_image_background"], bool):
+        raise ValueError("preserve_image_background must be boolean")
     if root["schema"] != PHONE_METRICS_CONFIG_SCHEMA:
         raise ValueError("Studio phone metrics configuration schema is invalid")
     background = _object(root["background"], set(DEFAULT_PHONE_CONFIG["background"]), "phone metrics background")
@@ -402,6 +406,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
     # layout editor.
     return {
         "schema": PHONE_METRICS_CONFIG_SCHEMA,
+        **({"preserve_image_background": root["preserve_image_background"]}
+           if "preserve_image_background" in root else {}),
         **({"visual_mode": _enum(root["visual_mode"], PHONE_VISUAL_MODES, "phone metrics visual_mode")}
            if "visual_mode" in root else {}),
         "background": {
@@ -723,6 +729,8 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
     config = normalize_phone_metrics_config(config)
     content = normalize_phone_metrics_content(content)
     values = {
+        **({"configuration.preserve_image_background": config["preserve_image_background"]}
+           if "preserve_image_background" in config else {}),
         "configuration.visual_mode": config.get("visual_mode", "phone"),
         "configuration.background.texture": config["background"]["texture"],
         "configuration.copy_background.texture": config["copy_background"]["texture"],
@@ -1061,7 +1069,7 @@ def _clear_phone_hero_edge_matte(image: Any) -> Any:
     return image
 
 
-def _position_phone_hero_art(screen: Any, size: tuple[int, int]) -> Any:
+def _position_phone_hero_art(screen: Any, size: tuple[int, int], *, preserve_image_background: bool = False) -> Any:
     """Lower the subject and extend only full-bleed artwork to the top."""
 
     from PIL import Image, ImageChops, ImageOps
@@ -1069,7 +1077,8 @@ def _position_phone_hero_art(screen: Any, size: tuple[int, int]) -> Any:
     hero = ImageOps.fit(
         screen, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.44),
     )
-    hero = _clear_phone_hero_edge_matte(hero)
+    if not preserve_image_background:
+        hero = _clear_phone_hero_edge_matte(hero)
     positioned = Image.new("RGBA", size, (0, 0, 0, 0))
     has_alpha_background = hero.getchannel("A").getextrema()[0] < 250
     continuation_height = PHONE_HERO_ART_OFFSET_Y + PHONE_HERO_ART_FEATHER_Y
@@ -1183,6 +1192,7 @@ def _fixed_screen_shell(
     logo_enabled: bool = True,
     logo_symbol_color: str = NATAL_SYMBOL_COLOR,
     logo_name_color: str = NATAL_NAME_COLOR,
+    preserve_image_background: bool = False,
 ) -> Any:
     """Place visual-only art inside the deterministic app screen."""
 
@@ -1198,6 +1208,7 @@ def _fixed_screen_shell(
     hero_box = (0, 0, canvas.width, 1050)
     hero = _position_phone_hero_art(
         screen, (hero_box[2] - hero_box[0], hero_box[3] - hero_box[1]),
+        preserve_image_background=preserve_image_background,
     )
     # First lay the texture beneath the visual-only hero. This matters for
     # PNG/WebP assets with an alpha background: their transparent pixels must
@@ -1296,6 +1307,7 @@ def compose_phone_device_asset(
     visual_mode: str = "phone",
     logo_symbol_color: str = NATAL_SYMBOL_COLOR,
     logo_name_color: str = NATAL_NAME_COLOR,
+    preserve_image_background: bool = False,
 ) -> dict[str, Any]:
     """Fuse the fixed front frame and its deterministic upright app screen.
 
@@ -1333,6 +1345,7 @@ def compose_phone_device_asset(
         screen, phone_title, cta, screen_texture,
         phone_button_texts, phone_button_appearances, typography, logo_enabled,
         logo_symbol_color, logo_name_color,
+        preserve_image_background=preserve_image_background,
     )
     screen_size = (
         IPHONE_SCREEN_BOX[2] - IPHONE_SCREEN_BOX[0],

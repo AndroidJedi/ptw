@@ -14,7 +14,7 @@ type Question = { id: string; status: string; answers?: Record<string, string[]>
 type Chat = { id: string; turns: Turn[]; preferences?: Options; questions?: Question[]; event_cursor?: number; before?: number; has_more?: boolean; releases?: { request_id: string; status: string }[]; pushes?: { request_id: string; status: string }[] }
 type Runtime = { target: string; available: boolean; chats: { id: string; title: string }[]; active_turn?: { id: string; chat_id: string } }
 type Deployment = { id: string; revision?: string; status: string; phase?: string; workflow_url?: string; chat_id?: string }
-type Release = { candidate: { available: boolean; deployable?: boolean; pushable?: boolean; branch?: string; changed_files: string[]; unavailable_reason?: string; push_unavailable_reason?: string }; deployment?: Deployment; history?: Deployment[] }
+type Release = { live?: { verified: boolean; revision?: string; checked_at: string }; candidate: { available: boolean; deployable?: boolean; pushable?: boolean; branch?: string; changed_files: string[]; unavailable_reason?: string; push_unavailable_reason?: string }; deployment?: Deployment; history?: Deployment[] }
 const base = '/api/v1/settings/commander'
 const active = (turn: Turn) => ['queued', 'running', 'stopping'].includes(turn.status)
 const storage = {
@@ -109,7 +109,10 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       const value = await api.get<Chat>(`${base}/chats/${id}`)
       if (selected.current === id) installChat(value)
     }
-    if (detail.target === 'hosted') setRelease(await api.get<Release>(`${base}/deployments${id ? '?chat_id=' + id : ''}`))
+    if (detail.target === 'hosted') {
+      const value = await api.get<Release>(`${base}/deployments${id ? '?chat_id=' + id : ''}`)
+      if (selected.current === (id || '')) setRelease(value)
+    }
   }
 
   useEffect(() => {
@@ -140,7 +143,7 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
     return () => { disposed = true; clearTimeout(timer) }
   }, [api]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (follow.current && timeline.current) timeline.current.scrollTop = timeline.current.scrollHeight }, [chat?.turns.map(t => t.reply + t.status).join('|'), chat?.questions?.length])
+  useEffect(() => { if (follow.current && timeline.current) timeline.current.scrollTop = timeline.current.scrollHeight }, [chat?.turns.map(t => t.reply + t.status).join('|'), chat?.questions?.length, release?.deployment?.id, release?.deployment?.status, release?.live?.revision, release?.live?.verified, release?.candidate.changed_files.join('|')])
   useEffect(() => {
     const viewport = window.visualViewport
     let frame = 0
@@ -238,10 +241,15 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const releaseActive = !!deployment && ['preparing', 'queued', 'running'].includes(deployment.status)
   const branchPush = chat?.pushes?.[0]
   const branchPushActive = branchPush?.status === 'pending'
-  const releaseLabel = deployment?.status === 'succeeded' ? tr('Deployment completed', 'Розгортання завершено')
-    : deployment?.status === 'failed' ? tr('Deployment failed — open details', 'Помилка розгортання — відкрити деталі')
-      : deployment?.status === 'bookkeeping_required' ? tr('Live — source synchronization needs attention', 'Опубліковано — потрібна синхронізація коду')
-        : tr('Building, checking and deploying…', 'Збірка, перевірка та розгортання…')
+  const deploymentLabel = (status: string) => ({
+    preparing: tr('Preparing release', 'Підготовка релізу'),
+    queued: tr('Deployment queued', 'Розгортання в черзі'),
+    running: tr('Building, checking and deploying…', 'Збірка, перевірка та розгортання…'),
+    succeeded: tr('Deployment completed', 'Розгортання завершено'),
+    failed: tr('Deployment failed — open details', 'Помилка розгортання — відкрити деталі'),
+    bookkeeping_required: tr('Rollout accepted — source synchronization needs attention', 'Реліз прийнято — потрібна синхронізація коду'),
+  } as Record<string, string>)[status] || tr('Deployment status unverified', 'Стан розгортання не перевірено')
+  const releaseLabel = deploymentLabel(deployment?.status || '')
   const releasePhase = deployment?.phase && ({ application: tr('Updating services', 'Оновлення сервісів'), hosting: tr('Publishing website', 'Публікація сайту'), infrastructure: tr('Applying configuration', 'Застосування конфігурації'), rolled_back: tr('Previous release restored', 'Попередній реліз відновлено'), recovery_failed: tr('Recovery needs operator attention', 'Відновлення потребує уваги оператора') } as Record<string, string>)[deployment.phase]
 
   return <section ref={workspace} className="commander-workspace" aria-label="Commander">
@@ -268,12 +276,19 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       </div>)}
       {chat?.questions?.filter(q => q.status === 'pending').map(question => <Questions key={question.id} question={question} api={api} chatId={chat.id} language={language} reload={load} />)}
       {chat?.questions?.filter(q => q.status !== 'pending').map(question => <details key={question.id} className="commander-question"><summary>{tr('Clarification', 'Уточнення')} · {question.status}</summary>{question.payload.questions.map(item => <p key={item.id}>{item.question}<br />{question.answers?.[item.id]?.join(', ') || tr('Reply below to continue this interrupted question.', 'Відповідайте нижче, щоб продовжити це перерване уточнення.')}</p>)}</details>)}
+      {runtime?.target === 'hosted' && <div className="commander-changes" role="status">
+        {release?.live?.verified && release.live.revision ? <>
+          <span>{tr('Verified live revision', 'Перевірена активна версія')}: <code>{release.live.revision.slice(0, 12)}</code></span>
+          {release.candidate.changed_files.length === 0 && release.candidate.available && <span>{tr('All current changes are deployed.', 'Усі поточні зміни розгорнуто.')}</span>}
+          <small>{tr('Checked', 'Перевірено')}: {new Date(release.live.checked_at).toLocaleString(language === 'uk' ? 'uk-UA' : 'en-GB', { timeZone: 'UTC' })} UTC</small>
+        </> : <span>{tr('Live deployment could not be verified.', 'Не вдалося перевірити активне розгортання.')}</span>}
+      </div>}
       {deployment && (!deployment.chat_id || deployment.chat_id === chat?.id) && <article className="commander-release-message" role="status"><Rocket /><div><strong>{releaseLabel}</strong><small>{deployment.revision?.slice(0, 12)}</small>{deployment.workflow_url && <a href={deployment.workflow_url} target="_blank" rel="noreferrer">{tr('Release details', 'Деталі релізу')}</a>}</div></article>}
       {releasePhase && <p className="commander-changes" role="status">{releasePhase}</p>}
       {chat?.releases?.filter(item => item.status !== 'submitted').map(item => <p key={item.request_id} className="commander-changes" role={item.status === 'failed' ? 'alert' : 'status'}>{item.status === 'failed' ? tr('Deployment could not start. Review the current changes, then retry Deploy.', 'Не вдалося почати розгортання. Перегляньте зміни й повторіть спробу.') : tr('Sending completed changes to deployment…', 'Передаю завершені зміни на розгортання…')}</p>)}
-      {release?.history?.filter(item => item.id !== deployment?.id).map(item => <details className="commander-release-message" key={item.id}><summary>{tr('Previous release', 'Попередній реліз')} · {item.status}</summary><small>{item.revision?.slice(0, 12)}</small>{item.workflow_url && <a href={item.workflow_url} target="_blank" rel="noreferrer">{tr('Release details', 'Деталі релізу')}</a>}</details>)}
+      {release?.history?.filter(item => item.id !== deployment?.id).map(item => <details className="commander-release-message" key={item.id}><summary>{tr('Previous release', 'Попередній реліз')} · {deploymentLabel(item.status)}</summary><small>{item.revision?.slice(0, 12)}</small>{item.workflow_url && <a href={item.workflow_url} target="_blank" rel="noreferrer">{tr('Release details', 'Деталі релізу')}</a>}</details>)}
       {branchPush && <p className="commander-changes" role={branchPush.status === 'failed' || branchPush.status === 'uncertain' ? 'alert' : 'status'}>{branchPush.status === 'pending' ? tr('Pushing the committed branch…', 'Публікую закомічену гілку…') : branchPush.status === 'submitted' ? tr('Branch pushed to GitHub. No deployment ran.', 'Гілку запушено в GitHub. Розгортання не запускалось.') : branchPush.status === 'uncertain' ? tr('Branch push needs reconciliation.', 'Результат push потребує звірки.') : tr('Branch push failed. Commit changes and check that the remote branch has not diverged.', 'Push гілки не вдався. Закомітьте зміни й перевірте, що віддалена гілка не розійшлася.')}</p>}
-      {release?.candidate.changed_files.length ? <div className="commander-changes"><span>{tr('New changes ready', 'Нові зміни готові')} · {release.candidate.changed_files.length} {tr('files', 'файлів')}{release.candidate.branch ? ` · ${release.candidate.branch}` : ''}</span><details><summary>{tr('View changes', 'Переглянути зміни')}</summary>{release.candidate.changed_files.map(path => <code key={path}>{path}</code>)}</details></div> : null}
+      {release?.candidate.changed_files.length ? <div className="commander-changes"><span>{tr('Changes awaiting deployment', 'Зміни очікують розгортання')} · {release.candidate.changed_files.length} {tr('files', 'файлів')}{release.candidate.branch ? ` · ${release.candidate.branch}` : ''}</span><details><summary>{tr('View changes', 'Переглянути зміни')}</summary>{release.candidate.changed_files.map(path => <code key={path}>{path}</code>)}</details></div> : null}
     </div>
     <form className="commander-composer" onSubmit={event => { event.preventDefault(); void send() }}>
       {error && <div className="commander-error" role="alert"><span>{error}</span><button type="button" aria-label={tr('Dismiss error', 'Закрити помилку')} onClick={() => setError('')}><X /></button></div>}

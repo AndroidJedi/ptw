@@ -174,6 +174,8 @@ def post_definition(record):
         normalized = content(value)
         result = {"template_id": identity.template_id, "template_reference": identity.to_reference(),
                   "content": normalized["template_text"], "logo": configuration["logo"]}
+        if "preserve_image_background" in configuration:
+            result["preserve_image_background"] = configuration["preserve_image_background"]
         if "template_palette" in configuration:
             result["template_palette"] = configuration["template_palette"]
         if "template_typography" in configuration:

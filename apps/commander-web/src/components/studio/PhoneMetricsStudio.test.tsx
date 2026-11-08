@@ -188,6 +188,47 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it.each(['post.phone-metrics.react', 'post.declarative.react'])('keeps the image background through preview, style changes and generation in %s', async (editorKey) => {
+    const current = structuredClone(detail)
+    current.editor_key = editorKey
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()} />)
+    await screen.findByText('Preview up to date')
+    const previews = vi.mocked(api.postMedia).mock.calls.length
+    fireEvent.click(screen.getByLabelText('Keep image background'))
+    expect(post).not.toHaveBeenCalled()
+    expect(api.postMedia).toHaveBeenCalledTimes(previews)
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(`${basePath}/preview`, expect.objectContaining({
+      configuration: expect.objectContaining({ preserve_image_background: true }),
+    }), 'image/png', expect.anything()))
+    expect(post).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset image direction' }))
+    fireEvent.click(screen.getByDisplayValue('tactile_handmade'))
+    fireEvent.click(screen.getByDisplayValue('isolated_key_element'))
+    expect(screen.getByLabelText('Keep image background')).toBeChecked()
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), { target: { value: 'Repair the gaps in the image.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+    await screen.findByText('New iPhone hero visual generated and applied.')
+    expect(post.mock.calls.map(([path]) => path)).toEqual([
+      `${basePath}/configuration`, `${basePath}/creative-direction`, `${basePath}/phone-screen/generate`,
+    ])
+    expect(post.mock.calls[0][1]).toMatchObject({ configuration: { preserve_image_background: true } })
+    expect(post.mock.calls[2][1]).toMatchObject({ changed_image_settings: expect.arrayContaining(['preserve_image_background']) })
+    expect(screen.getByLabelText('Keep image background')).toBeChecked()
+
+    post.mockRejectedValueOnce(new Error('Provider unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+    await screen.findByText('Provider unavailable')
+    expect(screen.getByLabelText('Keep image background')).toBeChecked()
+    expect(screen.getByLabelText('Keep image background')).toBeEnabled()
+    fireEvent.click(screen.getByLabelText('Keep image background'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await screen.findByText('Creative saved with an edit checkpoint.')
+    expect(post.mock.calls.at(-1)?.[1]).toMatchObject({ configuration: { preserve_image_background: false } })
+  })
+
   it('applies screenshot-backed Agent edits to an authored Post without saving or approving', async () => {
     const authored = structuredClone(detail)
     authored.editor_key = 'post.declarative.react'

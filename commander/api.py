@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hmac
 from typing import Any, Mapping
+from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException
 
+from .agent_bot import AgentBotService
 from .settings import Settings
 
 
@@ -15,8 +17,20 @@ def telegram_command(raw: str) -> str:
     return first if first in {"/help", "/status", "/stop"} else ""
 
 
-def create_app(settings: Settings) -> FastAPI:
+def create_app(settings: Settings, *, agent_bot_service: AgentBotService | None = None) -> FastAPI:
     app = FastAPI(title="PTW Commander", version="2.0.0", docs_url=None, redoc_url=None)
+    bot_service = agent_bot_service
+
+    def agent_bot() -> AgentBotService:
+        nonlocal bot_service
+        if bot_service is None:
+            bot_service = AgentBotService(settings.database_url)
+            app.state.agent_bot = bot_service
+        return bot_service
+
+    def owner_gateway_authorize(token: str) -> None:
+        if not settings.owner_gateway_bridge_token or not hmac.compare_digest(token, settings.owner_gateway_bridge_token):
+            raise HTTPException(status_code=401, detail="invalid owner gateway token")
 
     def connection() -> Any:
         import psycopg
@@ -90,6 +104,74 @@ def create_app(settings: Settings) -> FastAPI:
         except Exception as error:
             raise HTTPException(status_code=503, detail="validation database unavailable") from error
         return {"status": "ready", "domain": "brief_v1", **current}
+
+    @app.get("/internal/v1/agent-bot")
+    def agent_bot_status(x_ptw_owner_gateway_token: str = Header(default="")) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        return agent_bot().status()
+
+    @app.post("/internal/v1/agent-bot/conversations", status_code=201)
+    def create_agent_bot_conversation(
+        request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        if set(request) - {"title"} or (request.get("title") is not None and not isinstance(request.get("title"), str)):
+            raise HTTPException(status_code=400, detail="Only an optional conversation title is accepted")
+        return agent_bot().create_conversation(str(request.get("title") or ""))
+
+    @app.get("/internal/v1/agent-bot/conversations/{conversation_id}")
+    def agent_bot_conversation(
+        conversation_id: UUID, x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        try:
+            return agent_bot().conversation(str(conversation_id))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Commander Bot conversation not found") from None
+
+    @app.post("/internal/v1/agent-bot/conversations/{conversation_id}/messages", status_code=202)
+    def send_agent_bot_message(
+        conversation_id: UUID, request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        if set(request) != {"request_id", "message"}:
+            raise HTTPException(status_code=400, detail="request_id and message are required")
+        try:
+            return agent_bot().send_message(str(conversation_id), str(UUID(str(request["request_id"]))), str(request["message"]))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Commander Bot conversation not found") from None
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
+    @app.post("/internal/v1/agent-bot/conversations/{conversation_id}/actions/{action_id}")
+    def decide_agent_bot_action(
+        conversation_id: UUID, action_id: UUID, request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        if set(request) != {"decision"} or request.get("decision") not in {"approved", "rejected"}:
+            raise HTTPException(status_code=400, detail="decision must be approved or rejected")
+        try:
+            return agent_bot().decide_action(str(conversation_id), str(action_id), str(request["decision"]))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Commander Bot action not found") from None
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
+    @app.post("/internal/v1/agent-bot/conversations/{conversation_id}/tasks/{task_id}/stop", status_code=202)
+    def stop_agent_bot_task(
+        conversation_id: UUID, task_id: UUID, x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        owner_gateway_authorize(x_ptw_owner_gateway_token)
+        try:
+            return agent_bot().stop_task(str(conversation_id), str(task_id))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Commander Bot conversation not found") from None
+
+    @app.on_event("shutdown")
+    def close_agent_bot() -> None:
+        if bot_service is not None:
+            bot_service.close()
 
     @app.post("/internal/emergency-stop")
     def internal_emergency_stop(

@@ -25,7 +25,7 @@ def generation_request(request: Mapping[str, Any]) -> dict[str, Any]:
         from .image_generation_policy import resolve_instruction
         resolve_instruction(str(request["visual_direction"]), requested=context)
     changed = request.get("changed_image_settings", [])
-    if not isinstance(changed, list) or len(changed) > 3 or any(not isinstance(key, str) or key not in {"style", "background", "palette"} for key in changed):
+    if not isinstance(changed, list) or len(changed) > 4 or any(not isinstance(key, str) or key not in {"style", "background", "palette", "preserve_image_background"} for key in changed):
         raise ValueError("Changed image settings are invalid")
     enhance = request.get("enhance_current", False)
     if not isinstance(enhance, bool):

@@ -80,7 +80,8 @@ class ImageReferenceTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(studio_creative_router(service, prefix='/studio'))
         app.include_router(landing_page_router(service, prefix='/landing'))
-        request = {'base_sha256': 'a'*64, 'visual_direction': 'Keep the object, change the background', 'reference_image': upload()}
+        request = {'base_sha256': 'a'*64, 'visual_direction': 'Keep the object, change the background', 'reference_image': upload(),
+                   'changed_image_settings': ['preserve_image_background']}
         for path in ('/studio/projects/project/creatives/creative/phone-screen/generate',
                      '/landing/projects/project/pages/page/visuals/hero_visual/generate',
                      '/landing/projects/project/pages/page/visuals/visual_break_visual/generate'):
@@ -89,6 +90,7 @@ class ImageReferenceTests(unittest.TestCase):
                 response = client.post(path, json=request)
                 self.assertEqual(200, response.status_code, response.text)
                 self.assertEqual(decode_reference(request['reference_image']), service.mutate.call_args.kwargs['reference_image'])
+                self.assertEqual(['preserve_image_background'], service.mutate.call_args.kwargs['changed_image_settings'])
                 self.assertNotIn('reference_image', response.json())
                 service.reset_mock()
                 invalid = client.post(path, json={**request, 'reference_image': {'mime_type': 'image/png', 'bytes_base64': 'invalid'}})

@@ -124,13 +124,21 @@ def compile_image_prompt(context: Mapping[str, Any]) -> str:
     if destination.get("slot") == "visual_break_visual":
         guidance += " Keep essential subjects within the central horizontal band for the shallow landscape crop."
     if destination.get("template_id") == "daddy":
-        guidance += " Do not include hands or fingers. Keep production artwork independent of outer ad text, logos and device hardware."
+        guidance += " By default omit hands or fingers; an explicit owner request for a pose or interaction involving hands overrides this default. Keep production artwork independent of outer ad text, logos and device hardware."
         if destination.get("pose") == "landscape" and destination.get("mode") == "app_screen":
             guidance = guidance.replace("portrait 9:19.5", "landscape 19.5:9")
         if settings.get("art_treatment") == "line_drawing" and destination.get("mode") != "app_screen":
             guidance += " Use original expressive line drawing with a restrained palette, visible drawn contours and purposeful annotation space."
     style = PHONE_HERO_STYLE_DIRECTIVES.get(str(settings.get("style")), "")
     background = PHONE_HERO_BACKGROUND_DIRECTIVES.get(str(settings.get("background")), "")
+    if settings.get("preserve_image_background") is True:
+        background = (
+            "Keep the image background. For an edit, retain the reference's existing background "
+            "and complete foreground objects while applying the requested style or repairs. "
+            "For a new image, include a complete supporting backdrop. Do not isolate the subject "
+            "or remove scenery unless the exact owner instruction explicitly asks for that. "
+            "This setting overrides the default background treatment."
+        )
     if destination.get("mode") in {"app_screen", "app_mockup"}:
         # Photograph/illustration presets must not turn an app interface into a poster.
         style = "Realistic native app UI following the shared screen_design; explicit owner instructions still take priority."

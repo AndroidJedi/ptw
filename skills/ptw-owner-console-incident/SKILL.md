@@ -186,6 +186,16 @@ failure, response loss, keyboard blocking, retry, focus and sanitized EN/UK copy
 
 ## Brief, Studio, and provider checks
 
+- For a Manual Agent pose/grip edit that leaves the image unchanged, distinguish
+  a missing `image_actions` entry from image-provider failure or an unchanged
+  generated result. Reproduce the owner phrasing against request constraints on
+  the exact template: authored Posts must not bypass Phone-only guards. Check
+  `enhance_current`, selected-reference digest and the original owner instruction
+  at the image handoff. Pose edits need pixels, not caption/direction patches.
+  Verify no-action rejection, selected-source reuse, quoted copy and no-generation
+  exclusions with regression tests. Local reproduction does not establish the
+  cause of a specific live attempt without its receipt and before/after images.
+
 - A Pexels readiness HTTP 5xx may be transient. Compare the one-off release
   transport with the running service without printing credentials. Permit at
   most three read-only attempts with bounded backoff for upstream 5xx only;

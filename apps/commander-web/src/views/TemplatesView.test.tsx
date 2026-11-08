@@ -252,3 +252,38 @@ it('has loading, gallery failure retry and empty states without fabricating cont
   fireEvent.click(screen.getByRole('button', { name: /^Retry$/ }))
   expect(await screen.findByText('No templates for this surface yet.')).toBeVisible()
 })
+
+it('compares immutable polish previews without inference and accepts the selected version', async () => {
+  const api = client()
+  const original = { ...proposed, scope: 'post' }
+  const refinedPreview = { ...preview, sha256: 'd'.repeat(64) }
+  const refined = { ...original, state_sha256: 'e'.repeat(64), previews: { 'post:desktop': refinedPreview }, polish: { profile: 'impeccable-post-v1', original: { previews: original.previews }, changes: ['typography'] } }
+  api.get.mockImplementation(async path => path.endsWith('/runs') ? { items: [original] } : path.includes('/runs/') ? original : { items: [] })
+  api.post.mockImplementation(async () => refined)
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Open for review' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Try Impeccable polish' }))
+  expect(await screen.findByRole('button', { name: 'Accept original' })).toBeEnabled()
+  expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/resume'), expect.objectContaining({ refinement_profile: 'impeccable-post-v1' }), expect.anything())
+  const requests = api.post.mock.calls.length
+  fireEvent.click(screen.getByRole('button', { name: 'Refined' }))
+  expect(screen.getByRole('button', { name: 'Accept refined' })).toBeEnabled()
+  await waitFor(() => expect(api.image).toHaveBeenCalledWith('/api/v1/templates/media/' + refinedPreview.sha256, 'image/png', refinedPreview.sha256))
+  fireEvent.click(screen.getByRole('button', { name: 'Original' }))
+  expect(api.post).toHaveBeenCalledTimes(requests)
+  fireEvent.click(screen.getByRole('button', { name: 'Accept original' }))
+  await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(expect.stringContaining('/decision'), expect.objectContaining({ selection: 'original', base_sha256: refined.state_sha256 }), expect.anything()))
+})
+
+it('restores a failed polish comparison on refresh and offers the original plus retry', async () => {
+  const api = client()
+  const failed = { ...failedDraft, can_restore: true, polish: { profile: 'impeccable-post-v1', original: { previews: proposed.previews }, changes: [] }, latest_correction: { correction_id: 'polish-request', instruction: 'Polish typography', status: 'failed', submitted_revision: 3, retry_count: 0 } }
+  window.history.replaceState(null, '', '/?page=templates&template_run=' + failed.run_id)
+  api.get.mockImplementation(async path => path.endsWith('/runs') ? { items: [failed] } : path.includes('/runs/') ? failed : { items: [] })
+  render(<TemplatesView api={api as unknown as ApiClient} language="en" />)
+  expect(await screen.findByRole('button', { name: 'Accept original' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Refined' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Retry my correction' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Discard polish' })).toBeEnabled()
+  expect(api.post).not.toHaveBeenCalled()
+})

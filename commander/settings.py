@@ -20,6 +20,7 @@ class Settings:
     allowed_user_ids: frozenset[int]
     allowed_chat_ids: frozenset[int]
     owner_web_url: str = "https://provethemwrong-86123.firebaseapp.com"
+    owner_gateway_bridge_token: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -35,4 +36,5 @@ class Settings:
             telegram_bot_token=token,
             allowed_user_ids=users, allowed_chat_ids=chats,
             owner_web_url=os.environ.get("OWNER_WEB_URL", "https://provethemwrong-86123.firebaseapp.com").rstrip("/"),
+            owner_gateway_bridge_token=os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip(),
         )

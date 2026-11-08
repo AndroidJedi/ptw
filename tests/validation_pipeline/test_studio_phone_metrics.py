@@ -62,6 +62,42 @@ class FakePhoneScreenImageProvider:
 
 @unittest.skipUnless(__import__("importlib").util.find_spec("PIL") is not None, "Pillow is required")
 class PhoneMetricsTemplateTests(unittest.TestCase):
+    def test_keep_background_bypasses_matte_removal_and_persists_without_new_art(self):
+        from PIL import Image
+
+        self.assertNotIn("preserve_image_background", normalize_phone_metrics_config(DEFAULT_PHONE_CONFIG))
+        for invalid in ("true", 1, None):
+            with self.assertRaisesRegex(ValueError, "must be boolean"):
+                normalize_phone_metrics_config({**DEFAULT_PHONE_CONFIG, "preserve_image_background": invalid})
+        detail = self._phone()
+        raw = _screen_bytes("#F5F6F3")
+        detail = self.workspace.store_generated_phone_screen(
+            base_sha256=detail["state_sha256"], data=raw,
+            source={"origin": "codex_builtin_image_generation", "text_in_screen": "prohibited_by_prompt"},
+        )
+        config = {**detail["configuration"], "preserve_image_background": True}
+        with patch("validation_pipeline.studio_phone_metrics._clear_phone_hero_edge_matte", side_effect=AssertionError("background removed")):
+            positioned = _position_phone_hero_art(Image.open(BytesIO(raw)), (832, 1050), preserve_image_background=True)
+            self.assertEqual((245, 246, 243, 255), positioned.getpixel((20, 500)))
+            preview = self.workspace.render_preview(state_sha256=detail["state_sha256"], configuration=config, content=detail["content"])
+            self.assertEqual(detail["state_sha256"], self.workspace.state_sha256())
+            self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=config, content=detail["content"], change_note="Keep original background")
+            reopened = PostStudioWorkspace(self.workspace.root)
+            saved = reopened.detail()
+            self.assertTrue(saved["configuration"]["preserve_image_background"])
+            self.assertEqual(raw, reopened._asset_record("phone_screen")["bytes"])
+            self.assertEqual(detail["phone_screen_history"], saved["phone_screen_history"])
+            self.assertEqual(preview["bytes"], reopened.version_render(1)["bytes"])
+            clone = PostStudioWorkspace(self.workspace.root / "cloned")
+            cloned = clone.restore_approved_clone(
+                base_sha256=clone.detail()["state_sha256"], configuration=config, content=detail["content"],
+                assets=[{key: asset[key] for key in ("slot", "mime_type", "source")} | {
+                    "bytes_base64": base64.b64encode(asset["bytes"]).decode(),
+                } for asset in reopened.version_clone_assets(1)],
+            )
+            self.assertTrue(cloned["configuration"]["preserve_image_background"])
+            self.assertEqual(preview["bytes"], clone.render_preview(state_sha256=cloned["state_sha256"])["bytes"])
+
     def test_image_mode_preserves_raw_pixels_and_saved_phone_settings(self):
         from PIL import Image
 

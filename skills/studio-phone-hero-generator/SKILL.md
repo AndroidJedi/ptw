@@ -23,7 +23,8 @@ not subject identity. Isolation removes scenery, not objects needed for an
 interaction; an explicit requested setting wins. Omit text, logos, charts and UI
 by default; include them within artwork when explicitly requested.
 
-Daddy excludes hands and uses standalone portrait, landscape or angled devices.
+Daddy excludes hands by default and uses standalone portrait, landscape or angled
+devices. An explicit owner request for hands or a held object overrides that default.
 Generate only the named slot: scene, screen interior, subject, feature or prop.
 Keep screen language/functionality Brief-grounded; no hardware in interiors.
 Coordinate palette, framing and destination across separate assets. Illustrations

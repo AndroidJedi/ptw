@@ -92,6 +92,7 @@ test('Commander pushes a branch separately and deploys in one click without page
       return route.fulfill({ json: {
         candidate: { available: true, deployable: deployment === null, pushable: true, branch: 'feature/test-branch', changed_files: ['apps/commander-web/src/change.tsx'], protected_files: [] },
         deployment,
+        live: { verified: true, revision: 'a'.repeat(40), checked_at: '2026-10-11T12:00:00Z' },
       } })
     }
     if (path === base) return route.fulfill({ json: { target: 'hosted', available: true, chats: [], active_turn: null } })
@@ -104,6 +105,13 @@ test('Commander pushes a branch separately and deploys in one click without page
   expect(deployment).toBeNull()
   await page.getByRole('button', { name: 'Deploy', exact: true }).click()
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
-  await expect(page.getByText('Building, checking and deploying…')).toBeVisible()
+  await expect(page.getByText('Deployment queued')).toBeVisible()
+  await expect(page.getByText('Deployment queued')).toBeInViewport({ ratio: 1 })
+  expect(await page.locator('.commander-composer').evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBeTruthy()
+  const composer = await page.locator('.commander-composer').boundingBox()
+  const send = await page.getByRole('button', { name: 'Send', exact: true }).boundingBox()
+  expect(send!.x + send!.width).toBeLessThanOrEqual(composer!.x + composer!.width)
+  await expect(page.getByText('Verified live revision', { exact: false })).toContainText('aaaaaaaaaaaa')
+  await expect(page.getByText('Changes awaiting deployment', { exact: false })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })

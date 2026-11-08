@@ -54,6 +54,23 @@ class DomainImagePolicyTests(unittest.TestCase):
         self.assertNotIn("background", edit["changed_settings"])
         self.assertIn("preserve unspecified reference characteristics", compile_image_prompt(edit))
 
+    def test_keep_background_overrides_isolation_and_survives_style_changes(self):
+        from validation_pipeline.image_reference import generation_request
+        for style in ("cinematic", "tactile_handmade"):
+            context = self.context(operation="enhance_current", settings={
+                "style": style, "background": "isolated_key_element", "preserve_image_background": True,
+            }, changed_settings=["preserve_image_background", "style"])
+            prompt = compile_image_prompt(context)
+            self.assertIn("Default background: Keep the image background", prompt)
+            self.assertIn("retain the reference's existing background", prompt)
+            self.assertNotIn("Default background: Show the complete focal subject", prompt)
+            self.assertTrue(context["changed_settings"]["preserve_image_background"])
+        request = generation_request({"base_sha256": "a" * 64, "visual_direction": "Repair the white gaps",
+            "changed_image_settings": ["style", "background", "palette", "preserve_image_background"]})
+        self.assertIn("preserve_image_background", request["changed_image_settings"])
+        disabled = self.context(settings={"background": "isolated_key_element", "preserve_image_background": False})
+        self.assertIn("Default background: Show the complete focal subject", compile_image_prompt(disabled))
+
     def test_uploaded_reference_explicit_changes_and_request_validation(self):
         from validation_pipeline.image_reference import generation_request
         context = self.context(operation="uploaded_reference", changed_settings=["style"])
@@ -74,6 +91,18 @@ class DomainImagePolicyTests(unittest.TestCase):
         self.assertIn("central horizontal band", compile_image_prompt(image))
         self.assertNotIn("reserved areas", compile_image_prompt(image))
         self.assertNotEqual(image_provenance(phone)["image_context_sha256"], image_provenance(image)["image_context_sha256"])
+
+    def test_daddy_default_does_not_prohibit_owner_requested_hand_interaction(self):
+        direction = "Keep the same person holding the same bag with both hands"
+        context = self.context(
+            direction=direction, instruction=instruction_context(direction, origin="owner"),
+            operation="enhance_current",
+            destination={"template_id": "daddy", "mode": "image", "slot": "subject"},
+        )
+        prompt = compile_image_prompt(context)
+        self.assertIn(direction, prompt)
+        self.assertIn("overrides this default", prompt)
+        self.assertNotIn("Do not include hands or fingers", prompt)
 
     def test_project_context_is_independent_and_large_requests_are_not_truncated(self):
         one = self.context()

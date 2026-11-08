@@ -147,6 +147,34 @@ class CommanderReleaseTests(unittest.TestCase):
         self.assertEqual(("failed", "release_workflow_failed"), (result["status"], result["error_code"]))
         self.assertEqual(payload["workflow_runs"][0]["html_url"], result["workflow_url"])
 
+    def test_live_marker_is_separate_from_older_success_and_pending_changes(self):
+        initial = self.service.detail()
+        self.assertEqual(self.base, initial["live"]["revision"])
+        self.assertTrue(initial["live"]["verified"])
+        (self.repo / "README.md").write_text("pending change\n")
+        queued = self.create_without_network()["deployment"]
+        with self.service._db() as db:
+            db.execute("UPDATE deployments SET status='succeeded' WHERE id=?", (queued["id"],))
+        # A historical success must not replace the current authoritative marker.
+        result = self.service.detail()
+        self.assertEqual("succeeded", result["deployment"]["status"])
+        self.assertEqual(self.base, result["live"]["revision"])
+        self.assertIn("README.md", result["candidate"]["changed_files"])
+        self.deployed.unlink()
+        unavailable = self.service.detail()
+        self.assertFalse(unavailable["live"]["verified"])
+        self.assertIsNone(unavailable["live"]["revision"])
+
+    def test_successful_workflow_without_exact_deployed_marker_is_not_success(self):
+        (self.repo / "README.md").write_text("new change\n")
+        queued = self.create_without_network()["deployment"]
+        payload = {"workflow_runs": [{"head_sha": queued["request_revision"], "status": "completed", "conclusion": "success"}]}
+        self.service._last_workflow_poll = float("-inf")
+        with patch("validation_pipeline.commander_release.urlopen", return_value=Response(payload)):
+            result = self.service.detail()
+        self.assertEqual("failed", result["deployment"]["status"])
+        self.assertEqual(self.base, result["live"]["revision"])
+
     def test_failed_workflow_reconciles_after_exact_candidate_is_accepted_and_promoted(self):
         path = self.repo / "owner_gateway/change.py"
         path.parent.mkdir()

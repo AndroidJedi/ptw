@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .template_components import (COMPONENT_FIELDS, COMPONENT_NUMBER_BOUNDS, COMPONENT_TYPES, PLACEHOLDERS, ROLES,
     STUDIO_FONT_FAMILIES, apply_edits, bounded_text, box, canonical, catalog, number)
 from .template_assets import ASSET_IDS, is_reference_identity
+from . import template_polish
 from .provider import (TEMPLATE_CORRECTION_KEY, enforce_structured_contract_budget,
     enforce_structured_response_budget, template_validation_correction)
 
@@ -133,6 +134,8 @@ def contract(phase: str, run: dict) -> tuple[dict, dict]:
         return payload, ANALYSIS_SCHEMA
     payload.update({"analysis": run["analysis"], "definitions": run["documents"],
                     "capabilities": {s: catalog(s, run["analysis"]["component_types"]) for s in run["documents"]}})
+    if run.get("polish"):
+        payload["refinement_profile"] = {"id": template_polish.PROFILE, "guidance": template_polish.guidance(_SKILL)}
     if any("daddy_configuration" in doc for doc in run["documents"].values()):
         from .studio_daddy import agent_catalog
         for surface,doc in run["documents"].items():
@@ -192,6 +195,7 @@ def call(provider, phase: str, run: dict, images: list[tuple[str, bytes]], *, ca
         if phase == "analyze":
             return validate_analysis(value)
         result = validate_step(value, run["documents"], comparison=phase == "compare")
+        template_polish.validate_edits(run, result["edits"])
         if any(edit["surface"] not in run.get("editable_surfaces", run["documents"]) for edit in result["edits"]):
             raise ValueError("The owner did not authorize edits to that surface")
         return result

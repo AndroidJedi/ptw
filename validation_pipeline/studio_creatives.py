@@ -1333,6 +1333,8 @@ class StudioCreativeService:
         config = detail["configuration"]
         direction = self._creative_direction(creative) or {}
         settings = {**direction, "palette": config.get("template_palette", config.get("background", {}))}
+        if "preserve_image_background" in config:
+            settings["preserve_image_background"] = config["preserve_image_background"]
         definition = self._workspace(str(creative["creative_id"]))._definition()
         artwork_slots = [{key: item[key] for key in ("id", "type", "box", "mobile_box", "fit", "rotation", "enabled") if key in item}
                          for item in getattr(definition, "document", {}).get("components", [])

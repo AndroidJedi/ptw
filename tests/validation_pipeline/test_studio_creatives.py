@@ -232,6 +232,23 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertIn(owner, self.images.prompts[-1])
         self.assertIsNotNone(self.images.references[-1])
 
+    def test_keep_background_reaches_generation_with_exact_selected_reference(self):
+        project_id, _, detail = self.generate_creative()
+        workspace = self.service._workspace(detail["creative_id"])
+        raw = workspace._asset_record("phone_screen")["bytes"]
+        saved = self.service.mutate(project_id, detail["creative_id"], "save_configuration",
+            base_sha256=detail["state_sha256"], content=detail["content"],
+            configuration={**detail["configuration"], "preserve_image_background": True})
+        generated = self.service.mutate(project_id, detail["creative_id"], "generate_phone_screen",
+            base_sha256=saved["state_sha256"], visual_direction="Repair gaps while preserving the picture",
+            enhance_current=True, changed_image_settings=["preserve_image_background"])
+        context = generated["assets"][0]["source"]["image_context"]
+        self.assertTrue(context["settings"]["preserve_image_background"])
+        self.assertTrue(context["changed_settings"]["preserve_image_background"])
+        self.assertEqual(raw, self.images.references[-1])
+        self.assertIn("Default background: Keep the image background", self.images.prompts[-1])
+        self.assertEqual(detail["generation"]["creative_direction"], generated["generation"]["creative_direction"])
+
     def approved_brief(self, name: str = "Project Alpha") -> tuple[str, str]:
         project_id, brief_id = new_uuid7(), new_uuid7()
         now = utc_now()
@@ -477,6 +494,39 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertTrue(result["image_actions"][0]["enhance_current"])
         self.assertEqual(PHONE_DIRECTION, result["creative_direction"])
         self.assertEqual(detail["state_sha256"], self.service.detail(project_id, detail["creative_id"])["state_sha256"])
+
+    def test_pose_request_rejects_copy_only_and_fresh_generation_then_edits_selected_pixels(self):
+        from validation_pipeline.studio_manual_agent import StudioManualAgentProviderError
+        import hashlib
+
+        project_id, _, detail = self.generate_creative()
+        owner = "Зміни хлопця на зображенні так, щоб він тримав рюкзак обома руками"
+        request = dict(base_sha256=detail["state_sha256"], message=owner, history=[],
+                       configuration=detail["configuration"], content=detail["content"], screenshots=[])
+        action = {"slot": "phone_screen", "visual_direction": "The same person holding the same bag with both hands",
+                  "enhance_current": False, "reference_index": 0}
+        self.provider.manual_edits = []
+        for actions in ([], [action]):
+            self.provider.manual_image_actions = actions
+            with self.assertRaises(StudioManualAgentProviderError):
+                self.service.manual_agent_edit(project_id, detail["creative_id"], request_id=new_uuid7(), **request)
+            self.assertEqual(detail["state_sha256"], self.service.detail(project_id, detail["creative_id"])["state_sha256"])
+            self.assertEqual(1, len(self.images.prompts))
+
+        self.provider.manual_image_actions = [{**action, "enhance_current": True}]
+        planned = self.service.manual_agent_edit(project_id, detail["creative_id"], request_id=new_uuid7(), **request)
+        self.assertEqual(owner, planned["owner_instruction"])
+        generated = self.service.mutate(
+            project_id, detail["creative_id"], "generate_phone_screen",
+            base_sha256=detail["state_sha256"], visual_direction=planned["image_actions"][0]["visual_direction"],
+            enhance_current=planned["image_actions"][0]["enhance_current"],
+            instruction_context={"origin": "agent", "owner_instruction": planned["owner_instruction"]},
+        )
+        self.assertEqual(detail["assets"][0]["sha256"], hashlib.sha256(self.images.references[-1]).hexdigest())
+        self.assertIn(owner, self.images.prompts[-1])
+        self.assertEqual(detail["content"], generated["content"])
+        self.assertEqual(detail["configuration"], generated["configuration"])
+        self.assertNotEqual(detail["assets"][0]["sha256"], generated["assets"][0]["sha256"])
 
     def test_phone_agent_contract_maps_hide_restore_image_only_and_style_without_generation(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")

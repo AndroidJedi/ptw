@@ -67,6 +67,19 @@ it('labels unavailable analytics and runs learning only from the explicit button
   ))
 })
 
+it('requests the UTC today window for Project and All Projects', async () => {
+  const get = vi.fn(async () => fixture())
+  const api = { get, post: vi.fn() } as unknown as ApiClient
+  render(<AnalyticsView api={api} language="en" projectId={projectId} />)
+
+  await screen.findByText('No provider snapshots in this window.')
+  fireEvent.change(screen.getByRole('combobox', { name: 'Analytics window' }), { target: { value: '1' } })
+  await waitFor(() => expect(get).toHaveBeenCalledWith(`/api/v1/analytics/${projectId}/workspace?window=1`))
+  expect(screen.getByText('Posts published today · provider snapshots are cumulative, not daily totals.')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'All Projects' }))
+  await waitFor(() => expect(get).toHaveBeenCalledWith('/api/v1/analytics/global/workspace?window=1'))
+})
+
 it('supports per-rule review edits and requires Activate selected', async () => {
   const get = vi.fn(async () => fixture(true))
   const post = vi.fn(async () => ({}))

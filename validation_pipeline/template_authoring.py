@@ -566,7 +566,7 @@ class TemplateAuthoringService:
                 run = self._update(run, documents=agent.apply_edits(run["documents"], run["comparison"]["edits"]), phase="render")
             if run["phase"] == "compose":
                 run = self._update(run, status="composing")
-                response = invoke("compose", [("correction_reference" if index == 1 else f"correction_reference_{index}", data) for index, data in enumerate(reference_images, 1)] if run.get("latest_correction") else [])
+                response = invoke("compose", ([("correction_reference" if index == 1 else f"correction_reference_{index}", data) for index, data in enumerate(reference_images, 1)] if run.get("latest_correction") else []) + (baseline_images() if run.get("polish") else []))
                 documents = agent.apply_edits(run["documents"], response["edits"])
                 run = self._update(run, documents=documents, phase="render")
             for iteration in range(MAX_ITERATIONS):
@@ -630,6 +630,9 @@ class TemplateAuthoringService:
                     return
                 if response["complete"] and not meaningful and not failures and not response["edits"]:
                     correction = _correction_update(run, "applied", result_revision=int(run.get("revision", 0)) + 1)
+                    if run.get("polish"):
+                        from .template_polish import changes
+                        correction["polish"] = {**run["polish"], "changes": changes(run["polish"]["original"]["documents"], run["documents"])}
                     run = self._update(run, status="proposed", error=None, failure=None, checkpoint=None, **correction)
                     return
                 if not response["edits"]:
@@ -695,7 +698,7 @@ class TemplateAuthoringService:
             and (before_revision is None or int(item.get("revision", 0)) < before_revision)), None)
 
     def can_restore_proposal(self, run: Mapping[str, Any]) -> bool:
-        return self._latest_proposal(str(run["run_id"]), before_revision=int(run.get("revision", 0))) is not None
+        return bool(run.get("polish")) or self._latest_proposal(str(run["run_id"]), before_revision=int(run.get("revision", 0))) is not None
 
     @staticmethod
     def _baseline(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -709,7 +712,8 @@ class TemplateAuthoringService:
         }
 
     def resume(self, run_id: str, request: Mapping) -> dict:
-        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "reference_ids", "mode", "editable_surfaces"}:
+        from . import template_polish
+        if not {"request_id", "base_sha256", "instruction"} <= set(request) or set(request) - {"request_id", "base_sha256", "instruction", "reference_id", "reference_ids", "mode", "editable_surfaces", "refinement_profile"}:
             raise ValueError("Resume fields are invalid")
         request_id, run_id = uuid(request["request_id"]), uuid(run_id)
         digest = sha({"run_id": run_id, "action": "resume", **request})
@@ -734,6 +738,16 @@ class TemplateAuthoringService:
             raise ValueError("Continue uses the saved instruction and pending changes")
         if mode == "refine" and not instruction.strip():
             raise ValueError("Refine requires a focused instruction")
+        profile = request.get("refinement_profile")
+        if "refinement_profile" in request and profile != template_polish.PROFILE:
+            raise ValueError("Unknown refinement profile")
+        if profile:
+            if (mode != "refine" or run["scope"] != "post" or run["status"] != "proposed"
+                    or run.get("polish") or reference_ids(request)):
+                raise TemplateConflict("Polish requires a ready Post-only draft with no existing candidate")
+            instruction = template_polish.INSTRUCTION
+        elif run.get("polish") and mode == "refine":
+            raise TemplateConflict("Accept or discard the polish comparison before requesting other changes")
         if run["status"] == "capability_gap" and mode == "continue":
             from .template_extensions import validated_capability
             if not validated_capability(run["capability_gap"]["capability"]):
@@ -779,6 +793,8 @@ class TemplateAuthoringService:
         if not isinstance(editable, list) or not editable or set(editable) - set(run["documents"]):
             raise ValueError("Editable template surfaces are invalid")
         updated["editable_surfaces"] = editable
+        if profile:
+            updated["polish"] = {"profile": profile, "original": template_polish.snapshot(run), "changes": []}
         preflight_phase = "analyze" if updated["analysis"] is None else ("compose" if updated["phase"] == "compose" else "compare")
         agent.preflight(preflight_phase, updated)
         with self.store.transaction() as tx:
@@ -810,6 +826,8 @@ class TemplateAuthoringService:
                 raise TemplateConflict("This template run cannot restore a proposal")
             proposal = next((item for item in tx.history("run", run_id, 200)
                 if item.get("status") == "proposed" and int(item.get("revision", 0)) < int(run["revision"])), None)
+            if run.get("polish"):
+                proposal = run["polish"]["original"]
             if proposal is None:
                 raise TemplateConflict("This run has no earlier ready proposal")
             correction = _correction_update(run, "discarded")
@@ -822,6 +840,7 @@ class TemplateAuthoringService:
                 "status": "proposed", "phase": "compare", "error": None,
                 "failure": None, "capability_gap": None, "checkpoint": None,
                 "baseline": None, "progress": [],
+                "polish": None,
                 "restored_from": {"revision": int(proposal["revision"]), "state_sha256": proposal["state_sha256"]},
                 **correction,
             }
@@ -832,11 +851,16 @@ class TemplateAuthoringService:
     def retry_correction(self, run_id: str, request: Mapping) -> dict:
         if not {"request_id", "base_sha256"} <= set(request) or set(request) - {"request_id", "base_sha256", "reference_id", "reference_ids"}:
             raise ValueError("Correction retry fields are invalid")
+        resumed_request = {**request, "instruction": "", "mode": "continue"}
+        with self.store.transaction() as tx:
+            old = self._reconcile(tx, uuid(request["request_id"]), sha({"run_id": uuid(run_id), "action": "resume", **resumed_request}))
+            if old:
+                return old
         run = self.store.get("run", uuid(run_id))
         correction = run.get("latest_correction")
         if not isinstance(correction, Mapping) or correction.get("status") != "failed":
             raise TemplateConflict("The latest correction is not available for retry")
-        return self.resume(run_id, {**request, "instruction": "", "mode": "continue"})
+        return self.resume(run_id, resumed_request)
 
     def recover_revision(self, run_id: str, request: Mapping) -> dict:
         """Append one historical run state as a correction recovery checkpoint."""
@@ -879,6 +903,7 @@ class TemplateAuthoringService:
                 "previews": deepcopy(target.get("previews") or {}),
                 "comparison": deepcopy(target.get("comparison")),
                 "analysis": deepcopy(target.get("analysis")),
+                "polish": deepcopy(target.get("polish")),
                 "reference": deepcopy(proposal.get("reference")),
                 "status": "failed", "phase": str(target.get("phase") or "compare"),
                 "error": "The saved owner correction is ready to retry.",
@@ -895,7 +920,7 @@ class TemplateAuthoringService:
             return saved
 
     def decide(self, run_id: str, request: Mapping) -> dict:
-        if set(request) != {"request_id", "base_sha256", "decision"} or request["decision"] not in {"accept", "reject"}:
+        if not {"request_id", "base_sha256", "decision"} <= set(request) or set(request) - {"request_id", "base_sha256", "decision", "selection"} or request["decision"] not in {"accept", "reject"}:
             raise ValueError("Template decision fields are invalid")
         request_id, run_id = uuid(request["request_id"]), uuid(run_id)
         digest = sha({"run_id": run_id, "action": "decide", **request})
@@ -910,8 +935,25 @@ class TemplateAuthoringService:
                 raise TemplateConflict("Template run changed or cannot be decided")
             accepted = []
             if request["decision"] == "accept":
+                if run.get("polish"):
+                    from .template_polish import ORIGINAL_FIELDS, changes
+                    if request.get("selection") not in {"original", "refined"}:
+                        raise ValueError("Choose original or refined explicitly")
+                    if request["selection"] == "original":
+                        original = run["polish"]["original"]
+                        run = {**run, **{key: deepcopy(original.get(key)) for key in ORIGINAL_FIELDS},
+                               "status": "proposed", "error": None, "failure": None, "checkpoint": None}
+                    else:
+                        changes(run["polish"]["original"]["documents"], run["documents"])
+                    run["polish"] = {**run["polish"], "accepted_selection": request["selection"]}
+                elif "selection" in request:
+                    raise ValueError("This draft has no polish comparison")
                 if run["status"] != "proposed" or not run["comparison"] or run["iterations"] < 1:
                     raise TemplateConflict("Accept requires a converged, compared proposal")
+                if (not run["comparison"].get("complete") or run["comparison"].get("edits")
+                        or run["comparison"].get("capability_gap")
+                        or any(d["severity"] == "meaningful" for d in run["comparison"].get("differences", []))):
+                    raise TemplateConflict("Accept requires a comparison without unresolved differences")
                 correction = run.get("latest_correction")
                 if isinstance(correction, Mapping) and correction.get("status") in {"working", "failed"}:
                     raise TemplateConflict("The latest owner correction must finish before acceptance")

@@ -305,10 +305,11 @@ class PostStudioWorkspace:
                     records[component["id"]] = compose_phone_device_asset(
                         None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
                         normalized_content["cta"], "none", normalized_content["phone_buttons"],
-                        logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"])
+                        logo_symbol_color=config["logo"]["symbol_color"], logo_name_color=config["logo"]["name_color"],
+                        preserve_image_background=config.get("preserve_image_background", False))
                 elif (component["type"] in {"image", "cutout_image"} and screen
                       and not is_fixed_image(component["asset_id"])):
-                    if component["type"] == "cutout_image":
+                    if component["type"] == "cutout_image" and not config.get("preserve_image_background", False):
                         from .template_cutout import cutout_png
                         records[component["id"]] = {"bytes": cutout_png(screen["bytes"]), "mime_type": "image/png"}
                     else:
@@ -332,6 +333,7 @@ class PostStudioWorkspace:
             visual_mode=str(config.get("visual_mode", "phone")),
             logo_symbol_color=str(config["logo"]["symbol_color"]),
             logo_name_color=str(config["logo"]["name_color"]),
+            preserve_image_background=config.get("preserve_image_background", False),
         )
         records: dict[str, Mapping[str, Any]] = {
             "phone_device": {

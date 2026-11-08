@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Image, LayoutTemplate, Megaphone, Settings, Sparkles, Target } from 'lucide-react'
+import { BarChart3, Bot, Code2, Image, LayoutTemplate, Megaphone, Settings, Sparkles, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 import type { Page } from '../types'
@@ -11,7 +11,8 @@ const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = 
   { id: 'ads', en: 'Instagram tests', uk: 'Instagram-тести', icon: Megaphone },
   { id: 'analytics', en: 'Analytics', uk: 'Аналітика', icon: BarChart3 },
   { id: 'templates', en: 'Templates', uk: 'Шаблони', icon: LayoutTemplate },
-  { id: 'commander', en: 'Commander', uk: 'Commander', icon: Bot },
+  { id: 'agent-bot', en: 'Commander Bot', uk: 'Commander Bot', icon: Bot },
+  { id: 'commander', en: 'Commander', uk: 'Commander', icon: Code2 },
 ]
 
 export function Shell({ page, onPage, children, language }: {

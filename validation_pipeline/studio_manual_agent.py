@@ -18,7 +18,7 @@ from .phone_hero_styles import (
 )
 
 
-STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v9"
+STUDIO_MANUAL_AGENT_PROMPT_VERSION = "studio-manual-agent-v10"
 STUDIO_MANUAL_AGENT_REASONING_EFFORT = "high"
 MAX_AGENT_SCREENSHOTS = 4
 MAX_AGENT_SCREENSHOT_BYTES = 20 * 1024 * 1024
@@ -66,8 +66,27 @@ def _contains_any(value: str, fragments: tuple[str, ...]) -> bool:
     return any(fragment in value for fragment in fragments)
 
 
+def _requests_pose_edit(message: str) -> bool:
+    # Quoted replacement copy is data, not an instruction to repaint a person.
+    message = re.sub(r'"[^"\n]*"|«[^»\n]*»|“[^”\n]*”', "", message)
+    person_edit = re.search(
+        r"\b(?:change|adjust|modify|зміни|змінити|поміняй|измени)\s+"
+        r"(?:(?:the|this|цього|этого)\s+)?"
+        r"(?:boy|man|woman|girl|person|pose|хлоп|дівчин|чоловік|жін|поз|парн|девуш)\w*"
+        r"|\b(?:make|have|let)\s+(?:the\s+)?(?:him|her|boy|man|woman|girl|person)\b"
+        r"|\b(?:нехай|хай|пусть)\s+(?:він|вона|хлоп\w*|дівчин\w*|чоловік\w*|жін\w*|он|она|парень)\b",
+        message,
+    )
+    pose_or_interaction = re.search(
+        r"\b(?:hold\w*|grip\w*|pose|posture|hands?|arms?|трим\w*|рук\w*|поз\w*|держ\w*)\b",
+        message,
+    )
+    return bool(person_edit and pose_or_interaction)
+
+
 def manual_agent_request_constraints(
     *, surface: str, message: str, image_slots: list[str],
+    current_images: list[str] | None = None, screenshot_count: int = 0,
 ) -> dict[str, Any]:
     """Resolve a few high-impact compound intents before provider inference.
 
@@ -89,6 +108,9 @@ def manual_agent_request_constraints(
         "without generating", "no image generation",
         "не генеруй", "не генерувати", "без генерації",
         "не генерируй", "не генерировать", "без генерации",
+        "do not change the image", "don't change the image", "keep the image unchanged",
+        "не змінюй зображ", "не змінювати зображ", "не змінюй картин",
+        "не меняй изображ", "не изменяй изображ",
     ))
     explicit_image_operation = _contains_any(normalized, (
         "generate an image", "generate image", "generate artwork",
@@ -114,9 +136,15 @@ def manual_agent_request_constraints(
         ))
         and _contains_any(normalized, ("look", "show", "вигляд", "показ", "вид"))
     )
+    pose_edit = _requests_pose_edit(normalized)
+    new_image_requested = _contains_any(normalized, (
+        "new image", "new picture", "new photo", "from scratch",
+        "нове зображ", "нову картин", "нове фото", "з нуля",
+        "новое изображ", "новую картин", "новое фото", "с нуля",
+    ))
     image_change = (
         not generation_negated
-        and (explicit_image_operation or natural_image_transformation)
+        and (explicit_image_operation or natural_image_transformation or pose_edit)
     )
     remove_one_logo = bool(re.search(
         r"(?:remove|hide|прибери|прибрати|забери|сховай|видали|"
@@ -137,16 +165,26 @@ def manual_agent_request_constraints(
     )
 
     required_outcomes: list[dict[str, Any]] = []
-    if surface == "post:phone_metrics" and image_change and "phone_screen" in image_slots:
+    if surface.startswith("post:") and image_change and image_slots:
         required_outcomes.append({
             "id": "change_visible_artwork",
-            "required_image_action_slot": "phone_screen",
+            **({"required_image_action_slot": image_slots[0]} if len(image_slots) == 1 else {}),
             "instruction": (
                 "The owner described a desired change to the pixels/content of the image. "
                 "This is an explicit image operation even without the word ‘generate’; return "
                 "one image action whose visual direction represents that requested subject."
             ),
         })
+        if (pose_edit and not new_image_requested and len(image_slots) == 1
+                and image_slots[0] in (current_images or []) and not screenshot_count):
+            required_outcomes.append({
+                "id": "edit_selected_artwork",
+                "required_image_action_slot": image_slots[0],
+                "instruction": (
+                    "Edit the selected current image with enhance_current=true. Preserve the person, "
+                    "objects and scene except for the requested pose or interaction."
+                ),
+            })
     if surface == "post:phone_metrics" and phone_removed and image_change:
         required_outcomes.append({
             "id": "artwork_without_phone_hardware",
@@ -211,6 +249,11 @@ def validate_manual_agent_semantics(
         raise ValueError(
             "The owner explicitly requested a visible artwork-content change; return one image action."
         )
+    for outcome in constraints.get("required_outcomes", []):
+        if isinstance(outcome, Mapping) and outcome.get("id") == "edit_selected_artwork":
+            if not any(action.get("slot") == outcome["required_image_action_slot"]
+                       and action.get("enhance_current") is True for action in image_actions):
+                raise ValueError("The requested pose edit must use the selected current image with enhance_current=true.")
     if surface != "post:phone_metrics":
         return
     device = configuration.get("device")
@@ -426,7 +469,7 @@ def agent_control_contract(surface: str, catalog: Mapping[str, Any]) -> dict[str
         return {"schema": "ptw.studio.agent-control-contract.v3", "surface": surface,
             "instructions": ["Use the same bounded block controls as the manual editor. Changing preset applies its defaults, preserves copy/assets and then applies your other scalar edits.",
                 "Preserve unrelated settings, owner choices, exact Brief/Brand Identity and fixed Natal identity. Never invent claims or performance evidence.",
-                "Screen is generated UI; depicted text changes require an image action. Scene, subject, screen, feature and props are independent. No hands in phone imagery."],
+                "Screen is generated UI; depicted text changes require an image action. Scene, subject, screen, feature and props are independent. Omit hands by default unless the owner explicitly requests a hand interaction."],
             "presets": [{k:v for k,v in item.items() if k != "configuration"} for item in catalog["presets"]],
             "bounds": catalog["bounds"], "options": catalog["enums"]}
 
@@ -911,6 +954,7 @@ def manual_agent_payload(
 ) -> dict[str, Any]:
     request_constraints = manual_agent_request_constraints(
         surface=surface, message=message, image_slots=image_slots,
+        current_images=current_images, screenshot_count=len(screenshot_artifact_values),
     )
     editable_values = manual_agent_editable_values(
         catalog=catalog, configuration=configuration, content=content,

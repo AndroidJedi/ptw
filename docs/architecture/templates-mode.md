@@ -140,6 +140,24 @@ serve new ideas there without approving Project content.
 
 ## Durable creation and review
 
+Ready Post-only drafts offer **Try Impeccable polish**. The optional versioned
+profile refines existing type, spacing and placement within bounded deltas,
+preserving copy, images, colors, fonts, roles and overall composition. Normal
+generation does not load the extra guidance. Its compact PTW adaptation and
+upstream attribution live under the Template Creation Agent's references.
+
+The existing resume API accepts `refinement_profile: impeccable-post-v1` once
+per comparison. Append-only run records retain the exact original definition,
+comparison and immutable preview references. Original/Refined switches cached
+previews without inference. The server validates protected fields on every
+provider response; normal geometry/convergence gates still apply. The UI reports
+actual difference categories, including an unchanged result. Retry and restart
+reuse saved work; discard restores the original, including after failure.
+Acceptance requires `selection: original|refined` plus the current state hash.
+An original can be accepted after refinement failure; unfinished candidates
+cannot. Only acceptance registers the chosen version in the existing Post picker.
+No migration, Project mutation, publication or performance claim is implied.
+
 The authenticated `/api/v1/templates` API offers gallery/filter reads, exact
 version reads, version history, temporary reference uploads/discard, start,
 progress/history, resume/correction, decision, media and capability handoff.

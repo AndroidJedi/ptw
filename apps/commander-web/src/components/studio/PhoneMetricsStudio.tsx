@@ -271,6 +271,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const changedImageSettings = [
         ...(pendingCreativeDirection?.style && pendingCreativeDirection.style !== savedCreativeDirection?.style ? ['style'] : []),
         ...(pendingCreativeDirection?.background && pendingCreativeDirection.background !== savedCreativeDirection?.background ? ['background'] : []),
+        ...(Boolean(configuration.preserve_image_background) !== Boolean(detail.configuration.preserve_image_background) ? ['preserve_image_background'] : []),
         ...(JSON.stringify(configuration.background) !== JSON.stringify(detail.configuration.background) ? ['palette'] : []),
       ]
       let saved = detail
@@ -439,6 +440,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       }
       const changed = [
         ...(['style', 'background'] as const).filter(key => nextDirection && nextDirection[key] !== detail.generation?.creative_direction?.[key]),
+        ...(Boolean(nextConfiguration.preserve_image_background) !== Boolean(detail.configuration.preserve_image_background) ? ['preserve_image_background'] : []),
         ...(JSON.stringify(authored ? nextConfiguration.template_palette : nextConfiguration.background) !== JSON.stringify(authored ? detail.configuration.template_palette : detail.configuration.background) ? ['palette'] : []),
       ]
       const action = result.image_actions[0]
@@ -746,6 +748,12 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           expandLabel={tr('EXPAND', 'РОЗГОРНУТИ')} collapseLabel={tr('COLLAPSE', 'ЗГОРНУТИ')}
           onOpenChange={setArtworkOpen}
         >
+          <label className="studio-toggle">
+            <input type="checkbox" checked={configuration.preserve_image_background ?? false} disabled={mutationBusy}
+              onChange={(event) => setConfiguration({ ...configuration, preserve_image_background: event.target.checked })} />
+            <span>{tr('Keep image background', 'Зберегти фон зображення')}</span>
+          </label>
+          <p className="studio-section-note">{tr('Skip automatic background removal to protect image details. Update preview to apply to the current image; this choice also applies when generating or enhancing in any style.', 'Вимкнути автоматичне видалення фону, щоб зберегти деталі зображення. Натисніть «Оновити прев’ю», щоб застосувати до поточного зображення; вибір також діє під час генерації або покращення в будь-якому стилі.')}</p>
           {savedCreativeDirection && !editingCreativeDirection
             ? <PhoneHeroDirectionPicker
               language={language} value={savedCreativeDirection} locked disabled={mutationBusy}

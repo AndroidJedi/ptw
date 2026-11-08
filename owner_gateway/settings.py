@@ -27,6 +27,7 @@ class Settings:
     codex_authorization_service_url: str = ""
     codex_authorization_bridge_token: str = ""
     commander_service_url: str = ""
+    commander_bot_service_url: str = ""
     commander_release_url: str = ""
     owner_emails: tuple[str, ...] = ()
 
@@ -101,6 +102,9 @@ class Settings:
             codex_authorization_bridge_token=codex_authorization_token,
             commander_service_url=os.environ.get(
                 "PTW_COMMANDER_SERVICE_URL", "http://commander-god:8095"
+            ).rstrip("/"),
+            commander_bot_service_url=os.environ.get(
+                "PTW_COMMANDER_BOT_SERVICE_URL", "http://ptw-commander-api:8080"
             ).rstrip("/"),
             commander_release_url=os.environ.get(
                 "PTW_COMMANDER_RELEASE_URL", "http://commander-release:8096"

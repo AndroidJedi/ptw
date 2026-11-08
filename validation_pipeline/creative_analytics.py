@@ -27,7 +27,7 @@ from .studio_phone_metrics import (
 )
 
 
-WINDOWS = {7, 30, 90, 0}
+WINDOWS = {1, 7, 30, 90, 0}
 MILESTONE_HOURS = (24, 72, 168, 336, 720)
 EVENT_TYPES = {"landing_view", "primary_cta_click", "contact_click"}
 EVENT_SURFACES = {"page", "hero", "phone", "telegram", "instagram", "email"}
@@ -711,10 +711,10 @@ class DatabaseCreativeAnalyticsAuthority:
             connection.execute("INSERT INTO landing_analytics_events(event_id,visit_id,project_id,landing_publication_id,landing_publication_event_id,landing_version_id,landing_version_sha256,input_sha256,event_type,surface,target,attribution_source_id,viewport_class) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (event_id, UUID(str(payload["visit_id"])), UUID(str(context["project_id"])), UUID(str(context["landing_publication_id"])), UUID(str(context["landing_publication_event_id"])), UUID(str(context["landing_version_id"])), context["landing_version_sha256"], payload["input_sha256"], payload["event_type"], payload["surface"], payload["target"], None if attribution_id is None else UUID(attribution_id), payload["viewport_class"]))
             dimensions = (UUID(str(context["project_id"])), UUID(str(context["landing_version_id"])), payload["event_type"], payload["surface"], payload["target"], None if attribution_id is None else UUID(attribution_id))
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("landing-analytics-rollup:" + ":".join(str(item) for item in dimensions),))
-            prior_count = connection.execute("SELECT cumulative_count FROM landing_analytics_rollup_snapshots WHERE project_id=%s AND landing_version_id=%s AND day=current_date AND event_type=%s AND surface=%s AND target=%s AND attribution_source_id IS NOT DISTINCT FROM %s ORDER BY created_at DESC LIMIT 1", dimensions).fetchone()
+            prior_count = connection.execute("SELECT cumulative_count FROM landing_analytics_rollup_snapshots WHERE project_id=%s AND landing_version_id=%s AND day=(now() AT TIME ZONE 'UTC')::date AND event_type=%s AND surface=%s AND target=%s AND attribution_source_id IS NOT DISTINCT FROM %s ORDER BY created_at DESC LIMIT 1", dimensions).fetchone()
             rollup_id = UUID(new_uuid7())
             connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_analytics_rollup_snapshot',%s)", (rollup_id, Jsonb({"event_type": payload["event_type"], "day": datetime.now(timezone.utc).date().isoformat()})))
-            connection.execute("INSERT INTO landing_analytics_rollup_snapshots(entity_id,project_id,landing_publication_event_id,landing_version_id,landing_version_sha256,day,event_type,surface,target,attribution_source_id,cumulative_count,source_event_id) VALUES(%s,%s,%s,%s,%s,current_date,%s,%s,%s,%s,%s,%s)", (rollup_id, UUID(str(context["project_id"])), UUID(str(context["landing_publication_event_id"])), UUID(str(context["landing_version_id"])), context["landing_version_sha256"], payload["event_type"], payload["surface"], payload["target"], None if attribution_id is None else UUID(attribution_id), (int(prior_count[0]) if prior_count else 0) + 1, event_id))
+            connection.execute("INSERT INTO landing_analytics_rollup_snapshots(entity_id,project_id,landing_publication_event_id,landing_version_id,landing_version_sha256,day,event_type,surface,target,attribution_source_id,cumulative_count,source_event_id) VALUES(%s,%s,%s,%s,%s,(now() AT TIME ZONE 'UTC')::date,%s,%s,%s,%s,%s,%s)", (rollup_id, UUID(str(context["project_id"])), UUID(str(context["landing_publication_event_id"])), UUID(str(context["landing_version_id"])), context["landing_version_sha256"], payload["event_type"], payload["surface"], payload["target"], None if attribution_id is None else UUID(attribution_id), (int(prior_count[0]) if prior_count else 0) + 1, event_id))
             self._edge(connection, str(context["landing_publication_event_id"]), "contains", str(rollup_id), {"member": "landing_analytics_rollup_snapshot"})
         return {**dict(payload), **dict(context), "attribution_source_id": attribution_id}, True
 
@@ -1232,9 +1232,10 @@ class CreativeAnalyticsService:
 
     def workspace(self, *, project_id: str | None, window: int) -> dict[str, Any]:
         if window not in WINDOWS:
-            raise ValueError("analytics window must be 7, 30, 90, or 0 for all time")
+            raise ValueError("analytics window must be 1 (today UTC), 7, 30, 90, or 0 for all time")
         project_ids = self._project_ids(project_id)
-        cutoff = None if window == 0 else datetime.now(timezone.utc) - timedelta(days=window)
+        now = datetime.now(timezone.utc)
+        cutoff = None if window == 0 else (now.replace(hour=0, minute=0, second=0, microsecond=0) if window == 1 else now - timedelta(days=window))
         rollups = self.authority.list_rollups(project_ids, cutoff)
         organic = self._organic_rows(project_ids, cutoff, rollups)
         scope, scoped_project = ("global", None) if project_id is None else ("project", project_ids[0])

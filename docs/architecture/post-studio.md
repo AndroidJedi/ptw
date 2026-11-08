@@ -17,7 +17,8 @@ Message, Device, Subject, Collage, Offer, Brand and Action blocks. Twelve preset
 compositions reuse these controls; photography, illustration, drawing, paper
 collage and 3D are independent artwork treatments. The reference handheld
 composition is replaced by a standalone phone on a blurred scene: Daddy artwork
-excludes hands. Registered portrait/landscape/angled hardware, screen apertures,
+excludes hands by default; explicit owner pose/interaction instructions take
+precedence. Registered portrait/landscape/angled hardware, screen apertures,
 perspective mapping, alpha masks and shadows remain deterministic.
 
 `scene`, `screen`, `subject`, `feature`, `prop_one` and `prop_two` are independent
@@ -207,6 +208,13 @@ One request contains:
 - bounded semantic controls and zero to four ephemeral screenshots;
 - current image-slot availability and explicit request invariants.
 
+Pose and grip changes are pixel edits across Post templates, even when the
+owner does not say generate. A response without an image action is rejected;
+for a single existing image without an uploaded reference, a pose edit must
+enhance that selected image. Quoted copy and explicit instructions to leave
+images unchanged do not trigger this guard. Passing this contract verifies
+execution intent and reference selection, not visual compliance of generated pixels.
+
 The Brief supplies product, audience, pain, promise, benefits, CTA, trust strategy
 and offer even when these details are absent from the current copy. It is a
 validation hypothesis, not measured proof. Explicit owner instructions and
@@ -296,6 +304,16 @@ snapshots preserve it. Learning datasets explicitly exclude copy quantities as
 performance evidence. Historical drafts and versions are not rewritten.
 
 ## Shared image generation policy
+
+Post's **Keep image background** checkbox independently disables automatic
+background removal. The optional boolean `configuration.preserve_image_background`
+skips authored cutout extraction and Phone Metrics pale-matte cleanup. Update
+preview uses the retained original without generation; Save/Approve, clone and
+reload retain the setting. Absent/false preserves existing rendering. The same
+flag reaches the image-generation context, overriding default isolation while
+retaining style and exact owner-instruction priority. Raw image history and
+previously approved PNGs remain unchanged; this cannot restore pixels already
+missing from the original generated image.
 
 `image_generation_policy.py` compiles `ptw.domain-image.v1` for automatic and
 manual Posts, Manual Agent actions, enhancement and both Landing slots. The

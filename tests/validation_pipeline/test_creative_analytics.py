@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 import json
+from pathlib import Path
 import tempfile
 import unittest
 from uuid import uuid4
@@ -109,6 +110,22 @@ class CreativeAnalyticsTests(unittest.TestCase):
             {"landing_view": 1, "primary_cta_click": 1},
             {item["event_type"]: item["cumulative_count"] for item in self.authority.list_rollups([self.project_id], None)},
         )
+
+    def test_today_uses_utc_calendar_day_for_project_and_all_projects(self) -> None:
+        self.service.record_landing_event(self.event())
+        today = self.authority.list_rollups([self.project_id], None)[0]
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+        old = {**today, "rollup_id": str(uuid4()), "day": yesterday,
+               "source_event_id": str(uuid4()), "created_at": yesterday + "T23:59:00+00:00"}
+        self.store.append("landing_analytics_rollups", old["rollup_id"], old)
+
+        for scope in (self.project_id, None):
+            current = self.service.workspace(project_id=scope, window=1)
+            self.assertEqual(1, current["window_days"])
+            self.assertEqual(1, current["landing_funnel"]["landing_view"])
+            self.assertEqual(2, self.service.workspace(project_id=scope, window=0)["landing_funnel"]["landing_view"])
+        with self.assertRaisesRegex(ValueError, "today UTC"):
+            self.service.workspace(project_id=self.project_id, window=2)
 
     def test_learning_with_no_comparable_items_is_frozen_as_insufficient(self) -> None:
         request_id = str(uuid4())

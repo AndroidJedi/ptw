@@ -82,6 +82,20 @@ Post, or Landing learning entities or cross their lesson namespaces.
 
 ## Established chat diagnostics
 
+- Hosted verification can exhaust the runner's process or memory limits when
+  TypeScript, Vite and browsers overlap. Run heavyweight checks sequentially and
+  bound worker/thread counts. Missing browser libraries or incorrect local font
+  aliases can also break launches or report zero-height text that screenshots
+  visibly render. Verify runtime dependencies and font metrics before changing
+  application CSS or assertions. Keep temporary test bundles/libraries outside
+  tracked source and label any mocked or lightweight browser harness accurately.
+- Repeated tool-host handshake failures or Git fork errors can come from exited
+  child processes accumulating under PID 1. Inspect `/proc/*/status` and cgroup
+  `pids.current`/`pids.max` without reading process environments. If zombies are
+  adopted by the API at PID 1, keep `init: true` on both coding-worker Compose
+  services so the container init reaps orphans. Preserve the process limits and
+  sandbox controls, verify the Compose regression, and apply through the host
+  release after the turn persists; never restart the API from its own turn.
 - Commander has its own navigation destination and no Project selector. Settings
   retains authorization and language. Use a timeline, history drawer and sticky
   composer, with Plan/Build, runtime model/effort choices, Reply, Send and Stop.
@@ -90,6 +104,9 @@ Post, or Landing learning entities or cross their lesson namespaces.
   composer behind Safari's keyboard. Hide the bottom navigation while the
   keyboard is open, bound the composer's own overflow, and exercise the resize
   path in addition to ordinary 360px/WebKit screenshots.
+  With hosted Push/Deploy controls present, check the composer's own scroll width
+  and Send bounds; document width alone can hide clipped controls. Follow new
+  release states in the timeline while preserving an owner's scrolled position.
 
 - An uncertain message POST must retain its request UUID. Reconcile that UUID
   before resubmitting; a new UUID can execute the same code mutation twice.
@@ -142,6 +159,10 @@ Post, or Landing learning entities or cross their lesson namespaces.
   exact candidate, authoritative deployed marker and workflow outcome. Preserve
   per-conversation release links; distinguish rollout failure from bookkeeping
   repair. Never publish the generated `skills/.system` runtime directory.
+  Show the current verified live revision separately from historical release
+  success, with the observation time and changes still awaiting deployment.
+  Missing marker access means unverified; queued means waiting, never completed.
+  Test older success plus newer edits and workflow success without a matching marker.
 - App-server threads are ephemeral. Persist sanitized transcript, effective turn
   settings, questions and answers; reconstruct context after restart and retrieve
   archived messages by cursor when needed. Keep Send available for steering and
@@ -191,3 +212,24 @@ Post, or Landing learning entities or cross their lesson namespaces.
   Landing/analytics routes fail closed. Retain audit and graph lineage, and tell
   the owner that PTW cannot remove content already published by an external
   provider. Exercise response reconciliation and direct-ID access after deletion.
+- Analytics daily Landing rollups use UTC calendar dates. A Today filter starts
+  at 00:00 UTC and PostgreSQL writes rollup dates in UTC even if the database
+  session timezone changes. Provider snapshots are cumulative; label their
+  coverage clearly instead of presenting them as exact daily totals. Verify
+  the day boundary and Project/All Projects UI requests together.
+
+- A Commander Bot or other multi-agent workspace is a separate product
+  boundary from coding Commander. Persist conversations, tasks, runs, mediated
+  messages and permission decisions; give the specialist no direct user/tool
+  route. Verify the smallest autonomous loop (specialist request → Commander
+  policy decision → allowed tool or owner question → resumed specialist run)
+  with focused tests, and label deterministic bounded research as hypotheses
+  rather than live external evidence. Resume only queued work after restart and
+  keep request UUID reconciliation scoped to its conversation.
+- For the Commander Bot owner workspace, a right sidebar beside the chat is not
+  a three-pane agent UI. Keep three explicit desktop regions visible: an Agents
+  pane for registered agent cards, a mediated Communication pane for the
+  timeline/composer, and a Task & permissions pane for progress, policy and
+  approval. Move approval controls into the control pane so one action is not
+  rendered twice; stack the panes at narrow widths and cover the three-pane
+  landmarks with a focused UI test.

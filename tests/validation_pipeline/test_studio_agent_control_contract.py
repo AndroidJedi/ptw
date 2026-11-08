@@ -195,6 +195,89 @@ class StudioAgentControlContractTests(unittest.TestCase):
                     item["id"] for item in constraints["required_outcomes"]
                 })
 
+    def test_pose_edits_require_pixels_on_every_post_template(self) -> None:
+        for surface in ("post:phone_metrics", "post:authored-example", "post:daddy"):
+            slots = ["scene", "subject"] if surface == "post:daddy" else ["phone_screen"]
+            for message in (
+                "Зміни хлопця на зображенні так, щоб він тримав рюкзак обома руками",
+                "Нехай хлопець тримає сумку двома руками",
+                "Make him hold the bag with both hands",
+                "Change the man's pose in the image",
+            ):
+                with self.subTest(surface=surface, message=message):
+                    constraints = manual_agent_request_constraints(
+                        surface=surface, message=message, image_slots=slots,
+                    )
+                    with self.assertRaisesRegex(ValueError, "visible artwork-content change"):
+                        validate_manual_agent_semantics(
+                            surface=surface, constraints=constraints,
+                            configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
+                            image_actions=[],
+                        )
+
+    def test_pose_edit_preserves_selected_single_image_as_reference(self) -> None:
+        for surface in ("post:phone_metrics", "post:authored-example"):
+            constraints = manual_agent_request_constraints(
+                surface=surface, message="Make him hold the bag with both hands",
+                image_slots=["phone_screen"], current_images=["phone_screen"],
+            )
+            action = {"slot": "phone_screen", "visual_direction": "Hold the bag with both hands",
+                      "enhance_current": False, "reference_index": 0}
+            with self.assertRaisesRegex(ValueError, "selected current image"):
+                validate_manual_agent_semantics(
+                    surface=surface, constraints=constraints,
+                    configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
+                    image_actions=[action],
+                )
+            validate_manual_agent_semantics(
+                surface=surface, constraints=constraints,
+                configuration=DEFAULT_PHONE_CONFIG, content=DEFAULT_PHONE_CONTENT,
+                image_actions=[{**action, "enhance_current": True}],
+            )
+
+    def test_pose_guards_respect_copy_negation_unavailable_images_and_references(self) -> None:
+        for message in (
+            'Change the caption to "Make him hold the bag with both hands"',
+            'Зміни заголовок на «Нехай хлопець тримає сумку двома руками»',
+            "Do not change the image. Make the headline shorter",
+            "Не змінюй зображення, нехай хлопець тримає сумку як раніше",
+            "Choose Cinematic image style",
+        ):
+            with self.subTest(message=message):
+                constraints = manual_agent_request_constraints(
+                    surface="post:authored-example", message=message,
+                    image_slots=["phone_screen"], current_images=["phone_screen"],
+                )
+                self.assertEqual([], constraints["required_outcomes"])
+        for slots, current, references in (([], [], 0), (["phone_screen"], [], 0),
+                                            (["phone_screen"], ["phone_screen"], 1)):
+            constraints = manual_agent_request_constraints(
+                surface="post:authored-example", message="Make him hold the bag with both hands",
+                image_slots=slots, current_images=current, screenshot_count=references,
+            )
+            self.assertNotIn("edit_selected_artwork", {
+                item["id"] for item in constraints["required_outcomes"]
+            })
+        constraints = manual_agent_request_constraints(
+            surface="post:authored-example",
+            message="Generate a new image from scratch. Make him hold the bag with both hands",
+            image_slots=["phone_screen"], current_images=["phone_screen"],
+        )
+        self.assertEqual(["change_visible_artwork"], [
+            item["id"] for item in constraints["required_outcomes"]
+        ])
+
+    def test_explicit_artwork_change_is_guarded_on_authored_posts(self) -> None:
+        constraints = manual_agent_request_constraints(
+            surface="post:authored-example", message="Replace the image with a forest scene",
+            image_slots=["phone_screen"],
+        )
+        with self.assertRaisesRegex(ValueError, "visible artwork-content change"):
+            validate_manual_agent_semantics(
+                surface="post:authored-example", constraints=constraints,
+                configuration={}, content={}, image_actions=[],
+            )
+
     def test_provider_timeout_is_sanitized_and_not_a_state_conflict(self) -> None:
         class Failure(RuntimeError):
             attempts = [{"error_type": "TimeoutExpired", "error_message": "must not escape"}]

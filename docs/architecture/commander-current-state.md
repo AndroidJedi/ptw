@@ -1,6 +1,144 @@
 # Commander current state
 
-Updated: 2026-10-03
+## Commander Bot three-pane workspace — implemented locally, release pending
+
+The Owner Console now has a separate Commander Bot destination alongside the
+coding Commander. It persists conversations, tasks, agent runs, mediated
+messages and permission-gated actions in migration 024. Business Researcher is
+an independent worker boundary: it can ask Commander for missing market
+context, request a bounded research action, and then produce a structured
+business-idea assessment. Commander is the only route to the owner or tools;
+system expansion and external actions remain approval-gated or denied by the
+policy catalog. Queued work is recovered after a Commander API restart and
+request UUIDs are idempotent within a conversation.
+
+The new UI exposes both agent statuses, task progress, the hub-and-spoke
+timeline, permission modes and approval cards. The MVP research core is a
+bounded deterministic provider with explicit “hypothesis, not live web
+evidence” wording; replacing that provider later does not change the persisted
+communication contract. Focused agent and Owner Gateway tests pass, as does the
+TypeScript check and the new Agent Bot UI test. The full existing web suite
+still has unrelated environment-sensitive failures under the current runner
+(SubtleCrypto ArrayBuffer mismatch and several 5-second timeouts); no live
+provider or deployment verification has been performed for this feature.
+
+The Agent Bot workspace now has three explicit desktop panes: Pane 01 Agents
+with Commander and Business Researcher cards, Pane 02 mediated Communication,
+and Pane 03 Task & permissions with the approval gate. The control pane owns
+approval actions so they are not duplicated inside the timeline. At narrower
+widths the panes wrap and then stack while keeping the same session data and
+controls. The focused UI contract covers all three panes and the approval flow.
+
+Updated: 2026-11-08
+
+Updated: 2026-10-12
+
+## Post-template polish and explicit live revision — verified, host handoff accepted
+
+Ready Post-only template drafts now offer optional Impeccable-guided polish.
+The compact versioned profile permits restrained type/spacing/placement edits
+and validates protected copy, assets, colors, fonts, component roles and identity.
+Append-only run state preserves the original definition, comparison and immutable
+PNG references. Original/Refined switches preloaded previews; acceptance binds
+the explicit selection and current state hash. Failed polish keeps the original
+available for acceptance, retry or discard. Retry UUID reconciliation now precedes
+the correction-status check. Accepted results use the existing Post picker.
+
+Commander reports the authoritative deployed revision and observation time
+separately from conversation release history and pending source changes. Queued
+and running states have distinct labels; a missing marker is unverified. Source
+completion is not deployment evidence. New release states follow the timeline
+when the owner is following it. Hosted composer controls wrap without clipping
+Send at 360px. Prior owner edits, including process-init configuration, remain
+preserved. The running coding worker still uses Uvicorn at PID 1; the host release
+must recreate Build and Plan workers with the verified container-init setting.
+
+Verification: 53 focused backend tests and all 67 affected web unit tests passed;
+the final Commander UI correction separately passed its 12 tests. Desktop,
+360px Chromium and iPhone WebKit passed comparison, image loading, switching,
+refresh, exact acceptance, live-revision and queued-release display checks.
+These browser checks use a current-source development bundle, mocked APIs and
+real rendered PNG fixtures, not live providers. Screenshot review and composer
+bounds checks caught and verified the mobile control correction. The final
+production web build, 55 Commander tests (five expected container-only skips),
+demo, canonical skills and whitespace checks passed. Prior verification also
+covered broader Template Authoring and Post-switch regressions.
+Temporary browser libraries, bundles and test dependencies remain ignored.
+The host accepted the release handoff and will start it after this turn persists;
+live deployment is not yet confirmed. Python changes and container init require
+the normal host-managed restart during that release.
+
+## Commander process cleanup — verified, release requested
+
+Repeated tool-host startup and Git fork failures were traced to the hosted
+coding container approaching its 128-task limit with orphaned zombie processes
+adopted by Uvicorn at PID 1. The Build and Plan Compose services now enable the
+container init to reap those processes. Their process limits, read-only root
+filesystems and dropped capabilities remain unchanged. A focused Compose
+regression protects this configuration. All 55 Commander tests passed with five
+expected receiver-container skips, along with the demo, skills and whitespace
+checks. The constrained verification harness used single-threaded Git and a
+test-only child-process reaper after recycling only the Codex tool helper. The
+23 background-preservation tests also passed again. Existing UI/build results
+remain valid; browser verification stays owner-waived for the background change.
+The host release is requested; live container recreation and process cleanup
+remain unverified. The API hosting this chat was not restarted during the turn.
+
+## Post background preservation — verified, release requested
+
+The Post image panel now has a bilingual **Keep image background** checkbox,
+independent of the image style. Update preview uses the stored raw image without
+authored cutout extraction or Phone Metrics pale-matte cleanup. The optional
+configuration flag is saved with the draft/version and reaches generation and
+enhancement as an override of default isolation. Old configurations and approved
+PNGs remain unchanged. Verification passed 23 focused backend tests, all 33
+Studio UI tests, the production web build, 54 Commander tests (five dependency
+skips), the Commander demo, skill verification and whitespace checks. The two
+new UI cases also passed after the final test-typing correction. Browser checks
+could not launch within the hosted runner's resource limits; the owner explicitly
+waived them for this change and requested deployment. An earlier host handoff
+rejected the instruction classification; a fresh handoff is requested with the
+Commander process-cleanup correction above. No live provider
+execution or completed deployment is claimed. Applying the Python changes requires the
+Validation API to restart through the normal release process.
+
+## Pose edit and Analytics Today release verification
+
+The combined pending changes passed 31 focused backend tests, all four Analytics
+view unit tests, the production web build, 54 Commander tests (five dependency
+skips), the Commander demo, skill verification and whitespace checks. The mocked
+Analytics scenario passed desktop and 360px Chromium; the same unchanged scenario
+also passed iPhone WebKit through a lightweight direct harness. Browser checks
+used a separate development-mode bundle and local browser libraries/fonts because
+the hosted runner's process/memory limits prevented the ordinary dev-server gate.
+No live provider or deployment completion is claimed; release remains pending.
+
+## Post Agent pose edits — local fix, release pending
+
+Manual Agent now rejects pose/grip requests answered without an image action
+across Post templates. For a single selected image, it requires enhancement of
+that source unless the owner requests a new image or supplies a reference.
+Quoted copy, unavailable generation and explicit no-image-change requests are
+covered. Daddy's default exclusion of hands now yields to explicit owner
+interaction requests in the Manual Agent and image prompt. These guards check
+the action/reference contract; generated visual compliance still needs review.
+The reported live Project, its attempt receipt and original image are not
+available in this isolated checkout, so that specific attempt remains unverified
+and its image has not been changed. Release and Validation API restart are pending.
+Verification: 32 focused contract, policy and service tests passed with fake
+providers; Commander ran 54 tests with five skips, its demo passed, and canonical
+skill verification plus whitespace checks passed. The broader Validation sweep
+was stopped in favor of affected paths; no live provider or browser proof is claimed.
+
+## Analytics Today view — release pending
+
+The Analytics period control now offers Today (UTC) for a selected Project or
+All Projects. The workspace API uses the current UTC day's midnight as its
+cutoff, matching the first-party Landing rollup day. The Post leaderboard
+includes posts published today and labels provider snapshots as cumulative,
+because their exact daily totals cannot be reconstructed. Older windows and
+learning inputs retain their existing behavior. Release and live verification
+are pending.
 
 ## Five editable Water reviews with Bokko portraits — deployed
 

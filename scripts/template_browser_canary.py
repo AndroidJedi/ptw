@@ -11,6 +11,7 @@ sys.path.insert(0,str(ROOT))
 from fastapi import Depends, FastAPI, Header, HTTPException
 import uvicorn
 from tests.validation_pipeline.test_template_authoring import ScriptedTemplateProvider
+from tests.validation_pipeline.test_template_polish import PolishProvider
 from validation_pipeline.template_authoring import TemplateAuthoringService
 from validation_pipeline.template_routes import template_router
 from validation_pipeline.template_store import TemplateStore
@@ -38,7 +39,7 @@ class ProjectTemplateProvider(ScriptedTemplateProvider):
         return {'response':result,'invocation':{'provider':'scripted-test','model':self.model,
             'reasoning_effort':kwargs.get('reasoning_effort'),'attempts':[{'status':'completed'}]}}
 
-provider=(ProjectTemplateProvider if args.project_post else ScriptedTemplateProvider)(adjust=True)
+provider=(ProjectTemplateProvider if args.project_post else PolishProvider)(adjust=True)
 service=TemplateAuthoringService(TemplateStore(args.directory/'templates.sqlite3'),provider)
 if not args.project_post and not service.store.list('run'):
     provider.timeout_phase = 'compare'

@@ -326,3 +326,21 @@ class PostTemplateSwitchTests(unittest.TestCase):
         self.assertNotEqual(screen['bytes'], records['motif']['bytes'])
         self.assertNotEqual(screen['bytes'], records['app_store']['bytes'])
         self.assertNotEqual(records['app_store']['bytes'], records['google_play']['bytes'])
+        self.workspace.approve_version(state_sha256=changed['state_sha256'], change_note='Original cutout')
+        original_version = self.workspace.version_render(1)['bytes']
+        config = {**changed['configuration'], 'preserve_image_background': True}
+        with patch('validation_pipeline.template_cutout.cutout_png', side_effect=AssertionError('background removed')):
+            preserved = self.workspace._asset_records(config, changed['content'])
+            self.assertEqual(raw.getvalue(), preserved['person']['bytes'])
+            for fixed in ('motif', 'app_store', 'google_play'):
+                self.assertEqual(records[fixed]['bytes'], preserved[fixed]['bytes'])
+            preview = self.workspace.render_preview(state_sha256=changed['state_sha256'], configuration=config, content=changed['content'])
+            self.assertEqual(changed['state_sha256'], self.workspace.state_sha256())
+            self.workspace.approve_configuration(base_sha256=changed['state_sha256'], configuration=config, content=changed['content'], change_note='Keep image background')
+            self.service._workspaces.clear()
+            reopened = self.service._workspace(self.creative)
+            self.assertTrue(reopened.detail()['configuration']['preserve_image_background'])
+            self.assertEqual(preview['bytes'], reopened.version_render(2)['bytes'])
+            self.assertEqual(original_version, reopened.version_render(1)['bytes'])
+            self.assertEqual(raw.getvalue(), reopened._asset_record('phone_screen')['bytes'])
+            self.assertEqual(changed['phone_screen_history'], reopened.detail()['phone_screen_history'])

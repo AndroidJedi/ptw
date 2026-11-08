@@ -373,6 +373,16 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await expect(phoneLogo).toBeChecked()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
+  const keepBackground = page.getByLabel('Keep image background', { exact: true })
+  await expect(keepBackground).not.toBeChecked()
+  await keepBackground.focus()
+  await page.keyboard.press('Space')
+  await expect(keepBackground).toBeChecked()
+  await updatePreview.click()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ preserve_image_background: true })
+  await keepBackground.locator('..').screenshot({ path: `.local/keep-background-${test.info().project.name}.png` })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+
   await page.getByRole('button', { name: 'Reset image direction' }).click()
   await expect(page.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
   await page.locator('input[value="minimal_sculptural"]').check()
@@ -392,6 +402,9 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   }])
   expect(generationRequests[0]).toMatchObject({ enhance_current: false })
   await expect(page.getByLabel('Enhance current image')).not.toBeChecked()
+  await expect(keepBackground).toBeChecked()
+  expect(configurationRequests[0].configuration.preserve_image_background).toBe(true)
+  expect(generationRequests[0].changed_image_settings).toContain('preserve_image_background')
 
   await page.getByLabel('iPhone visual direction').fill('Preserve the object and improve its material detail.')
   await page.getByLabel('Enhance current image').check()

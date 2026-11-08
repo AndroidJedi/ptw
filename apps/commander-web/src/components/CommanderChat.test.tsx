@@ -18,7 +18,7 @@ beforeEach(() => {
 function fixture(turns: Record<string, unknown>[] = [], hosted = false) {
   let chat = { id: 'chat-1', turns, preferences, questions: [] as Record<string, unknown>[], pushes: [] as Record<string, unknown>[] }
   let deployment: Record<string, unknown> | null = null
-  const get = vi.fn(async (path: string) => {
+  const get = vi.fn(async (path: string): Promise<unknown> => {
     if (path === base) return { target: hosted ? 'hosted' : 'local', available: true, chats: [{ id: chat.id, title: 'Build a carousel' }], active_turn: chat.turns.some(t => t.status === 'running') ? { id: 'turn-1', chat_id: chat.id } : null }
     if (path.endsWith('/capabilities')) return capabilities
     if (path.includes('/events?')) return { cursor: 0, events: [] }
@@ -108,7 +108,7 @@ it('starts hosted deployment with one click and no extra confirmation', async ()
   await ready()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Deploy' }))
-  await screen.findByText('Building, checking and deploying…')
+  await screen.findByText('Deployment queued')
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   expect(post).toHaveBeenCalledWith(base + '/chats/chat-1/deploy', { request_id: expect.any(String) }, expect.anything())
 })
@@ -121,7 +121,7 @@ it('pushes the committed hosted branch without starting deployment', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Push branch' }))
   await screen.findByText('Pushing the committed branch…')
   expect(post).toHaveBeenCalledWith(base + '/chats/chat-1/push', { request_id: expect.any(String) }, expect.anything())
-  expect(screen.queryByText('Building, checking and deploying…')).not.toBeInTheDocument()
+  expect(screen.queryByText('Deployment queued')).not.toBeInTheDocument()
 })
 
 it('submits suggested question answers and supports free text', async () => {
@@ -164,4 +164,28 @@ it('keeps the composer inside the visual viewport when the mobile keyboard opens
   view.unmount()
   expect(document.documentElement).not.toHaveClass('commander-keyboard-open')
   Object.defineProperty(window, 'visualViewport', { configurable: true, value: originalViewport })
+})
+
+it('distinguishes a historical success from verified live code and newer pending edits', async () => {
+  const { api, get } = fixture([], true)
+  const originalGet = get.getMockImplementation()!
+  get.mockImplementation(async path => path.includes('/deployments') ? {
+    live: { verified: true, revision: 'a'.repeat(40), checked_at: '2026-10-11T12:00:00Z' },
+    candidate: { available: true, deployable: true, pushable: false, branch: 'feature/test', changed_files: ['new-change.ts'] },
+    deployment: { id: 'old-release', status: 'succeeded', revision: 'b'.repeat(40), chat_id: 'chat-1' },
+  } : originalGet(path))
+  render(<CommanderChat api={api} language="en" />)
+  await ready()
+  expect(await screen.findByText('Deployment completed')).toBeVisible()
+  expect(screen.getByText('Verified live revision', { exact: false })).toHaveTextContent('aaaaaaaaaaaa')
+  expect(screen.getByText('Changes awaiting deployment', { exact: false })).toBeVisible()
+  expect(screen.queryByText('All current changes are deployed.')).not.toBeInTheDocument()
+})
+
+it('does not infer live deployment from a missing status marker', async () => {
+  const { api } = fixture([], true)
+  render(<CommanderChat api={api} language="en" />)
+  await ready()
+  expect(await screen.findByText('Live deployment could not be verified.')).toBeVisible()
+  expect(screen.queryByText('All current changes are deployed.')).not.toBeInTheDocument()
 })

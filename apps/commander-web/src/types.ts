@@ -1,4 +1,4 @@
-export type Page = 'create' | 'templates' | 'briefs' | 'posts' | 'landing' | 'ads' | 'analytics' | 'settings' | 'commander'
+export type Page = 'create' | 'templates' | 'briefs' | 'posts' | 'landing' | 'ads' | 'analytics' | 'settings' | 'commander' | 'agent-bot'
 export type I18n<T = string> = { en: T; uk: T }
 
 export interface MetaAdsConnection {
@@ -157,7 +157,7 @@ export interface AnalyticsWorkspace {
   schema: 'ptw.analytics.workspace.v1'
   scope: 'project' | 'global'
   project_id: string | null
-  window_days: 0 | 7 | 30 | 90
+  window_days: 0 | 1 | 7 | 30 | 90
   readiness: Record<string, { available?: boolean | null; configured?: boolean; explanation?: string }>
   organic: AnalyticsOrganicRow[]
   paid: Array<{ project_id: string; deployment_id: string; destination_type?: string; status: string; latest_insight?: MetaAdsInsightSnapshot | null }>
@@ -357,6 +357,7 @@ export interface StudioPostPalette {
 }
 
 export interface StudioPhoneMetricsConfiguration {
+  preserve_image_background?: boolean
   template_palette?: StudioPostPalette
   template_typography?: Record<string, StudioPhoneTypographyConfiguration>
   visual_mode?: 'phone' | 'image'

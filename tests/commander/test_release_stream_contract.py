@@ -143,6 +143,16 @@ class ReleaseStreamContractTests(unittest.TestCase):
         )
         self.assertNotIn("/root/.codex/packages/standalone/releases/", commander)
 
+    def test_coding_workers_reap_orphans_without_raising_process_limits(self) -> None:
+        compose = (ROOT / "docker-compose.commander.yml").read_text()
+        for service in ("commander-god", "commander-plan"):
+            with self.subTest(service=service):
+                worker = compose.split(f"  {service}:\n", 1)[1].split("\n\n", 1)[0]
+                self.assertIn("    init: true\n", worker)
+                self.assertIn("    pids_limit: 128\n", worker)
+                self.assertIn("    cap_drop: [ALL]\n", worker)
+                self.assertIn("    read_only: true\n", worker)
+
     def test_mobile_release_keeps_coding_runtime_separate_from_privileged_transport(self) -> None:
         compose = (ROOT / "docker-compose.commander.yml").read_text()
         workflow = (ROOT / ".github/workflows/god-mobile-deploy.yml").read_text()

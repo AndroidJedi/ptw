@@ -88,6 +88,15 @@ path-prefix choice. Retired two-segment public paths return the branded 404.
 
 ## Explicit Post previews
 
+Post image direction and renderer background removal are separate. The owner's
+**Keep image background** control persists `preserve_image_background` in the
+draft configuration, bypasses authored cutout extraction and Phone pale-matte
+cleanup, and reaches the image context for generation/enhancement independently
+of style. Do not treat the `scene` prompt preset as proof that rendering keeps
+the background. Verify raw bytes, preview without generation, save/reload,
+unchanged approved versions, style changes and the disabled-control retry path.
+Leave this optional field absent in legacy configurations to preserve digests.
+
 Studio visual references may be PNG, JPEG, WebP, or SVG. Rasterize SVG in the
 browser after rejecting active/external content; send only bounded PNG to the
 existing image API. Template edits accept two ordered visual references and

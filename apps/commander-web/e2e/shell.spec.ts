@@ -427,7 +427,13 @@ test('shows Project and All Projects analytics without automatic activation', as
   await expect(page.getByText('2.0%')).toBeVisible()
   await expect(page.getByText('Public-photo canary is not yet audited.')).toBeVisible()
   await expect(page.getByText('No active snapshot yet.')).toBeVisible()
+  const todayProjectRequest = page.waitForRequest(request => request.url().includes(`/api/v1/analytics/${projectId}/workspace?window=1`))
+  await page.getByRole('combobox', { name: 'Analytics window' }).selectOption('1')
+  await todayProjectRequest
+  await expect(page.getByText('Posts published today · provider snapshots are cumulative, not daily totals.')).toBeVisible()
+  const todayGlobalRequest = page.waitForRequest(request => request.url().includes('/api/v1/analytics/global/workspace?window=1'))
   await page.getByRole('button', { name: 'All Projects' }).click()
+  await todayGlobalRequest
   await expect(page.getByText('No provider snapshots in this window.')).toBeVisible()
   await expect(page.getByText('GLOBAL SPIRIT')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

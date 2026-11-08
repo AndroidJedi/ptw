@@ -11,18 +11,17 @@ For owner-started Landing JSON restore, use `landing-template-restore`. Never
 feed Project backups to this design provider or reuse their copy as defaults.
 Use canonical Natal `brand` on each surface. Reuse registered art, never reference
 logos. Keep editable copy and provenance.
-Use neutral placeholders; no code, HTML/CSS, URLs, shell, files or tools.
+Neutral placeholders only; no code, HTML/CSS, URLs, shell, files or tools.
 Prefer settings, composition, then reusable components. Declare `capability_gap`
 only after comparison proves insufficiency; apply solvable patches.
 
-Check hierarchy, type, spacing, crops and responsiveness; obey `editable_surfaces`.
+Check hierarchy, type, spacing, crops, responsiveness; obey `editable_surfaces`.
 Patches:
 `components.title.box`, `components.title.font_size`, `components.append`,
 `remove.title`, `background`, `canvas.height`. Appends need the full catalog
 example and a reusable ID. Compare pixels/geometry against the request and
-analysis; report role, severity and solvability. Finish when review converges.
-Use `xhigh`; record model/effort.
-The bridge must advertise `template_creation → xhigh`.
+analysis; report role, severity and solvability. Finish on convergence.
+Use/log `xhigh`; require bridge `template_creation → xhigh`.
 
 Use `cutout_image` with `neutral_person_stock_v1`; real Post media replaces it.
 Do not imitate photos with shapes. `brand_motif` uses `natal_symbol`, fixed
@@ -35,12 +34,15 @@ runtime-UID readability and render an existing Post.
 Use registered official English or owner badges; never redraw or recolor.
 `store_badge.badge_surface` defaults to `slot_pill`. Use `asset_only` for art
 with its own border/background. Match slot/asset proportions and visible ink.
-Annotations require owner direction.
+Owner-directed annotations only.
 
-Use at most two ordered temporary PNG/JPEG/WebP/SVG references; rasterize SVG.
-Persist analysis, not pixels. Reattach before analysis; thereafter use saved
-observations. UUID/hash guards protect writes. Refine the latest proposal and
-apply pending edits before clarification.
+Use up to two ordered temporary PNG/JPEG/WebP/SVG references; rasterize SVG.
+Save analysis, not pixels; reattach before analysis. UUID/hash guards protect
+writes. Refine the latest proposal; apply pending edits before clarification.
+
+For Post polish read `references/impeccable-post-v1.md`.
+Keep original PNG/state; validate edits and exact acceptance.
+Test choices, retry UUIDs, discard, restart, protection and geometry.
 
 Use `text_groups` for wrapping and hanging bullets; skip blanks.
 
@@ -54,28 +56,24 @@ preview/comparison. Retry, discard and proposal restore append only. Only
 owner acceptance creates a version; drafts remain visible until decision.
 
 Built-in edits create derivatives. Landing references exact accepted Post IDs.
-Capability gaps export bounded handoffs. Review code through
-`scripts/review_template_extension.py`: snapshot, source allowlist, tests,
-geometry and owner PNG inspection. Browser output cannot register code; resume
-after reviewed source is applied. No deployment implied.
+Review capability handoffs via `scripts/review_template_extension.py`: snapshot,
+source allowlist, tests, geometry and owner PNG inspection. Browser output cannot
+register code; resume after reviewed source applies. No deployment implied.
 
-App Showcase shares sections/mockups. Retain source digests and hardware-free
-screens; never reuse reference proof. V3 has eyebrow and text/three-bullet
-controls; older versions stay exact. New controls need reviewed source. Inspect
-saved phase/invocations on failure; provider errors are not capability gaps.
-Keep five editable feedback bindings. The Project Landing composer fills them
-from the Brief; Studio edits each card. Never bake Project copy or
-reference testimonials into the reusable template.
+App Showcase shares sections/mockups and hardware-free screens. Retain source
+digests, never reference proof. V3 has eyebrow/text/three-bullet controls; older
+versions stay exact. New controls need reviewed source. Inspect phase/invocations
+on failure; provider errors are not capability gaps.
+Keep five editable feedback bindings. Project Landing composition fills them
+from the Brief; Studio edits each card. Exclude Project copy/reference testimony.
 Empty store targets open the shared early-access form, not a fake download.
 Keep privacy/terms links; owner URLs override. See `docs/architecture/landing-legal.md`.
 
 Review EN/UK at native/360px. At 1080px use 30–36px body, 24px
 secondary text; enlarge boxes before shrinking.
-Separate copy, hero and badges; never shorten copy or rewrite accepted layouts. Complete subjects/devices/marks/badges use contain; photo crops need
-focal points. Inspect white screens, clothing, hands and equipment after cutout;
+Separate copy, hero and badges; never shorten copy or rewrite accepted layouts. Contain subjects/devices/marks/badges; use focal points for photo crops. Inspect white screens, clothing, hands and equipment after cutout;
 inference success is not semantic completeness. No semantic retries or claims.
-Match hero gradient/lighting; keep readable copy and distinct silhouettes;
-preserve owner colors. Gallery demos use one language, coherent UI, camera clearance and transparent mockups. Exact historical definitions and
+Match hero gradient/lighting; preserve readable copy, silhouettes and owner colors. Gallery demos use one language, coherent UI, camera clearance and transparent mockups. Exact historical definitions and
 old PNGs survive append-only renderer/fixture preview-cache refreshes.
 
 Daddy proposals contain neutral `daddy_configuration`, never Project copy or

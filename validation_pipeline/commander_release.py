@@ -413,7 +413,12 @@ class CommanderReleaseService:
         with self._db() as db:
             history = db.execute("SELECT * FROM deployments WHERE chat_id=? ORDER BY rowid DESC LIMIT 30", (chat_id,)).fetchall() if chat_id else []
         history = [self._refresh(item) for item in history]
-        return {"candidate": self._candidate(), "deployment": self._deployment(row), "history": [self._deployment(r) for r in history]}
+        try:
+            live = {"verified": True, "revision": self._deployed_revision(), "checked_at": now()}
+        except RuntimeError:
+            live = {"verified": False, "revision": None, "checked_at": now()}
+        return {"candidate": self._candidate(), "deployment": self._deployment(row),
+                "history": [self._deployment(r) for r in history], "live": live}
 
     def create(self, body: DeploymentRequest) -> dict[str, Any]:
         with self._create_lock:

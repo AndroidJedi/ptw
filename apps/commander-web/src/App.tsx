@@ -16,6 +16,7 @@ import { AdsView } from './views/AdsView'
 import { SettingsView } from './views/SettingsView'
 import { CommanderChat } from './components/CommanderChat'
 import { AnalyticsView } from './views/AnalyticsView'
+import { AgentBotView } from './views/AgentBotView'
 
 const OWNER_EMAILS = new Set([
   'sgolovaschuk@gmail.com',
@@ -44,8 +45,8 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null; landingId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = requestedPage === 'create' || requestedPage === 'templates' || requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'analytics' || requestedPage === 'settings' || requestedPage === 'commander' ? requestedPage : 'briefs'
-  if (requestedPage && !['create', 'templates', 'briefs', 'posts', 'landing', 'ads', 'analytics', 'settings', 'commander'].includes(requestedPage)) {
+  const page: Page = requestedPage === 'create' || requestedPage === 'templates' || requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'analytics' || requestedPage === 'settings' || requestedPage === 'commander' || requestedPage === 'agent-bot' ? requestedPage : 'briefs'
+  if (requestedPage && !['create', 'templates', 'briefs', 'posts', 'landing', 'ads', 'analytics', 'settings', 'commander', 'agent-bot'].includes(requestedPage)) {
     params.delete('page')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
@@ -59,7 +60,7 @@ function writeConsoleLocation(
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
   else params.set('page', page)
-  if (page !== 'settings' && page !== 'commander' && page !== 'templates' && page !== 'create' && projectId) params.set('project', projectId)
+  if (page !== 'settings' && page !== 'commander' && page !== 'agent-bot' && page !== 'templates' && page !== 'create' && projectId) params.set('project', projectId)
   else params.delete('project')
   if (page === 'posts' && creativeId) params.set('creative', creativeId)
   else params.delete('creative')
@@ -155,7 +156,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   }
 
   useEffect(() => {
-    if (page === 'settings' || page === 'commander' || page === 'templates' || page === 'create' || projects !== null) return
+    if (page === 'settings' || page === 'commander' || page === 'agent-bot' || page === 'templates' || page === 'create' || projects !== null) return
     void refreshProjects().catch((cause: Error) => {
       setProjects([])
       setProjectError(cause.message)
@@ -236,8 +237,8 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   return <Shell page={page} onPage={navigate} language={language}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Це вікно використовує production-дані. Дії можуть змінювати робочі записи та запускати реальних провайдерів.' : 'This window uses production data. Actions can change live records and invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page !== 'settings' && page !== 'commander' && page !== 'templates' && page !== 'create' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} onDelete={deleteProject} language={language} />}
-    {page !== 'settings' && page !== 'commander' && page !== 'templates' && page !== 'create' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
+    {page !== 'settings' && page !== 'commander' && page !== 'agent-bot' && page !== 'templates' && page !== 'create' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} onDelete={deleteProject} language={language} />}
+    {page !== 'settings' && page !== 'commander' && page !== 'agent-bot' && page !== 'templates' && page !== 'create' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView
       key={`${validatedProjectId || 'no-project'}:${creativeId || 'no-creative'}`}
@@ -251,6 +252,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page === 'templates' && <TemplatesView api={api} language={language} />}
     {page === 'settings' && <SettingsView api={api} language={language} onLanguage={changeLanguage} />}
     {page === 'commander' && <CommanderChat api={api} language={language} />}
+    {page === 'agent-bot' && <AgentBotView api={api} language={language} />}
   </Shell>
 }
 
